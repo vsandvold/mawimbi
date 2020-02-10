@@ -1,5 +1,5 @@
 import React from 'react';
-import Button from 'antd/es/button';
+import { Button } from 'antd';
 import logo from './logo.svg';
 import './App.css';
 
