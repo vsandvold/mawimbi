@@ -9,6 +9,6 @@ module.exports = override(
     }),
     addLessLoader({
         javascriptEnabled: true,
-        modifyVars: darkTheme,
+        modifyVars: darkTheme.default,
     }),
 );

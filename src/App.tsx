@@ -1,27 +1,27 @@
 import React from 'react';
-import { Button } from 'antd';
-import logo from './logo.svg';
+import { Layout } from 'antd';
 import './App.css';
 
 const App = () => {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-        <Button type="primary">Button</Button>
-      </header>
-    </div>
+    <Layout className="app">
+        <div className="app__tracker">
+          Tracker
+        </div>
+        <div className="app__toolbar">
+          <div className="toolbar">
+            <div className="toolbar__transport">
+              Transport
+            </div>
+            <div className="toolbar__scrubber">
+              Scrubber
+            </div>
+            <div className="toolbar__mixer">
+              Mixer
+            </div>
+          </div>
+        </div>
+    </Layout>
   );
 }
 
