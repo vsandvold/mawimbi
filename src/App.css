@@ -15,6 +15,7 @@
   flex-shrink: 1;
   flex-basis: auto;
   align-items: stretch;
+  position: relative;
 }
 
 .app__toolbar {
@@ -22,6 +23,26 @@
   flex-shrink: 0;
   flex-basis: auto;
   align-items: stretch;
+}
+
+.tracker {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+  grid-column-gap: 0px;
+  grid-row-gap: 0px;
+}
+
+.tracker__track {
+  grid-column-start: 1;
+  grid-column-end: 1;
+  grid-row-start: 1;
+  grid-row-end: 1;
 }
 
 .toolbar {
