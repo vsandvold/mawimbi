@@ -10,11 +10,11 @@ class AudioService {
   }
 
   static startAudioContext(
-    elementSelector: String | null,
+    userActionElement: String | null,
     runningCallback: Function
   ) {
     // Starts the Web Audio API's AudioContext on an explicit user action.
-    // On iOS, the context will be started on the first valid user action on the elementSelector element
-    StartAudioContext(Tone.context, elementSelector, runningCallback);
+    // On iOS, the context will be started on the first valid user action on the userActionElement element
+    StartAudioContext(Tone.context, userActionElement, runningCallback);
   }
 }
