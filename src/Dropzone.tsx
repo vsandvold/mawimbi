@@ -1,13 +1,13 @@
-import React, { useCallback } from 'react'
 import { Icon } from 'antd';
-import { useDropzone } from 'react-dropzone'
-import './Dropzone.css'
+import React, { useCallback } from 'react';
+import { useDropzone } from 'react-dropzone';
+import './Dropzone.css';
 
-interface DropzoneProps {
+type DropzoneProps = {
     uploadFile(file: File): void,
 }
 
-function Dropzone({ uploadFile }: DropzoneProps) {
+const Dropzone = ({ uploadFile }: DropzoneProps) => {
     const onDrop = useCallback(acceptedFiles => {
         acceptedFiles.forEach(uploadFile)
     }, [uploadFile])
