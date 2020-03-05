@@ -1,8 +1,10 @@
 import React from 'react';
-import { Layout, message } from 'antd';
+import { Layout, message, PageHeader } from 'antd';
 import Tone from 'tone';
 import Dropzone from './Dropzone';
 import './App.css';
+
+const { Header, Content } = Layout;
 
 function uploadFile(file: File) {
   const messageKey = 'uploadFile';
@@ -26,20 +28,30 @@ function uploadFile(file: File) {
 const App = () => {
   return (
     <Layout className="app">
-      <div className="app__tracker">
-        <div className="tracker">
-          <div className="tracker__track">
-            <Dropzone uploadFile={uploadFile} />
+      <Header className="app__header">
+        <PageHeader
+          className="site-page-header"
+          onBack={() => window.history.back()}
+          title="Mawimbi"
+          subTitle="New Waves"
+        />
+      </Header>
+      <Content className="app__content">
+        <div className="app__tracker">
+          <div className="tracker">
+            <div className="tracker__track">
+              <Dropzone uploadFile={uploadFile} />
+            </div>
           </div>
         </div>
-      </div>
-      <div className="app__toolbar">
-        <div className="toolbar">
-          <div className="toolbar__transport">Transport</div>
-          <div className="toolbar__scrubber">Scrubber</div>
-          <div className="toolbar__mixer">Mixer</div>
+        <div className="app__toolbar">
+          <div className="toolbar">
+            <div className="toolbar__transport">Transport</div>
+            <div className="toolbar__scrubber">Scrubber</div>
+            <div className="toolbar__mixer">Mixer</div>
+          </div>
         </div>
-      </div>
+      </Content>
     </Layout>
   );
 };

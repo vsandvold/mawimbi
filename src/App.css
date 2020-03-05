@@ -10,6 +10,15 @@
   align-items: stretch;
 }
 
+.app__header {
+  padding: 0;
+}
+
+.app__content {
+  display: flex;
+  flex-direction: column;
+}
+
 .app__tracker {
   flex-grow: 1;
   flex-shrink: 1;
