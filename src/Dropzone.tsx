@@ -1,4 +1,4 @@
-import { Icon } from 'antd';
+import { InboxOutlined } from '@ant-design/icons';
 import React, { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import './Dropzone.css';
@@ -38,7 +38,7 @@ const Dropzone = ({ uploadFile }: DropzoneProps) => {
       {isDragActive ? (
         <div className="ant-upload-drag-container">
           <p className="ant-upload-drag-icon">
-            <Icon type="inbox" />
+            <InboxOutlined />
           </p>
           <p className="ant-upload-text">Drag file to this area to upload</p>
           <p className="ant-upload-hint">
