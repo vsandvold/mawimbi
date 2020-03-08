@@ -33,7 +33,7 @@ const App = () => {
           className="site-page-header"
           onBack={() => window.history.back()}
           title="Mawimbi"
-          subTitle="New Waves"
+          subTitle="New Wave"
         />
       </Header>
       <Content className="app__content">
