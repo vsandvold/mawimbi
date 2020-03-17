@@ -1,9 +1,8 @@
 import { message } from 'antd';
 import React from 'react';
 import ReactDOM from 'react-dom';
-import { BrowserRouter as Router, Route, Switch } from 'react-router-dom';
-import App from './App';
-import HomePage from './HomePage';
+import { BrowserRouter as Router } from 'react-router-dom';
+import AppRouter from './AppRouter';
 import './index.css';
 import AudioService from './services/AudioService';
 import * as serviceWorker from './serviceWorker';
@@ -14,14 +13,7 @@ AudioService.startAudio().then(() => {
 
 ReactDOM.render(
   <Router>
-    <Switch>
-      <Route exact path="/">
-        <HomePage />
-      </Route>
-      <Route path="/wave">
-        <App />
-      </Route>
-    </Switch>
+    <AppRouter />
   </Router>,
   document.getElementById('root')
 );
