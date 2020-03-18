@@ -12,7 +12,7 @@ it('renders route to home page', () => {
     </MemoryRouter>
   );
 
-  expect(wrapper.find(HomePage)).toHaveLength(1);
+  expect(wrapper).toContainReact(<HomePage />);
 });
 
 it('renders route to app page', () => {
@@ -22,5 +22,5 @@ it('renders route to app page', () => {
     </MemoryRouter>
   );
 
-  expect(wrapper.find(App)).toHaveLength(1);
+  expect(wrapper).toContainReact(<App />);
 });

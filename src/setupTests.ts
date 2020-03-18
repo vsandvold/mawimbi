@@ -5,5 +5,19 @@
 import '@testing-library/jest-dom/extend-expect';
 import { configure } from 'enzyme';
 import Adapter from 'enzyme-adapter-react-16';
+import 'jest-enzyme';
 
 configure({ adapter: new Adapter() });
+
+createMockHistoryPush();
+
+function createMockHistoryPush() {
+  const mockHistoryPush = jest.fn();
+
+  jest.mock('react-router-dom', () => ({
+    ...jest.requireActual('react-router-dom'),
+    useHistory: () => ({
+      push: mockHistoryPush
+    })
+  }));
+}
