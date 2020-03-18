@@ -1,7 +1,7 @@
 import { message } from 'antd';
 import React from 'react';
 import ReactDOM from 'react-dom';
-import { BrowserRouter as Router } from 'react-router-dom';
+import { BrowserRouter } from 'react-router-dom';
 import AppRouter from './AppRouter';
 import './index.css';
 import AudioService from './services/AudioService';
@@ -12,9 +12,9 @@ AudioService.startAudio().then(() => {
 });
 
 ReactDOM.render(
-  <Router>
+  <BrowserRouter>
     <AppRouter />
-  </Router>,
+  </BrowserRouter>,
   document.getElementById('root')
 );
 
