@@ -2,7 +2,7 @@ import { mount } from 'enzyme';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import App from '../App';
-import AppRouter from '../AppRouter';
+import AppRouter, { NoMatch } from '../AppRouter';
 import HomePage from '../HomePage';
 
 it('renders route to home page', () => {
@@ -23,4 +23,14 @@ it('renders route to app page', () => {
   );
 
   expect(wrapper).toContainReact(<App />);
+});
+
+it('renders unknown route', () => {
+  const wrapper = mount(
+    <MemoryRouter initialEntries={['/unknown/route']}>
+      <AppRouter />
+    </MemoryRouter>
+  );
+
+  expect(wrapper).toContainReact(<NoMatch />);
 });

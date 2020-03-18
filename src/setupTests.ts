@@ -18,6 +18,9 @@ function createMockHistoryPush() {
     ...jest.requireActual('react-router-dom'),
     useHistory: () => ({
       push: mockHistoryPush
+    }),
+    useLocation: () => ({
+      pathname: 'path'
     })
   }));
 }
