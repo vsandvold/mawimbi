@@ -23,6 +23,7 @@ const Dropzone = ({ uploadFile }: DropzoneProps) => {
   } = useDropzone({
     onDrop,
     noClick: true,
+    noKeyboard: true,
     multiple: true,
     accept: 'audio/*'
   });
