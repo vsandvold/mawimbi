@@ -1,11 +1,11 @@
 import { Button, Layout, message, PageHeader } from 'antd';
 import React, { useEffect, useState } from 'react';
 import Tone from 'tone';
+import useAnimation from '../hooks/useAnimation';
+import useKeyPress from '../hooks/useKeyPress';
+import AudioService from '../services/AudioService';
 import './App.css';
 import Dropzone from './Dropzone';
-import useAnimation from './hooks/useAnimation';
-import useKeyPress from './hooks/useKeyPress';
-import AudioService from './services/AudioService';
 
 const { Header, Content } = Layout;
 

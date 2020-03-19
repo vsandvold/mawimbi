@@ -2,7 +2,7 @@ import { message } from 'antd';
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { BrowserRouter } from 'react-router-dom';
-import AppRouter from './AppRouter';
+import AppRouter from './components/AppRouter';
 import './index.css';
 import AudioService from './services/AudioService';
 import * as serviceWorker from './serviceWorker';
