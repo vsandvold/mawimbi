@@ -9,9 +9,9 @@ import 'jest-enzyme';
 
 configure({ adapter: new Adapter() });
 
-createMockHistoryPush();
+mockReactRouterDom();
 
-function createMockHistoryPush() {
+function mockReactRouterDom() {
   const mockHistoryPush = jest.fn();
 
   jest.mock('react-router-dom', () => ({
@@ -23,4 +23,11 @@ function createMockHistoryPush() {
       pathname: 'path'
     })
   }));
+}
+
+mockToneJs();
+
+function mockToneJs() {
+  window.TONE_SILENCE_LOGGING = true;
+  jest.mock('tone');
 }
