@@ -73,7 +73,7 @@ const App = () => {
       setTransportTime(transportSeconds);
       return transportSeconds;
     },
-    { frameRate: 5 }
+    { frameRate: 5, initialValue: Tone.Transport.seconds }
   );
 
   // TODO: use React.memo

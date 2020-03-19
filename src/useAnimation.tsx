@@ -4,22 +4,24 @@ const MAX_FPS = 60;
 
 type AnimationOptions = {
   frameRate: number;
+  initialValue?: any;
 };
 
 const useAnimation = (
   animationCallback: Function,
   options: AnimationOptions = { frameRate: 60 }
 ) => {
+  const frameStep = Math.round(MAX_FPS / options.frameRate);
   let frameCount = 0;
 
   // Use useRef for mutable variables that we want to persist
   // without triggering a re-render on their change
   const requestRef = useRef(0);
-  const previousValueRef = useRef();
+  const previousValueRef = useRef(options.initialValue);
 
   const animate = (time: number) => {
     frameCount++;
-    if (frameCount >= Math.round(MAX_FPS / options.frameRate)) {
+    if (frameCount >= frameStep) {
       previousValueRef.current = animationCallback(previousValueRef.current);
       frameCount = 0;
     }
