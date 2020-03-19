@@ -1,31 +1,82 @@
-import React from 'react';
-import { Layout, message, PageHeader } from 'antd';
-import Tone from 'tone';
-import Dropzone from './Dropzone';
+import { Button, Layout, message, PageHeader } from 'antd';
+import React, { useEffect, useRef, useState } from 'react';
 import './App.css';
+import Dropzone from './Dropzone';
+import AudioService from './services/AudioService';
+import Tone from 'tone';
+import useAnimation from './useAnimation';
+import useKeyPress from './useKeyPress';
 
 const { Header, Content } = Layout;
 
 function uploadFile(file: File) {
   const messageKey = 'uploadFile';
-
   const reader = new FileReader();
-
   reader.onabort = () => message.info({ content: file.name, key: messageKey });
   reader.onerror = () => message.error({ content: file.name, key: messageKey });
   reader.onload = async () => {
     message.loading({ content: file.name, key: messageKey });
-    const decodedData = await Tone.context.decodeAudioData(
+    const decodedData = await AudioService.decodeAudioData(
       reader.result as ArrayBuffer
     );
-    const player = new Tone.Player(decodedData).toMaster().start();
+    const channel = AudioService.createChannel(decodedData);
     message.success({ content: file.name, key: messageKey });
   };
-
   reader.readAsArrayBuffer(file);
 }
 
+const types = {
+  TOGGLE_PLAYING: 'TOGGLE_PLAYING'
+};
+
+const initialState = {
+  isPlaying: false
+};
+
+// TODO: fix state and action types
+function reducer(state: any, action: any) {
+  switch (action.type) {
+    case types.TOGGLE_PLAYING:
+      return { ...state, isPlaying: !state.isPlaying };
+    default:
+      throw new Error();
+  }
+}
+
 const App = () => {
+  const [state, dispatch] = React.useReducer(reducer, initialState);
+
+  const { isPlaying } = state;
+
+  useEffect(() => {
+    if (isPlaying) {
+      Tone.Transport.start();
+    } else {
+      Tone.Transport.pause();
+    }
+  }, [isPlaying]);
+
+  useKeyPress(
+    () => {
+      dispatch({ type: types.TOGGLE_PLAYING });
+    },
+    { targetKey: ' ' }
+  );
+
+  const [transportTime, setTransportTime] = useState(0);
+
+  useAnimation(
+    (previousValue: number) => {
+      // Pass on a function to the setter of the state
+      // to make sure we always have the latest state
+      const transportSeconds = Tone.Transport.seconds;
+      setTransportTime(transportSeconds);
+      return transportSeconds;
+    },
+    { frameRate: 5 }
+  );
+
+  // TODO: use React.memo
   return (
     <Layout className="app">
       <Header className="app__header">
@@ -46,9 +97,11 @@ const App = () => {
         </div>
         <div className="app__toolbar">
           <div className="toolbar">
-            <div className="toolbar__transport">Transport</div>
-            <div className="toolbar__scrubber">Scrubber</div>
-            <div className="toolbar__mixer">Mixer</div>
+            <Button onClick={() => Tone.Transport.stop()}>Rewind</Button>
+            <Button onClick={() => dispatch({ type: types.TOGGLE_PLAYING })}>
+              {isPlaying ? 'Pause' : 'Play'}
+            </Button>
+            {transportTime}
           </div>
         </div>
       </Content>
