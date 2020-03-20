@@ -3,5 +3,5 @@ declare module 'startaudiocontext' {
     context: Context,
     elements?: Array | String | Element | jQuery,
     callback?: Function
-  );
+  ): Promise<any>;
 }

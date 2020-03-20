@@ -3,17 +3,16 @@ import StartAudioContext from 'startaudiocontext';
 import Tone, { Channel } from 'tone';
 
 class AudioService {
-  static startAudio() {
+  static startAudio(): Promise<any> {
     // FIXME: debug standardized-audio-context
     // AudioService.initAudioContext();
     return StartAudioContext(Tone.context);
   }
 
-  static initAudioContext() {
+  static initAudioContext(): void {
     // Overrides Tone.context with a more updated version from standardized-audio-context
     const audioContext = new AudioContext();
     Tone.setContext(audioContext);
-    Tone.start();
   }
 
   static async decodeAudioData(arrayBuffer: ArrayBuffer): Promise<AudioBuffer> {
