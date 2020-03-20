@@ -9,7 +9,7 @@ type AnimationOptions = {
 
 const useAnimation = (
   animationCallback: Function,
-  options: AnimationOptions = { frameRate: 60 }
+  options: AnimationOptions = { frameRate: MAX_FPS }
 ) => {
   const frameStep = Math.round(MAX_FPS / options.frameRate);
   let frameCount = 0;
