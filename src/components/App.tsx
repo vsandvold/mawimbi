@@ -76,7 +76,7 @@ const App = () => {
     { frameRate: 5, initialValue: Tone.Transport.seconds }
   );
 
-  // TODO: use React.memo
+  // TODO: optimize component rendering with React.memo, React.useMemo and React.useCallback
   return (
     <Layout className="app">
       <Header className="app__header">
