@@ -6,47 +6,12 @@ import useKeyPress from '../hooks/useKeyPress';
 import AudioService from '../services/AudioService';
 import './App.css';
 import Dropzone from './Dropzone';
+import Waveform from './Waveform';
 
 const { Header, Content } = Layout;
 
-function uploadFile(file: File) {
-  const messageKey = 'uploadFile';
-  const reader = new FileReader();
-  reader.onabort = () => message.info({ content: file.name, key: messageKey });
-  reader.onerror = () => message.error({ content: file.name, key: messageKey });
-  reader.onload = async () => {
-    message.loading({ content: file.name, key: messageKey });
-    const decodedData = await AudioService.decodeAudioData(
-      reader.result as ArrayBuffer
-    );
-    const channel = AudioService.createChannel(decodedData);
-    message.success({ content: file.name, key: messageKey });
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-const types = {
-  TOGGLE_PLAYING: 'TOGGLE_PLAYING'
-};
-
-const initialState = {
-  isPlaying: false
-};
-
-// TODO: fix state and action types
-function reducer(state: any, action: any) {
-  switch (action.type) {
-    case types.TOGGLE_PLAYING:
-      return { ...state, isPlaying: !state.isPlaying };
-    default:
-      throw new Error();
-  }
-}
-
 const App = () => {
-  const [state, dispatch] = React.useReducer(reducer, initialState);
-
-  const { isPlaying } = state;
+  const [isPlaying, setPlaying] = useState(false);
 
   useEffect(() => {
     if (isPlaying) {
@@ -56,12 +21,9 @@ const App = () => {
     }
   }, [isPlaying]);
 
-  useKeyPress(
-    () => {
-      dispatch({ type: types.TOGGLE_PLAYING });
-    },
-    { targetKey: ' ' }
-  );
+  useKeyPress(() => setPlaying(prevIsPlaying => !prevIsPlaying), {
+    targetKey: ' '
+  });
 
   const [transportTime, setTransportTime] = useState(0);
 
@@ -75,6 +37,27 @@ const App = () => {
     },
     { frameRate: 5, initialValue: Tone.Transport.seconds }
   );
+
+  const [audioBuffers, setAudioBuffers] = useState([] as AudioBuffer[]);
+
+  function uploadFile(file: File) {
+    const messageKey = 'uploadFile';
+    const reader = new FileReader();
+    reader.onabort = () =>
+      message.info({ content: file.name, key: messageKey });
+    reader.onerror = () =>
+      message.error({ content: file.name, key: messageKey });
+    reader.onload = async () => {
+      message.loading({ content: file.name, key: messageKey });
+      const decodedData = await AudioService.decodeAudioData(
+        reader.result as ArrayBuffer
+      );
+      const channel = AudioService.createChannel(decodedData);
+      setAudioBuffers(prevBuffers => [...prevBuffers, decodedData]);
+      message.success({ content: file.name, key: messageKey });
+    };
+    reader.readAsArrayBuffer(file);
+  }
 
   // TODO: optimize component rendering with React.memo, React.useMemo and React.useCallback
   return (
@@ -93,12 +76,17 @@ const App = () => {
             <div className="tracker__track">
               <Dropzone uploadFile={uploadFile} />
             </div>
+            {audioBuffers.map(buffer => (
+              <div className="tracker__track">
+                <Waveform audioBuffer={buffer} />
+              </div>
+            ))}
           </div>
         </div>
         <div className="app__toolbar">
           <div className="toolbar">
             <Button onClick={() => Tone.Transport.stop()}>Rewind</Button>
-            <Button onClick={() => dispatch({ type: types.TOGGLE_PLAYING })}>
+            <Button onClick={() => setPlaying(prevIsPlaying => !prevIsPlaying)}>
               {isPlaying ? 'Pause' : 'Play'}
             </Button>
             {transportTime}
