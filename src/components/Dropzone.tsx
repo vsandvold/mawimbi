@@ -1,5 +1,5 @@
 import { InboxOutlined } from '@ant-design/icons';
-import React, { useCallback } from 'react';
+import React, { useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import './Dropzone.css';
 
@@ -8,25 +8,22 @@ type DropzoneProps = {
 };
 
 const Dropzone = ({ uploadFile }: DropzoneProps) => {
-  const onDrop = useCallback(
-    acceptedFiles => {
-      acceptedFiles.forEach(uploadFile);
-    },
-    [uploadFile]
-  );
-
   const {
+    acceptedFiles,
     getRootProps,
     getInputProps,
     isDragActive,
     isDragReject
   } = useDropzone({
-    onDrop,
-    noClick: true,
-    noKeyboard: true,
+    accept: 'audio/*',
     multiple: true,
-    accept: 'audio/*'
+    noClick: true,
+    noKeyboard: true
   });
+
+  useEffect(() => {
+    acceptedFiles.forEach(uploadFile);
+  }, [acceptedFiles]);
 
   return (
     <div
