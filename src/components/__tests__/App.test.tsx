@@ -1,14 +1,14 @@
 import { mount } from 'enzyme';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
-import App from '../App';
-import AppRouter, { NoMatch } from '../AppRouter';
+import App, { NoMatch } from '../App';
 import HomePage from '../HomePage';
+import ProjectPage from '../ProjectPage';
 
 it('renders route to home page', () => {
   const wrapper = mount(
     <MemoryRouter initialEntries={['/']}>
-      <AppRouter />
+      <App />
     </MemoryRouter>
   );
 
@@ -18,17 +18,17 @@ it('renders route to home page', () => {
 it('renders route to app page', () => {
   const wrapper = mount(
     <MemoryRouter initialEntries={['/wave']}>
-      <AppRouter />
+      <App />
     </MemoryRouter>
   );
 
-  expect(wrapper).toContainReact(<App />);
+  expect(wrapper).toContainReact(<ProjectPage />);
 });
 
 it('renders unknown route', () => {
   const wrapper = mount(
     <MemoryRouter initialEntries={['/unknown/route']}>
-      <AppRouter />
+      <App />
     </MemoryRouter>
   );
 

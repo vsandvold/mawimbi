@@ -2,7 +2,7 @@ import { message } from 'antd';
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { BrowserRouter } from 'react-router-dom';
-import AppRouter from './components/AppRouter';
+import App from './components/App';
 import './index.css';
 import AudioService from './services/AudioService';
 import * as serviceWorker from './serviceWorker';
@@ -13,7 +13,7 @@ AudioService.startAudio().then(() => {
 
 ReactDOM.render(
   <BrowserRouter>
-    <AppRouter />
+    <App />
   </BrowserRouter>,
   document.getElementById('root')
 );
