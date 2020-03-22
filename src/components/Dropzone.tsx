@@ -21,6 +21,8 @@ const Dropzone = ({ uploadFile }: DropzoneProps) => {
     noKeyboard: true
   });
 
+  // TODO: consider re-introducing useCallback
+
   useEffect(() => {
     acceptedFiles.forEach(uploadFile);
   }, [acceptedFiles]);
