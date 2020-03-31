@@ -1,4 +1,6 @@
 declare module 'wavesurfer.js' {
-  function create(params: WavesurferParams): WaveSurfer;
-  function loadDecodedBuffer(buffer: AudioBuffer): void;
+  export default class WaveSurfer {
+    static create(params: WavesurferParams): WaveSurfer;
+    loadDecodedBuffer(buffer: AudioBuffer): void;
+  }
 }

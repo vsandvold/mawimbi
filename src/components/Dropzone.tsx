@@ -27,6 +27,8 @@ const Dropzone = ({ uploadFile }: DropzoneProps) => {
     acceptedFiles.forEach(uploadFile);
   }, [acceptedFiles]);
 
+  console.log('Dropzone render');
+
   return (
     <div
       {...getRootProps()}

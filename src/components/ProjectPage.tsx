@@ -1,5 +1,5 @@
 import { Button, Layout, message, PageHeader } from 'antd';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useHistory } from 'react-router-dom';
 import Tone from 'tone';
 import useAnimation from '../hooks/useAnimation';
@@ -8,11 +8,12 @@ import AudioService from '../services/AudioService';
 import Dropzone from './Dropzone';
 import './ProjectPage.css';
 import Waveform from './Waveform';
+import Scrubber from './Scrubber';
 
 const { Header, Content } = Layout;
 
 const ProjectPage = () => {
-  const [isPlaying, setPlaying] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   useEffect(() => {
     if (isPlaying) {
@@ -22,24 +23,23 @@ const ProjectPage = () => {
     }
   }, [isPlaying]);
 
-  useKeyPress(() => setPlaying(prevIsPlaying => !prevIsPlaying), {
+  useKeyPress(() => setIsPlaying(prevIsPlaying => !prevIsPlaying), {
     targetKey: ' '
   });
 
   const [transportTime, setTransportTime] = useState(0);
 
   useAnimation(
-    (previousValue: number) => {
-      // Pass on a function to the setter of the state
-      // to make sure we always have the latest state
-      const transportSeconds = Tone.Transport.seconds;
+    () => {
+      const transportSeconds = parseFloat(Tone.Transport.seconds.toFixed(1));
       setTransportTime(transportSeconds);
       return transportSeconds;
     },
-    { frameRate: 5, initialValue: Tone.Transport.seconds }
+    [],
+    { frameRate: 10, initialValue: Tone.Transport.seconds, isActive: true }
   );
 
-  const [audioBuffers, setAudioBuffers] = useState([] as AudioBuffer[]);
+  const [audioBuffers, setAudioBuffers] = useState<AudioBuffer[]>([]);
 
   function uploadFile(file: File) {
     const messageKey = 'uploadFile';
@@ -60,9 +60,32 @@ const ProjectPage = () => {
     reader.readAsArrayBuffer(file);
   }
 
+  const stopPlayback = () => {
+    Tone.Transport.stop();
+    setIsPlaying(false);
+  };
+
+  // TODO: optimize rendering with React.memo, React.useMemo and React.useCallback
+  const pixelsPerSecond = 200;
+  const memoizedScrubber = useMemo(
+    () => (
+      <Scrubber
+        isPlaying={isPlaying}
+        stopPlayback={stopPlayback}
+        pixelsPerSecond={pixelsPerSecond}
+      >
+        {audioBuffers.map(buffer => (
+          <Waveform audioBuffer={buffer} pixelsPerSecond={pixelsPerSecond} />
+        ))}
+      </Scrubber>
+    ),
+    [isPlaying, audioBuffers, pixelsPerSecond]
+  );
+
   const history = useHistory();
 
-  // TODO: optimize component rendering with React.memo, React.useMemo and React.useCallback
+  console.log('ProjectPage render');
+
   return (
     <Layout className="app">
       <Header className="app__header">
@@ -79,17 +102,14 @@ const ProjectPage = () => {
             <div className="tracker__track">
               <Dropzone uploadFile={uploadFile} />
             </div>
-            {audioBuffers.map(buffer => (
-              <div className="tracker__track">
-                <Waveform audioBuffer={buffer} />
-              </div>
-            ))}
+            <div className="tracker__track">{memoizedScrubber}</div>
           </div>
         </div>
         <div className="app__toolbar">
           <div className="toolbar">
-            <Button onClick={() => Tone.Transport.stop()}>Rewind</Button>
-            <Button onClick={() => setPlaying(prevIsPlaying => !prevIsPlaying)}>
+            <Button
+              onClick={() => setIsPlaying(prevIsPlaying => !prevIsPlaying)}
+            >
               {isPlaying ? 'Pause' : 'Play'}
             </Button>
             {transportTime}
