@@ -1,16 +1,17 @@
-import { Button, Layout, message, PageHeader } from 'antd';
-import React, { useEffect, useState, useMemo } from 'react';
+import { UploadOutlined } from '@ant-design/icons';
+import { Button, message, PageHeader as AntPageHeader } from 'antd';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useHistory } from 'react-router-dom';
 import Tone from 'tone';
-import useAnimation from '../hooks/useAnimation';
 import useKeyPress from '../hooks/useKeyPress';
 import AudioService from '../services/AudioService';
 import Dropzone from './Dropzone';
+import { PageContent, PageHeader, PageLayout } from './PageLayout';
 import './ProjectPage.css';
-import Waveform from './Waveform';
 import Scrubber from './Scrubber';
-
-const { Header, Content } = Layout;
+import Timeline from './Timeline';
+import Toolbar from './Toolbar';
+import Waveform from './Waveform';
 
 const ProjectPage = () => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -26,18 +27,6 @@ const ProjectPage = () => {
   useKeyPress(() => setIsPlaying(prevIsPlaying => !prevIsPlaying), {
     targetKey: ' '
   });
-
-  const [transportTime, setTransportTime] = useState(0);
-
-  useAnimation(
-    () => {
-      const transportSeconds = parseFloat(Tone.Transport.seconds.toFixed(1));
-      setTransportTime(transportSeconds);
-      return transportSeconds;
-    },
-    [],
-    { frameRate: 10, initialValue: Tone.Transport.seconds, isActive: true }
-  );
 
   const [audioBuffers, setAudioBuffers] = useState<AudioBuffer[]>([]);
 
@@ -74,50 +63,110 @@ const ProjectPage = () => {
         stopPlayback={stopPlayback}
         pixelsPerSecond={pixelsPerSecond}
       >
-        {audioBuffers.map(buffer => (
-          <Waveform audioBuffer={buffer} pixelsPerSecond={pixelsPerSecond} />
-        ))}
+        <Timeline>
+          {audioBuffers.map(buffer => (
+            <Waveform audioBuffer={buffer} pixelsPerSecond={pixelsPerSecond} />
+          ))}
+        </Timeline>
       </Scrubber>
     ),
     [isPlaying, audioBuffers, pixelsPerSecond]
   );
+
+  const isFileDragging = useFileDragging();
 
   const history = useHistory();
 
   console.log('ProjectPage render');
 
   return (
-    <Layout className="app">
-      <Header className="app__header">
-        <PageHeader
-          className="site-page-header"
+    <PageLayout>
+      <PageHeader>
+        <AntPageHeader
+          ghost={false}
           onBack={() => history.goBack()}
           title="Mawimbi"
           subTitle="New Wave"
-        />
-      </Header>
-      <Content className="app__content">
-        <div className="app__tracker">
-          <div className="tracker">
-            <div className="tracker__track">
-              <Dropzone uploadFile={uploadFile} />
-            </div>
-            <div className="tracker__track">{memoizedScrubber}</div>
-          </div>
-        </div>
-        <div className="app__toolbar">
-          <div className="toolbar">
+          extra={[
             <Button
-              onClick={() => setIsPlaying(prevIsPlaying => !prevIsPlaying)}
-            >
-              {isPlaying ? 'Pause' : 'Play'}
-            </Button>
-            {transportTime}
+              type="link"
+              ghost
+              icon={<UploadOutlined />}
+              title="Upload audio file"
+              onClick={() => alert('Not implemented.')}
+            />
+          ]}
+        />
+      </PageHeader>
+      <PageContent>
+        <div className="project">
+          <div className="editor">
+            {memoizedScrubber}
+            {isFileDragging && (
+              <div className="editor__dropzone">
+                <Dropzone uploadFile={uploadFile} />
+              </div>
+            )}
           </div>
+          <Toolbar isPlaying={isPlaying} setIsPlaying={setIsPlaying} />
         </div>
-      </Content>
-    </Layout>
+      </PageContent>
+    </PageLayout>
   );
+};
+
+const useFileDragging = () => {
+  const [isFileDragged, setIsFileDragged] = useState(false);
+  const dragCounterRef = useRef(0);
+
+  useEffect(() => {
+    window.addEventListener('dragenter', onDragEnter);
+    window.addEventListener('dragleave', onDragLeave);
+    window.addEventListener('dragover', onDragOver);
+    window.addEventListener('drop', onDrop);
+    return () => {
+      window.removeEventListener('dragenter', onDragEnter);
+      window.removeEventListener('dragleave', onDragLeave);
+      window.removeEventListener('dragover', onDragOver);
+      window.removeEventListener('drop', onDrop);
+    };
+  }, []);
+
+  const onDragEnter = (event: DragEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    dragCounterRef.current++;
+    if (
+      event.dataTransfer &&
+      event.dataTransfer.items &&
+      event.dataTransfer.items.length > 0
+    ) {
+      setIsFileDragged(true);
+    }
+  };
+
+  const onDragLeave = (event: DragEvent) => {
+    // FIXME: does not trigger correctly when drag leaves window
+    event.preventDefault();
+    event.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsFileDragged(false);
+    }
+  };
+
+  const onDragOver = (event: DragEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+  };
+
+  const onDrop = (event: DragEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsFileDragged(false);
+  };
+
+  return isFileDragged;
 };
 
 export default ProjectPage;

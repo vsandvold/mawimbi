@@ -1,11 +1,14 @@
 .scrubber {
-  position: relative;
+  display: flex;
   width: 100vw;
+  position: relative;
 }
 
 .scrubber__timeline {
+  display: flex;
+  min-width: 100vw;
   overflow-x: scroll;
-  padding: 40px 0;
+  padding: 40px 0 40px 56px;
 }
 
 .scrubber__progress {

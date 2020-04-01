@@ -1,15 +1,15 @@
 import { FastBackwardOutlined } from '@ant-design/icons';
 import { Button } from 'antd';
-import React, { useEffect, useRef } from 'react';
+import React, { useRef } from 'react';
 import Tone from 'tone';
-import './Scrubber.css';
 import useAnimation from '../hooks/useAnimation';
+import './Scrubber.css';
 
 type ScrubberProps = {
   isPlaying: boolean;
   stopPlayback: Function;
   pixelsPerSecond: number;
-  children?: JSX.Element[];
+  children: JSX.Element[] | JSX.Element;
 };
 
 const Scrubber = ({
@@ -22,7 +22,7 @@ const Scrubber = ({
 
   const updateScrollPosition = () => {
     const transportTime = Tone.Transport.seconds;
-    if (scrollRef.current !== null) {
+    if (scrollRef.current) {
       const scrollPosition = Math.trunc(transportTime * pixelsPerSecond);
       scrollRef.current.scrollLeft = scrollPosition;
     }
@@ -35,7 +35,7 @@ const Scrubber = ({
 
   const stopAndRewindPlayback = () => {
     stopPlayback();
-    if (scrollRef.current !== null) {
+    if (scrollRef.current) {
       scrollRef.current.scrollLeft = 0;
     }
   };
@@ -56,6 +56,7 @@ const Scrubber = ({
           ghost
           size="large"
           icon={<FastBackwardOutlined />}
+          title="Rewind"
           onClick={stopAndRewindPlayback}
         />
       </div>

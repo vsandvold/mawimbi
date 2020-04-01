@@ -1,87 +1,19 @@
-.app {
-  min-height: 100vh;
-  box-sizing: border-box;
-  flex-wrap: wrap;
+.project {
   display: flex;
-  flex-direction: column;
-  flex-grow: 0;
-  flex-shrink: 0;
-  flex-basis: auto;
-  align-items: stretch;
-}
-
-.app__header {
-  padding: 0;
-}
-
-.app__content {
-  display: flex;
+  flex: 1;
   flex-direction: column;
 }
 
-.app__tracker {
+.editor {
+  display: flex;
   flex-grow: 1;
-  flex-shrink: 1;
-  flex-basis: auto;
-  align-items: stretch;
   position: relative;
 }
 
-.app__toolbar {
-  flex-grow: 0;
-  flex-shrink: 0;
-  flex-basis: auto;
-  align-items: stretch;
-}
-
-.tracker {
+.editor__dropzone {
   position: absolute;
   top: 0;
   left: 0;
   bottom: 0;
   right: 0;
-  display: grid;
-  grid-template-columns: 1fr;
-  grid-template-rows: 1fr;
-  grid-column-gap: 0px;
-  grid-row-gap: 0px;
-}
-
-.tracker__track {
-  grid-column-start: 1;
-  grid-column-end: 1;
-  grid-row-start: 1;
-  grid-row-end: 1;
-}
-
-.toolbar {
-  box-sizing: border-box;
-  flex-wrap: wrap;
-  display: flex;
-  flex-direction: row;
-  flex-grow: 0;
-  flex-shrink: 0;
-  flex-basis: auto;
-  align-items: stretch;
-}
-
-.toolbar__transport {
-  flex-grow: 0;
-  flex-shrink: 0;
-  flex-basis: auto;
-  align-items: stretch;
-}
-
-.toolbar__scrubber {
-  flex-grow: 1;
-  flex-shrink: 1;
-  flex-basis: auto;
-  align-items: stretch;
-}
-
-.toolbar__mixer {
-  flex-grow: 0;
-  flex-shrink: 0;
-  flex-basis: auto;
-  align-items: stretch;
 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import WaveSurfer from 'wavesurfer.js';
 
 type WaveformProps = {
@@ -12,26 +12,34 @@ const Waveform = ({
   pixelsPerSecond,
   waveColor = 'violet'
 }: WaveformProps) => {
-  const waveformRef = useRef<WaveSurfer>();
-  const containerRef = useRef(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const heightRef = useRef(0);
 
-  const defaultParams = {
-    backgroundColor: '#FFFFFF00',
-    fillParent: false,
-    scrollParent: false,
-    interact: false,
-    height: 150
-  };
+  useLayoutEffect(() => {
+    if (containerRef.current) {
+      const { height } = containerRef.current.getBoundingClientRect();
+      heightRef.current = height;
+    }
+  }, []);
+
+  const waveformRef = useRef<WaveSurfer>();
 
   useEffect(() => {
+    const defaultParams = {
+      backgroundColor: 'transparent',
+      fillParent: false,
+      scrollParent: false,
+      interact: false
+    };
     waveformRef.current = WaveSurfer.create({
       ...defaultParams,
       container: containerRef.current,
       minPxPerSec: pixelsPerSecond,
+      height: heightRef.current,
       waveColor
     });
     waveformRef.current.loadDecodedBuffer(audioBuffer);
-  }, []); // Make sure the effect runs only once
+  }, [audioBuffer, pixelsPerSecond, waveColor]);
 
   console.log('Waveform render');
 

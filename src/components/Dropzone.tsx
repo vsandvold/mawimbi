@@ -22,6 +22,7 @@ const Dropzone = ({ uploadFile }: DropzoneProps) => {
   });
 
   // TODO: consider re-introducing useCallback
+  // TODO: expose and apply rootProps to PageLayout component
 
   useEffect(() => {
     acceptedFiles.forEach(uploadFile);
@@ -31,10 +32,11 @@ const Dropzone = ({ uploadFile }: DropzoneProps) => {
 
   return (
     <div
-      {...getRootProps()}
-      className={`ant-upload ant-upload-drag ${
-        isDragActive ? 'ant-upload-drag-active' : ''
-      }`}
+      {...getRootProps({
+        className: `ant-upload ant-upload-drag ${
+          isDragActive ? 'ant-upload-drag-active' : ''
+        }`
+      })}
     >
       <input {...getInputProps()} />
       {isDragActive ? (

@@ -8,7 +8,7 @@ import ProjectPage from './ProjectPage';
 
 const App = () => {
   return (
-    <div>
+    <>
       <Switch>
         <Route exact path="/">
           <HomePage />
@@ -20,7 +20,7 @@ const App = () => {
           <NoMatch />
         </Route>
       </Switch>
-    </div>
+    </>
   );
 };
 
