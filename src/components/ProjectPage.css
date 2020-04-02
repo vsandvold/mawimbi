@@ -1,19 +1,45 @@
 .project {
-  display: flex;
   flex: 1;
+  display: flex;
   flex-direction: column;
 }
 
 .editor {
+  flex: 1;
   display: flex;
-  flex-grow: 1;
+  flex-direction: column;
   position: relative;
+}
+
+.editor__drawer {
+  flex: 1;
+}
+
+.editor__drawer--closed {
+  /* TODO: transform with compositor-only properties to avoid reflow/repaint */
+  /* TODO: transform scrubber as well, with eg. scaleY(0.5) translateY(-128px) */
+  display: none;
+}
+
+@media (max-height: 375px) {
+  .editor__drawer {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-height: 120px;
+    overflow-y: scroll;
+  }
 }
 
 .editor__dropzone {
   position: absolute;
   top: 0;
-  left: 0;
   bottom: 0;
+  left: 0;
   right: 0;
+}
+
+.editor__dropzone--hidden {
+  display: none;
 }

@@ -3,3 +3,11 @@
   justify-content: center;
   padding: 8px;
 }
+
+.toolbar__button {
+  margin-right: 8px;
+}
+
+.toolbar__button:last-child {
+  margin-right: 0;
+}

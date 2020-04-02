@@ -1,17 +1,20 @@
 import React from 'react';
 import './Timeline.css';
+import Waveform from './Waveform';
 
 type TimelineProps = {
-  children: JSX.Element[];
+  audioBuffers: AudioBuffer[];
+  pixelsPerSecond: number;
 };
 
-const Timeline = ({ children }: TimelineProps) => {
+const Timeline = ({ audioBuffers, pixelsPerSecond }: TimelineProps) => {
   console.log('Timeline render');
+
   return (
     <div className="timeline">
-      {children.map(child => (
+      {audioBuffers.map(buffer => (
         <div className="timeline_waveform" style={{ opacity: 0.5 }}>
-          {child}
+          <Waveform audioBuffer={buffer} pixelsPerSecond={pixelsPerSecond} />
         </div>
       ))}
     </div>

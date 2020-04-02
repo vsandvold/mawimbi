@@ -9,6 +9,10 @@ declare module 'tone' {
   }
 
   class Channel {
+    volume: Param;
+    mute: boolean;
+    solo: boolean;
+    dispose();
     toMaster();
   }
 }

@@ -1,17 +1,48 @@
 import { UploadOutlined } from '@ant-design/icons';
 import { Button, message, PageHeader as AntPageHeader } from 'antd';
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useHistory } from 'react-router-dom';
 import Tone from 'tone';
 import useKeyPress from '../hooks/useKeyPress';
 import AudioService from '../services/AudioService';
 import Dropzone from './Dropzone';
+import Mixer from './Mixer';
 import { PageContent, PageHeader, PageLayout } from './PageLayout';
 import './ProjectPage.css';
 import Scrubber from './Scrubber';
 import Timeline from './Timeline';
 import Toolbar from './Toolbar';
-import Waveform from './Waveform';
+import classNames from 'classnames';
+
+type ProjectPageHeaderProps = {
+  uploadFile: any;
+};
+
+const ProjectPageHeader = ({ uploadFile }: ProjectPageHeaderProps) => {
+  const history = useHistory();
+
+  const handleFileUpload = () => {
+    alert('Not implemented.');
+  };
+
+  return (
+    <AntPageHeader
+      ghost={false}
+      onBack={() => history.goBack()}
+      title="Mawimbi"
+      subTitle="New Wave"
+      extra={[
+        <Button
+          type="link"
+          ghost
+          icon={<UploadOutlined />}
+          title="Upload audio file"
+          onClick={handleFileUpload}
+        />
+      ]}
+    />
+  );
+};
 
 const ProjectPage = () => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -42,7 +73,6 @@ const ProjectPage = () => {
       const decodedData = await AudioService.decodeAudioData(
         reader.result as ArrayBuffer
       );
-      const channel = AudioService.createChannel(decodedData);
       setAudioBuffers(prevBuffers => [...prevBuffers, decodedData]);
       message.success({ content: file.name, key: messageKey });
     };
@@ -54,61 +84,55 @@ const ProjectPage = () => {
     setIsPlaying(false);
   };
 
-  // TODO: optimize rendering with React.memo, React.useMemo and React.useCallback
   const pixelsPerSecond = 200;
-  const memoizedScrubber = useMemo(
-    () => (
-      <Scrubber
-        isPlaying={isPlaying}
-        stopPlayback={stopPlayback}
-        pixelsPerSecond={pixelsPerSecond}
-      >
-        <Timeline>
-          {audioBuffers.map(buffer => (
-            <Waveform audioBuffer={buffer} pixelsPerSecond={pixelsPerSecond} />
-          ))}
-        </Timeline>
-      </Scrubber>
-    ),
-    [isPlaying, audioBuffers, pixelsPerSecond]
-  );
+
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  const editorDrawerClass = classNames('editor__drawer', {
+    'editor__drawer--closed': !isDrawerOpen
+  });
 
   const isFileDragging = useFileDragging();
 
-  const history = useHistory();
+  const editorDropzoneClass = classNames('editor__dropzone', {
+    'editor__dropzone--hidden': !isFileDragging
+  });
+
+  // TODO: optimize rendering with React.memo, React.useMemo and React.useCallback
 
   console.log('ProjectPage render');
 
   return (
     <PageLayout>
       <PageHeader>
-        <AntPageHeader
-          ghost={false}
-          onBack={() => history.goBack()}
-          title="Mawimbi"
-          subTitle="New Wave"
-          extra={[
-            <Button
-              type="link"
-              ghost
-              icon={<UploadOutlined />}
-              title="Upload audio file"
-              onClick={() => alert('Not implemented.')}
-            />
-          ]}
-        />
+        <ProjectPageHeader uploadFile={uploadFile} />
       </PageHeader>
       <PageContent>
         <div className="project">
           <div className="editor">
-            {memoizedScrubber}
-            {isFileDragging && (
-              <div className="editor__dropzone">
-                <Dropzone uploadFile={uploadFile} />
-              </div>
-            )}
+            <Scrubber
+              isPlaying={isPlaying}
+              stopPlayback={stopPlayback}
+              pixelsPerSecond={pixelsPerSecond}
+            >
+              <Timeline
+                audioBuffers={audioBuffers}
+                pixelsPerSecond={pixelsPerSecond}
+              />
+            </Scrubber>
+            <div className={editorDrawerClass}>
+              <Mixer audioBuffers={audioBuffers} />
+            </div>
+            <div className={editorDropzoneClass}>
+              <Dropzone uploadFile={uploadFile} />
+            </div>
           </div>
-          <Toolbar isPlaying={isPlaying} setIsPlaying={setIsPlaying} />
+          <Toolbar
+            isPlaying={isPlaying}
+            setIsPlaying={setIsPlaying}
+            isDrawerOpen={isDrawerOpen}
+            setIsDrawerOpen={setIsDrawerOpen}
+          />
         </div>
       </PageContent>
     </PageLayout>
@@ -116,7 +140,7 @@ const ProjectPage = () => {
 };
 
 const useFileDragging = () => {
-  const [isFileDragged, setIsFileDragged] = useState(false);
+  const [isFileDragging, setIsFileDragging] = useState(false);
   const dragCounterRef = useRef(0);
 
   useEffect(() => {
@@ -141,7 +165,7 @@ const useFileDragging = () => {
       event.dataTransfer.items &&
       event.dataTransfer.items.length > 0
     ) {
-      setIsFileDragged(true);
+      setIsFileDragging(true);
     }
   };
 
@@ -151,7 +175,7 @@ const useFileDragging = () => {
     event.stopPropagation();
     dragCounterRef.current--;
     if (dragCounterRef.current === 0) {
-      setIsFileDragged(false);
+      setIsFileDragging(false);
     }
   };
 
@@ -163,10 +187,10 @@ const useFileDragging = () => {
   const onDrop = (event: DragEvent) => {
     event.preventDefault();
     event.stopPropagation();
-    setIsFileDragged(false);
+    setIsFileDragging(false);
   };
 
-  return isFileDragged;
+  return isFileDragging;
 };
 
 export default ProjectPage;
