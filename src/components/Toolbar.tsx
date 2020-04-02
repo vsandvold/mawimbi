@@ -1,7 +1,7 @@
 import {
   CaretRightOutlined,
   ControlOutlined,
-  PauseOutlined
+  PauseOutlined,
 } from '@ant-design/icons';
 import { Button } from 'antd';
 import React from 'react';
@@ -37,7 +37,7 @@ const PlayPauseButton = ({ isPlaying, setIsPlaying }: ToolbarProps) => {
       size="large"
       icon={isPlaying ? <PauseOutlined /> : <CaretRightOutlined />}
       title={isPlaying ? 'Pause' : 'Play'}
-      onClick={() => setIsPlaying(prevIsPlaying => !prevIsPlaying)}
+      onClick={() => setIsPlaying((prevIsPlaying) => !prevIsPlaying)}
     />
   );
 };
@@ -50,7 +50,7 @@ const MixerButton = ({ isDrawerOpen, setIsDrawerOpen }: ToolbarProps) => {
       size="large"
       icon={<ControlOutlined />}
       title={isDrawerOpen ? 'Hide mixer' : 'Show mixer'}
-      onClick={() => setIsDrawerOpen(prevIsDrawerOpen => !prevIsDrawerOpen)}
+      onClick={() => setIsDrawerOpen((prevIsDrawerOpen) => !prevIsDrawerOpen)}
     />
   );
 };

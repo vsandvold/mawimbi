@@ -11,7 +11,7 @@ const Mixer = ({ audioBuffers }: MixerProps) => {
 
   return (
     <div className="mixer">
-      {audioBuffers.map(buffer => (
+      {audioBuffers.map((buffer) => (
         <Channel audioBuffer={buffer} />
       ))}
     </div>

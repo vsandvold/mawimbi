@@ -10,7 +10,7 @@ type WaveformProps = {
 const Waveform = ({
   audioBuffer,
   pixelsPerSecond,
-  waveColor = 'violet'
+  waveColor = 'violet',
 }: WaveformProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const heightRef = useRef(0);
@@ -29,14 +29,14 @@ const Waveform = ({
       backgroundColor: 'transparent',
       fillParent: false,
       scrollParent: false,
-      interact: false
+      interact: false,
     };
     waveformRef.current = WaveSurfer.create({
       ...defaultParams,
       container: containerRef.current,
       minPxPerSec: pixelsPerSecond,
       height: heightRef.current,
-      waveColor
+      waveColor,
     });
     waveformRef.current.loadDecodedBuffer(audioBuffer);
   }, [audioBuffer, pixelsPerSecond, waveColor]);

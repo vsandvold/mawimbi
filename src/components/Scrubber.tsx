@@ -16,7 +16,7 @@ const Scrubber = ({
   isPlaying,
   stopPlayback,
   pixelsPerSecond,
-  children
+  children,
 }: ScrubberProps) => {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -30,7 +30,7 @@ const Scrubber = ({
 
   useAnimation(updateScrollPosition, [isPlaying], {
     frameRate: 60,
-    isActive: isPlaying
+    isActive: isPlaying,
   });
 
   const stopAndRewindPlayback = () => {

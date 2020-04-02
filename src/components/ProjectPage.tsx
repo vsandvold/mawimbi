@@ -38,7 +38,7 @@ const ProjectPageHeader = ({ uploadFile }: ProjectPageHeaderProps) => {
           icon={<UploadOutlined />}
           title="Upload audio file"
           onClick={handleFileUpload}
-        />
+        />,
       ]}
     />
   );
@@ -55,8 +55,8 @@ const ProjectPage = () => {
     }
   }, [isPlaying]);
 
-  useKeyPress(() => setIsPlaying(prevIsPlaying => !prevIsPlaying), {
-    targetKey: ' '
+  useKeyPress(() => setIsPlaying((prevIsPlaying) => !prevIsPlaying), {
+    targetKey: ' ',
   });
 
   const [audioBuffers, setAudioBuffers] = useState<AudioBuffer[]>([]);
@@ -73,7 +73,7 @@ const ProjectPage = () => {
       const decodedData = await AudioService.decodeAudioData(
         reader.result as ArrayBuffer
       );
-      setAudioBuffers(prevBuffers => [...prevBuffers, decodedData]);
+      setAudioBuffers((prevBuffers) => [...prevBuffers, decodedData]);
       message.success({ content: file.name, key: messageKey });
     };
     reader.readAsArrayBuffer(file);
@@ -89,13 +89,13 @@ const ProjectPage = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const editorDrawerClass = classNames('editor__drawer', {
-    'editor__drawer--closed': !isDrawerOpen
+    'editor__drawer--closed': !isDrawerOpen,
   });
 
   const isFileDragging = useFileDragging();
 
   const editorDropzoneClass = classNames('editor__dropzone', {
-    'editor__dropzone--hidden': !isFileDragging
+    'editor__dropzone--hidden': !isFileDragging,
   });
 
   // TODO: optimize rendering with React.memo, React.useMemo and React.useCallback

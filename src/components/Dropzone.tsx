@@ -13,12 +13,12 @@ const Dropzone = ({ uploadFile }: DropzoneProps) => {
     getRootProps,
     getInputProps,
     isDragActive,
-    isDragReject
+    isDragReject,
   } = useDropzone({
     accept: 'audio/*',
     multiple: true,
     noClick: true,
-    noKeyboard: true
+    noKeyboard: true,
   });
 
   // TODO: consider re-introducing useCallback
@@ -35,7 +35,7 @@ const Dropzone = ({ uploadFile }: DropzoneProps) => {
       {...getRootProps({
         className: `ant-upload ant-upload-drag ${
           isDragActive ? 'ant-upload-drag-active' : ''
-        }`
+        }`,
       })}
     >
       <input {...getInputProps()} />

@@ -1,7 +1,7 @@
 import {
   CustomerServiceOutlined,
   MenuOutlined,
-  SoundOutlined
+  SoundOutlined,
 } from '@ant-design/icons';
 import { Button, Slider } from 'antd';
 import { SliderValue } from 'antd/lib/slider';
@@ -45,7 +45,7 @@ const Channel = ({ audioBuffer }: ChannelProps) => {
 
   const updateMute = () => {
     if (channelRef.current) {
-      setIsMuted(prevIsMuted => !prevIsMuted);
+      setIsMuted((prevIsMuted) => !prevIsMuted);
     }
   };
 
@@ -59,7 +59,7 @@ const Channel = ({ audioBuffer }: ChannelProps) => {
 
   const updateSolo = () => {
     if (channelRef.current) {
-      setIsSolo(prevIsSolo => !prevIsSolo);
+      setIsSolo((prevIsSolo) => !prevIsSolo);
     }
   };
 
@@ -81,7 +81,7 @@ const Channel = ({ audioBuffer }: ChannelProps) => {
     <div
       className="channel"
       style={{
-        backgroundColor: `rgba(255, 255, 0, ${convertToOpacity(volume)})`
+        backgroundColor: `rgba(255, 255, 0, ${convertToOpacity(volume)})`,
       }}
     >
       <div className="channel__solo">

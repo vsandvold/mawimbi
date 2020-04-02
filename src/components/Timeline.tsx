@@ -12,7 +12,7 @@ const Timeline = ({ audioBuffers, pixelsPerSecond }: TimelineProps) => {
 
   return (
     <div className="timeline">
-      {audioBuffers.map(buffer => (
+      {audioBuffers.map((buffer) => (
         <div className="timeline_waveform" style={{ opacity: 0.5 }}>
           <Waveform audioBuffer={buffer} pixelsPerSecond={pixelsPerSecond} />
         </div>
