@@ -2,8 +2,8 @@ import { mount } from 'enzyme';
 import React from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import App, { NoMatch } from '../App';
-import HomePage from '../HomePage';
-import ProjectPage from '../ProjectPage';
+import HomePage from '../home/HomePage';
+import ProjectPage from '../project/ProjectPage';
 
 it('renders route to home page', () => {
   const wrapper = mount(

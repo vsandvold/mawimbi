@@ -1,22 +1,23 @@
 import { UploadOutlined } from '@ant-design/icons';
 import { Button, message, PageHeader as AntPageHeader } from 'antd';
 import classNames from 'classnames';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef } from 'react';
 import { useHistory } from 'react-router-dom';
-import useProjectEffect from '../hooks/useProjectEffect';
+import useFileDragging from '../../hooks/useFileDragging';
+import AudioService from '../../services/AudioService';
+import Dropzone from '../dropzone/Dropzone';
+import { PageContent, PageHeader, PageLayout } from '../layout/PageLayout';
+import Mixer from '../workstation/Mixer';
+import Scrubber from '../workstation/Scrubber';
+import Timeline from '../workstation/Timeline';
+import Toolbar from '../workstation/Toolbar';
+import './ProjectPage.css';
+import useProjectEffect from './useProjectEffect';
 import useProjectState, {
   ADD_TRACK,
   ProjectDispatch,
   ProjectState,
-} from '../hooks/useProjectState';
-import AudioService from '../services/AudioService';
-import Dropzone from './Dropzone';
-import Mixer from './Mixer';
-import { PageContent, PageHeader, PageLayout } from './PageLayout';
-import './ProjectPage.css';
-import Scrubber from './Scrubber';
-import Timeline from './Timeline';
-import Toolbar from './Toolbar';
+} from './useProjectState';
 
 type ProjectPageHeaderProps = {
   uploadFile: (file: File) => void;
@@ -130,60 +131,6 @@ const ProjectPage = () => {
       </PageLayout>
     </ProjectDispatch.Provider>
   );
-};
-
-const useFileDragging = () => {
-  const [isFileDragging, setIsFileDragging] = useState(false);
-  const dragCounterRef = useRef(0);
-
-  useEffect(() => {
-    window.addEventListener('dragenter', onDragEnter);
-    window.addEventListener('dragleave', onDragLeave);
-    window.addEventListener('dragover', onDragOver);
-    window.addEventListener('drop', onDrop);
-    return () => {
-      window.removeEventListener('dragenter', onDragEnter);
-      window.removeEventListener('dragleave', onDragLeave);
-      window.removeEventListener('dragover', onDragOver);
-      window.removeEventListener('drop', onDrop);
-    };
-  }, []);
-
-  const onDragEnter = (event: DragEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    dragCounterRef.current++;
-    if (
-      event.dataTransfer &&
-      event.dataTransfer.items &&
-      event.dataTransfer.items.length > 0
-    ) {
-      setIsFileDragging(true);
-    }
-  };
-
-  const onDragLeave = (event: DragEvent) => {
-    // FIXME: does not trigger correctly when drag leaves window
-    event.preventDefault();
-    event.stopPropagation();
-    dragCounterRef.current--;
-    if (dragCounterRef.current === 0) {
-      setIsFileDragging(false);
-    }
-  };
-
-  const onDragOver = (event: DragEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-  };
-
-  const onDrop = (event: DragEvent) => {
-    event.preventDefault();
-    event.stopPropagation();
-    setIsFileDragging(false);
-  };
-
-  return isFileDragging;
 };
 
 export default ProjectPage;

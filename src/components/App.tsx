@@ -1,7 +1,7 @@
 import React from 'react';
 import { Route, Switch, useLocation } from 'react-router-dom';
-import HomePage from './HomePage';
-import ProjectPage from './ProjectPage';
+import HomePage from './home/HomePage';
+import ProjectPage from './project/ProjectPage';
 
 // TODO: prevent navigation away from unsaved project
 // https://reacttraining.com/react-router/web/example/preventing-transitions

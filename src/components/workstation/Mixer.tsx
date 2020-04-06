@@ -1,7 +1,7 @@
 import React from 'react';
 import Channel from './Channel';
 import './Mixer.css';
-import { Track } from '../hooks/useProjectState';
+import { Track } from '../project/useProjectState';
 
 type MixerProps = {
   tracks: Track[];

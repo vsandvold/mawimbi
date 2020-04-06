@@ -2,7 +2,7 @@ import { FastBackwardOutlined } from '@ant-design/icons';
 import { Button } from 'antd';
 import React, { useRef } from 'react';
 import Tone from 'tone';
-import useAnimation from '../hooks/useAnimation';
+import useAnimation from '../../hooks/useAnimation';
 import './Scrubber.css';
 
 type ScrubberProps = {

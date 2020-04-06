@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import Tone from 'tone';
-import useKeyPress from './useKeyPress';
+import useKeyPress from '../../hooks/useKeyPress';
 import {
   ProjectDispatchAction,
   ProjectState,

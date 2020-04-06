@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import WaveSurfer from 'wavesurfer.js';
-import { Track } from '../hooks/useProjectState';
+import { Track } from '../project/useProjectState';
 
 type WaveformProps = {
   track: Track;
