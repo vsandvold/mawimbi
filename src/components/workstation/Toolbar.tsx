@@ -4,13 +4,10 @@ import {
   PauseOutlined,
 } from '@ant-design/icons';
 import { Button } from 'antd';
-import React, { useContext } from 'react';
-import {
-  ProjectDispatch,
-  TOGGLE_DRAWER,
-  TOGGLE_PLAYING,
-} from '../project/useProjectState';
+import React from 'react';
 import './Toolbar.css';
+import useWorkstationContext from './useWorkstationContext';
+import { TOGGLE_DRAWER, TOGGLE_PLAYING } from './useWorkstationState';
 
 type ToolbarProps = {
   isPlaying: boolean;
@@ -20,7 +17,7 @@ type ToolbarProps = {
 const Toolbar = ({ isPlaying, isDrawerOpen }: ToolbarProps) => {
   console.log('Toolbar render');
 
-  const dispatch = useContext(ProjectDispatch);
+  const [dispatch] = useWorkstationContext();
 
   const playPauseButton = (
     <Button

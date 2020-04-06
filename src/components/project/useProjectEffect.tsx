@@ -1,36 +1,21 @@
 import { useEffect } from 'react';
-import Tone from 'tone';
-import useKeyPress from '../../hooks/useKeyPress';
-import {
-  ProjectDispatchAction,
-  ProjectState,
-  TOGGLE_PLAYING,
-} from './useProjectState';
+import AudioService from '../../services/AudioService';
+import { ProjectDispatchAction } from './useProjectContext';
+import { ADD_TRACK, ProjectState } from './useProjectState';
 
 const useProjectEffect = (
   state: ProjectState,
   dispatch: React.Dispatch<ProjectDispatchAction>
 ) => {
-  const { isPlaying, pixelsPerSecond, tracks, isDrawerOpen } = state;
+  const { bufferToDecode } = state;
 
   useEffect(() => {
-    if (isPlaying) {
-      Tone.Transport.start();
-    } else {
-      Tone.Transport.pause();
+    if (bufferToDecode) {
+      AudioService.decodeAudioData(bufferToDecode).then((audioBuffer) =>
+        dispatch([ADD_TRACK, audioBuffer])
+      );
     }
-  }, [isPlaying]);
-
-  useKeyPress(() => dispatch([TOGGLE_PLAYING]), {
-    targetKey: ' ',
-  });
-
-  const stopPlayback = () => {
-    Tone.Transport.stop();
-    // setIsPlaying(false);
-  };
-
-  return [stopPlayback];
+  }, [bufferToDecode]);
 };
 
 export default useProjectEffect;

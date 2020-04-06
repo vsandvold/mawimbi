@@ -1,10 +1,10 @@
 import React, { useReducer } from 'react';
+import { ProjectDispatchAction } from './useProjectContext';
 
 export type ProjectState = {
-  isPlaying: boolean;
-  pixelsPerSecond: number;
   tracks: Track[];
-  isDrawerOpen: boolean;
+  nextTrackId: number;
+  bufferToDecode: ArrayBuffer | null;
 };
 
 export type Track = {
@@ -28,16 +28,9 @@ export const COLOR_PALETTE: TrackColor[] = [
   { r: 0, g: 30, b: 255 },
 ];
 
-export type ProjectDispatchAction = [string, any?];
-
-export const ProjectDispatch = React.createContext<
-  React.Dispatch<ProjectDispatchAction>
->(() => {});
-
 export const ADD_TRACK = 'ADD_TRACK';
-export const SET_VOLUME = 'SET_VOLUME';
-export const TOGGLE_DRAWER = 'TOGGLE_DRAWER';
-export const TOGGLE_PLAYING = 'TOGGLE_PLAYING';
+export const DECODE_BUFFER = 'DECODE_BUFFER';
+export const SET_TRACK_VOLUME = 'SET_TRACK_VOLUME';
 
 export function projectReducer(
   state: ProjectState,
@@ -45,22 +38,25 @@ export function projectReducer(
 ): ProjectState {
   switch (type) {
     case ADD_TRACK:
-      const newTrack = {
-        id: payload.id,
-        audioBuffer: payload.audioBuffer,
-        color: COLOR_PALETTE[payload.id],
+      const trackId = state.nextTrackId;
+      const newTrack: Track = {
+        id: trackId,
+        audioBuffer: payload,
+        color: COLOR_PALETTE[trackId],
         volume: 100,
       };
-      return { ...state, tracks: [...state.tracks, newTrack] };
-    case SET_VOLUME:
+      return {
+        ...state,
+        tracks: [...state.tracks, newTrack],
+        nextTrackId: state.nextTrackId + 1,
+      };
+    case DECODE_BUFFER:
+      return { ...state, bufferToDecode: payload };
+    case SET_TRACK_VOLUME:
       const updatedTracks = state.tracks.map((track) =>
         track.id === payload.id ? { ...track, volume: payload.volume } : track
       );
       return { ...state, tracks: updatedTracks };
-    case TOGGLE_DRAWER:
-      return { ...state, isDrawerOpen: !state.isDrawerOpen };
-    case TOGGLE_PLAYING:
-      return { ...state, isPlaying: !state.isPlaying };
     default:
       throw new Error();
   }

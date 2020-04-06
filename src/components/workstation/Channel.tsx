@@ -5,9 +5,10 @@ import {
 } from '@ant-design/icons';
 import { Button, Slider } from 'antd';
 import { SliderValue } from 'antd/lib/slider';
-import React, { useContext, useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import AudioService from '../../services/AudioService';
-import { ProjectDispatch, SET_VOLUME, Track } from '../project/useProjectState';
+import useProjectContext from '../project/useProjectContext';
+import { SET_TRACK_VOLUME, Track } from '../project/useProjectState';
 import './Channel.css';
 
 type ChannelProps = {
@@ -17,7 +18,7 @@ type ChannelProps = {
 const Channel = ({ track }: ChannelProps) => {
   console.log('Channel render');
 
-  const dispatch = useContext(ProjectDispatch);
+  const [dispatch] = useProjectContext();
 
   const channelRef = useRef<Tone.Channel | null>(null);
 
@@ -34,7 +35,7 @@ const Channel = ({ track }: ChannelProps) => {
     if (channelRef.current) {
       const volume = value as number;
       channelRef.current.volume.value = convertToDecibel(volume);
-      dispatch([SET_VOLUME, { id: track.id, volume }]);
+      dispatch([SET_TRACK_VOLUME, { id: track.id, volume }]);
     }
   };
 
