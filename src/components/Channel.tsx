@@ -6,7 +6,7 @@ import {
 import { Button, Slider } from 'antd';
 import { SliderValue } from 'antd/lib/slider';
 import React, { useContext, useEffect, useRef, useState } from 'react';
-import { ProjectDispatch, Track, SET_VOLUME } from '../reducers/projectReducer';
+import { ProjectDispatch, Track, SET_VOLUME } from '../hooks/useProjectState';
 import AudioService from '../services/AudioService';
 import './Channel.css';
 

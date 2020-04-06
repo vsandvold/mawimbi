@@ -9,7 +9,7 @@ import {
   ProjectDispatch,
   TOGGLE_DRAWER,
   TOGGLE_PLAYING,
-} from '../reducers/projectReducer';
+} from '../hooks/useProjectState';
 import './Toolbar.css';
 
 type ToolbarProps = {

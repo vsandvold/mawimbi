@@ -1,7 +1,7 @@
 import React from 'react';
 import './Timeline.css';
 import Waveform from './Waveform';
-import { Track } from '../reducers/projectReducer';
+import { Track } from '../hooks/useProjectState';
 
 type TimelineProps = {
   tracks: Track[];

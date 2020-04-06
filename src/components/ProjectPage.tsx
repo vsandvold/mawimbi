@@ -1,17 +1,14 @@
 import { UploadOutlined } from '@ant-design/icons';
 import { Button, message, PageHeader as AntPageHeader } from 'antd';
 import classNames from 'classnames';
-import React, { useEffect, useReducer, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useHistory } from 'react-router-dom';
-import Tone from 'tone';
-import useKeyPress from '../hooks/useKeyPress';
-import {
-  ProjectDispatch,
-  projectReducer,
-  ProjectState,
-  TOGGLE_PLAYING,
+import useProjectEffect from '../hooks/useProjectEffect';
+import useProjectState, {
   ADD_TRACK,
-} from '../reducers/projectReducer';
+  ProjectDispatch,
+  ProjectState,
+} from '../hooks/useProjectState';
 import AudioService from '../services/AudioService';
 import Dropzone from './Dropzone';
 import Mixer from './Mixer';
@@ -54,7 +51,7 @@ const ProjectPageHeader = ({ uploadFile }: ProjectPageHeaderProps) => {
   );
 };
 
-export const initialProjectState: ProjectState = {
+export const initialState: ProjectState = {
   isPlaying: false,
   pixelsPerSecond: 200,
   tracks: [],
@@ -64,26 +61,11 @@ export const initialProjectState: ProjectState = {
 const ProjectPage = () => {
   console.log('ProjectPage render');
 
-  const [state, dispatch] = useReducer(projectReducer, initialProjectState);
+  const [state, dispatch] = useProjectState(initialState);
+
+  const [stopPlayback] = useProjectEffect(state, dispatch);
 
   const { isPlaying, pixelsPerSecond, tracks, isDrawerOpen } = state;
-
-  useEffect(() => {
-    if (isPlaying) {
-      Tone.Transport.start();
-    } else {
-      Tone.Transport.pause();
-    }
-  }, [isPlaying]);
-
-  useKeyPress(() => dispatch([TOGGLE_PLAYING]), {
-    targetKey: ' ',
-  });
-
-  const stopPlayback = () => {
-    Tone.Transport.stop();
-    // setIsPlaying(false);
-  };
 
   const trackIdRef = useRef(0);
 

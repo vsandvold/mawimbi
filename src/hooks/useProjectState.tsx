@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useReducer } from 'react';
 
 export type ProjectState = {
   isPlaying: boolean;
@@ -28,7 +28,7 @@ export const COLOR_PALETTE: TrackColor[] = [
   { r: 0, g: 30, b: 255 },
 ];
 
-type ProjectDispatchAction = [string, any?];
+export type ProjectDispatchAction = [string, any?];
 
 export const ProjectDispatch = React.createContext<
   React.Dispatch<ProjectDispatchAction>
@@ -65,3 +65,12 @@ export function projectReducer(
       throw new Error();
   }
 }
+
+const useProjectState = (
+  initialState: ProjectState
+): [ProjectState, React.Dispatch<ProjectDispatchAction>] => {
+  const [state, dispatch] = useReducer(projectReducer, initialState);
+  return [state, dispatch];
+};
+
+export default useProjectState;
