@@ -7,9 +7,10 @@
 
 .scrubber__timeline {
   display: flex;
+  padding: 40px 0 40px 56px;
   min-width: 100vw;
   overflow-x: scroll;
-  padding: 40px 0 40px 56px;
+  will-change: scroll-position;
 }
 
 .scrubber__progress {

@@ -4,54 +4,51 @@ import {
   PauseOutlined,
 } from '@ant-design/icons';
 import { Button } from 'antd';
-import React from 'react';
+import React, { useContext } from 'react';
+import {
+  ProjectDispatch,
+  TOGGLE_DRAWER,
+  TOGGLE_PLAYING,
+} from '../reducers/projectReducer';
 import './Toolbar.css';
 
 type ToolbarProps = {
   isPlaying: boolean;
-  setIsPlaying: (value: React.SetStateAction<boolean>) => void;
   isDrawerOpen: boolean;
-  setIsDrawerOpen: (value: React.SetStateAction<boolean>) => void;
 };
 
-const Toolbar = (props: ToolbarProps) => {
+const Toolbar = ({ isPlaying, isDrawerOpen }: ToolbarProps) => {
   console.log('Toolbar render');
 
-  return (
-    <div className="toolbar">
-      <div className="toolbar__button">
-        <PlayPauseButton {...props} />
-      </div>
-      <div className="toolbar__button">
-        <MixerButton {...props} />
-      </div>
-    </div>
-  );
-};
+  const dispatch = useContext(ProjectDispatch);
 
-const PlayPauseButton = ({ isPlaying, setIsPlaying }: ToolbarProps) => {
-  return (
+  const playPauseButton = (
     <Button
       type="link"
       ghost
       size="large"
       icon={isPlaying ? <PauseOutlined /> : <CaretRightOutlined />}
       title={isPlaying ? 'Pause' : 'Play'}
-      onClick={() => setIsPlaying((prevIsPlaying) => !prevIsPlaying)}
+      onClick={() => dispatch([TOGGLE_PLAYING])}
     />
   );
-};
 
-const MixerButton = ({ isDrawerOpen, setIsDrawerOpen }: ToolbarProps) => {
-  return (
+  const mixerButton = (
     <Button
       type="link"
       ghost
       size="large"
       icon={<ControlOutlined />}
       title={isDrawerOpen ? 'Hide mixer' : 'Show mixer'}
-      onClick={() => setIsDrawerOpen((prevIsDrawerOpen) => !prevIsDrawerOpen)}
+      onClick={() => dispatch([TOGGLE_DRAWER])}
     />
+  );
+
+  return (
+    <div className="toolbar">
+      <div className="toolbar__button">{playPauseButton}</div>
+      <div className="toolbar__button">{mixerButton}</div>
+    </div>
   );
 };
 

@@ -1,9 +1,17 @@
 import { UploadOutlined } from '@ant-design/icons';
 import { Button, message, PageHeader as AntPageHeader } from 'antd';
-import React, { useEffect, useRef, useState } from 'react';
+import classNames from 'classnames';
+import React, { useEffect, useReducer, useRef, useState } from 'react';
 import { useHistory } from 'react-router-dom';
 import Tone from 'tone';
 import useKeyPress from '../hooks/useKeyPress';
+import {
+  ProjectDispatch,
+  projectReducer,
+  ProjectState,
+  TOGGLE_PLAYING,
+  ADD_TRACK,
+} from '../reducers/projectReducer';
 import AudioService from '../services/AudioService';
 import Dropzone from './Dropzone';
 import Mixer from './Mixer';
@@ -12,13 +20,14 @@ import './ProjectPage.css';
 import Scrubber from './Scrubber';
 import Timeline from './Timeline';
 import Toolbar from './Toolbar';
-import classNames from 'classnames';
 
 type ProjectPageHeaderProps = {
-  uploadFile: any;
+  uploadFile: (file: File) => void;
 };
 
 const ProjectPageHeader = ({ uploadFile }: ProjectPageHeaderProps) => {
+  console.log('ProjectPageHeader render');
+
   const history = useHistory();
 
   const handleFileUpload = () => {
@@ -33,6 +42,7 @@ const ProjectPageHeader = ({ uploadFile }: ProjectPageHeaderProps) => {
       subTitle="New Wave"
       extra={[
         <Button
+          key="upload-button"
           type="link"
           ghost
           icon={<UploadOutlined />}
@@ -44,8 +54,19 @@ const ProjectPageHeader = ({ uploadFile }: ProjectPageHeaderProps) => {
   );
 };
 
+export const initialProjectState: ProjectState = {
+  isPlaying: false,
+  pixelsPerSecond: 200,
+  tracks: [],
+  isDrawerOpen: false,
+};
+
 const ProjectPage = () => {
-  const [isPlaying, setIsPlaying] = useState(false);
+  console.log('ProjectPage render');
+
+  const [state, dispatch] = useReducer(projectReducer, initialProjectState);
+
+  const { isPlaying, pixelsPerSecond, tracks, isDrawerOpen } = state;
 
   useEffect(() => {
     if (isPlaying) {
@@ -55,11 +76,16 @@ const ProjectPage = () => {
     }
   }, [isPlaying]);
 
-  useKeyPress(() => setIsPlaying((prevIsPlaying) => !prevIsPlaying), {
+  useKeyPress(() => dispatch([TOGGLE_PLAYING]), {
     targetKey: ' ',
   });
 
-  const [audioBuffers, setAudioBuffers] = useState<AudioBuffer[]>([]);
+  const stopPlayback = () => {
+    Tone.Transport.stop();
+    // setIsPlaying(false);
+  };
+
+  const trackIdRef = useRef(0);
 
   function uploadFile(file: File) {
     const messageKey = 'uploadFile';
@@ -73,20 +99,12 @@ const ProjectPage = () => {
       const decodedData = await AudioService.decodeAudioData(
         reader.result as ArrayBuffer
       );
-      setAudioBuffers((prevBuffers) => [...prevBuffers, decodedData]);
+      const trackId = trackIdRef.current++;
+      dispatch([ADD_TRACK, { id: trackId, audioBuffer: decodedData }]);
       message.success({ content: file.name, key: messageKey });
     };
     reader.readAsArrayBuffer(file);
   }
-
-  const stopPlayback = () => {
-    Tone.Transport.stop();
-    setIsPlaying(false);
-  };
-
-  const pixelsPerSecond = 200;
-
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const editorDrawerClass = classNames('editor__drawer', {
     'editor__drawer--closed': !isDrawerOpen,
@@ -99,43 +117,36 @@ const ProjectPage = () => {
   });
 
   // TODO: optimize rendering with React.memo, React.useMemo and React.useCallback
-
-  console.log('ProjectPage render');
-
   return (
-    <PageLayout>
-      <PageHeader>
-        <ProjectPageHeader uploadFile={uploadFile} />
-      </PageHeader>
-      <PageContent>
-        <div className="project">
-          <div className="editor">
-            <Scrubber
-              isPlaying={isPlaying}
-              stopPlayback={stopPlayback}
-              pixelsPerSecond={pixelsPerSecond}
-            >
-              <Timeline
-                audioBuffers={audioBuffers}
-                pixelsPerSecond={pixelsPerSecond}
-              />
-            </Scrubber>
-            <div className={editorDrawerClass}>
-              <Mixer audioBuffers={audioBuffers} />
+    <ProjectDispatch.Provider value={dispatch}>
+      <PageLayout>
+        <PageHeader>
+          <ProjectPageHeader uploadFile={uploadFile} />
+        </PageHeader>
+        <PageContent>
+          <div className="project">
+            <div className="editor">
+              <div className="editor__scrubber">
+                <Scrubber
+                  isPlaying={isPlaying}
+                  stopPlayback={stopPlayback}
+                  pixelsPerSecond={pixelsPerSecond}
+                >
+                  <Timeline tracks={tracks} pixelsPerSecond={pixelsPerSecond} />
+                </Scrubber>
+              </div>
+              <div className={editorDrawerClass}>
+                <Mixer tracks={tracks} />
+              </div>
+              <div className={editorDropzoneClass}>
+                <Dropzone uploadFile={uploadFile} />
+              </div>
             </div>
-            <div className={editorDropzoneClass}>
-              <Dropzone uploadFile={uploadFile} />
-            </div>
+            <Toolbar isPlaying={isPlaying} isDrawerOpen={isDrawerOpen} />
           </div>
-          <Toolbar
-            isPlaying={isPlaying}
-            setIsPlaying={setIsPlaying}
-            isDrawerOpen={isDrawerOpen}
-            setIsDrawerOpen={setIsDrawerOpen}
-          />
-        </div>
-      </PageContent>
-    </PageLayout>
+        </PageContent>
+      </PageLayout>
+    </ProjectDispatch.Provider>
   );
 };
 

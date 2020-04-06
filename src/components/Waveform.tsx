@@ -1,17 +1,17 @@
 import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import WaveSurfer from 'wavesurfer.js';
+import { Track } from '../reducers/projectReducer';
 
 type WaveformProps = {
-  audioBuffer: AudioBuffer;
+  track: Track;
   pixelsPerSecond: number;
-  waveColor?: string;
 };
 
-const Waveform = ({
-  audioBuffer,
-  pixelsPerSecond,
-  waveColor = 'violet',
-}: WaveformProps) => {
+const Waveform = ({ track, pixelsPerSecond }: WaveformProps) => {
+  console.log('Waveform render');
+
+  const { audioBuffer, color, volume } = track;
+
   const containerRef = useRef<HTMLDivElement>(null);
   const heightRef = useRef(0);
 
@@ -31,19 +31,25 @@ const Waveform = ({
       scrollParent: false,
       interact: false,
     };
+    const { r, g, b } = color;
+    const waveColor = `rgb(${r},${g},${b})`;
     waveformRef.current = WaveSurfer.create({
       ...defaultParams,
       container: containerRef.current,
-      minPxPerSec: pixelsPerSecond,
       height: heightRef.current,
+      minPxPerSec: pixelsPerSecond,
       waveColor,
     });
     waveformRef.current.loadDecodedBuffer(audioBuffer);
-  }, [audioBuffer, pixelsPerSecond, waveColor]);
+  }, [audioBuffer, color, pixelsPerSecond]);
 
-  console.log('Waveform render');
+  function convertToOpacity(value: number) {
+    return (value / 100).toFixed(2);
+  }
 
-  return <div ref={containerRef} />;
+  const opacity = convertToOpacity(volume);
+
+  return <div ref={containerRef} style={{ opacity }} />;
 };
 
 export default Waveform;

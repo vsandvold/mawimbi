@@ -5,19 +5,24 @@ import {
 } from '@ant-design/icons';
 import { Button, Slider } from 'antd';
 import { SliderValue } from 'antd/lib/slider';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import { ProjectDispatch, Track, SET_VOLUME } from '../reducers/projectReducer';
 import AudioService from '../services/AudioService';
 import './Channel.css';
 
 type ChannelProps = {
-  audioBuffer: AudioBuffer;
+  track: Track;
 };
 
-const Channel = ({ audioBuffer }: ChannelProps) => {
-  const channelRef = useRef<Tone.Channel>();
+const Channel = ({ track }: ChannelProps) => {
+  console.log('Channel render');
+
+  const dispatch = useContext(ProjectDispatch);
+
+  const channelRef = useRef<Tone.Channel | null>(null);
 
   useEffect(() => {
-    channelRef.current = AudioService.createChannel(audioBuffer);
+    channelRef.current = AudioService.createChannel(track.audioBuffer);
     return () => {
       if (channelRef.current) {
         channelRef.current.dispose();
@@ -25,13 +30,11 @@ const Channel = ({ audioBuffer }: ChannelProps) => {
     };
   }, []);
 
-  const [volume, setVolume] = useState(100);
-
   const updateVolume = (value: SliderValue) => {
     if (channelRef.current) {
       const volume = value as number;
       channelRef.current.volume.value = convertToDecibel(volume);
-      setVolume(volume);
+      dispatch([SET_VOLUME, { id: track.id, volume }]);
     }
   };
 
@@ -75,13 +78,15 @@ const Channel = ({ audioBuffer }: ChannelProps) => {
     return (value / 100).toFixed(2);
   }
 
-  console.log('Channel render');
+  const { r, g, b } = track.color;
+  const opacity = convertToOpacity(track.volume);
+  const channelColor = `rgba(${r},${g},${b}, ${opacity})`;
 
   return (
     <div
       className="channel"
       style={{
-        backgroundColor: `rgba(255, 255, 0, ${convertToOpacity(volume)})`,
+        backgroundColor: channelColor,
       }}
     >
       <div className="channel__solo">
@@ -103,7 +108,12 @@ const Channel = ({ audioBuffer }: ChannelProps) => {
         />
       </div>
       <div className="channel__volume">
-        <Slider defaultValue={75} min={0} max={100} onChange={updateVolume} />
+        <Slider
+          defaultValue={track.volume}
+          min={0}
+          max={100}
+          onChange={updateVolume}
+        />
       </div>
       <div className="channel__move">
         <Button

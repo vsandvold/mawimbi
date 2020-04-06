@@ -1,18 +1,19 @@
 import React from 'react';
 import Channel from './Channel';
 import './Mixer.css';
+import { Track } from '../reducers/projectReducer';
 
 type MixerProps = {
-  audioBuffers: AudioBuffer[];
+  tracks: Track[];
 };
 
-const Mixer = ({ audioBuffers }: MixerProps) => {
+const Mixer = ({ tracks }: MixerProps) => {
   console.log('Mixer render');
 
   return (
     <div className="mixer">
-      {audioBuffers.map((buffer) => (
-        <Channel audioBuffer={buffer} />
+      {tracks.map((track) => (
+        <Channel key={track.id} track={track} />
       ))}
     </div>
   );

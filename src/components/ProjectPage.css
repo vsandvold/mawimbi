@@ -11,6 +11,13 @@
   position: relative;
 }
 
+.editor__scrubber {
+  /* Move scrubber to back */
+  z-index: 0;
+  flex: 1;
+  display: flex;
+}
+
 .editor__drawer {
   flex: 1;
 }

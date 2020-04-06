@@ -1,20 +1,21 @@
 import React from 'react';
 import './Timeline.css';
 import Waveform from './Waveform';
+import { Track } from '../reducers/projectReducer';
 
 type TimelineProps = {
-  audioBuffers: AudioBuffer[];
+  tracks: Track[];
   pixelsPerSecond: number;
 };
 
-const Timeline = ({ audioBuffers, pixelsPerSecond }: TimelineProps) => {
+const Timeline = ({ tracks, pixelsPerSecond }: TimelineProps) => {
   console.log('Timeline render');
 
   return (
     <div className="timeline">
-      {audioBuffers.map((buffer) => (
-        <div className="timeline_waveform" style={{ opacity: 0.5 }}>
-          <Waveform audioBuffer={buffer} pixelsPerSecond={pixelsPerSecond} />
+      {tracks.map((track) => (
+        <div key={track.id} className="timeline_waveform">
+          <Waveform track={track} pixelsPerSecond={pixelsPerSecond} />
         </div>
       ))}
     </div>
