@@ -4,25 +4,29 @@ import React, { useRef } from 'react';
 import Tone from 'tone';
 import useAnimation from '../../hooks/useAnimation';
 import './Scrubber.css';
+import useWorkstationContext from './useWorkstationContext';
+import {
+  SEEK_TRANSPORT_TIME,
+  STOP_PLAYBACK,
+  TOGGLE_PLAYBACK,
+} from './useWorkstationState';
 
 type ScrubberProps = {
   isPlaying: boolean;
-  stopPlayback: Function;
   pixelsPerSecond: number;
   children: JSX.Element[] | JSX.Element;
 };
 
-const Scrubber = ({
-  isPlaying,
-  stopPlayback,
-  pixelsPerSecond,
-  children,
-}: ScrubberProps) => {
+const Scrubber = ({ isPlaying, pixelsPerSecond, children }: ScrubberProps) => {
+  console.log('Scrubber render');
+
+  const [workstationDispatch] = useWorkstationContext();
+
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const updateScrollPosition = () => {
-    const transportTime = Tone.Transport.seconds;
     if (scrollRef.current) {
+      const transportTime = Tone.Transport.seconds;
       const scrollPosition = Math.trunc(transportTime * pixelsPerSecond);
       scrollRef.current.scrollLeft = scrollPosition;
     }
@@ -33,18 +37,37 @@ const Scrubber = ({
     isActive: isPlaying,
   });
 
-  const stopAndRewindPlayback = () => {
-    stopPlayback();
+  const togglePlayback = () => {
+    workstationDispatch([TOGGLE_PLAYBACK]);
+  };
+
+  const setTransportTime = () => {
+    if (isPlaying) {
+      return;
+    }
     if (scrollRef.current) {
-      scrollRef.current.scrollLeft = 0;
+      const scrollPosition = scrollRef.current.scrollLeft;
+      const transportTime = scrollPosition / pixelsPerSecond;
+      workstationDispatch([SEEK_TRANSPORT_TIME, transportTime]);
     }
   };
 
-  console.log('Scrubber render');
+  const stopAndRewindPlayback = () => {
+    workstationDispatch([STOP_PLAYBACK]);
+    if (scrollRef.current) {
+      scrollRef.current.scrollLeft = 0;
+      workstationDispatch([SEEK_TRANSPORT_TIME, 0]);
+    }
+  };
 
   return (
     <div className="scrubber">
-      <div className="scrubber__timeline" ref={scrollRef}>
+      <div
+        className="scrubber__timeline"
+        ref={scrollRef}
+        onClick={togglePlayback}
+        onScroll={setTransportTime}
+      >
         {children}
       </div>
       <div className="scrubber__progress">

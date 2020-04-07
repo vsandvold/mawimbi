@@ -7,7 +7,7 @@ import { Button } from 'antd';
 import React from 'react';
 import './Toolbar.css';
 import useWorkstationContext from './useWorkstationContext';
-import { TOGGLE_DRAWER, TOGGLE_PLAYING } from './useWorkstationState';
+import { TOGGLE_DRAWER, TOGGLE_PLAYBACK } from './useWorkstationState';
 
 type ToolbarProps = {
   isPlaying: boolean;
@@ -26,7 +26,7 @@ const Toolbar = ({ isPlaying, isDrawerOpen }: ToolbarProps) => {
       size="large"
       icon={isPlaying ? <PauseOutlined /> : <CaretRightOutlined />}
       title={isPlaying ? 'Pause' : 'Play'}
-      onClick={() => dispatch([TOGGLE_PLAYING])}
+      onClick={() => dispatch([TOGGLE_PLAYBACK])}
     />
   );
 

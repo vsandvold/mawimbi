@@ -2,13 +2,17 @@ import { useEffect } from 'react';
 import Tone from 'tone';
 import useKeyPress from '../../hooks/useKeyPress';
 import { WorkstationDispatchAction } from './useWorkstationContext';
-import { TOGGLE_PLAYING, WorkstationState } from './useWorkstationState';
+import { TOGGLE_PLAYBACK, WorkstationState } from './useWorkstationState';
 
 const useWorkstationEffect = (
   state: WorkstationState,
   dispatch: React.Dispatch<WorkstationDispatchAction>
 ) => {
-  const { isPlaying, pixelsPerSecond, isDrawerOpen } = state;
+  const { isPlaying, seekTransportTime } = state;
+
+  useKeyPress(() => dispatch([TOGGLE_PLAYBACK]), {
+    targetKey: ' ',
+  });
 
   useEffect(() => {
     if (isPlaying) {
@@ -18,16 +22,11 @@ const useWorkstationEffect = (
     }
   }, [isPlaying]);
 
-  useKeyPress(() => dispatch([TOGGLE_PLAYING]), {
-    targetKey: ' ',
-  });
+  useEffect(() => {
+    Tone.Transport.seconds = seekTransportTime;
+  }, [seekTransportTime]);
 
-  const stopPlayback = () => {
-    Tone.Transport.stop();
-    // setIsPlaying(false);
-  };
-
-  return [stopPlayback];
+  return [];
 };
 
 export default useWorkstationEffect;

@@ -6,12 +6,15 @@ export type WorkstationState = {
   isPlaying: boolean;
   pixelsPerSecond: number;
   focusedTracks: number[];
+  seekTransportTime: number;
 };
 
+export const SEEK_TRANSPORT_TIME = 'SEEK_TRANSPORT_TIME';
 export const SET_TRACK_FOCUS = 'SET_TRACK_FOCUS';
 export const SET_TRACK_UNFOCUS = 'SET_TRACK_UNFOCUS';
+export const STOP_PLAYBACK = 'STOP_PLAYBACK';
 export const TOGGLE_DRAWER = 'TOGGLE_DRAWER';
-export const TOGGLE_PLAYING = 'TOGGLE_PLAYING';
+export const TOGGLE_PLAYBACK = 'TOGGLE_PLAYBACK';
 
 export function workstationReducer(
   state: WorkstationState,
@@ -36,10 +39,15 @@ export function workstationReducer(
         ...state,
         focusedTracks: focusedTracksUnfocus,
       };
+    case SEEK_TRANSPORT_TIME:
+      const seekTransportTime = payload;
+      return { ...state, seekTransportTime };
+    case STOP_PLAYBACK:
+      return { ...state, isPlaying: false };
     case TOGGLE_DRAWER:
       const isDrawerOpen = !state.isDrawerOpen;
       return { ...state, isDrawerOpen };
-    case TOGGLE_PLAYING:
+    case TOGGLE_PLAYBACK:
       const isPlaying = !state.isPlaying;
       return { ...state, isPlaying };
     default:

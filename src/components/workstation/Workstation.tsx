@@ -22,16 +22,17 @@ const initialState: WorkstationState = {
   isPlaying: false,
   pixelsPerSecond: 200,
   focusedTracks: [],
+  seekTransportTime: 0,
 };
 
 const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
   console.log('Workstation render');
 
   const [state, dispatch] = useWorkstationState(initialState);
-  const [stopPlayback] = useWorkstationEffect(state, dispatch);
-  const isFileDragging = useFileDragging();
+  const [] = useWorkstationEffect(state, dispatch);
 
   const { isPlaying, pixelsPerSecond, isDrawerOpen, focusedTracks } = state;
+  const isFileDragging = useFileDragging();
 
   const editorDrawerClass = classNames('editor__drawer', {
     'editor__drawer--closed': !isDrawerOpen,
@@ -56,11 +57,7 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
       <div className="workstation">
         <div className="editor">
           <div className="editor__timeline">
-            <Scrubber
-              isPlaying={isPlaying}
-              pixelsPerSecond={pixelsPerSecond}
-              stopPlayback={stopPlayback}
-            >
+            <Scrubber isPlaying={isPlaying} pixelsPerSecond={pixelsPerSecond}>
               <Timeline
                 pixelsPerSecond={pixelsPerSecond}
                 focusedTracks={focusedTracks}
