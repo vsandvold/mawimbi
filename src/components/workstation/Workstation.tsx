@@ -21,6 +21,7 @@ const initialState: WorkstationState = {
   isDrawerOpen: false,
   isPlaying: false,
   pixelsPerSecond: 200,
+  focusedTracks: [],
 };
 
 const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
@@ -30,7 +31,7 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
   const [stopPlayback] = useWorkstationEffect(state, dispatch);
   const isFileDragging = useFileDragging();
 
-  const { isPlaying, pixelsPerSecond, isDrawerOpen } = state;
+  const { isPlaying, pixelsPerSecond, isDrawerOpen, focusedTracks } = state;
 
   const editorDrawerClass = classNames('editor__drawer', {
     'editor__drawer--closed': !isDrawerOpen,
@@ -57,10 +58,14 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
           <div className="editor__timeline">
             <Scrubber
               isPlaying={isPlaying}
-              stopPlayback={stopPlayback}
               pixelsPerSecond={pixelsPerSecond}
+              stopPlayback={stopPlayback}
             >
-              <Timeline tracks={tracks} pixelsPerSecond={pixelsPerSecond} />
+              <Timeline
+                pixelsPerSecond={pixelsPerSecond}
+                focusedTracks={focusedTracks}
+                tracks={tracks}
+              />
             </Scrubber>
           </div>
           <div className={editorDrawerClass}>

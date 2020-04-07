@@ -6,10 +6,14 @@ import {
 import { Button, Slider } from 'antd';
 import { SliderValue } from 'antd/lib/slider';
 import React, { useEffect, useRef, useState } from 'react';
+import useDebounced from '../../hooks/useDebounced';
+import useThrottled from '../../hooks/useThrottled';
 import AudioService from '../../services/AudioService';
 import useProjectContext from '../project/useProjectContext';
 import { SET_TRACK_VOLUME, Track } from '../project/useProjectState';
 import './Channel.css';
+import useWorkstationContext from './useWorkstationContext';
+import { SET_TRACK_FOCUS, SET_TRACK_UNFOCUS } from './useWorkstationState';
 
 type ChannelProps = {
   track: Track;
@@ -18,32 +22,47 @@ type ChannelProps = {
 const Channel = ({ track }: ChannelProps) => {
   console.log('Channel render');
 
-  const [dispatch] = useProjectContext();
+  const [projectDispatch] = useProjectContext();
+  const [workstationDispatch] = useWorkstationContext();
 
   const channelRef = useRef<Tone.Channel | null>(null);
 
+  const { id: trackId, audioBuffer, color, volume } = track;
+
   useEffect(() => {
-    channelRef.current = AudioService.createChannel(track.audioBuffer);
+    channelRef.current = AudioService.createChannel(audioBuffer);
     return () => {
       if (channelRef.current) {
         channelRef.current.dispose();
       }
     };
-  }, []);
+  }, [audioBuffer]);
 
-  const updateVolume = (value: SliderValue) => {
+  useEffect(() => {
     if (channelRef.current) {
-      const volume = value as number;
-      channelRef.current.volume.value = convertToDecibel(volume);
-      dispatch([SET_TRACK_VOLUME, { id: track.id, volume }]);
+      channelRef.current.volume.rampTo(convertToDecibel(volume), 0.1);
     }
-  };
-
-  useEffect(() => {});
+  }, [volume]);
 
   function convertToDecibel(value: number) {
     return 20 * Math.log((value + 1) / 101);
   }
+
+  const unfocusTrack = () => {
+    workstationDispatch([SET_TRACK_UNFOCUS, trackId]);
+  };
+
+  const debouncedUnfocusTrack = useDebounced(unfocusTrack, { timeoutMs: 200 });
+
+  const updateVolume = (value: SliderValue) => {
+    if (channelRef.current) {
+      projectDispatch([SET_TRACK_VOLUME, { id: trackId, volume: value }]);
+      workstationDispatch([SET_TRACK_FOCUS, trackId]);
+      debouncedUnfocusTrack();
+    }
+  };
+
+  const throttledUpdateVolume = useThrottled(updateVolume, { timeoutMs: 100 });
 
   const [isMuted, setIsMuted] = useState(false);
 
@@ -79,8 +98,8 @@ const Channel = ({ track }: ChannelProps) => {
     return (value / 100).toFixed(2);
   }
 
-  const { r, g, b } = track.color;
-  const opacity = convertToOpacity(track.volume);
+  const { r, g, b } = color;
+  const opacity = convertToOpacity(volume);
   const channelColor = `rgba(${r},${g},${b}, ${opacity})`;
 
   return (
@@ -90,6 +109,7 @@ const Channel = ({ track }: ChannelProps) => {
         backgroundColor: channelColor,
       }}
     >
+      <div className="channel__swipe"></div>
       <div className="channel__solo">
         <Button
           icon={<CustomerServiceOutlined />}
@@ -110,10 +130,10 @@ const Channel = ({ track }: ChannelProps) => {
       </div>
       <div className="channel__volume">
         <Slider
-          defaultValue={track.volume}
+          defaultValue={volume}
           min={0}
           max={100}
-          onChange={updateVolume}
+          onChange={throttledUpdateVolume}
         />
       </div>
       <div className="channel__move">

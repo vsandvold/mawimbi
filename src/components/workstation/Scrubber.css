@@ -7,8 +7,8 @@
 
 .scrubber__timeline {
   display: flex;
-  padding: 40px 0 40px 56px;
   min-width: 100vw;
+  padding: 40px 0 40px 56px;
   overflow-x: scroll;
   will-change: scroll-position;
 }

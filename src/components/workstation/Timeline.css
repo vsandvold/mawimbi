@@ -4,12 +4,21 @@
   grid-template-rows: 1fr;
   grid-column-gap: 0px;
   grid-row-gap: 0px;
+  padding-right: calc(100vw - 56px);
 }
 
-.timeline_waveform {
+.timeline__waveform {
   display: flex;
   grid-column-start: 1;
   grid-column-end: 1;
   grid-row-start: 1;
   grid-row-end: 1;
+  z-index: 0;
+  opacity: 0.9;
+  transition: opacity 0.1s;
+}
+
+.timeline__waveform--focused {
+  z-index: 1;
+  opacity: 1;
 }

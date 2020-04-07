@@ -6,10 +6,10 @@ type KeyPressOptions = {
 
 const useKeyPress = (
   keyPressCallback: Function,
-  options: KeyPressOptions = { targetKey: ' ' }
+  { targetKey = ' ' }: KeyPressOptions
 ) => {
   const handleKeyUp = ({ key }: KeyboardEvent) => {
-    if (key === options.targetKey) {
+    if (key === targetKey) {
       keyPressCallback();
     }
   };

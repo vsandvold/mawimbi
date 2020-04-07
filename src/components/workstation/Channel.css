@@ -1,6 +1,13 @@
 .channel {
   display: flex;
   padding: 4px 8px;
+  transition: background-color 0.1s;
+}
+
+.channel__swipe {
+  padding-left: 40px;
+  background-color: #0004;
+  margin: -4px 8px -4px -8px;
 }
 
 .channel__solo {

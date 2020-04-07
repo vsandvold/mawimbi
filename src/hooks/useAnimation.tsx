@@ -11,13 +11,13 @@ type AnimationOptions = {
 const useAnimation = (
   animationCallback: Function,
   animationDeps: any[],
-  options: AnimationOptions = { frameRate: MAX_FPS, isActive: true }
+  { frameRate = MAX_FPS, isActive = true, initialValue }: AnimationOptions
 ) => {
-  const frameStep = Math.round(MAX_FPS / options.frameRate);
+  const frameStep = Math.round(MAX_FPS / frameRate);
   let frameCount = 0;
 
   const requestRef = useRef(0);
-  const previousValueRef = useRef(options.initialValue);
+  const previousValueRef = useRef(initialValue);
 
   const requestCallback = () => {
     frameCount++;
@@ -29,11 +29,11 @@ const useAnimation = (
   };
 
   useEffect(() => {
-    if (options.isActive) {
+    if (isActive) {
       requestRef.current = requestAnimationFrame(requestCallback);
       return () => cancelAnimationFrame(requestRef.current);
     }
-  }, animationDeps);
+  }, [...animationDeps, isActive]);
 };
 
 export default useAnimation;

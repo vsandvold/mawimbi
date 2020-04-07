@@ -39,6 +39,7 @@ export function projectReducer(
   switch (type) {
     case ADD_TRACK:
       const trackId = state.nextTrackId;
+      const updatedNextTrackId = state.nextTrackId + 1;
       const newTrack: Track = {
         id: trackId,
         audioBuffer: payload,
@@ -47,14 +48,16 @@ export function projectReducer(
       };
       return {
         ...state,
+        nextTrackId: updatedNextTrackId,
         tracks: [...state.tracks, newTrack],
-        nextTrackId: state.nextTrackId + 1,
       };
     case DECODE_BUFFER:
-      return { ...state, bufferToDecode: payload };
+      const bufferToDecode = payload;
+      return { ...state, bufferToDecode };
     case SET_TRACK_VOLUME:
+      const { id, volume } = payload;
       const updatedTracks = state.tracks.map((track) =>
-        track.id === payload.id ? { ...track, volume: payload.volume } : track
+        track.id === id ? { ...track, volume } : track
       );
       return { ...state, tracks: updatedTracks };
     default:
