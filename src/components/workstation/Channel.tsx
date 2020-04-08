@@ -8,7 +8,7 @@ import { SliderValue } from 'antd/lib/slider';
 import React, { useEffect, useRef, useState } from 'react';
 import useDebounced from '../../hooks/useDebounced';
 import useThrottled from '../../hooks/useThrottled';
-import AudioService from '../../services/AudioService';
+import AudioService, { AudioServiceChannel } from '../../services/AudioService';
 import useProjectContext from '../project/useProjectContext';
 import { SET_TRACK_VOLUME, Track } from '../project/useProjectState';
 import './Channel.css';
@@ -25,7 +25,7 @@ const Channel = ({ track }: ChannelProps) => {
   const [projectDispatch] = useProjectContext();
   const [workstationDispatch] = useWorkstationContext();
 
-  const channelRef = useRef<Tone.Channel | null>(null);
+  const channelRef = useRef<AudioServiceChannel | null>(null);
 
   const { id: trackId, audioBuffer, color, volume } = track;
 

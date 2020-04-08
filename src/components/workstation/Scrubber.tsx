@@ -1,9 +1,9 @@
 import { FastBackwardOutlined } from '@ant-design/icons';
 import { Button } from 'antd';
 import React, { useRef } from 'react';
-import Tone from 'tone';
 import useAnimation from '../../hooks/useAnimation';
 import useDebounced from '../../hooks/useDebounced';
+import AudioService from '../../services/AudioService';
 import './Scrubber.css';
 import useWorkstationContext from './useWorkstationContext';
 import {
@@ -27,7 +27,7 @@ const Scrubber = ({ isPlaying, pixelsPerSecond, children }: ScrubberProps) => {
 
   const updateScrollPosition = () => {
     if (scrollRef.current) {
-      const transportTime = Tone.Transport.seconds;
+      const transportTime = AudioService.getTransportTime();
       const scrollPosition = Math.trunc(transportTime * pixelsPerSecond);
       scrollRef.current.scrollLeft = scrollPosition;
     }

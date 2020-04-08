@@ -2,6 +2,8 @@ import { AudioContext } from 'standardized-audio-context';
 import StartAudioContext from 'startaudiocontext';
 import Tone, { Channel } from 'tone';
 
+export interface AudioServiceChannel extends Channel {}
+
 class AudioService {
   static startAudio(): Promise<any> {
     // FIXME: debug standardized-audio-context
@@ -26,12 +28,32 @@ class AudioService {
     return channel;
   }
 
+  static startPlayback() {
+    Tone.Transport.start();
+  }
+
+  static pausePlayback() {
+    Tone.Transport.pause();
+  }
+
+  static stopPlayback() {
+    Tone.Transport.stop();
+  }
+
   static togglePlayback() {
     if (Tone.Transport.state === 'started') {
       Tone.Transport.pause();
     } else {
       Tone.Transport.start();
     }
+  }
+
+  static getTransportTime() {
+    return Tone.Transport.seconds;
+  }
+
+  static setTransportTime(transportTime: number) {
+    Tone.Transport.seconds = transportTime;
   }
 }
 

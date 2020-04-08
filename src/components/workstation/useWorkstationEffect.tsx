@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import Tone from 'tone';
 import useKeyPress from '../../hooks/useKeyPress';
+import AudioService from '../../services/AudioService';
 import { WorkstationDispatchAction } from './useWorkstationContext';
 import { TOGGLE_PLAYBACK, WorkstationState } from './useWorkstationState';
 
@@ -16,14 +16,14 @@ const useWorkstationEffect = (
 
   useEffect(() => {
     if (isPlaying) {
-      Tone.Transport.start();
+      AudioService.startPlayback();
     } else {
-      Tone.Transport.pause();
+      AudioService.pausePlayback();
     }
   }, [isPlaying]);
 
   useEffect(() => {
-    Tone.Transport.seconds = seekTransportTime;
+    AudioService.setTransportTime(seekTransportTime);
   }, [seekTransportTime]);
 
   return [];
