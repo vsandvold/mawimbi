@@ -1,5 +1,5 @@
 import classNames from 'classnames';
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import useFileDragging from '../../hooks/useFileDragging';
 import Dropzone from '../dropzone/Dropzone';
 import { Track } from '../project/useProjectState';
@@ -9,7 +9,10 @@ import Timeline from './Timeline';
 import Toolbar from './Toolbar';
 import { WorkstationDispatch } from './useWorkstationContext';
 import useWorkstationEffect from './useWorkstationEffect';
-import useWorkstationState, { WorkstationState } from './useWorkstationState';
+import useWorkstationState, {
+  SET_MUTED_TRACKS,
+  WorkstationState,
+} from './useWorkstationState';
 import './Workstation.css';
 
 type WorkstationProps = {
@@ -18,10 +21,11 @@ type WorkstationProps = {
 };
 
 const initialState: WorkstationState = {
+  focusedTracks: [],
   isDrawerOpen: false,
   isPlaying: false,
+  mutedTracks: [],
   pixelsPerSecond: 200,
-  focusedTracks: [],
   seekTransportTime: 0,
 };
 
@@ -31,7 +35,21 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
   const [state, dispatch] = useWorkstationState(initialState);
   const [] = useWorkstationEffect(state, dispatch);
 
-  const { isPlaying, pixelsPerSecond, isDrawerOpen, focusedTracks } = state;
+  useEffect(() => {
+    const hasSoloTracks = tracks.filter((track) => track.solo).length > 0;
+    const mutedTracks = tracks
+      .filter((track) => isTrackMuted(track, hasSoloTracks))
+      .map((track) => track.id);
+    dispatch([SET_MUTED_TRACKS, mutedTracks]);
+  }, [tracks]);
+
+  const {
+    focusedTracks,
+    isDrawerOpen,
+    isPlaying,
+    mutedTracks,
+    pixelsPerSecond,
+  } = state;
   const isFileDragging = useFileDragging();
 
   const editorDrawerClass = classNames('editor__drawer', {
@@ -59,14 +77,15 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
           <div className="editor__timeline">
             <Scrubber isPlaying={isPlaying} pixelsPerSecond={pixelsPerSecond}>
               <Timeline
-                pixelsPerSecond={pixelsPerSecond}
                 focusedTracks={focusedTracks}
+                mutedTracks={mutedTracks}
+                pixelsPerSecond={pixelsPerSecond}
                 tracks={tracks}
               />
             </Scrubber>
           </div>
           <div className={editorDrawerClass}>
-            <Mixer tracks={tracks} />
+            <Mixer mutedTracks={mutedTracks} tracks={tracks} />
           </div>
           <div className={editorDropzoneClass}>{memoizedDropzone}</div>
         </div>
@@ -75,5 +94,9 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
     </WorkstationDispatch.Provider>
   );
 };
+
+function isTrackMuted(track: Track, hasSoloTracks: boolean): boolean {
+  return !track.solo && (track.mute || (hasSoloTracks && !track.solo));
+}
 
 export default Workstation;

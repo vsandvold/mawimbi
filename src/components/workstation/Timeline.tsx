@@ -6,12 +6,14 @@ import Waveform from './Waveform';
 
 type TimelineProps = {
   focusedTracks: number[];
+  mutedTracks: number[];
   pixelsPerSecond: number;
   tracks: Track[];
 };
 
 const Timeline = ({
   focusedTracks,
+  mutedTracks,
   pixelsPerSecond,
   tracks,
 }: TimelineProps) => {
@@ -20,9 +22,11 @@ const Timeline = ({
   return (
     <div className="timeline">
       {tracks.map((track) => {
-        const timelineWaveformClass = classNames('timeline__waveform', {
-          'timeline__waveform--focused': focusedTracks.includes(track.id),
-        });
+        const timelineWaveformClass = getTimelineWaveformClass(
+          track,
+          mutedTracks,
+          focusedTracks
+        );
         return (
           <div key={track.id} className={timelineWaveformClass}>
             <Waveform track={track} pixelsPerSecond={pixelsPerSecond} />
@@ -32,5 +36,20 @@ const Timeline = ({
     </div>
   );
 };
+
+function getTimelineWaveformClass(
+  track: Track,
+  mutedTracks: number[],
+  focusedTracks: number[]
+) {
+  const isMuted = mutedTracks.includes(track.id);
+  const isForeground = focusedTracks.includes(track.id);
+  const isBackground = focusedTracks.length > 0 && !isForeground;
+  return classNames('timeline__waveform', {
+    'timeline__waveform--muted': isMuted,
+    'timeline__waveform--foreground': !isMuted && isForeground,
+    'timeline__waveform--background': !isMuted && isBackground,
+  });
+}
 
 export default Timeline;

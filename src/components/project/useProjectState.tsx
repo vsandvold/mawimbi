@@ -12,6 +12,8 @@ export type Track = {
   audioBuffer: AudioBuffer;
   color: TrackColor;
   volume: number;
+  mute: boolean;
+  solo: boolean;
 };
 
 export type TrackColor = {
@@ -31,6 +33,8 @@ export const COLOR_PALETTE: TrackColor[] = [
 export const ADD_TRACK = 'ADD_TRACK';
 export const DECODE_BUFFER = 'DECODE_BUFFER';
 export const SET_TRACK_VOLUME = 'SET_TRACK_VOLUME';
+export const SET_TRACK_MUTE = 'SET_TRACK_MUTE';
+export const SET_TRACK_SOLO = 'SET_TRACK_SOLO';
 
 export function projectReducer(
   state: ProjectState,
@@ -38,31 +42,47 @@ export function projectReducer(
 ): ProjectState {
   switch (type) {
     case ADD_TRACK:
-      const trackId = state.nextTrackId;
-      const updatedNextTrackId = state.nextTrackId + 1;
-      const newTrack: Track = {
-        id: trackId,
-        audioBuffer: payload,
-        color: COLOR_PALETTE[trackId],
-        volume: 100,
-      };
       return {
         ...state,
-        nextTrackId: updatedNextTrackId,
-        tracks: [...state.tracks, newTrack],
+        nextTrackId: state.nextTrackId + 1,
+        tracks: [...state.tracks, createTrack(state.nextTrackId, payload)],
       };
     case DECODE_BUFFER:
-      const bufferToDecode = payload;
-      return { ...state, bufferToDecode };
+      return { ...state, bufferToDecode: payload };
     case SET_TRACK_VOLUME:
-      const { id, volume } = payload;
-      const updatedTracks = state.tracks.map((track) =>
-        track.id === id ? { ...track, volume } : track
-      );
-      return { ...state, tracks: updatedTracks };
+      return { ...state, tracks: setTrackVolume(state.tracks, payload) };
+    case SET_TRACK_MUTE:
+      return { ...state, tracks: setTrackMute(state.tracks, payload) };
+    case SET_TRACK_SOLO:
+      return { ...state, tracks: setTrackSolo(state.tracks, payload) };
     default:
       throw new Error();
   }
+}
+
+function createTrack(id: number, audioBuffer: AudioBuffer): Track {
+  return {
+    id,
+    audioBuffer,
+    color: COLOR_PALETTE[id],
+    volume: 100,
+    mute: false,
+    solo: false,
+  };
+}
+
+function setTrackVolume(tracks: Track[], { id, volume }: any) {
+  return tracks.map((track) =>
+    track.id === id ? { ...track, volume } : track
+  );
+}
+
+function setTrackMute(tracks: Track[], { id, mute }: any) {
+  return tracks.map((track) => (track.id === id ? { ...track, mute } : track));
+}
+
+function setTrackSolo(tracks: Track[], { id, solo }: any) {
+  return tracks.map((track) => (track.id === id ? { ...track, solo } : track));
 }
 
 const useProjectState = (

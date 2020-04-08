@@ -18,7 +18,16 @@
   transition: opacity 0.1s;
 }
 
-.timeline__waveform--focused {
+.timeline__waveform--foreground {
   z-index: 1;
-  opacity: 1;
+}
+
+.timeline__waveform--background {
+  opacity: 0.5;
+  transition: opacity 0.3s;
+}
+
+.timeline__waveform--muted {
+  opacity: 0;
+  transition: opacity 0.3s;
 }

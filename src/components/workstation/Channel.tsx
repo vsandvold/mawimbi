@@ -5,21 +5,27 @@ import {
 } from '@ant-design/icons';
 import { Button, Slider } from 'antd';
 import { SliderValue } from 'antd/lib/slider';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import useDebounced from '../../hooks/useDebounced';
 import useThrottled from '../../hooks/useThrottled';
 import AudioService, { AudioServiceChannel } from '../../services/AudioService';
 import useProjectContext from '../project/useProjectContext';
-import { SET_TRACK_VOLUME, Track } from '../project/useProjectState';
+import {
+  SET_TRACK_MUTE,
+  SET_TRACK_SOLO,
+  SET_TRACK_VOLUME,
+  Track,
+} from '../project/useProjectState';
 import './Channel.css';
 import useWorkstationContext from './useWorkstationContext';
 import { SET_TRACK_FOCUS, SET_TRACK_UNFOCUS } from './useWorkstationState';
 
 type ChannelProps = {
+  isMuted: boolean;
   track: Track;
 };
 
-const Channel = ({ track }: ChannelProps) => {
+const Channel = ({ isMuted, track }: ChannelProps) => {
   console.log('Channel render');
 
   const [projectDispatch] = useProjectContext();
@@ -27,7 +33,7 @@ const Channel = ({ track }: ChannelProps) => {
 
   const channelRef = useRef<AudioServiceChannel | null>(null);
 
-  const { id: trackId, audioBuffer, color, volume } = track;
+  const { id: trackId, audioBuffer, color, volume, mute, solo } = track;
 
   useEffect(() => {
     channelRef.current = AudioService.createChannel(audioBuffer);
@@ -52,7 +58,7 @@ const Channel = ({ track }: ChannelProps) => {
     workstationDispatch([SET_TRACK_UNFOCUS, trackId]);
   };
 
-  const debouncedUnfocusTrack = useDebounced(unfocusTrack, { timeoutMs: 200 });
+  const debouncedUnfocusTrack = useDebounced(unfocusTrack, { timeoutMs: 250 });
 
   const updateVolume = (value: SliderValue) => {
     if (channelRef.current) {
@@ -64,33 +70,25 @@ const Channel = ({ track }: ChannelProps) => {
 
   const throttledUpdateVolume = useThrottled(updateVolume, { timeoutMs: 100 });
 
-  const [isMuted, setIsMuted] = useState(false);
-
   const updateMute = () => {
-    if (channelRef.current) {
-      setIsMuted((prevIsMuted) => !prevIsMuted);
-    }
+    projectDispatch([SET_TRACK_MUTE, { id: trackId, mute: !mute }]);
   };
 
   useEffect(() => {
     if (channelRef.current) {
-      channelRef.current.mute = isMuted;
+      channelRef.current.mute = mute;
     }
-  }, [isMuted]);
-
-  const [isSolo, setIsSolo] = useState(false);
+  }, [mute]);
 
   const updateSolo = () => {
-    if (channelRef.current) {
-      setIsSolo((prevIsSolo) => !prevIsSolo);
-    }
+    projectDispatch([SET_TRACK_SOLO, { id: trackId, solo: !solo }]);
   };
 
   useEffect(() => {
     if (channelRef.current) {
-      channelRef.current.solo = isSolo;
+      channelRef.current.solo = solo;
     }
-  }, [isSolo]);
+  }, [solo]);
 
   const updateMove = () => {};
 
@@ -99,11 +97,8 @@ const Channel = ({ track }: ChannelProps) => {
   }
 
   const { r, g, b } = color;
-  const opacity = convertToOpacity(volume);
-  const channelColor = `rgba(${r},${g},${b}, ${opacity})`;
-  const buttonColor =
-    opacity < 0.5 ? 'rgba(255, 255, 255, 0.65)' : 'rgba(0, 0, 0, 0.65)';
-  const buttonStyle = { color: buttonColor, transition: 'color 0.5s' };
+  const channelOpacity = isMuted ? 0 : convertToOpacity(volume);
+  const channelColor = `rgba(${r},${g},${b}, ${channelOpacity})`;
 
   return (
     <div
@@ -115,7 +110,7 @@ const Channel = ({ track }: ChannelProps) => {
       <div className="channel__swipe"></div>
       <div className="channel__solo">
         <Button
-          style={buttonStyle}
+          style={getButtonStyle(channelOpacity, solo)}
           icon={<CustomerServiceOutlined />}
           type="link"
           ghost
@@ -125,7 +120,7 @@ const Channel = ({ track }: ChannelProps) => {
       </div>
       <div className="channel__mute">
         <Button
-          style={buttonStyle}
+          style={getButtonStyle(channelOpacity, mute)}
           icon={<SoundOutlined />}
           type="link"
           ghost
@@ -143,7 +138,7 @@ const Channel = ({ track }: ChannelProps) => {
       </div>
       <div className="channel__move">
         <Button
-          style={{ ...buttonStyle, cursor: 'move' }}
+          style={getButtonStyle(channelOpacity)}
           icon={<MenuOutlined />}
           type="link"
           ghost
@@ -154,5 +149,14 @@ const Channel = ({ track }: ChannelProps) => {
     </div>
   );
 };
+
+function getButtonStyle(channelOpacity: number, isActive = false) {
+  const buttonOpacity = isActive ? 1 : 0.65;
+  const buttonColor =
+    channelOpacity < 0.5
+      ? `rgba(255, 255, 255, ${buttonOpacity})`
+      : `rgba(0, 0, 0, ${buttonOpacity})`;
+  return { color: buttonColor, transition: 'color 0.5s' };
+}
 
 export default Channel;

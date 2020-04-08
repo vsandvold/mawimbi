@@ -1,20 +1,22 @@
 import React from 'react';
+import { Track } from '../project/useProjectState';
 import Channel from './Channel';
 import './Mixer.css';
-import { Track } from '../project/useProjectState';
 
 type MixerProps = {
+  mutedTracks: number[];
   tracks: Track[];
 };
 
-const Mixer = ({ tracks }: MixerProps) => {
+const Mixer = ({ mutedTracks, tracks }: MixerProps) => {
   console.log('Mixer render');
 
   return (
     <div className="mixer">
-      {tracks.map((track) => (
-        <Channel key={track.id} track={track} />
-      ))}
+      {tracks.map((track) => {
+        const isMuted = mutedTracks.includes(track.id);
+        return <Channel key={track.id} isMuted={isMuted} track={track} />;
+      })}
     </div>
   );
 };

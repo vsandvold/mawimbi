@@ -2,14 +2,16 @@ import React, { useReducer } from 'react';
 import { WorkstationDispatchAction } from './useWorkstationContext';
 
 export type WorkstationState = {
+  focusedTracks: number[];
   isDrawerOpen: boolean;
   isPlaying: boolean;
+  mutedTracks: number[];
   pixelsPerSecond: number;
-  focusedTracks: number[];
   seekTransportTime: number;
 };
 
 export const SEEK_TRANSPORT_TIME = 'SEEK_TRANSPORT_TIME';
+export const SET_MUTED_TRACKS = 'SET_MUTED_TRACKS';
 export const SET_TRACK_FOCUS = 'SET_TRACK_FOCUS';
 export const SET_TRACK_UNFOCUS = 'SET_TRACK_UNFOCUS';
 export const STOP_PLAYBACK = 'STOP_PLAYBACK';
@@ -21,38 +23,39 @@ export function workstationReducer(
   [type, payload]: WorkstationDispatchAction
 ): WorkstationState {
   switch (type) {
+    case SEEK_TRANSPORT_TIME:
+      return { ...state, seekTransportTime: payload };
+    case SET_MUTED_TRACKS:
+      return { ...state, mutedTracks: payload };
     case SET_TRACK_FOCUS:
-      const focusedTrackId = payload;
-      const focusedTracksFocus = state.focusedTracks.includes(focusedTrackId)
-        ? state.focusedTracks
-        : [...state.focusedTracks, focusedTrackId];
       return {
         ...state,
-        focusedTracks: focusedTracksFocus,
+        focusedTracks: setTrackFocus(state.focusedTracks, payload),
       };
     case SET_TRACK_UNFOCUS:
-      const unfocusedTrackId = payload;
-      const focusedTracksUnfocus = state.focusedTracks.filter(
-        (trackId) => trackId !== unfocusedTrackId
-      );
       return {
         ...state,
-        focusedTracks: focusedTracksUnfocus,
+        focusedTracks: setTrackUnfocus(state.focusedTracks, payload),
       };
-    case SEEK_TRANSPORT_TIME:
-      const seekTransportTime = payload;
-      return { ...state, seekTransportTime };
     case STOP_PLAYBACK:
       return { ...state, isPlaying: false };
     case TOGGLE_DRAWER:
-      const isDrawerOpen = !state.isDrawerOpen;
-      return { ...state, isDrawerOpen };
+      return { ...state, isDrawerOpen: !state.isDrawerOpen };
     case TOGGLE_PLAYBACK:
-      const isPlaying = !state.isPlaying;
-      return { ...state, isPlaying };
+      return { ...state, isPlaying: !state.isPlaying };
     default:
       throw new Error();
   }
+}
+
+function setTrackFocus(focusedTracks: number[], focusedTrackId: number) {
+  return focusedTracks.includes(focusedTrackId)
+    ? focusedTracks
+    : [...focusedTracks, focusedTrackId];
+}
+
+function setTrackUnfocus(focusedTracks: number[], unfocusedTrackId: number) {
+  return focusedTracks.filter((trackId) => trackId !== unfocusedTrackId);
 }
 
 const useWorkstationState = (
