@@ -3,6 +3,7 @@ import { Button } from 'antd';
 import React, { useRef } from 'react';
 import Tone from 'tone';
 import useAnimation from '../../hooks/useAnimation';
+import useDebounced from '../../hooks/useDebounced';
 import './Scrubber.css';
 import useWorkstationContext from './useWorkstationContext';
 import {
@@ -37,11 +38,7 @@ const Scrubber = ({ isPlaying, pixelsPerSecond, children }: ScrubberProps) => {
     isActive: isPlaying,
   });
 
-  const togglePlayback = () => {
-    workstationDispatch([TOGGLE_PLAYBACK]);
-  };
-
-  const setTransportTime = () => {
+  const seekTransportTime = () => {
     if (isPlaying) {
       return;
     }
@@ -50,6 +47,14 @@ const Scrubber = ({ isPlaying, pixelsPerSecond, children }: ScrubberProps) => {
       const transportTime = scrollPosition / pixelsPerSecond;
       workstationDispatch([SEEK_TRANSPORT_TIME, transportTime]);
     }
+  };
+
+  const debouncedSeekTransportTime = useDebounced(seekTransportTime, {
+    timeoutMs: 200,
+  });
+
+  const togglePlayback = () => {
+    workstationDispatch([TOGGLE_PLAYBACK]);
   };
 
   const stopAndRewindPlayback = () => {
@@ -66,7 +71,7 @@ const Scrubber = ({ isPlaying, pixelsPerSecond, children }: ScrubberProps) => {
         className="scrubber__timeline"
         ref={scrollRef}
         onClick={togglePlayback}
-        onScroll={setTransportTime}
+        onScroll={debouncedSeekTransportTime}
       >
         {children}
       </div>
