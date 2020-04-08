@@ -14,10 +14,12 @@
   flex: 0;
   margin-right: 8px;
 }
+
 .channel__mute {
   flex: 0;
   margin-right: 8px;
 }
+
 .channel__volume {
   flex: 1;
   margin-right: 8px;

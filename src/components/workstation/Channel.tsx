@@ -95,12 +95,15 @@ const Channel = ({ track }: ChannelProps) => {
   const updateMove = () => {};
 
   function convertToOpacity(value: number) {
-    return (value / 100).toFixed(2);
+    return parseFloat((value / 100).toFixed(2));
   }
 
   const { r, g, b } = color;
   const opacity = convertToOpacity(volume);
   const channelColor = `rgba(${r},${g},${b}, ${opacity})`;
+  const buttonColor =
+    opacity < 0.5 ? 'rgba(255, 255, 255, 0.65)' : 'rgba(0, 0, 0, 0.65)';
+  const buttonStyle = { color: buttonColor, transition: 'color 0.5s' };
 
   return (
     <div
@@ -112,6 +115,7 @@ const Channel = ({ track }: ChannelProps) => {
       <div className="channel__swipe"></div>
       <div className="channel__solo">
         <Button
+          style={buttonStyle}
           icon={<CustomerServiceOutlined />}
           type="link"
           ghost
@@ -121,6 +125,7 @@ const Channel = ({ track }: ChannelProps) => {
       </div>
       <div className="channel__mute">
         <Button
+          style={buttonStyle}
           icon={<SoundOutlined />}
           type="link"
           ghost
@@ -138,6 +143,7 @@ const Channel = ({ track }: ChannelProps) => {
       </div>
       <div className="channel__move">
         <Button
+          style={{ ...buttonStyle, cursor: 'move' }}
           icon={<MenuOutlined />}
           type="link"
           ghost
