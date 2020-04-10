@@ -47,6 +47,7 @@ export function projectReducer(
     case ADD_TRACK:
       return {
         ...state,
+        bufferToDecode: null,
         nextTrackId: state.nextTrackId + 1,
         tracks: [...state.tracks, createTrack(state.nextTrackId, payload)],
       };
@@ -66,6 +67,7 @@ export function projectReducer(
 }
 
 function createTrack(id: number, audioBuffer: AudioBuffer): Track {
+  // TODO: randomize color of new track
   return {
     audioBuffer,
     color: COLOR_PALETTE[id],
