@@ -4,11 +4,16 @@
   flex-direction: column;
 }
 
+.workstation__toolbar {
+  z-index: 1;
+}
+
 .editor {
   flex: 1;
   display: flex;
   flex-direction: column;
   position: relative;
+  overflow-y: hidden;
 }
 
 .editor__timeline {
@@ -20,22 +25,28 @@
 
 .editor__drawer {
   flex: 1;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: 120px;
+  overflow-y: scroll;
+  transition: transform 0.3s;
 }
 
 .editor__drawer--closed {
-  /* TODO: transform with compositor-only properties to avoid reflow/repaint */
   /* TODO: transform scrubber as well, with eg. scaleY(0.5) translateY(-128px) */
-  display: none;
+  transform: translateY(120px);
 }
 
-@media (max-height: 375px) {
+@media (min-height: 376px) {
   .editor__drawer {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    max-height: 120px;
-    overflow-y: scroll;
+    max-height: 240px;
+  }
+
+  .editor__drawer--closed {
+    /* TODO: transform scrubber as well, with eg. scaleY(0.5) translateY(-128px) */
+    transform: translateY(240px);
   }
 }
 

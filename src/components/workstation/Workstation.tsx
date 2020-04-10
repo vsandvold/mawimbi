@@ -83,7 +83,9 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
             <MemoizedDropzone uploadFile={uploadFile} />
           </div>
         </div>
-        <MemoizedToolbar isPlaying={isPlaying} isDrawerOpen={isDrawerOpen} />
+        <div className="workstation__toolbar">
+          <MemoizedToolbar isPlaying={isPlaying} isDrawerOpen={isDrawerOpen} />
+        </div>
       </div>
     </WorkstationDispatch.Provider>
   );
