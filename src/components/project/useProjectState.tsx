@@ -2,9 +2,10 @@ import React, { useReducer } from 'react';
 import { ProjectDispatchAction } from './useProjectContext';
 
 export type ProjectState = {
-  tracks: Track[];
+  bufferToDecode?: ArrayBuffer | null;
   nextTrackId: number;
-  bufferToDecode: ArrayBuffer | null;
+  title: string;
+  tracks: Track[];
 };
 
 export type Track = {

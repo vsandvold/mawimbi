@@ -4,10 +4,11 @@ import React from 'react';
 import { useHistory } from 'react-router-dom';
 
 type ProjectPageHeaderProps = {
+  title: string;
   uploadFile: (file: File) => void;
 };
 
-const ProjectPageHeader = ({ uploadFile }: ProjectPageHeaderProps) => {
+const ProjectPageHeader = ({ title, uploadFile }: ProjectPageHeaderProps) => {
   console.log('ProjectPageHeader render');
 
   const history = useHistory();
@@ -20,8 +21,7 @@ const ProjectPageHeader = ({ uploadFile }: ProjectPageHeaderProps) => {
     <PageHeader
       ghost={false}
       onBack={() => history.goBack()}
-      title="Mawimbi"
-      subTitle="New Wave"
+      title={title}
       extra={[
         <Button
           key="upload-button"

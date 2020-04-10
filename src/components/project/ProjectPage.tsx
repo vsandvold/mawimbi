@@ -12,9 +12,9 @@ import useProjectState, {
 } from './useProjectState';
 
 const initialState: ProjectState = {
-  tracks: [],
   nextTrackId: 0,
-  bufferToDecode: null,
+  title: 'Untitled',
+  tracks: [],
 };
 
 const ProjectPage = () => {
@@ -23,6 +23,8 @@ const ProjectPage = () => {
   const [state, dispatch] = useProjectState(initialState);
 
   useProjectEffect(state, dispatch);
+
+  const { title } = state;
 
   const uploadFileCallback = useCallback(
     (file: File) => {
@@ -43,15 +45,15 @@ const ProjectPage = () => {
   );
 
   // TODO: optimize rendering with React.memo, React.useMemo and React.useCallback
-  const memoizedProjectPageHeader = useMemo(
-    () => <ProjectPageHeader uploadFile={uploadFileCallback} />,
-    [uploadFileCallback]
-  );
-
   return (
     <ProjectDispatch.Provider value={dispatch}>
       <PageLayout>
-        <PageHeader>{memoizedProjectPageHeader}</PageHeader>
+        <PageHeader>
+          <MemoizedProjectPageHeader
+            title={title}
+            uploadFile={uploadFileCallback}
+          />
+        </PageHeader>
         <PageContent>
           <Workstation tracks={state.tracks} uploadFile={uploadFileCallback} />
         </PageContent>
@@ -59,5 +61,7 @@ const ProjectPage = () => {
     </ProjectDispatch.Provider>
   );
 };
+
+const MemoizedProjectPageHeader = React.memo(ProjectPageHeader);
 
 export default ProjectPage;
