@@ -81,7 +81,6 @@ const Scrubber = ({ isPlaying, pixelsPerSecond, children }: ScrubberProps) => {
       <div className="scrubber__rewind">
         <Button
           type="link"
-          ghost
           size="large"
           icon={<FastBackwardOutlined />}
           title="Rewind"

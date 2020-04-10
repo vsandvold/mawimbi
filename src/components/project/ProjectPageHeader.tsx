@@ -26,7 +26,6 @@ const ProjectPageHeader = ({ title, uploadFile }: ProjectPageHeaderProps) => {
         <Button
           key="upload-button"
           type="link"
-          ghost
           icon={<UploadOutlined />}
           title="Upload audio file"
           onClick={handleFileUpload}

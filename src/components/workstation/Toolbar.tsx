@@ -22,8 +22,8 @@ const Toolbar = ({ isPlaying, isDrawerOpen }: ToolbarProps) => {
   const playPauseButton = (
     <Button
       type="link"
-      ghost
       size="large"
+      style={getButtonStyle(isPlaying)}
       icon={isPlaying ? <PauseOutlined /> : <CaretRightOutlined />}
       title={isPlaying ? 'Pause' : 'Play'}
       onClick={() => dispatch([TOGGLE_PLAYBACK])}
@@ -33,8 +33,8 @@ const Toolbar = ({ isPlaying, isDrawerOpen }: ToolbarProps) => {
   const mixerButton = (
     <Button
       type="link"
-      ghost
       size="large"
+      style={getButtonStyle(isDrawerOpen)}
       icon={<ControlOutlined />}
       title={isDrawerOpen ? 'Hide mixer' : 'Show mixer'}
       onClick={() => dispatch([TOGGLE_DRAWER])}
@@ -48,5 +48,11 @@ const Toolbar = ({ isPlaying, isDrawerOpen }: ToolbarProps) => {
     </div>
   );
 };
+
+function getButtonStyle(isActive = false) {
+  const buttonOpacity = isActive ? 1 : 0.65;
+  const buttonColor = `rgba(255, 255, 255, ${buttonOpacity})`;
+  return { color: buttonColor };
+}
 
 export default Toolbar;
