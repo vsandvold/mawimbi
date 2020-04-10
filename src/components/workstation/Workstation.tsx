@@ -50,6 +50,7 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
     mutedTracks,
     pixelsPerSecond,
   } = state;
+
   const isFileDragging = useFileDragging();
 
   const editorDrawerClass = classNames('editor__drawer', {
@@ -61,15 +62,6 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
   });
 
   // TODO: optimize rendering with React.memo, React.useMemo and React.useCallback
-  const memoizedDropzone = useMemo(() => <Dropzone uploadFile={uploadFile} />, [
-    uploadFile,
-  ]);
-
-  const memoizedToolbar = useMemo(
-    () => <Toolbar isPlaying={isPlaying} isDrawerOpen={isDrawerOpen} />,
-    [isPlaying, isDrawerOpen]
-  );
-
   return (
     <WorkstationDispatch.Provider value={dispatch}>
       <div className="workstation">
@@ -87,13 +79,18 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
           <div className={editorDrawerClass}>
             <Mixer mutedTracks={mutedTracks} tracks={tracks} />
           </div>
-          <div className={editorDropzoneClass}>{memoizedDropzone}</div>
+          <div className={editorDropzoneClass}>
+            <MemoizedDropzone uploadFile={uploadFile} />
+          </div>
         </div>
-        {memoizedToolbar}
+        <MemoizedToolbar isPlaying={isPlaying} isDrawerOpen={isDrawerOpen} />
       </div>
     </WorkstationDispatch.Provider>
   );
 };
+
+const MemoizedDropzone = React.memo(Dropzone);
+const MemoizedToolbar = React.memo(Toolbar);
 
 function isTrackMuted(track: Track, hasSoloTracks: boolean): boolean {
   return !track.solo && (track.mute || (hasSoloTracks && !track.solo));

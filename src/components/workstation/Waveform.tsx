@@ -43,13 +43,13 @@ const Waveform = ({ track, pixelsPerSecond }: WaveformProps) => {
     waveformRef.current.loadDecodedBuffer(audioBuffer);
   }, [audioBuffer, color, pixelsPerSecond]);
 
-  function convertToOpacity(value: number) {
-    return (value / 100).toFixed(2);
-  }
-
   const opacity = convertToOpacity(volume);
 
   return <div ref={containerRef} style={{ opacity }} />;
 };
+
+function convertToOpacity(value: number): string {
+  return (value / 100).toFixed(2);
+}
 
 export default Waveform;

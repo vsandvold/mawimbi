@@ -29,13 +29,15 @@ const Timeline = ({
         );
         return (
           <div key={track.id} className={timelineWaveformClass}>
-            <Waveform track={track} pixelsPerSecond={pixelsPerSecond} />
+            <MemoizedWaveform track={track} pixelsPerSecond={pixelsPerSecond} />
           </div>
         );
       })}
     </div>
   );
 };
+
+const MemoizedWaveform = React.memo(Waveform);
 
 function getTimelineWaveformClass(
   track: Track,

@@ -50,10 +50,6 @@ const Channel = ({ isMuted, track }: ChannelProps) => {
     }
   }, [volume]);
 
-  function convertToDecibel(value: number) {
-    return 20 * Math.log((value + 1) / 101);
-  }
-
   const unfocusTrack = () => {
     workstationDispatch([SET_TRACK_UNFOCUS, trackId]);
   };
@@ -89,12 +85,6 @@ const Channel = ({ isMuted, track }: ChannelProps) => {
       channelRef.current.solo = solo;
     }
   }, [solo]);
-
-  const updateMove = () => {};
-
-  function convertToOpacity(value: number) {
-    return parseFloat((value / 100).toFixed(2));
-  }
 
   const { r, g, b } = color;
   const channelOpacity = isMuted ? 0 : convertToOpacity(volume);
@@ -143,12 +133,19 @@ const Channel = ({ isMuted, track }: ChannelProps) => {
           type="link"
           ghost
           title="Move"
-          onClick={updateMove}
         />
       </div>
     </div>
   );
 };
+
+function convertToDecibel(value: number): number {
+  return 20 * Math.log((value + 1) / 101);
+}
+
+function convertToOpacity(value: number): number {
+  return parseFloat((value / 100).toFixed(2));
+}
 
 function getButtonStyle(channelOpacity: number, isActive = false) {
   const buttonOpacity = isActive ? 1 : 0.65;
