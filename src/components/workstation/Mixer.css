@@ -1,4 +1,4 @@
 .mixer {
   /* TODO: make background color themable */
-  background-color: #000;
+  background-color: var(--defaultBG);
 }

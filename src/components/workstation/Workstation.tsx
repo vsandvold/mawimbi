@@ -1,5 +1,5 @@
 import classNames from 'classnames';
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect } from 'react';
 import useFileDragging from '../../hooks/useFileDragging';
 import Dropzone from '../dropzone/Dropzone';
 import { Track } from '../project/useProjectState';
@@ -41,7 +41,7 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
       .filter((track) => isTrackMuted(track, hasSoloTracks))
       .map((track) => track.id);
     dispatch([SET_MUTED_TRACKS, mutedTracks]);
-  }, [tracks]);
+  }, [tracks, dispatch]);
 
   const {
     focusedTracks,

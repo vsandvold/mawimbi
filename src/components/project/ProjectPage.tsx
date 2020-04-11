@@ -1,5 +1,5 @@
 import { message } from 'antd';
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback } from 'react';
 import { PageContent, PageHeader, PageLayout } from '../layout/PageLayout';
 import Workstation from '../workstation/Workstation';
 import './ProjectPage.css';

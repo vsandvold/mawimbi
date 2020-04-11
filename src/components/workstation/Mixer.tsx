@@ -1,14 +1,14 @@
-import React, { useMemo } from 'react';
-import { Track, MOVE_TRACK } from '../project/useProjectState';
-import Channel from './Channel';
-import './Mixer.css';
+import React from 'react';
 import {
   DragDropContext,
-  Droppable,
   Draggable,
+  Droppable,
   DropResult,
 } from 'react-beautiful-dnd';
 import useProjectContext from '../project/useProjectContext';
+import { MOVE_TRACK, Track } from '../project/useProjectState';
+import Channel from './Channel';
+import './Mixer.css';
 
 type MixerProps = {
   mutedTracks: number[];
