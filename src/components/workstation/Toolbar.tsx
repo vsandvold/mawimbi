@@ -52,7 +52,8 @@ const Toolbar = ({ isPlaying, isDrawerOpen }: ToolbarProps) => {
 function getButtonStyle(isActive = false) {
   const buttonOpacity = isActive ? 1 : 0.65;
   const buttonColor = `rgba(255, 255, 255, ${buttonOpacity})`;
-  return { color: buttonColor };
+  const boxShadow = isActive ? `0 0 1px 1px ${buttonColor} inset` : 'none';
+  return { color: buttonColor, boxShadow, borderRadius: '2px' };
 }
 
 export default Toolbar;
