@@ -25,7 +25,7 @@ type ChannelProps = {
   track: Track;
 };
 
-const Channel = ({ isMuted, track }: ChannelProps) => {
+const Channel = ({ isMuted, track, ...dragHandleProps }: ChannelProps) => {
   console.log('Channel render');
 
   const [projectDispatch] = useProjectContext();
@@ -103,7 +103,6 @@ const Channel = ({ isMuted, track }: ChannelProps) => {
           style={getButtonStyle(channelOpacity, solo)}
           icon={<CustomerServiceOutlined />}
           type="link"
-          ghost
           title="Solo"
           onClick={updateSolo}
         />
@@ -113,7 +112,6 @@ const Channel = ({ isMuted, track }: ChannelProps) => {
           style={getButtonStyle(channelOpacity, mute)}
           icon={<SoundOutlined />}
           type="link"
-          ghost
           title="Mute"
           onClick={updateMute}
         />
@@ -126,13 +124,13 @@ const Channel = ({ isMuted, track }: ChannelProps) => {
           onChange={throttledUpdateVolume}
         />
       </div>
-      <div className="channel__move">
+      <div className="channel__move" {...dragHandleProps}>
         <Button
-          style={getButtonStyle(channelOpacity)}
+          style={{ ...getButtonStyle(channelOpacity), pointerEvents: 'none' }}
           icon={<MenuOutlined />}
           type="link"
-          ghost
           title="Move"
+          disabled
         />
       </div>
     </div>
@@ -153,7 +151,13 @@ function getButtonStyle(channelOpacity: number, isActive = false) {
     channelOpacity < 0.5
       ? `rgba(255, 255, 255, ${buttonOpacity})`
       : `rgba(0, 0, 0, ${buttonOpacity})`;
-  return { color: buttonColor, transition: 'color 0.5s' };
+  const buttonBorder = isActive ? `0 0 1px 1px ${buttonColor} inset` : 'none';
+  return {
+    color: buttonColor,
+    transition: 'color 0.5s',
+    boxShadow: buttonBorder,
+    borderRadius: '2px',
+  };
 }
 
 export default Channel;

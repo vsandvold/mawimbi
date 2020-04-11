@@ -68,9 +68,12 @@ const ChannelList = ({ mutedTracks, tracks }: MixerProps) => {
                 className="mixer__channel"
                 ref={provided.innerRef}
                 {...provided.draggableProps}
-                {...provided.dragHandleProps}
               >
-                <MemoizedChannel isMuted={isMuted} track={track} />
+                <MemoizedChannel
+                  isMuted={isMuted}
+                  track={track}
+                  {...provided.dragHandleProps}
+                />
               </div>
             )}
           </Draggable>
