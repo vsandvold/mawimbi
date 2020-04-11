@@ -1,20 +1,22 @@
 import * as Tone from 'tone';
 
-export interface AudioServiceChannel extends Tone.Channel {}
-
-function startAudioContext(event: Event) {
+function startAudioContext(this: any, event: Event) {
   event.preventDefault();
   event.stopPropagation();
   Tone.start()
-    .then(() => console.log('audio is ready'))
-    .catch(() => console.log('failed to start audio'));
+    .then(() => this.resolve())
+    .catch(() => this.reject());
   window.removeEventListener('click', startAudioContext);
 }
 
 class AudioService {
-  static startAudio(): void {
-    // TODO: bind click event listener to something more convenient
-    window.addEventListener('click', startAudioContext);
+  static startAudio(clickElement = window): Promise<any> {
+    return new Promise((resolve, reject) => {
+      clickElement.addEventListener(
+        'click',
+        startAudioContext.bind({ resolve, reject })
+      );
+    });
   }
 
   static async decodeAudioData(arrayBuffer: ArrayBuffer): Promise<AudioBuffer> {
@@ -56,5 +58,7 @@ class AudioService {
     Tone.Transport.seconds = transportTime;
   }
 }
+
+export interface AudioServiceChannel extends Tone.Channel {}
 
 export default AudioService;

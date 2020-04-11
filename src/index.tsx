@@ -7,7 +7,9 @@ import './index.css';
 import AudioService from './services/AudioService';
 import * as serviceWorker from './serviceWorker';
 
-AudioService.startAudio();
+AudioService.startAudio()
+  .then(() => console.log('audio is ready'))
+  .catch(() => message.error('failed to start audio'));
 
 ReactDOM.render(
   <BrowserRouter>
