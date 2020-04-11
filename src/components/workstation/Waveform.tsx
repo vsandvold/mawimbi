@@ -27,6 +27,7 @@ const Waveform = ({ track, pixelsPerSecond }: WaveformProps) => {
   useEffect(() => {
     const defaultParams = {
       backgroundColor: 'transparent',
+      cursorColor: 'transparent',
       fillParent: false,
       scrollParent: false,
       interact: false,
