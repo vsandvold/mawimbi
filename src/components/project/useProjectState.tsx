@@ -68,9 +68,10 @@ export function projectReducer(
 
 function createTrack(id: number, audioBuffer: AudioBuffer): Track {
   // TODO: randomize color of new track
+  const colorIndex = id % COLOR_PALETTE.length;
   return {
     audioBuffer,
-    color: COLOR_PALETTE[id],
+    color: COLOR_PALETTE[colorIndex],
     id,
     index: id,
     mute: false,
