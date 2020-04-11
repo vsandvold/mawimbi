@@ -1,28 +1,28 @@
-import { AudioContext } from 'standardized-audio-context';
-import StartAudioContext from 'startaudiocontext';
-import Tone, { Channel } from 'tone';
+import * as Tone from 'tone';
 
-export interface AudioServiceChannel extends Channel {}
+export interface AudioServiceChannel extends Tone.Channel {}
+
+function startAudioContext(event: Event) {
+  event.preventDefault();
+  event.stopPropagation();
+  Tone.start()
+    .then(() => console.log('audio is ready'))
+    .catch(() => console.log('failed to start audio'));
+  window.removeEventListener('click', startAudioContext);
+}
 
 class AudioService {
-  static startAudio(): Promise<any> {
-    // FIXME: debug standardized-audio-context
-    // AudioService.initAudioContext();
-    return StartAudioContext(Tone.context);
-  }
-
-  static initAudioContext(): void {
-    // Overrides Tone.context with a more updated version from standardized-audio-context
-    const audioContext = new AudioContext();
-    Tone.setContext(audioContext);
+  static startAudio(): void {
+    // TODO: bind click event listener to something more convenient
+    window.addEventListener('click', startAudioContext);
   }
 
   static async decodeAudioData(arrayBuffer: ArrayBuffer): Promise<AudioBuffer> {
     return await Tone.context.decodeAudioData(arrayBuffer);
   }
 
-  static createChannel(audioBuffer: AudioBuffer): Channel {
-    const channel = new Tone.Channel().toMaster();
+  static createChannel(audioBuffer: AudioBuffer): Tone.Channel {
+    const channel = new Tone.Channel().toDestination();
     const player = new Tone.Player(audioBuffer).sync().start(0);
     player.chain(channel);
     return channel;
