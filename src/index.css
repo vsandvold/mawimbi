@@ -1,4 +1,28 @@
 /* TODO: move common styling here */
 html {
-  --defaultBG: #000;
+  --body-background: #000;
+  --component-background: #141414;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  /* Style scrollbar on desktop devices only */
+  html {
+    --scrollbar-track-color: #141414;
+    --scrollbar-thumb-color: rgba(255, 255, 255, 0.65);
+  }
+  div {
+    scrollbar-width: thin;
+    scrollbar-color: dark;
+  }
+  div::-webkit-scrollbar {
+    width: 11px;
+  }
+  div::-webkit-scrollbar-track {
+    background: var(--scrollbar-track-color);
+  }
+  div::-webkit-scrollbar-thumb {
+    background-color: var(--scrollbar-thumb-color);
+    border-radius: 6px;
+    border: 3px solid var(--scrollbar-track-color);
+  }
 }
