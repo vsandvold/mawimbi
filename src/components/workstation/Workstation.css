@@ -37,7 +37,7 @@
 }
 
 .editor__drawer--closed {
-  /* TODO: transform scrubber as well, with eg. scaleY(0.5) translateY(-120px) */
+  /* TODO: transform timeline as well, with eg. scaleY(0.5) translateY(-120px) */
   transform: translateY(120px);
 }
 
@@ -47,7 +47,7 @@
   }
 
   .editor__drawer--closed {
-    /* TODO: transform scrubber as well, with eg. scaleY(0.5) translateY(-240px) */
+    /* TODO: transform timeline as well, with eg. scaleY(0.5) translateY(-240px) */
     transform: translateY(240px);
   }
 }

@@ -23,6 +23,18 @@ const Scrubber = ({ isPlaying, pixelsPerSecond, children }: ScrubberProps) => {
 
   const [workstationDispatch] = useWorkstationContext();
 
+  useAnimation(
+    () => {
+      updateScrollPosition();
+      stopPlaybackIfEndOfScroll();
+    },
+    [isPlaying],
+    {
+      frameRate: 60,
+      isActive: isPlaying,
+    }
+  );
+
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const updateScrollPosition = () => {
@@ -33,10 +45,24 @@ const Scrubber = ({ isPlaying, pixelsPerSecond, children }: ScrubberProps) => {
     }
   };
 
-  useAnimation(updateScrollPosition, [isPlaying], {
-    frameRate: 60,
-    isActive: isPlaying,
-  });
+  const stopPlaybackIfEndOfScroll = () => {
+    if (scrollRef.current) {
+      const isEndOfScroll =
+        scrollRef.current.scrollLeft + scrollRef.current.clientWidth >=
+        scrollRef.current.scrollWidth;
+      if (isEndOfScroll) {
+        stopAndRewindPlayback();
+      }
+    }
+  };
+
+  const stopAndRewindPlayback = () => {
+    workstationDispatch([STOP_PLAYBACK]);
+    if (scrollRef.current) {
+      scrollRef.current.scrollLeft = 0;
+      workstationDispatch([SEEK_TRANSPORT_TIME, 0]);
+    }
+  };
 
   const seekTransportTime = () => {
     if (isPlaying) {
@@ -55,14 +81,6 @@ const Scrubber = ({ isPlaying, pixelsPerSecond, children }: ScrubberProps) => {
 
   const togglePlayback = () => {
     workstationDispatch([TOGGLE_PLAYBACK]);
-  };
-
-  const stopAndRewindPlayback = () => {
-    workstationDispatch([STOP_PLAYBACK]);
-    if (scrollRef.current) {
-      scrollRef.current.scrollLeft = 0;
-      workstationDispatch([SEEK_TRANSPORT_TIME, 0]);
-    }
   };
 
   return (
