@@ -1,5 +1,5 @@
 import classNames from 'classnames';
-import React from 'react';
+import React, { useRef, useLayoutEffect } from 'react';
 import { Track } from '../project/useProjectState';
 import './Timeline.css';
 import Waveform from './Waveform';
@@ -19,8 +19,18 @@ const Timeline = ({
 }: TimelineProps) => {
   console.log('Timeline render');
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const heightRef = useRef(0);
+
+  useLayoutEffect(() => {
+    if (containerRef.current) {
+      const { height } = containerRef.current.getBoundingClientRect();
+      heightRef.current = height;
+    }
+  }, []);
+
   return (
-    <div className="timeline">
+    <div ref={containerRef} className="timeline">
       {tracks.map((track) => {
         const timelineWaveformClass = getTimelineWaveformClass(
           track,
@@ -29,7 +39,11 @@ const Timeline = ({
         );
         return (
           <div key={track.id} className={timelineWaveformClass}>
-            <MemoizedWaveform track={track} pixelsPerSecond={pixelsPerSecond} />
+            <MemoizedWaveform
+              height={heightRef.current}
+              pixelsPerSecond={pixelsPerSecond}
+              track={track}
+            />
           </div>
         );
       })}

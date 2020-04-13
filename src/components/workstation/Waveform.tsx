@@ -1,28 +1,20 @@
-import React, { useEffect, useLayoutEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import WaveSurfer from 'wavesurfer.js';
 import { Track } from '../project/useProjectState';
 
 type WaveformProps = {
-  track: Track;
+  height: number;
   pixelsPerSecond: number;
+  track: Track;
 };
 
-const Waveform = ({ track, pixelsPerSecond }: WaveformProps) => {
+const Waveform = ({ height, pixelsPerSecond, track }: WaveformProps) => {
   console.log('Waveform render');
 
-  const { audioBuffer, color, volume } = track;
-
   const containerRef = useRef<HTMLDivElement>(null);
-  const heightRef = useRef(0);
-
-  useLayoutEffect(() => {
-    if (containerRef.current) {
-      const { height } = containerRef.current.getBoundingClientRect();
-      heightRef.current = height;
-    }
-  }, []);
-
   const waveformRef = useRef<WaveSurfer>();
+
+  const { audioBuffer, color, volume } = track;
 
   useEffect(() => {
     const defaultParams = {
@@ -37,12 +29,12 @@ const Waveform = ({ track, pixelsPerSecond }: WaveformProps) => {
     waveformRef.current = WaveSurfer.create({
       ...defaultParams,
       container: containerRef.current,
-      height: heightRef.current,
+      height,
       minPxPerSec: pixelsPerSecond,
       waveColor,
     });
     waveformRef.current.loadDecodedBuffer(audioBuffer);
-  }, [audioBuffer, color, pixelsPerSecond]);
+  }, [audioBuffer, color, height, pixelsPerSecond]);
 
   const opacity = convertToOpacity(volume);
 
