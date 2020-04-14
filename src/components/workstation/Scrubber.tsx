@@ -1,13 +1,11 @@
-import { FastBackwardOutlined } from '@ant-design/icons';
-import { Button } from 'antd';
-import React, { useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 import useAnimation from '../../hooks/useAnimation';
 import useDebounced from '../../hooks/useDebounced';
 import AudioService from '../../services/AudioService';
 import './Scrubber.css';
 import useWorkstationContext from './useWorkstationContext';
 import {
-  SEEK_TRANSPORT_TIME,
+  SET_TRANSPORT_TIME,
   STOP_PLAYBACK,
   TOGGLE_PLAYBACK,
 } from './useWorkstationState';
@@ -15,13 +13,23 @@ import {
 type ScrubberProps = {
   isPlaying: boolean;
   pixelsPerSecond: number;
+  transportTime: number;
   children: JSX.Element[] | JSX.Element;
 };
 
-const Scrubber = ({ isPlaying, pixelsPerSecond, children }: ScrubberProps) => {
+const Scrubber = ({
+  isPlaying,
+  pixelsPerSecond,
+  transportTime,
+  children,
+}: ScrubberProps) => {
   console.log('Scrubber render');
 
-  const [workstationDispatch] = useWorkstationContext();
+  const [dispatch] = useWorkstationContext();
+
+  useEffect(() => {
+    setScrollPosition(transportTime);
+  }, [transportTime]);
 
   useAnimation(
     () => {
@@ -35,11 +43,16 @@ const Scrubber = ({ isPlaying, pixelsPerSecond, children }: ScrubberProps) => {
     }
   );
 
+  const updateScrollPosition = () => {
+    // Update scroll position directly from transport time for performance reasons
+    const transportTime = AudioService.getTransportTime();
+    setScrollPosition(transportTime);
+  };
+
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const updateScrollPosition = () => {
+  const setScrollPosition = (transportTime: number) => {
     if (scrollRef.current) {
-      const transportTime = AudioService.getTransportTime();
       const scrollPosition = Math.trunc(transportTime * pixelsPerSecond);
       scrollRef.current.scrollLeft = scrollPosition;
     }
@@ -51,36 +64,29 @@ const Scrubber = ({ isPlaying, pixelsPerSecond, children }: ScrubberProps) => {
         scrollRef.current.scrollLeft + scrollRef.current.clientWidth >=
         scrollRef.current.scrollWidth;
       if (isEndOfScroll) {
-        stopAndRewindPlayback();
+        dispatch([STOP_PLAYBACK]);
+        dispatch([SET_TRANSPORT_TIME, 0]);
       }
     }
   };
 
-  const stopAndRewindPlayback = () => {
-    workstationDispatch([STOP_PLAYBACK]);
-    if (scrollRef.current) {
-      scrollRef.current.scrollLeft = 0;
-      workstationDispatch([SEEK_TRANSPORT_TIME, 0]);
-    }
-  };
-
-  const seekTransportTime = () => {
+  const setTransportTime = () => {
     if (isPlaying) {
       return;
     }
     if (scrollRef.current) {
       const scrollPosition = scrollRef.current.scrollLeft;
       const transportTime = scrollPosition / pixelsPerSecond;
-      workstationDispatch([SEEK_TRANSPORT_TIME, transportTime]);
+      dispatch([SET_TRANSPORT_TIME, transportTime]);
     }
   };
 
-  const debouncedSeekTransportTime = useDebounced(seekTransportTime, {
+  const debouncedSetTransportTime = useDebounced(setTransportTime, {
     timeoutMs: 200,
   });
 
   const togglePlayback = () => {
-    workstationDispatch([TOGGLE_PLAYBACK]);
+    dispatch([TOGGLE_PLAYBACK]);
   };
 
   return (
@@ -89,21 +95,12 @@ const Scrubber = ({ isPlaying, pixelsPerSecond, children }: ScrubberProps) => {
         className="scrubber__timeline"
         ref={scrollRef}
         onClick={togglePlayback}
-        onScroll={debouncedSeekTransportTime}
+        onScroll={debouncedSetTransportTime}
       >
         {children}
       </div>
       <div className="scrubber__progress">
         <div className="progress" />
-      </div>
-      <div className="scrubber__rewind">
-        <Button
-          type="link"
-          size="large"
-          icon={<FastBackwardOutlined />}
-          title="Rewind"
-          onClick={stopAndRewindPlayback}
-        />
       </div>
     </div>
   );

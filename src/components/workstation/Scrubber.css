@@ -20,16 +20,6 @@
   bottom: 40px;
 }
 
-.scrubber__rewind {
-  position: absolute;
-  bottom: 0;
-  left: 36px;
-}
-
-.scrubber__rewind--hidden {
-  display: none;
-}
-
 .progress {
   height: 100%;
   width: 1px;

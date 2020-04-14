@@ -26,3 +26,22 @@ html {
     border: 3px solid var(--scrollbar-track-color);
   }
 }
+
+.button {
+  color: rgba(255, 255, 255, 0.65);
+  border-radius: 2px;
+}
+
+.button:hover {
+  color: rgba(255, 255, 255, 1) !important;
+}
+
+.button:focus {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.button:active,
+.button--active {
+  color: rgba(255, 255, 255, 1);
+  box-shadow: 0 0 1px 1px rgba(255, 255, 255, 1) inset !important;
+}

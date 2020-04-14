@@ -8,7 +8,7 @@ const useWorkstationEffect = (
   state: WorkstationState,
   dispatch: React.Dispatch<WorkstationDispatchAction>
 ) => {
-  const { isPlaying, seekTransportTime } = state;
+  const { isPlaying, transportTime } = state;
 
   /*
    * Use spacebar to toggle playback.
@@ -31,12 +31,12 @@ const useWorkstationEffect = (
   }, [isPlaying]);
 
   /*
-   * Seek transport time.
+   * Set transport time.
    */
 
   useEffect(() => {
-    AudioService.setTransportTime(seekTransportTime);
-  }, [seekTransportTime]);
+    AudioService.setTransportTime(transportTime);
+  }, [transportTime]);
 
   /*
    * Compute scale factor for timeline transform when drawer is open.

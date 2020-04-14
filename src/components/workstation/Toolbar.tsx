@@ -1,13 +1,20 @@
-import {
+import Icon, {
   CaretRightOutlined,
   ControlOutlined,
-  PauseOutlined,
+  StepBackwardOutlined,
 } from '@ant-design/icons';
 import { Button } from 'antd';
+import classNames from 'classnames';
 import React from 'react';
+import { ReactComponent as StopSvg } from '../../icons/stop.svg';
 import './Toolbar.css';
 import useWorkstationContext from './useWorkstationContext';
-import { TOGGLE_DRAWER, TOGGLE_PLAYBACK } from './useWorkstationState';
+import {
+  SET_TRANSPORT_TIME,
+  STOP_PLAYBACK,
+  TOGGLE_DRAWER,
+  TOGGLE_PLAYBACK,
+} from './useWorkstationState';
 
 type ToolbarProps = {
   isPlaying: boolean;
@@ -19,22 +26,49 @@ const Toolbar = ({ isPlaying, isDrawerOpen }: ToolbarProps) => {
 
   const [dispatch] = useWorkstationContext();
 
+  const stopOrRewindPlayback = () => {
+    if (isPlaying) {
+      dispatch([STOP_PLAYBACK]);
+    } else {
+      dispatch([SET_TRANSPORT_TIME, 0]);
+    }
+  };
+
+  const stopRewindButton = (
+    <Button
+      type="link"
+      size="large"
+      className="button"
+      icon={isPlaying ? <Icon component={StopSvg} /> : <StepBackwardOutlined />}
+      title={isPlaying ? 'Stop' : 'Rewind'}
+      onClick={stopOrRewindPlayback}
+    />
+  );
+
+  const playPauseButtonClass = classNames('button', {
+    'button--active': isPlaying,
+  });
+
   const playPauseButton = (
     <Button
       type="link"
       size="large"
-      style={getButtonStyle(isPlaying)}
-      icon={isPlaying ? <PauseOutlined /> : <CaretRightOutlined />}
+      className={playPauseButtonClass}
+      icon={<CaretRightOutlined />}
       title={isPlaying ? 'Pause' : 'Play'}
       onClick={() => dispatch([TOGGLE_PLAYBACK])}
     />
   );
 
+  const mixerButtonClass = classNames('button', {
+    'button--active': isDrawerOpen,
+  });
+
   const mixerButton = (
     <Button
       type="link"
       size="large"
-      style={getButtonStyle(isDrawerOpen)}
+      className={mixerButtonClass}
       icon={<ControlOutlined />}
       title={isDrawerOpen ? 'Hide mixer' : 'Show mixer'}
       onClick={() => dispatch([TOGGLE_DRAWER])}
@@ -43,17 +77,11 @@ const Toolbar = ({ isPlaying, isDrawerOpen }: ToolbarProps) => {
 
   return (
     <div className="toolbar">
+      <div className="toolbar__button">{stopRewindButton}</div>
       <div className="toolbar__button">{playPauseButton}</div>
       <div className="toolbar__button">{mixerButton}</div>
     </div>
   );
 };
-
-function getButtonStyle(isActive = false) {
-  const buttonOpacity = isActive ? 1 : 0.65;
-  const buttonColor = `rgba(255, 255, 255, ${buttonOpacity})`;
-  const boxShadow = isActive ? `0 0 1px 1px ${buttonColor} inset` : 'none';
-  return { color: buttonColor, boxShadow, borderRadius: '2px' };
-}
 
 export default Toolbar;

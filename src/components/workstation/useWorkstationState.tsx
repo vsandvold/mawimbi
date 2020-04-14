@@ -7,13 +7,13 @@ export type WorkstationState = {
   isPlaying: boolean;
   mutedTracks: number[];
   pixelsPerSecond: number;
-  seekTransportTime: number;
+  transportTime: number;
 };
 
-export const SEEK_TRANSPORT_TIME = 'SEEK_TRANSPORT_TIME';
 export const SET_MUTED_TRACKS = 'SET_MUTED_TRACKS';
 export const SET_TRACK_FOCUS = 'SET_TRACK_FOCUS';
 export const SET_TRACK_UNFOCUS = 'SET_TRACK_UNFOCUS';
+export const SET_TRANSPORT_TIME = 'SET_TRANSPORT_TIME';
 export const STOP_PLAYBACK = 'STOP_PLAYBACK';
 export const TOGGLE_DRAWER = 'TOGGLE_DRAWER';
 export const TOGGLE_PLAYBACK = 'TOGGLE_PLAYBACK';
@@ -23,8 +23,8 @@ export function workstationReducer(
   [type, payload]: WorkstationDispatchAction
 ): WorkstationState {
   switch (type) {
-    case SEEK_TRANSPORT_TIME:
-      return { ...state, seekTransportTime: payload };
+    case SET_TRANSPORT_TIME:
+      return { ...state, transportTime: payload };
     case SET_MUTED_TRACKS:
       return { ...state, mutedTracks: payload };
     case SET_TRACK_FOCUS:

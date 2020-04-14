@@ -26,7 +26,7 @@ const initialState: WorkstationState = {
   isPlaying: false,
   mutedTracks: [],
   pixelsPerSecond: 200,
-  seekTransportTime: 0,
+  transportTime: 0,
 };
 
 const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
@@ -53,6 +53,7 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
     isPlaying,
     mutedTracks,
     pixelsPerSecond,
+    transportTime,
   } = state;
 
   const isFileDragging = useFileDragging();
@@ -75,7 +76,11 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
             className="editor__timeline"
             style={getTimelineStyle(isDrawerOpen, timelineScaleFactor)}
           >
-            <Scrubber isPlaying={isPlaying} pixelsPerSecond={pixelsPerSecond}>
+            <Scrubber
+              isPlaying={isPlaying}
+              pixelsPerSecond={pixelsPerSecond}
+              transportTime={transportTime}
+            >
               <MemoizedTimeline
                 focusedTracks={focusedTracks}
                 mutedTracks={mutedTracks}
