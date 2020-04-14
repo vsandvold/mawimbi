@@ -4,8 +4,19 @@ html {
   --component-background: #141414;
 }
 
+@media (max-width: 768px) {
+  /* Reset header extra styling for mobile devices in portrait mode. */
+  .ant-page-header-heading-extra {
+    display: initial;
+    float: right;
+    clear: initial;
+    width: initial;
+    padding-top: 0;
+  }
+}
+
 @media (hover: hover) and (pointer: fine) {
-  /* Style scrollbar on desktop devices only */
+  /* Style scrollbar on desktop devices only. */
   html {
     --scrollbar-track-color: #141414;
     --scrollbar-thumb-color: rgba(255, 255, 255, 0.65);
