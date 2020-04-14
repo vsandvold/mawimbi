@@ -9,6 +9,10 @@ const useProjectEffect = (
 ) => {
   const { bufferToDecode } = state;
 
+  /*
+   * Decode audio data for a new track.
+   */
+
   useEffect(() => {
     if (bufferToDecode) {
       AudioService.decodeAudioData(bufferToDecode).then((audioBuffer) =>

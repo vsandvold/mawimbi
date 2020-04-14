@@ -29,25 +29,22 @@
   bottom: 0;
   left: 0;
   right: 0;
-  min-height: 40px;
-  max-height: 120px;
+  height: 120px;
   overflow-y: scroll;
   transition: transform 0.3s;
   background-color: var(--component-background);
 }
 
 .editor__drawer--closed {
-  /* TODO: transform timeline as well, with eg. scaleY(0.5) translateY(-120px) */
   transform: translateY(120px);
 }
 
 @media (min-height: 376px) {
   .editor__drawer {
-    max-height: 240px;
+    height: 240px;
   }
 
   .editor__drawer--closed {
-    /* TODO: transform timeline as well, with eg. scaleY(0.5) translateY(-240px) */
     transform: translateY(240px);
   }
 }

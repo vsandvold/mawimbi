@@ -33,7 +33,11 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
   console.log('Workstation render');
 
   const [state, dispatch] = useWorkstationState(initialState);
-  const [] = useWorkstationEffect(state, dispatch);
+  const {
+    timelineScaleFactor,
+    timelineContainerRef,
+    drawerContainerRef,
+  } = useWorkstationEffect(state, dispatch);
 
   useEffect(() => {
     const hasSoloTracks = tracks.filter((track) => track.solo).length > 0;
@@ -66,9 +70,13 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
     <WorkstationDispatch.Provider value={dispatch}>
       <div className="workstation">
         <div className="editor">
-          <div className="editor__timeline">
+          <div
+            ref={timelineContainerRef}
+            className="editor__timeline"
+            style={getTimelineStyle(isDrawerOpen, timelineScaleFactor)}
+          >
             <Scrubber isPlaying={isPlaying} pixelsPerSecond={pixelsPerSecond}>
-              <Timeline
+              <MemoizedTimeline
                 focusedTracks={focusedTracks}
                 mutedTracks={mutedTracks}
                 pixelsPerSecond={pixelsPerSecond}
@@ -76,8 +84,8 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
               />
             </Scrubber>
           </div>
-          <div className={editorDrawerClass}>
-            <Mixer mutedTracks={mutedTracks} tracks={tracks} />
+          <div ref={drawerContainerRef} className={editorDrawerClass}>
+            <MemoizedMixer mutedTracks={mutedTracks} tracks={tracks} />
           </div>
           <div className={editorDropzoneClass}>
             <MemoizedDropzone uploadFile={uploadFile} />
@@ -92,10 +100,23 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
 };
 
 const MemoizedDropzone = React.memo(Dropzone);
+const MemoizedMixer = React.memo(Mixer);
+const MemoizedTimeline = React.memo(Timeline);
 const MemoizedToolbar = React.memo(Toolbar);
 
 function isTrackMuted(track: Track, hasSoloTracks: boolean): boolean {
   return !track.solo && (track.mute || (hasSoloTracks && !track.solo));
+}
+
+function getTimelineStyle(isDrawerOpen: boolean, timelineScaleFactor: number) {
+  const defaultStyle = {
+    transformOrigin: 'top left',
+    transition: 'transform 0.3s',
+    willChange: 'transform',
+  };
+  return isDrawerOpen
+    ? { ...defaultStyle, transform: `scaleY(${timelineScaleFactor})` }
+    : defaultStyle;
 }
 
 export default Workstation;
