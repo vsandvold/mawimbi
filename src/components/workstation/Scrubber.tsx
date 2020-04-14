@@ -65,7 +65,6 @@ const Scrubber = ({
         scrollRef.current.scrollWidth;
       if (isEndOfScroll) {
         dispatch([STOP_PLAYBACK]);
-        dispatch([SET_TRANSPORT_TIME, 0]);
       }
     }
   };
