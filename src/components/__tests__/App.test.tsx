@@ -15,9 +15,9 @@ it('renders route to home page', () => {
   expect(wrapper).toContainReact(<HomePage />);
 });
 
-it('renders route to app page', () => {
+it('renders route to project page', () => {
   const wrapper = mount(
-    <MemoryRouter initialEntries={['/wave']}>
+    <MemoryRouter initialEntries={['/project']}>
       <App />
     </MemoryRouter>
   );

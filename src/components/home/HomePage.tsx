@@ -1,24 +1,31 @@
-import { Button, Layout } from 'antd';
+import { Button, Typography } from 'antd';
 import React from 'react';
 import { useHistory } from 'react-router-dom';
-
-const { Header, Content, Footer } = Layout;
+import { PageContent, PageLayout } from '../layout/PageLayout';
+import './HomePage.css';
 
 const HomePage = () => {
   const history = useHistory();
 
   function handleClick() {
-    history.push('/wave');
+    history.push('/project');
   }
 
+  const { Title, Text } = Typography;
+
   return (
-    <Layout>
-      <Header></Header>
-      <Content>
-        <Button onClick={handleClick}>Create new wave</Button>
-      </Content>
-      <Footer></Footer>
-    </Layout>
+    <PageLayout>
+      <PageContent>
+        <div className="home">
+          <Title>Mawimbi</Title>
+          <Text>
+            <Button type="primary" size="large" onClick={handleClick}>
+              Create Project
+            </Button>
+          </Text>
+        </div>
+      </PageContent>
+    </PageLayout>
   );
 };
 
