@@ -1,18 +1,23 @@
-import { InboxOutlined } from '@ant-design/icons';
+import { UploadOutlined } from '@ant-design/icons';
 import React, { useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import './Dropzone.css';
+import classNames from 'classnames';
+import { Typography } from 'antd';
 
 type DropzoneProps = {
   uploadFile(file: File): void;
 };
 
 const Dropzone = ({ uploadFile }: DropzoneProps) => {
+  console.log('Dropzone render');
+
   const {
     acceptedFiles,
     getRootProps,
     getInputProps,
     isDragActive,
+    isDragAccept,
     isDragReject,
   } = useDropzone({
     accept: 'audio/*',
@@ -21,37 +26,32 @@ const Dropzone = ({ uploadFile }: DropzoneProps) => {
     noKeyboard: true,
   });
 
-  // TODO: consider re-introducing useCallback
-  // TODO: expose and apply rootProps to PageLayout component
-
   useEffect(() => {
     acceptedFiles.forEach(uploadFile);
-  }, [acceptedFiles]);
+  }, [acceptedFiles, uploadFile]);
 
-  console.log('Dropzone render');
+  const dropzoneClass = classNames('dropzone', {
+    'dropzone--active': isDragActive,
+    'dropzone--accept': isDragAccept,
+    'dropzone--reject': isDragReject,
+  });
+
+  const { Title, Text } = Typography;
 
   return (
     <div
       {...getRootProps({
-        className: `ant-upload ant-upload-drag ${
-          isDragActive ? 'ant-upload-drag-active' : ''
-        }`,
+        className: dropzoneClass,
       })}
     >
       <input {...getInputProps()} />
-      {isDragActive ? (
-        <div className="ant-upload-drag-container">
-          <p className="ant-upload-drag-icon">
-            <InboxOutlined />
-          </p>
-          <p className="ant-upload-text">Drag file to this area to upload</p>
-          <p className="ant-upload-hint">
-            Support for a single or bulk upload. Strictly prohibit from
-            uploading company data or other band files
-          </p>
-          {isDragReject ? <div>Only audio files accepted</div> : null}
-        </div>
-      ) : null}
+      <div className="dropzone__content">
+        <Text>
+          <UploadOutlined className="upload-icon" />
+        </Text>
+        <Title level={4}>Drag and drop audio files here</Title>
+        <Text>All audio files are accepted</Text>
+      </div>
     </div>
   );
 };

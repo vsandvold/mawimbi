@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import useAnimation from '../../hooks/useAnimation';
 import useDebounced from '../../hooks/useDebounced';
 import AudioService from '../../services/AudioService';
@@ -27,9 +27,21 @@ const Scrubber = ({
 
   const [dispatch] = useWorkstationContext();
 
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const setScrollPosition = useCallback(
+    (transportTime: number) => {
+      if (scrollRef.current) {
+        const scrollPosition = Math.trunc(transportTime * pixelsPerSecond);
+        scrollRef.current.scrollLeft = scrollPosition;
+      }
+    },
+    [pixelsPerSecond, scrollRef]
+  );
+
   useEffect(() => {
     setScrollPosition(transportTime);
-  }, [transportTime]);
+  }, [transportTime, setScrollPosition]);
 
   useAnimation(
     () => {
@@ -47,15 +59,6 @@ const Scrubber = ({
     // Update scroll position directly from transport time for performance reasons
     const transportTime = AudioService.getTransportTime();
     setScrollPosition(transportTime);
-  };
-
-  const scrollRef = useRef<HTMLDivElement>(null);
-
-  const setScrollPosition = (transportTime: number) => {
-    if (scrollRef.current) {
-      const scrollPosition = Math.trunc(transportTime * pixelsPerSecond);
-      scrollRef.current.scrollLeft = scrollPosition;
-    }
   };
 
   const stopPlaybackIfEndOfScroll = () => {

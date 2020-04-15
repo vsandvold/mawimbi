@@ -2,6 +2,9 @@
 html {
   --body-background: #000;
   --component-background: #141414;
+  --border-color: #434343;
+  --success-color: #52c41a;
+  --error-color: #ff4d4f;
 }
 
 @media (max-width: 768px) {
