@@ -158,7 +158,7 @@ const EmptyTimeline = () => {
   return (
     <div className="empty-timeline">
       <Title level={4} type="secondary">
-        Upload some audio files to get started
+        Upload audio files to get started
       </Title>
       {isTouchEnabled() ? (
         <Text type="secondary">Use the upload button above</Text>
