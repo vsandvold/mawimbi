@@ -1,5 +1,5 @@
 import { UploadOutlined } from '@ant-design/icons';
-import { Button, PageHeader } from 'antd';
+import { Button, PageHeader, Upload } from 'antd';
 import React from 'react';
 import { useHistory } from 'react-router-dom';
 
@@ -13,8 +13,15 @@ const ProjectPageHeader = ({ title, uploadFile }: ProjectPageHeaderProps) => {
 
   const history = useHistory();
 
-  const handleFileUpload = () => {
-    alert('Not implemented.');
+  const uploadProps = {
+    multiple: true,
+    showUploadList: false,
+    beforeUpload: () => false,
+    onChange(info: any) {
+      if (info.file) {
+        uploadFile(info.file);
+      }
+    },
   };
 
   return (
@@ -23,13 +30,14 @@ const ProjectPageHeader = ({ title, uploadFile }: ProjectPageHeaderProps) => {
       onBack={() => history.goBack()}
       title={title}
       extra={[
-        <Button
-          key="upload-button"
-          type="link"
-          icon={<UploadOutlined />}
-          title="Upload audio file"
-          onClick={handleFileUpload}
-        />,
+        <Upload key="upload-button" {...uploadProps}>
+          <Button
+            type="link"
+            className="button"
+            icon={<UploadOutlined />}
+            title="Upload audio files"
+          />
+        </Upload>,
       ]}
     />
   );
