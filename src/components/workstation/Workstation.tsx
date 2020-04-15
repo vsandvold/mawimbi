@@ -1,5 +1,6 @@
+import { Typography } from 'antd';
 import classNames from 'classnames';
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import useFileDragging from '../../hooks/useFileDragging';
 import Dropzone from '../dropzone/Dropzone';
 import { Track } from '../project/useProjectState';
@@ -56,6 +57,7 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
     transportTime,
   } = state;
 
+  const hasTracks = tracks.length > 0;
   const isFileDragging = useFileDragging();
 
   const editorDrawerClass = classNames('editor__drawer', {
@@ -66,9 +68,42 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
     'editor__dropzone--hidden': !isFileDragging,
   });
 
-  const hasTracks = tracks.length > 0;
-
   // TODO: optimize rendering with React.memo, React.useMemo and React.useCallback
+  const memoizedTimeline = useMemo(
+    () => (
+      <Timeline
+        focusedTracks={focusedTracks}
+        mutedTracks={mutedTracks}
+        pixelsPerSecond={pixelsPerSecond}
+        tracks={tracks}
+      />
+    ),
+    [focusedTracks, mutedTracks, pixelsPerSecond, tracks]
+  );
+
+  const memoizedScrubberTimeline = useMemo(
+    () =>
+      hasTracks ? (
+        <Scrubber
+          isPlaying={isPlaying}
+          pixelsPerSecond={pixelsPerSecond}
+          transportTime={transportTime}
+        >
+          {memoizedTimeline}
+        </Scrubber>
+      ) : isFileDragging ? null : (
+        <EmptyTimeline />
+      ),
+    [
+      hasTracks,
+      isFileDragging,
+      isPlaying,
+      memoizedTimeline,
+      pixelsPerSecond,
+      transportTime,
+    ]
+  );
+
   return (
     <WorkstationDispatch.Provider value={dispatch}>
       <div className="workstation">
@@ -78,18 +113,7 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
             className="editor__timeline"
             style={getTimelineStyle(isDrawerOpen, timelineScaleFactor)}
           >
-            <Scrubber
-              isPlaying={isPlaying}
-              pixelsPerSecond={pixelsPerSecond}
-              transportTime={transportTime}
-            >
-              <MemoizedTimeline
-                focusedTracks={focusedTracks}
-                mutedTracks={mutedTracks}
-                pixelsPerSecond={pixelsPerSecond}
-                tracks={tracks}
-              />
-            </Scrubber>
+            {memoizedScrubberTimeline}
           </div>
           <div ref={drawerContainerRef} className={editorDrawerClass}>
             <MemoizedMixer mutedTracks={mutedTracks} tracks={tracks} />
@@ -128,6 +152,31 @@ function getTimelineStyle(isDrawerOpen: boolean, timelineScaleFactor: number) {
 const MemoizedDropzone = React.memo(Dropzone);
 const MemoizedMixer = React.memo(Mixer);
 const MemoizedToolbar = React.memo(Toolbar);
-const MemoizedTimeline = React.memo(Timeline);
+
+const EmptyTimeline = () => {
+  const { Title, Text } = Typography;
+  return (
+    <div className="empty-timeline">
+      <Title level={4} type="secondary">
+        Upload some audio files to get started
+      </Title>
+      {isTouchEnabled() ? (
+        <Text type="secondary">Use the upload button above</Text>
+      ) : (
+        <Text type="secondary">
+          Drag files here, or use the upload button above
+        </Text>
+      )}
+    </div>
+  );
+};
+
+function isTouchEnabled() {
+  return (
+    'ontouchstart' in window ||
+    navigator.maxTouchPoints > 0 ||
+    navigator.msMaxTouchPoints > 0
+  );
+}
 
 export default Workstation;

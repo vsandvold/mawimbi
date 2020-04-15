@@ -60,3 +60,9 @@
 .editor__dropzone--hidden {
   display: none;
 }
+
+.empty-timeline {
+  flex: 1;
+  align-self: center;
+  text-align: center;
+}
