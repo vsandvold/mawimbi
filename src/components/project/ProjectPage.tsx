@@ -7,7 +7,7 @@ import ProjectPageHeader from './ProjectPageHeader';
 import { ProjectDispatch } from './useProjectContext';
 import useProjectEffect from './useProjectEffect';
 import useProjectState, {
-  DECODE_BUFFER,
+  DECODE_AUDIO_BUFFER,
   ProjectState,
 } from './useProjectState';
 
@@ -35,7 +35,7 @@ const ProjectPage = () => {
       reader.onerror = () =>
         message.error({ content: file.name, key: messageKey });
       reader.onload = () => {
-        dispatch([DECODE_BUFFER, reader.result as ArrayBuffer]);
+        dispatch([DECODE_AUDIO_BUFFER, reader.result as ArrayBuffer]);
         message.success({ content: file.name, key: messageKey });
       };
       message.loading({ content: file.name, key: messageKey });

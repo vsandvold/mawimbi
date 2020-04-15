@@ -17,11 +17,12 @@ import {
 } from './useWorkstationState';
 
 type ToolbarProps = {
-  isPlaying: boolean;
   isDrawerOpen: boolean;
+  isEmpty: boolean;
+  isPlaying: boolean;
 };
 
-const Toolbar = ({ isPlaying, isDrawerOpen }: ToolbarProps) => {
+const Toolbar = ({ isDrawerOpen, isEmpty, isPlaying }: ToolbarProps) => {
   console.log('Toolbar render');
 
   const [dispatch] = useWorkstationContext();
@@ -42,6 +43,7 @@ const Toolbar = ({ isPlaying, isDrawerOpen }: ToolbarProps) => {
       icon={isPlaying ? <Icon component={StopSvg} /> : <StepBackwardOutlined />}
       title={isPlaying ? 'Stop' : 'Rewind'}
       onClick={stopOrRewindPlayback}
+      disabled={isEmpty}
     />
   );
 
@@ -57,6 +59,7 @@ const Toolbar = ({ isPlaying, isDrawerOpen }: ToolbarProps) => {
       icon={<CaretRightOutlined />}
       title={isPlaying ? 'Pause' : 'Play'}
       onClick={() => dispatch([TOGGLE_PLAYBACK])}
+      disabled={isEmpty}
     />
   );
 
@@ -72,6 +75,7 @@ const Toolbar = ({ isPlaying, isDrawerOpen }: ToolbarProps) => {
       icon={<ControlOutlined />}
       title={isDrawerOpen ? 'Hide mixer' : 'Show mixer'}
       onClick={() => dispatch([TOGGLE_DRAWER])}
+      disabled={isEmpty}
     />
   );
 

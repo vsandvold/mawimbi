@@ -56,3 +56,12 @@ html {
   color: rgba(255, 255, 255, 1);
   box-shadow: 0 0 1px 1px rgba(255, 255, 255, 1) inset !important;
 }
+
+.button[disabled],
+.button[disabled]:hover,
+.button[disabled]:focus,
+.button[disabled]:active,
+.button--active[disabled] {
+  color: rgba(255, 255, 255, 0.3) !important;
+  box-shadow: none !important;
+}

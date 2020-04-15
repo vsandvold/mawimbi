@@ -66,6 +66,8 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
     'editor__dropzone--hidden': !isFileDragging,
   });
 
+  const hasTracks = tracks.length > 0;
+
   // TODO: optimize rendering with React.memo, React.useMemo and React.useCallback
   return (
     <WorkstationDispatch.Provider value={dispatch}>
@@ -97,17 +99,16 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
           </div>
         </div>
         <div className="workstation__toolbar">
-          <MemoizedToolbar isPlaying={isPlaying} isDrawerOpen={isDrawerOpen} />
+          <MemoizedToolbar
+            isDrawerOpen={isDrawerOpen}
+            isEmpty={!hasTracks}
+            isPlaying={isPlaying}
+          />
         </div>
       </div>
     </WorkstationDispatch.Provider>
   );
 };
-
-const MemoizedDropzone = React.memo(Dropzone);
-const MemoizedMixer = React.memo(Mixer);
-const MemoizedTimeline = React.memo(Timeline);
-const MemoizedToolbar = React.memo(Toolbar);
 
 function isTrackMuted(track: Track, hasSoloTracks: boolean): boolean {
   return !track.solo && (track.mute || (hasSoloTracks && !track.solo));
@@ -123,5 +124,10 @@ function getTimelineStyle(isDrawerOpen: boolean, timelineScaleFactor: number) {
     ? { ...defaultStyle, transform: `scaleY(${timelineScaleFactor})` }
     : defaultStyle;
 }
+
+const MemoizedDropzone = React.memo(Dropzone);
+const MemoizedMixer = React.memo(Mixer);
+const MemoizedToolbar = React.memo(Toolbar);
+const MemoizedTimeline = React.memo(Timeline);
 
 export default Workstation;
