@@ -8,7 +8,7 @@ html {
 }
 
 @media (max-width: 768px) {
-  /* Reset header extra styling for mobile devices in portrait mode. */
+  /* Override header extra styling for mobile devices in portrait mode. */
   .ant-page-header-heading-extra {
     display: initial;
     float: right;
@@ -24,16 +24,20 @@ html {
     --scrollbar-track-color: #141414;
     --scrollbar-thumb-color: rgba(255, 255, 255, 0.65);
   }
+
   div {
     scrollbar-width: thin;
     scrollbar-color: dark;
   }
+
   div::-webkit-scrollbar {
     width: 11px;
   }
+
   div::-webkit-scrollbar-track {
     background: var(--scrollbar-track-color);
   }
+
   div::-webkit-scrollbar-thumb {
     background-color: var(--scrollbar-thumb-color);
     border-radius: 6px;
@@ -67,4 +71,10 @@ html {
 .button--active[disabled] {
   color: rgba(255, 255, 255, 0.3) !important;
   box-shadow: none !important;
+}
+
+@media (max-width: 768px) {
+  .hidden-lt768 {
+    display: none !important;
+  }
 }

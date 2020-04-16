@@ -14,6 +14,7 @@ const ProjectPageHeader = ({ title, uploadFile }: ProjectPageHeaderProps) => {
   const history = useHistory();
 
   const uploadProps = {
+    accept: 'audio/*',
     multiple: true,
     showUploadList: false,
     beforeUpload: () => false,
@@ -31,12 +32,10 @@ const ProjectPageHeader = ({ title, uploadFile }: ProjectPageHeaderProps) => {
       title={title}
       extra={[
         <Upload key="upload-button" {...uploadProps}>
-          <Button
-            type="link"
-            className="button"
-            icon={<UploadOutlined />}
-            title="Upload audio files"
-          />
+          <Button type="link" className="button">
+            <UploadOutlined />
+            <span className="hidden-lt768">Upload files</span>
+          </Button>
         </Upload>,
       ]}
     />
