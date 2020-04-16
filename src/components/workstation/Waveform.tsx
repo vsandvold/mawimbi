@@ -34,6 +34,11 @@ const Waveform = ({ height, pixelsPerSecond, track }: WaveformProps) => {
       waveColor,
     });
     waveformRef.current.loadDecodedBuffer(audioBuffer);
+    return () => {
+      if (waveformRef.current) {
+        waveformRef.current.destroy();
+      }
+    };
   }, [audioBuffer, color, height, pixelsPerSecond]);
 
   const opacity = convertToOpacity(volume);
