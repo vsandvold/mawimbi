@@ -5,6 +5,8 @@ import App, { NoMatch } from '../App';
 import HomePage from '../home/HomePage';
 import ProjectPage from '../project/ProjectPage';
 
+jest.mock('../../services/AudioService');
+
 it('renders route to home page', () => {
   const wrapper = mount(
     <MemoryRouter initialEntries={['/']}>

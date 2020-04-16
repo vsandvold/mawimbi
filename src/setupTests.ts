@@ -17,17 +17,10 @@ function mockReactRouterDom() {
   jest.mock('react-router-dom', () => ({
     ...jest.requireActual('react-router-dom'),
     useHistory: () => ({
-      push: mockHistoryPush
+      push: mockHistoryPush,
     }),
     useLocation: () => ({
-      pathname: 'path'
-    })
+      pathname: 'path',
+    }),
   }));
-}
-
-mockToneJs();
-
-function mockToneJs() {
-  window.TONE_SILENCE_LOGGING = true;
-  jest.mock('tone');
 }

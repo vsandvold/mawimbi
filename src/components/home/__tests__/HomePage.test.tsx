@@ -3,13 +3,13 @@ import React from 'react';
 import { useHistory } from 'react-router-dom';
 import HomePage from '../HomePage';
 
-it('renders create new wave button', () => {
+it('renders create project button', () => {
   const { getByText } = render(<HomePage />);
-  const buttonElement = getByText(/Create new wave/i);
+  const buttonElement = getByText(/Create Project/i);
   expect(buttonElement).toBeInTheDocument();
 
   fireEvent.click(buttonElement);
 
   const history = useHistory();
-  expect(history.push).toHaveBeenCalledWith('/wave');
+  expect(history.push).toHaveBeenCalledWith('/project');
 });
