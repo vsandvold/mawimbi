@@ -26,23 +26,20 @@ const ProjectPage = () => {
 
   const { title } = state;
 
-  const uploadFileCallback = useCallback(
-    (file: File) => {
-      const messageKey = 'uploadFile';
-      const reader = new FileReader();
-      reader.onabort = () =>
-        message.info({ content: file.name, key: messageKey });
-      reader.onerror = () =>
-        message.error({ content: file.name, key: messageKey });
-      reader.onload = () => {
-        dispatch([DECODE_AUDIO_BUFFER, reader.result as ArrayBuffer]);
-        message.success({ content: file.name, key: messageKey });
-      };
-      message.loading({ content: file.name, key: messageKey });
-      reader.readAsArrayBuffer(file);
-    },
-    [dispatch]
-  );
+  const uploadFileCallback = useCallback((file: File) => {
+    const messageKey = 'uploadFile';
+    const reader = new FileReader();
+    reader.onabort = () =>
+      message.info({ content: file.name, key: messageKey });
+    reader.onerror = () =>
+      message.error({ content: file.name, key: messageKey });
+    reader.onload = () => {
+      dispatch([DECODE_AUDIO_BUFFER, reader.result as ArrayBuffer]);
+      message.success({ content: file.name, key: messageKey });
+    };
+    message.loading({ content: file.name, key: messageKey });
+    reader.readAsArrayBuffer(file);
+  }, []);
 
   // TODO: optimize rendering with React.memo, React.useMemo and React.useCallback
   return (

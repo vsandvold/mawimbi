@@ -46,7 +46,7 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
       .filter((track) => isTrackMuted(track, hasSoloTracks))
       .map((track) => track.id);
     dispatch([SET_MUTED_TRACKS, mutedTracks]);
-  }, [tracks, dispatch]);
+  }, [tracks]);
 
   const {
     focusedTracks,

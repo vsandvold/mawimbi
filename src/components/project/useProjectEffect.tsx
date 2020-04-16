@@ -19,7 +19,7 @@ const useProjectEffect = (
         dispatch([ADD_TRACK, audioBuffer])
       );
     }
-  }, [bufferToDecode, dispatch]);
+  }, [bufferToDecode]);
 };
 
 export default useProjectEffect;
