@@ -4,7 +4,6 @@ import Icon, {
   StepBackwardOutlined,
 } from '@ant-design/icons';
 import { Button } from 'antd';
-import classNames from 'classnames';
 import React from 'react';
 import { ReactComponent as StopSvg } from '../../icons/stop.svg';
 import './Toolbar.css';
@@ -47,15 +46,11 @@ const Toolbar = ({ isDrawerOpen, isEmpty, isPlaying }: ToolbarProps) => {
     />
   );
 
-  const playPauseButtonClass = classNames('button', {
-    'button--active': isPlaying,
-  });
-
   const playPauseButton = (
     <Button
       type="link"
       size="large"
-      className={playPauseButtonClass}
+      className="button"
       icon={<CaretRightOutlined />}
       title={isPlaying ? 'Pause' : 'Play'}
       onClick={() => dispatch([TOGGLE_PLAYBACK])}
@@ -63,16 +58,12 @@ const Toolbar = ({ isDrawerOpen, isEmpty, isPlaying }: ToolbarProps) => {
     />
   );
 
-  const mixerButtonClass = classNames('button', {
-    'button--active': isDrawerOpen,
-  });
-
   const mixerButton = (
     <Button
       type="link"
       size="large"
-      className={mixerButtonClass}
-      icon={<ControlOutlined />}
+      className="button"
+      icon={<ControlOutlined rotate={90} />}
       title={isDrawerOpen ? 'Hide mixer' : 'Show mixer'}
       onClick={() => dispatch([TOGGLE_DRAWER])}
       disabled={isEmpty}
