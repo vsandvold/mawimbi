@@ -1,23 +1,22 @@
 import { useEffect } from 'react';
 
-type KeyPressOptions = {
+type KeypressOptions = {
   targetKey: string;
 };
 
-const useKeyPress = (
-  keyPressCallback: Function,
-  { targetKey = ' ' }: KeyPressOptions
+const useKeypress = (
+  keypressCallback: Function,
+  { targetKey = ' ' }: KeypressOptions
 ) => {
-  const handleKeyUp = ({ key }: KeyboardEvent) => {
-    if (key === targetKey) {
-      keyPressCallback();
-    }
-  };
-
   useEffect(() => {
+    const handleKeyUp = ({ key }: KeyboardEvent) => {
+      if (key === targetKey) {
+        keypressCallback();
+      }
+    };
     window.addEventListener('keyup', handleKeyUp);
     return () => window.removeEventListener('keyup', handleKeyUp);
-  }, []); // Make sure the effect runs only once
+  }, [keypressCallback, targetKey]);
 };
 
-export default useKeyPress;
+export default useKeypress;

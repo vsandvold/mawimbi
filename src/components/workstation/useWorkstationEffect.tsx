@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useLayoutEffect } from 'react';
-import useKeyPress from '../../hooks/useKeyPress';
+import useKeypress from '../../hooks/useKeyPress';
 import AudioService from '../../services/AudioService';
 import { WorkstationDispatchAction } from './useWorkstationContext';
 import { TOGGLE_PLAYBACK, WorkstationState } from './useWorkstationState';
@@ -14,7 +14,7 @@ const useWorkstationEffect = (
    * Use spacebar to toggle playback.
    */
 
-  useKeyPress(() => dispatch([TOGGLE_PLAYBACK]), {
+  useKeypress(() => dispatch([TOGGLE_PLAYBACK]), {
     targetKey: ' ',
   });
 
