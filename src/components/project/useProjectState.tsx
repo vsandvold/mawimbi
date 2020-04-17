@@ -2,7 +2,6 @@ import React, { useReducer } from 'react';
 import { ProjectDispatchAction } from './useProjectContext';
 
 export type ProjectState = {
-  bufferToDecode?: ArrayBuffer | null;
   nextTrackId: number;
   title: string;
   tracks: Track[];
@@ -33,7 +32,6 @@ export const COLOR_PALETTE: TrackColor[] = [
 ];
 
 export const ADD_TRACK = 'ADD_TRACK';
-export const DECODE_AUDIO_BUFFER = 'DECODE_AUDIO_BUFFER';
 export const MOVE_TRACK = 'MOVE_TRACK';
 export const SET_TRACK_MUTE = 'SET_TRACK_MUTE';
 export const SET_TRACK_SOLO = 'SET_TRACK_SOLO';
@@ -47,12 +45,9 @@ export function projectReducer(
     case ADD_TRACK:
       return {
         ...state,
-        bufferToDecode: null,
         nextTrackId: state.nextTrackId + 1,
         tracks: [...state.tracks, createTrack(state.nextTrackId, payload)],
       };
-    case DECODE_AUDIO_BUFFER:
-      return { ...state, bufferToDecode: payload };
     case MOVE_TRACK:
       return { ...state, tracks: moveTrack(state.tracks, payload) };
     case SET_TRACK_MUTE:

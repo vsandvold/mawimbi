@@ -19,8 +19,8 @@ class AudioService {
     });
   }
 
-  static async decodeAudioData(arrayBuffer: ArrayBuffer): Promise<AudioBuffer> {
-    return await Tone.context.decodeAudioData(arrayBuffer);
+  static decodeAudioData(arrayBuffer: ArrayBuffer): Promise<AudioBuffer> {
+    return Tone.context.decodeAudioData(arrayBuffer);
   }
 
   static createChannel(audioBuffer: AudioBuffer): Tone.Channel {

@@ -1,15 +1,13 @@
 import { message } from 'antd';
 import React, { useCallback } from 'react';
+import AudioService from '../../services/AudioService';
 import { PageContent, PageHeader, PageLayout } from '../layout/PageLayout';
 import Workstation from '../workstation/Workstation';
 import './ProjectPage.css';
 import ProjectPageHeader from './ProjectPageHeader';
 import { ProjectDispatch } from './useProjectContext';
 import useProjectEffect from './useProjectEffect';
-import useProjectState, {
-  DECODE_AUDIO_BUFFER,
-  ProjectState,
-} from './useProjectState';
+import useProjectState, { ADD_TRACK, ProjectState } from './useProjectState';
 
 const initialState: ProjectState = {
   nextTrackId: 0,
@@ -34,8 +32,15 @@ const ProjectPage = () => {
     reader.onerror = () =>
       message.error({ content: file.name, key: messageKey });
     reader.onload = () => {
-      dispatch([DECODE_AUDIO_BUFFER, reader.result as ArrayBuffer]);
-      message.success({ content: file.name, key: messageKey });
+      const arrayBuffer = reader.result as ArrayBuffer;
+      AudioService.decodeAudioData(arrayBuffer)
+        .then((audioBuffer) => {
+          dispatch([ADD_TRACK, audioBuffer]);
+          message.success({ content: file.name, key: messageKey });
+        })
+        .catch((error) => {
+          message.error({ content: `${file.name}: ${error}`, key: messageKey });
+        });
     };
     message.loading({ content: file.name, key: messageKey });
     reader.readAsArrayBuffer(file);
