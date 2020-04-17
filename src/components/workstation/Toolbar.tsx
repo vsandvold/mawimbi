@@ -1,10 +1,11 @@
 import Icon, {
   CaretRightOutlined,
-  ControlOutlined,
   StepBackwardOutlined,
 } from '@ant-design/icons';
 import { Button } from 'antd';
+import classNames from 'classnames';
 import React from 'react';
+import { ReactComponent as ControlSvg } from '../../icons/control.svg';
 import { ReactComponent as StopSvg } from '../../icons/stop.svg';
 import './Toolbar.css';
 import useWorkstationContext from './useWorkstationContext';
@@ -58,12 +59,17 @@ const Toolbar = ({ isDrawerOpen, isEmpty, isPlaying }: ToolbarProps) => {
     />
   );
 
+  const mixerIconClass = classNames({ 'show-mixer': isDrawerOpen });
+  const mixerIcon = (
+    <Icon component={ControlSvg} rotate={90} className={mixerIconClass} />
+  );
+
   const mixerButton = (
     <Button
       type="link"
       size="large"
       className="button"
-      icon={<ControlOutlined rotate={90} />}
+      icon={mixerIcon}
       title={isDrawerOpen ? 'Hide mixer' : 'Show mixer'}
       onClick={() => dispatch([TOGGLE_DRAWER])}
       disabled={isEmpty}

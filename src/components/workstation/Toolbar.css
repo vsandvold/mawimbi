@@ -11,3 +11,16 @@
 .toolbar__button:last-child {
   margin-right: 0;
 }
+
+.fader-1,
+.fader-2 {
+  transition: transform 0.3s;
+}
+
+.show-mixer .fader-1 {
+  transform: translateY(-144px);
+}
+
+.show-mixer .fader-2 {
+  transform: translateY(144px);
+}
