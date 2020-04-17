@@ -23,8 +23,6 @@ export function workstationReducer(
   [type, payload]: WorkstationDispatchAction
 ): WorkstationState {
   switch (type) {
-    case SET_TRANSPORT_TIME:
-      return { ...state, transportTime: payload };
     case SET_MUTED_TRACKS:
       return { ...state, mutedTracks: payload };
     case SET_TRACK_FOCUS:
@@ -37,6 +35,8 @@ export function workstationReducer(
         ...state,
         focusedTracks: setTrackUnfocus(state.focusedTracks, payload),
       };
+    case SET_TRANSPORT_TIME:
+      return { ...state, transportTime: payload };
     case STOP_PLAYBACK:
       return { ...state, isPlaying: false };
     case TOGGLE_DRAWER:

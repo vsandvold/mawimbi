@@ -1,20 +1,11 @@
-import Icon, {
-  CaretRightOutlined,
-  StepBackwardOutlined,
-} from '@ant-design/icons';
+import Icon, { CaretRightOutlined, PauseOutlined } from '@ant-design/icons';
 import { Button } from 'antd';
 import classNames from 'classnames';
 import React from 'react';
 import { ReactComponent as ControlSvg } from '../../icons/control.svg';
-import { ReactComponent as StopSvg } from '../../icons/stop.svg';
 import './Toolbar.css';
 import useWorkstationContext from './useWorkstationContext';
-import {
-  SET_TRANSPORT_TIME,
-  STOP_PLAYBACK,
-  TOGGLE_DRAWER,
-  TOGGLE_PLAYBACK,
-} from './useWorkstationState';
+import { TOGGLE_DRAWER, TOGGLE_PLAYBACK } from './useWorkstationState';
 
 type ToolbarProps = {
   isDrawerOpen: boolean;
@@ -27,32 +18,12 @@ const Toolbar = ({ isDrawerOpen, isEmpty, isPlaying }: ToolbarProps) => {
 
   const [dispatch] = useWorkstationContext();
 
-  const stopOrRewindPlayback = () => {
-    if (isPlaying) {
-      dispatch([STOP_PLAYBACK]);
-    } else {
-      dispatch([SET_TRANSPORT_TIME, 0]);
-    }
-  };
-
-  const stopRewindButton = (
-    <Button
-      type="link"
-      size="large"
-      className="button"
-      icon={isPlaying ? <Icon component={StopSvg} /> : <StepBackwardOutlined />}
-      title={isPlaying ? 'Stop' : 'Rewind'}
-      onClick={stopOrRewindPlayback}
-      disabled={isEmpty}
-    />
-  );
-
   const playPauseButton = (
     <Button
       type="link"
       size="large"
       className="button"
-      icon={<CaretRightOutlined />}
+      icon={isPlaying ? <PauseOutlined /> : <CaretRightOutlined />}
       title={isPlaying ? 'Pause' : 'Play'}
       onClick={() => dispatch([TOGGLE_PLAYBACK])}
       disabled={isEmpty}
@@ -78,7 +49,6 @@ const Toolbar = ({ isDrawerOpen, isEmpty, isPlaying }: ToolbarProps) => {
 
   return (
     <div className="toolbar">
-      <div className="toolbar__button">{stopRewindButton}</div>
       <div className="toolbar__button">{playPauseButton}</div>
       <div className="toolbar__button">{mixerButton}</div>
     </div>
