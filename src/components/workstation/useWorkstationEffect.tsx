@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useLayoutEffect } from 'react';
-import useKeypress from '../../hooks/useKeyPress';
+import useKeypress from '../../hooks/useKeypress';
 import AudioService from '../../services/AudioService';
 import { WorkstationDispatchAction } from './useWorkstationContext';
 import { TOGGLE_PLAYBACK, WorkstationState } from './useWorkstationState';
