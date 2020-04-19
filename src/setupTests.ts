@@ -12,11 +12,13 @@ configure({ adapter: new Adapter() });
 mockReactRouterDom();
 
 function mockReactRouterDom() {
+  const mockHistoryGoBack = jest.fn();
   const mockHistoryPush = jest.fn();
 
   jest.mock('react-router-dom', () => ({
     ...jest.requireActual('react-router-dom'),
     useHistory: () => ({
+      goBack: mockHistoryGoBack,
       push: mockHistoryPush,
     }),
     useLocation: () => ({
