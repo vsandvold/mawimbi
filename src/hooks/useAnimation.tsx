@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 
 const MAX_FPS = 60;
 
@@ -19,21 +19,20 @@ const useAnimation = (
   const requestRef = useRef(0);
   const previousValueRef = useRef(initialValue);
 
-  const requestCallback = useCallback(() => {
-    frameCountRef.current++;
-    if (frameCountRef.current >= frameStep) {
-      previousValueRef.current = animationCallback(previousValueRef.current);
-      frameCountRef.current = 0;
-    }
-    requestRef.current = requestAnimationFrame(requestCallback);
-  }, [animationCallback, frameStep]);
-
   useEffect(() => {
+    function requestCallback() {
+      frameCountRef.current++;
+      if (frameCountRef.current >= frameStep) {
+        previousValueRef.current = animationCallback(previousValueRef.current);
+        frameCountRef.current = 0;
+      }
+      requestRef.current = requestAnimationFrame(requestCallback);
+    }
     if (isActive) {
       requestRef.current = requestAnimationFrame(requestCallback);
       return () => cancelAnimationFrame(requestRef.current);
     }
-  }, [animationDeps, isActive, requestCallback]);
+  }, [animationCallback, animationDeps, frameStep, isActive]);
 };
 
 export default useAnimation;
