@@ -1,5 +1,6 @@
 import { CaretRightOutlined, PauseOutlined } from '@ant-design/icons';
-import { mount, shallow } from 'enzyme';
+import { fireEvent, render } from '@testing-library/react';
+import { mount } from 'enzyme';
 import React from 'react';
 import Toolbar from '../Toolbar';
 import { TOGGLE_DRAWER, TOGGLE_PLAYBACK } from '../useWorkstationState';
@@ -70,11 +71,14 @@ it('toggles playback when play/pause button is clicked', () => {
 });
 
 it('toggles drawer when mixer show/hide is clicked', () => {
-  const wrapper = mount(
+  const { getByTitle } = render(
     <Toolbar {...{ ...defaultProps, isDrawerOpen: false }} />
   );
 
-  wrapper.find('button').filter({ title: 'Show mixer' }).simulate('click');
+  const mixerButton = getByTitle('Show mixer');
+  expect(mixerButton).toBeInTheDocument();
+
+  fireEvent.click(mixerButton);
 
   expect(mockDispatch).toBeCalledTimes(1);
   expect(mockDispatch).toHaveBeenCalledWith([TOGGLE_DRAWER]);

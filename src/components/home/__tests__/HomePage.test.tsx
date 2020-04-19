@@ -5,7 +5,8 @@ import HomePage from '../HomePage';
 
 it('renders create project button', () => {
   const { getByText } = render(<HomePage />);
-  const buttonElement = getByText(/Create Project/i);
+
+  const buttonElement = getByText('Create Project');
   expect(buttonElement).toBeInTheDocument();
 
   fireEvent.click(buttonElement);
