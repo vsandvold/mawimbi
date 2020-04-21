@@ -1,16 +1,20 @@
 import { UploadOutlined } from '@ant-design/icons';
+import { Typography } from 'antd';
+import classNames from 'classnames';
 import React, { useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import './Dropzone.css';
-import classNames from 'classnames';
-import { Typography } from 'antd';
 
 type DropzoneProps = {
+  setIsDragActive(isDragActive: boolean): void;
+  setRootProps(rootProps: any): void;
   uploadFile(file: File): void;
 };
 
-const Dropzone = ({ uploadFile }: DropzoneProps) => {
+const Dropzone = (props: DropzoneProps) => {
   console.log('Dropzone render');
+
+  const { setIsDragActive, setRootProps, uploadFile } = props;
 
   const {
     acceptedFiles,
@@ -27,6 +31,14 @@ const Dropzone = ({ uploadFile }: DropzoneProps) => {
   });
 
   useEffect(() => {
+    setIsDragActive(isDragActive);
+  }, [setIsDragActive, isDragActive]);
+
+  useEffect(() => {
+    setRootProps(getRootProps());
+  }, [setRootProps, getRootProps]);
+
+  useEffect(() => {
     acceptedFiles.forEach(uploadFile);
   }, [acceptedFiles, uploadFile]);
 
@@ -39,11 +51,7 @@ const Dropzone = ({ uploadFile }: DropzoneProps) => {
   const { Title, Text } = Typography;
 
   return (
-    <div
-      {...getRootProps({
-        className: dropzoneClass,
-      })}
-    >
+    <div className={dropzoneClass}>
       <input {...getInputProps()} />
       <div className="dropzone__content">
         <Text>

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useLayoutEffect } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import useKeypress from '../../hooks/useKeypress';
 import AudioService from '../../services/AudioService';
 import { WorkstationDispatchAction } from './useWorkstationContext';
@@ -60,7 +60,22 @@ const useWorkstationEffect = (
     }
   }, []);
 
-  return { timelineScaleFactor, timelineContainerRef, drawerContainerRef };
+  /*
+   * Activate dropzone on file drag
+   */
+
+  const [isDragActive, setIsDragActive] = useState(false);
+  const [dropzoneRootProps, setDropzoneRootProps] = useState({});
+
+  return {
+    drawerContainerRef,
+    timelineContainerRef,
+    timelineScaleFactor,
+    isDragActive,
+    setIsDragActive,
+    dropzoneRootProps,
+    setDropzoneRootProps,
+  };
 };
 
 export default useWorkstationEffect;

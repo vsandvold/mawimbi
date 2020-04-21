@@ -18,7 +18,7 @@ export const STOP_PLAYBACK = 'STOP_PLAYBACK';
 export const TOGGLE_DRAWER = 'TOGGLE_DRAWER';
 export const TOGGLE_PLAYBACK = 'TOGGLE_PLAYBACK';
 
-export function workstationReducer(
+function workstationReducer(
   state: WorkstationState,
   [type, payload]: WorkstationDispatchAction
 ): WorkstationState {

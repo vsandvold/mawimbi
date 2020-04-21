@@ -17,13 +17,13 @@ export type Track = {
   volume: number;
 };
 
-export type TrackColor = {
+type TrackColor = {
   r: number;
   g: number;
   b: number;
 };
 
-export const COLOR_PALETTE: TrackColor[] = [
+const COLOR_PALETTE: TrackColor[] = [
   { r: 77, g: 238, b: 234 },
   { r: 116, g: 238, b: 21 },
   { r: 255, g: 231, b: 0 },
@@ -37,7 +37,7 @@ export const SET_TRACK_MUTE = 'SET_TRACK_MUTE';
 export const SET_TRACK_SOLO = 'SET_TRACK_SOLO';
 export const SET_TRACK_VOLUME = 'SET_TRACK_VOLUME';
 
-export function projectReducer(
+function projectReducer(
   state: ProjectState,
   [type, payload]: ProjectDispatchAction
 ): ProjectState {

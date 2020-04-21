@@ -1,7 +1,6 @@
 import { Typography } from 'antd';
 import classNames from 'classnames';
 import React, { useEffect, useMemo } from 'react';
-import useFileDragging from '../../hooks/useFileDragging';
 import Dropzone from '../dropzone/Dropzone';
 import { Track } from '../project/useProjectState';
 import Mixer from './Mixer';
@@ -38,7 +37,13 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
     timelineScaleFactor,
     timelineContainerRef,
     drawerContainerRef,
+    isDragActive,
+    setIsDragActive,
+    dropzoneRootProps,
+    setDropzoneRootProps,
   } = useWorkstationEffect(state, dispatch);
+
+  const hasTracks = tracks.length > 0;
 
   useEffect(() => {
     const hasSoloTracks = tracks.filter((track) => track.solo).length > 0;
@@ -57,15 +62,12 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
     transportTime,
   } = state;
 
-  const hasTracks = tracks.length > 0;
-  const isFileDragging = useFileDragging();
-
   const editorDrawerClass = classNames('editor__drawer', {
     'editor__drawer--closed': !isDrawerOpen,
   });
 
   const editorDropzoneClass = classNames('editor__dropzone', {
-    'editor__dropzone--hidden': !isFileDragging,
+    'editor__dropzone--hidden': !isDragActive,
   });
 
   // TODO: optimize rendering with React.memo, React.useMemo and React.useCallback
@@ -91,12 +93,12 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
         >
           {memoizedTimeline}
         </Scrubber>
-      ) : isFileDragging ? null : (
+      ) : isDragActive ? null : (
         <EmptyTimeline />
       ),
     [
       hasTracks,
-      isFileDragging,
+      isDragActive,
       isPlaying,
       memoizedTimeline,
       pixelsPerSecond,
@@ -107,7 +109,7 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
   return (
     <WorkstationDispatch.Provider value={dispatch}>
       <div className="workstation">
-        <div className="editor">
+        <div className="editor" {...dropzoneRootProps}>
           <div
             ref={timelineContainerRef}
             className="editor__timeline"
@@ -119,7 +121,11 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
             <MemoizedMixer mutedTracks={mutedTracks} tracks={tracks} />
           </div>
           <div className={editorDropzoneClass}>
-            <MemoizedDropzone uploadFile={uploadFile} />
+            <MemoizedDropzone
+              setIsDragActive={setIsDragActive}
+              setRootProps={setDropzoneRootProps}
+              uploadFile={uploadFile}
+            />
           </div>
         </div>
         <div className="workstation__toolbar">
