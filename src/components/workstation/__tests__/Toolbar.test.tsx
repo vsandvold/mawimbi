@@ -56,9 +56,9 @@ it('applies animation class to mixer icon when drawer is open', () => {
     <Toolbar {...{ ...defaultProps, isDrawerOpen: true }} />
   );
 
-  expect(
-    wrapper.find('button[title="Hide mixer"]').childAt(0).hasClass('show-mixer')
-  ).toEqual(true);
+  expect(wrapper.find('button[title="Hide mixer"]').childAt(0)).toHaveClassName(
+    'show-mixer'
+  );
 });
 
 it('toggles playback when play/pause button is clicked', () => {

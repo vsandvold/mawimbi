@@ -26,3 +26,22 @@ function mockReactRouterDom() {
     }),
   }));
 }
+
+mockWaveSurfer();
+
+function mockWaveSurfer() {
+  const mockDestroy = jest.fn();
+  const mockLoadDecodedBuffer = jest.fn();
+
+  const mockCreate = jest.fn().mockImplementation(() => {
+    return {
+      destroy: mockDestroy,
+      loadDecodedBuffer: mockLoadDecodedBuffer,
+    };
+  });
+
+  jest.mock('wavesurfer.js', () => ({
+    ...jest.requireActual('wavesurfer.js'),
+    create: mockCreate,
+  }));
+}
