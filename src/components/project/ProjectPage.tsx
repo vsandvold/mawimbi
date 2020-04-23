@@ -44,7 +44,7 @@ const ProjectPage = () => {
     };
     message.loading({ content: file.name, key: messageKey });
     reader.readAsArrayBuffer(file);
-  }, []);
+  }, []); // dispatch never changes, and can safely be omitted from dependencies
 
   // TODO: optimize rendering with React.memo, React.useMemo and React.useCallback
   return (

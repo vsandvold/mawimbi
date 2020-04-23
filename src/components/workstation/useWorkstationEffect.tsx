@@ -58,7 +58,7 @@ const useWorkstationEffect = (
       const scaleFactor = (timelineHeight - drawerHeight) / timelineHeight;
       setTimelineScaleFactor(scaleFactor);
     }
-  }, []);
+  }, []); // make sure effect only triggers once, on component mount
 
   /*
    * Activate dropzone on file drag

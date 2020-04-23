@@ -28,7 +28,7 @@ const Timeline = ({
       const { height } = containerRef.current.getBoundingClientRect();
       setHeight(height);
     }
-  }, []);
+  }, []); // make sure effect only triggers once, on component mount
 
   return (
     <div ref={containerRef} className="timeline">
