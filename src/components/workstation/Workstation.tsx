@@ -87,26 +87,21 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
   );
 
   const memoizedScrubberTimeline = useMemo(
-    () =>
-      hasTracks ? (
-        <Scrubber
-          isPlaying={isPlaying}
-          pixelsPerSecond={pixelsPerSecond}
-          transportTime={transportTime}
-        >
-          {memoizedTimeline}
-        </Scrubber>
-      ) : isDragActive ? null : (
-        <EmptyTimeline />
-      ),
-    [
-      hasTracks,
-      isDragActive,
-      isPlaying,
-      memoizedTimeline,
-      pixelsPerSecond,
-      transportTime,
-    ]
+    () => (
+      <Scrubber
+        isPlaying={isPlaying}
+        pixelsPerSecond={pixelsPerSecond}
+        transportTime={transportTime}
+      >
+        {memoizedTimeline}
+      </Scrubber>
+    ),
+    [isPlaying, memoizedTimeline, pixelsPerSecond, transportTime]
+  );
+
+  const memoizedEmptyTimeline = useMemo(
+    () => (isDragActive ? null : <EmptyTimeline />),
+    [isDragActive]
   );
 
   return (
@@ -118,7 +113,7 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
             className="editor__timeline"
             style={getTimelineStyle(isDrawerOpen, timelineScaleFactor)}
           >
-            {memoizedScrubberTimeline}
+            {hasTracks ? memoizedScrubberTimeline : memoizedEmptyTimeline}
           </div>
           <div ref={drawerContainerRef} className={editorDrawerClass}>
             <MemoizedMixer mutedTracks={mutedTracks} tracks={tracks} />
@@ -159,7 +154,18 @@ const MemoizedMixer = React.memo(Mixer);
 const MemoizedToolbar = React.memo(Toolbar);
 
 const EmptyTimeline = () => {
+  console.log('EmptyTimeline render');
+
+  function isTouchEnabled() {
+    return (
+      'ontouchstart' in window ||
+      navigator.maxTouchPoints > 0 ||
+      navigator.msMaxTouchPoints > 0
+    );
+  }
+
   const { Title, Text } = Typography;
+
   return (
     <div className="empty-timeline">
       <Title level={4} type="secondary">
@@ -175,13 +181,5 @@ const EmptyTimeline = () => {
     </div>
   );
 };
-
-function isTouchEnabled() {
-  return (
-    'ontouchstart' in window ||
-    navigator.maxTouchPoints > 0 ||
-    navigator.msMaxTouchPoints > 0
-  );
-}
 
 export default Workstation;
