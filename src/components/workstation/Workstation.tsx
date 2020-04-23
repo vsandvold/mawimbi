@@ -46,6 +46,9 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
   const hasTracks = tracks.length > 0;
 
   useEffect(() => {
+    function isTrackMuted(track: Track, hasSoloTracks: boolean): boolean {
+      return !track.solo && (track.mute || (hasSoloTracks && !track.solo));
+    }
     const hasSoloTracks = tracks.filter((track) => track.solo).length > 0;
     const mutedTracks = tracks
       .filter((track) => isTrackMuted(track, hasSoloTracks))
@@ -139,10 +142,6 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
     </WorkstationDispatch.Provider>
   );
 };
-
-function isTrackMuted(track: Track, hasSoloTracks: boolean): boolean {
-  return !track.solo && (track.mute || (hasSoloTracks && !track.solo));
-}
 
 function getTimelineStyle(isDrawerOpen: boolean, timelineScaleFactor: number) {
   const defaultStyle = {

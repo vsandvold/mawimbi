@@ -24,7 +24,10 @@ function workstationReducer(
 ): WorkstationState {
   switch (type) {
     case SET_MUTED_TRACKS:
-      return { ...state, mutedTracks: payload };
+      return {
+        ...state,
+        mutedTracks: setMutedTracksOrBail(state.mutedTracks, payload),
+      };
     case SET_TRACK_FOCUS:
       return {
         ...state,
@@ -46,6 +49,20 @@ function workstationReducer(
     default:
       throw new Error();
   }
+}
+
+function setMutedTracksOrBail(
+  previousMutedTracks: number[],
+  currentMutedTracks: number[]
+) {
+  const hasEqualLength =
+    previousMutedTracks.length === currentMutedTracks.length;
+  const isArrayEqual =
+    hasEqualLength &&
+    previousMutedTracks.every(
+      (value, index) => value === currentMutedTracks[index]
+    );
+  return isArrayEqual ? previousMutedTracks : currentMutedTracks;
 }
 
 function setTrackFocus(focusedTracks: number[], focusedTrackId: number) {
