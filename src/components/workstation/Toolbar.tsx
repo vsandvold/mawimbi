@@ -31,9 +31,7 @@ const Toolbar = ({ isDrawerOpen, isEmpty, isPlaying }: ToolbarProps) => {
   );
 
   const mixerIconClass = classNames({ 'show-mixer': isDrawerOpen });
-  const mixerIcon = (
-    <Icon component={ControlSvg} rotate={90} className={mixerIconClass} />
-  );
+  const mixerIcon = <Icon component={ControlSvg} className={mixerIconClass} />;
 
   const mixerButton = (
     <Button
