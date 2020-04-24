@@ -43,34 +43,32 @@ const Scrubber = ({
     setScrollPosition(transportTime);
   }, [transportTime, setScrollPosition]);
 
-  useAnimation(
-    () => {
-      updateScrollPosition();
-      stopPlaybackIfEndOfScroll();
-    },
-    [isPlaying],
-    {
-      frameRate: 60,
-      isActive: isPlaying,
+  const animateScrollCallback = useCallback(() => {
+    function updateScrollPosition() {
+      // Update scroll position directly from transport time for performance reasons
+      const transportTime = AudioService.getTransportTime();
+      setScrollPosition(transportTime);
     }
-  );
 
-  const updateScrollPosition = () => {
-    // Update scroll position directly from transport time for performance reasons
-    const transportTime = AudioService.getTransportTime();
-    setScrollPosition(transportTime);
-  };
-
-  const stopPlaybackIfEndOfScroll = () => {
-    if (scrollRef.current) {
-      const isEndOfScroll =
-        scrollRef.current.scrollLeft + scrollRef.current.clientWidth >=
-        scrollRef.current.scrollWidth;
-      if (isEndOfScroll) {
-        dispatch([STOP_PLAYBACK]);
+    function stopPlaybackIfEndOfScroll() {
+      if (scrollRef.current) {
+        const isEndOfScroll =
+          scrollRef.current.scrollLeft + scrollRef.current.clientWidth >=
+          scrollRef.current.scrollWidth;
+        if (isEndOfScroll) {
+          dispatch([STOP_PLAYBACK]);
+        }
       }
     }
-  };
+
+    updateScrollPosition();
+    stopPlaybackIfEndOfScroll();
+  }, [setScrollPosition]);
+
+  useAnimation(animateScrollCallback, {
+    frameRate: 60,
+    isActive: isPlaying,
+  });
 
   const setTransportTime = () => {
     if (isPlaying) {
