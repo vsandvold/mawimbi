@@ -3,6 +3,7 @@
   display: flex;
   width: 100vw;
   position: relative;
+  min-width: 0; /* Fix for flex scroll bug in Firefox https://stackoverflow.com/a/28639686 */
 }
 
 .scrubber__timeline {
