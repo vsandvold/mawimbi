@@ -5,18 +5,18 @@ type KeypressOptions = {
 };
 
 const useKeypress = (
-  keypressCallback: Function,
-  { targetKey = ' ' }: KeypressOptions
+  callback: () => void,
+  { targetKey }: KeypressOptions = { targetKey: ' ' }
 ) => {
   useEffect(() => {
     const handleKeyUp = ({ key }: KeyboardEvent) => {
       if (key === targetKey) {
-        keypressCallback();
+        callback();
       }
     };
     window.addEventListener('keyup', handleKeyUp);
     return () => window.removeEventListener('keyup', handleKeyUp);
-  }, [keypressCallback, targetKey]);
+  }, [callback, targetKey]);
 };
 
 export default useKeypress;
