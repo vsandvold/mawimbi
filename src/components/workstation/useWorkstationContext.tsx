@@ -1,14 +1,17 @@
-import React, { useContext } from 'react';
+import React, { useContext, createContext } from 'react';
+import { WorkstationAction } from './workstationReducer';
 
-export type WorkstationDispatchAction = [string, any?];
-
-export const WorkstationDispatch = React.createContext<
-  React.Dispatch<WorkstationDispatchAction>
+export const WorkstationDispatch = createContext<
+  React.Dispatch<WorkstationAction>
 >(() => {});
 
-// const WorkstationDispatchProvider = ({children}) => {
-//   return <WorkstationDispatch.Provider value={dispatch}>{children}</WorkstationDispatch.Provider>
-// }
+// export const WorkstationDispatchProvider = (props: any) => {
+//   return (
+//     <WorkstationDispatch.Provider value={dispatch}>
+//       {props.children}
+//     </WorkstationDispatch.Provider>
+//   );
+// };
 
 const useWorkstationContext = () => {
   const dispatch = useContext(WorkstationDispatch);

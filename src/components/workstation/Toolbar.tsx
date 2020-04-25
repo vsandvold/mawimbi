@@ -5,7 +5,7 @@ import React from 'react';
 import { ReactComponent as ControlSvg } from '../../icons/control.svg';
 import './Toolbar.css';
 import useWorkstationContext from './useWorkstationContext';
-import { TOGGLE_DRAWER, TOGGLE_PLAYBACK } from './useWorkstationState';
+import { TOGGLE_DRAWER, TOGGLE_PLAYBACK } from './workstationReducer';
 
 type ToolbarProps = {
   isDrawerOpen: boolean;

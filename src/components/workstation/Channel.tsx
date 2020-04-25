@@ -18,7 +18,7 @@ import {
 } from '../project/useProjectState';
 import './Channel.css';
 import useWorkstationContext from './useWorkstationContext';
-import { SET_TRACK_FOCUS, SET_TRACK_UNFOCUS } from './useWorkstationState';
+import { SET_TRACK_FOCUS, SET_TRACK_UNFOCUS } from './workstationReducer';
 
 type ChannelProps = {
   isMuted: boolean;

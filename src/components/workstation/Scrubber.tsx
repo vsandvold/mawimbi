@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import useAnimation from '../../hooks/useAnimation';
 import useDebounced from '../../hooks/useDebounced';
 import AudioService from '../../services/AudioService';
@@ -8,7 +8,7 @@ import {
   SET_TRANSPORT_TIME,
   STOP_PLAYBACK,
   TOGGLE_PLAYBACK,
-} from './useWorkstationState';
+} from './workstationReducer';
 
 type ScrubberProps = {
   isPlaying: boolean;

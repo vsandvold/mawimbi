@@ -1,12 +1,15 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import useKeypress from '../../hooks/useKeypress';
 import AudioService from '../../services/AudioService';
-import { WorkstationDispatchAction } from './useWorkstationContext';
-import { TOGGLE_PLAYBACK, WorkstationState } from './useWorkstationState';
+import {
+  TOGGLE_PLAYBACK,
+  WorkstationAction,
+  WorkstationState,
+} from './workstationReducer';
 
 const useWorkstationEffect = (
   state: WorkstationState,
-  dispatch: React.Dispatch<WorkstationDispatchAction>
+  dispatch: React.Dispatch<WorkstationAction>
 ) => {
   const { isPlaying, transportTime } = state;
 

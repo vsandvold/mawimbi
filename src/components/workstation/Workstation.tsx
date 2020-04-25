@@ -9,30 +9,19 @@ import Timeline from './Timeline';
 import Toolbar from './Toolbar';
 import { WorkstationDispatch } from './useWorkstationContext';
 import useWorkstationEffect from './useWorkstationEffect';
-import useWorkstationState, {
-  SET_MUTED_TRACKS,
-  WorkstationState,
-} from './useWorkstationState';
+import useWorkstationState from './useWorkstationState';
 import './Workstation.css';
+import { SET_MUTED_TRACKS } from './workstationReducer';
 
 type WorkstationProps = {
   tracks: Track[];
   uploadFile: (file: File) => void;
 };
 
-const initialState: WorkstationState = {
-  focusedTracks: [],
-  isDrawerOpen: false,
-  isPlaying: false,
-  mutedTracks: [],
-  pixelsPerSecond: 200,
-  transportTime: 0,
-};
-
 const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
   console.log('Workstation render');
 
-  const [state, dispatch] = useWorkstationState(initialState);
+  const [state, dispatch] = useWorkstationState();
   const {
     timelineScaleFactor,
     timelineContainerRef,
@@ -49,6 +38,7 @@ const Workstation = ({ tracks, uploadFile }: WorkstationProps) => {
     function isTrackMuted(track: Track, hasSoloTracks: boolean): boolean {
       return !track.solo && (track.mute || (hasSoloTracks && !track.solo));
     }
+
     const hasSoloTracks = tracks.filter((track) => track.solo).length > 0;
     const mutedTracks = tracks
       .filter((track) => isTrackMuted(track, hasSoloTracks))
