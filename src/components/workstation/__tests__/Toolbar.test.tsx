@@ -3,7 +3,7 @@ import { fireEvent, render } from '@testing-library/react';
 import { mount } from 'enzyme';
 import React from 'react';
 import Toolbar from '../Toolbar';
-import { TOGGLE_DRAWER, TOGGLE_PLAYBACK } from '../useWorkstationState';
+import { TOGGLE_DRAWER, TOGGLE_PLAYBACK } from '../workstationReducer';
 
 const mockDispatch = jest.fn();
 

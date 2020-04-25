@@ -14,7 +14,7 @@ const initialState: WorkstationState = {
   transportTime: 0,
 };
 
-const useWorkstationState = (): [
+const useWorkstationReducer = (): [
   WorkstationState,
   React.Dispatch<WorkstationAction>
 ] => {
@@ -22,4 +22,4 @@ const useWorkstationState = (): [
   return [state, dispatch];
 };
 
-export default useWorkstationState;
+export default useWorkstationReducer;
