@@ -66,7 +66,6 @@ const Scrubber = ({
   }, [setScrollPosition]);
 
   useAnimation(animateScrollCallback, {
-    frameRate: 60,
     isActive: isPlaying,
   });
 
