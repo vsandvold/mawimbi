@@ -45,10 +45,10 @@ it('debounces callback within timeout', () => {
   expect(mockCallback).toHaveBeenCalledTimes(1);
 });
 
-fit('updates callback when dependencies change', () => {
+it('updates callback when dependencies change', () => {
   const { result, rerender } = renderHook(
-    ({ defaultOptions }) => useDebounced(mockCallback, defaultOptions),
-    { initialProps: { defaultOptions: { ...defaultOptions, timeoutMs: 10 } } }
+    ({ options }) => useDebounced(mockCallback, options),
+    { initialProps: { options: { ...defaultOptions, timeoutMs: 10 } } }
   );
 
   let debouncedCallback = result.current;
@@ -58,7 +58,7 @@ fit('updates callback when dependencies change', () => {
 
   expect(mockCallback).toHaveBeenCalledTimes(1);
 
-  rerender({ defaultOptions: { ...defaultOptions, timeoutMs: 100 } });
+  rerender({ options: { ...defaultOptions, timeoutMs: 100 } });
 
   debouncedCallback = result.current;
 
@@ -77,7 +77,7 @@ it('has fallback to default timeout option', () => {
 
   const debouncedCallback = result.current;
 
-  expect(mockCallback).toHaveBeenCalledTimes(1);
+  expect(mockCallback).toHaveBeenCalledTimes(0);
 
   debouncedCallback();
   jest.advanceTimersByTime(100);
