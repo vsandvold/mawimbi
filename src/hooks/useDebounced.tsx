@@ -1,14 +1,16 @@
 import { useCallback, useRef } from 'react';
 
 type DebouncedOptions = {
-  timeoutMs: number;
+  timeoutMs?: number;
 };
+
+const defaultOptions: DebouncedOptions = { timeoutMs: 100 };
 
 const useDebounced = (
   callback: () => void,
-  { timeoutMs = 100 }: DebouncedOptions
+  { timeoutMs = defaultOptions.timeoutMs } = defaultOptions
 ) => {
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<number | null>(null);
 
   const debounced = useCallback(() => {
     if (timeoutRef.current) {
