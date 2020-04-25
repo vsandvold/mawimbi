@@ -4,10 +4,11 @@ type KeypressOptions = {
   targetKey: string;
 };
 
-const useKeypress = (
-  callback: () => void,
-  { targetKey }: KeypressOptions = { targetKey: ' ' }
-) => {
+const defaultOptions: KeypressOptions = {
+  targetKey: ' ',
+};
+
+const useKeypress = (callback: () => void, { targetKey } = defaultOptions) => {
   useEffect(() => {
     const handleKeyUp = ({ key }: KeyboardEvent) => {
       if (key === targetKey) {

@@ -31,6 +31,8 @@ it('removes eventlistenere when unmounted', () => {
   );
 });
 
+it('triggers effect when dependencies change, and not on every render', () => {});
+
 it('triggers callback when target key is pressed', () => {
   renderHook(() =>
     useKeypress(mockCallback, { ...defaultOptions, targetKey: 'Esc' })
