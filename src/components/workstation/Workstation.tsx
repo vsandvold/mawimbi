@@ -7,7 +7,7 @@ import Mixer from './Mixer';
 import Scrubber from './Scrubber';
 import Timeline from './Timeline';
 import Toolbar from './Toolbar';
-import { WorkstationDispatch } from './useWorkstationContext';
+import { WorkstationDispatch } from './useWorkstationDispatchContext';
 import useWorkstationEffect from './useWorkstationEffect';
 import useWorkstationState from './useWorkstationState';
 import './Workstation.css';
