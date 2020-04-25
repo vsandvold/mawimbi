@@ -4,15 +4,20 @@ type ThrottledOptions = {
   timeoutMs: number;
 };
 
+const defaultOptions: ThrottledOptions = {
+  timeoutMs: 100,
+};
+
 const useThrottled = (
   callback: (value: any) => void,
-  { timeoutMs = 100 }: ThrottledOptions
+  { timeoutMs } = defaultOptions
 ) => {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const throttled = useCallback(
     (value) => {
       if (timeoutRef.current) {
+        console.log('timeout ref current');
         return;
       }
       callback(value);
