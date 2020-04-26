@@ -1,6 +1,6 @@
-import { message } from 'antd';
 import { useCallback } from 'react';
 import AudioService from '../../services/AudioService';
+import message from '../message';
 import { ADD_TRACK, ProjectAction, ProjectState } from './projectReducer';
 
 const useProjectEffects = (
@@ -13,25 +13,22 @@ const useProjectEffects = (
    */
 
   const uploadFile = useCallback((file: File) => {
-    // FIXME: use unique messageKey per file to upload
-    const messageKey = 'uploadFile';
+    const msg = message({ key: `uploadFile-${file.name}` });
     const reader = new FileReader();
-    reader.onabort = () =>
-      message.info({ content: file.name, key: messageKey });
-    reader.onerror = () =>
-      message.error({ content: file.name, key: messageKey });
+    reader.onabort = () => msg.info(file.name);
+    reader.onerror = () => msg.error(file.name);
     reader.onload = () => {
       const arrayBuffer = reader.result as ArrayBuffer;
       AudioService.decodeAudioData(arrayBuffer)
         .then((audioBuffer) => {
           dispatch([ADD_TRACK, audioBuffer]);
-          message.success({ content: file.name, key: messageKey });
+          msg.success(file.name);
         })
         .catch((error) => {
-          message.error({ content: `${file.name}: ${error}`, key: messageKey });
+          msg.error(`${file.name}: ${error}`);
         });
     };
-    message.loading({ content: file.name, key: messageKey });
+    msg.loading(file.name);
     reader.readAsArrayBuffer(file);
   }, []); // dispatch never changes, and can safely be omitted from dependencies
 
