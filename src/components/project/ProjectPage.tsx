@@ -5,22 +5,17 @@ import { PageContent, PageHeader, PageLayout } from '../layout/PageLayout';
 import Workstation from '../workstation/Workstation';
 import './ProjectPage.css';
 import ProjectPageHeader from './ProjectPageHeader';
-import { ProjectDispatch } from './useProjectContext';
-import useProjectEffect from './useProjectEffect';
-import useProjectState, { ADD_TRACK, ProjectState } from './useProjectState';
-
-const initialState: ProjectState = {
-  nextTrackId: 0,
-  title: 'Untitled',
-  tracks: [],
-};
+import { ADD_TRACK } from './projectReducer';
+import { ProjectDispatch } from './useProjectDispatch';
+import useProjectEffects from './useProjectEffects';
+import useProjectReducer from './useProjectReducer';
 
 const ProjectPage = () => {
   console.log('ProjectPage render');
 
-  const [state, dispatch] = useProjectState(initialState);
+  const [state, dispatch] = useProjectReducer();
 
-  useProjectEffect(state, dispatch);
+  useProjectEffects(state, dispatch);
 
   const { title } = state;
 

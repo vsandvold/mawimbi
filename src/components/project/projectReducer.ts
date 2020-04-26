@@ -1,11 +1,10 @@
-import React, { useReducer } from 'react';
-import { ProjectDispatchAction } from './useProjectContext';
-
 export type ProjectState = {
   nextTrackId: number;
   title: string;
   tracks: Track[];
 };
+
+export type ProjectAction = [string, any?];
 
 export type Track = {
   audioBuffer: AudioBuffer;
@@ -37,10 +36,11 @@ export const SET_TRACK_MUTE = 'SET_TRACK_MUTE';
 export const SET_TRACK_SOLO = 'SET_TRACK_SOLO';
 export const SET_TRACK_VOLUME = 'SET_TRACK_VOLUME';
 
-function projectReducer(
+export function projectReducer(
   state: ProjectState,
-  [type, payload]: ProjectDispatchAction
+  [type, payload]: ProjectAction
 ): ProjectState {
+  console.log(type);
   switch (type) {
     case ADD_TRACK:
       return {
@@ -94,12 +94,3 @@ function setTrackVolume(tracks: Track[], { id, volume }: any): Track[] {
     track.id === id ? { ...track, volume } : track
   );
 }
-
-const useProjectState = (
-  initialState: ProjectState
-): [ProjectState, React.Dispatch<ProjectDispatchAction>] => {
-  const [state, dispatch] = useReducer(projectReducer, initialState);
-  return [state, dispatch];
-};
-
-export default useProjectState;

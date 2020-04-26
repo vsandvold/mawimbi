@@ -5,8 +5,8 @@ import {
   Droppable,
   DropResult,
 } from 'react-beautiful-dnd';
-import useProjectContext from '../project/useProjectContext';
-import { MOVE_TRACK, Track } from '../project/useProjectState';
+import { MOVE_TRACK, Track } from '../project/projectReducer';
+import useProjectDispatch from '../project/useProjectDispatch';
 import Channel from './Channel';
 import './Mixer.css';
 
@@ -19,7 +19,7 @@ type MixerProps = {
 const Mixer = (mixerProps: MixerProps) => {
   console.log('Mixer render');
 
-  const [projectDispatch] = useProjectContext();
+  const projectDispatch = useProjectDispatch();
 
   function onDragEnd(result: DropResult) {
     if (!result.destination) {

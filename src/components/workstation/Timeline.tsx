@@ -1,6 +1,6 @@
 import classNames from 'classnames';
-import React, { useRef, useLayoutEffect, useState } from 'react';
-import { Track } from '../project/useProjectState';
+import React, { useLayoutEffect, useRef, useState } from 'react';
+import { Track } from '../project/projectReducer';
 import './Timeline.css';
 import Waveform from './Waveform';
 

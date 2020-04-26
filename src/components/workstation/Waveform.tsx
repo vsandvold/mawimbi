@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import WaveSurfer from 'wavesurfer.js';
-import { Track } from '../project/useProjectState';
+import { Track } from '../project/projectReducer';
 
 type WaveformProps = {
   height: number;
