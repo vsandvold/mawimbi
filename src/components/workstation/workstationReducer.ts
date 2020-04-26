@@ -17,10 +17,10 @@ export const STOP_PLAYBACK = 'STOP_PLAYBACK';
 export const TOGGLE_DRAWER = 'TOGGLE_DRAWER';
 export const TOGGLE_PLAYBACK = 'TOGGLE_PLAYBACK';
 
-export const workstationReducer = (
+export function workstationReducer(
   state: WorkstationState,
   [type, payload]: WorkstationAction
-): WorkstationState => {
+): WorkstationState {
   console.log(type);
   console.log(payload);
   switch (type) {
@@ -50,7 +50,7 @@ export const workstationReducer = (
     default:
       throw new Error();
   }
-};
+}
 
 function setMutedTracksOrBail(
   previousMutedTracks: number[],

@@ -1,8 +1,8 @@
 import { mount, shallow } from 'enzyme';
 import React from 'react';
 import { AudioBuffer } from 'standardized-audio-context-mock';
-import Waveform from '../Waveform';
 import WaveSurfer from 'wavesurfer.js';
+import Waveform from '../Waveform';
 
 const defaultProps = {
   height: 128,
@@ -78,7 +78,7 @@ it('loads audio buffer when mounted', () => {
   );
 });
 
-it('cleans up waveform when component is unmounted', () => {
+it('destroys waveform when unmounted', () => {
   const wrapper = mount(<Waveform {...defaultProps} />);
 
   wrapper.unmount();

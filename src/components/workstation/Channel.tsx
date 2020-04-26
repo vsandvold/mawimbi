@@ -17,7 +17,7 @@ import {
 } from '../project/projectReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
 import './Channel.css';
-import useWorkstationDispatchContext from './useWorkstationDispatchContext';
+import useWorkstationDispatch from './useWorkstationDispatch';
 import { SET_TRACK_FOCUS, SET_TRACK_UNFOCUS } from './workstationReducer';
 
 type ChannelProps = {
@@ -29,7 +29,7 @@ const Channel = ({ isMuted, track, ...dragHandleProps }: ChannelProps) => {
   console.log('Channel render');
 
   const projectDispatch = useProjectDispatch();
-  const workstationDispatch = useWorkstationDispatchContext();
+  const workstationDispatch = useWorkstationDispatch();
 
   const channelRef = useRef<AudioServiceChannel | null>(null);
 

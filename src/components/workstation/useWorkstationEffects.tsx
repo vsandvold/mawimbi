@@ -9,7 +9,7 @@ import {
   WorkstationState,
 } from './workstationReducer';
 
-const useWorkstationEffect = (
+const useWorkstationEffects = (
   props: { tracks: Track[] },
   state: WorkstationState,
   dispatch: React.Dispatch<WorkstationAction>
@@ -101,4 +101,4 @@ const useWorkstationEffect = (
   };
 };
 
-export default useWorkstationEffect;
+export default useWorkstationEffects;

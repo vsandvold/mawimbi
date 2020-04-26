@@ -7,9 +7,9 @@ import { TOGGLE_DRAWER, TOGGLE_PLAYBACK } from '../workstationReducer';
 
 const mockDispatch = jest.fn();
 
-jest.mock('../useWorkstationContext', () => {
+jest.mock('../useWorkstationDispatch', () => {
   return () => {
-    return [mockDispatch];
+    return mockDispatch;
   };
 });
 

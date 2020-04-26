@@ -18,8 +18,7 @@ const useWorkstationReducer = (): [
   WorkstationState,
   React.Dispatch<WorkstationAction>
 ] => {
-  const [state, dispatch] = useReducer(workstationReducer, initialState);
-  return [state, dispatch];
+  return useReducer(workstationReducer, initialState);
 };
 
 export default useWorkstationReducer;

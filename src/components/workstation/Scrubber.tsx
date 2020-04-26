@@ -3,7 +3,7 @@ import useAnimation from '../../hooks/useAnimation';
 import useDebounced from '../../hooks/useDebounced';
 import AudioService from '../../services/AudioService';
 import './Scrubber.css';
-import useWorkstationDispatchContext from './useWorkstationDispatchContext';
+import useWorkstationDispatch from './useWorkstationDispatch';
 import {
   SET_TRANSPORT_TIME,
   STOP_PLAYBACK,
@@ -25,7 +25,7 @@ const Scrubber = ({
 }: ScrubberProps) => {
   console.log('Scrubber render');
 
-  const dispatch = useWorkstationDispatchContext();
+  const dispatch = useWorkstationDispatch();
 
   const scrollRef = useRef<HTMLDivElement>(null);
 

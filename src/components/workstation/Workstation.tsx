@@ -7,8 +7,8 @@ import Mixer from './Mixer';
 import Scrubber from './Scrubber';
 import Timeline from './Timeline';
 import Toolbar from './Toolbar';
-import { WorkstationDispatch } from './useWorkstationDispatchContext';
-import useWorkstationEffect from './useWorkstationEffects';
+import { WorkstationDispatch } from './useWorkstationDispatch';
+import useWorkstationEffects from './useWorkstationEffects';
 import useWorkstationReducer from './useWorkstationReducer';
 import './Workstation.css';
 
@@ -42,7 +42,7 @@ const Workstation = (props: WorkstationProps) => {
     setIsDragActive,
     dropzoneRootProps,
     setDropzoneRootProps,
-  } = useWorkstationEffect(props, state, dispatch);
+  } = useWorkstationEffects(props, state, dispatch);
 
   const editorDrawerClass = classNames('editor__drawer', {
     'editor__drawer--closed': !isDrawerOpen,

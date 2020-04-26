@@ -4,7 +4,7 @@ import classNames from 'classnames';
 import React from 'react';
 import { ReactComponent as ControlSvg } from '../../icons/control.svg';
 import './Toolbar.css';
-import useWorkstationDispatchContext from './useWorkstationDispatchContext';
+import useWorkstationDispatch from './useWorkstationDispatch';
 import { TOGGLE_DRAWER, TOGGLE_PLAYBACK } from './workstationReducer';
 
 type ToolbarProps = {
@@ -16,7 +16,7 @@ type ToolbarProps = {
 const Toolbar = ({ isDrawerOpen, isEmpty, isPlaying }: ToolbarProps) => {
   console.log('Toolbar render');
 
-  const dispatch = useWorkstationDispatchContext();
+  const dispatch = useWorkstationDispatch();
 
   const playPauseButton = (
     <Button

@@ -1,5 +1,6 @@
 import {
   SET_MUTED_TRACKS,
+  WorkstationAction,
   workstationReducer,
   WorkstationState,
 } from '../workstationReducer';
@@ -14,12 +15,12 @@ const defaultState: WorkstationState = {
 };
 
 it('bails out of dispatch when muted tracks are unchanged', () => {
-  const expectedArray: number[] = [];
+  const previousState = { ...defaultState, mutedTracks: [] };
+  const action: WorkstationAction = [SET_MUTED_TRACKS, []];
 
-  const actualState = workstationReducer(
-    { ...defaultState, mutedTracks: expectedArray },
-    [SET_MUTED_TRACKS, []]
+  const currentState = workstationReducer(previousState, action);
+
+  expect(Object.is(previousState.mutedTracks, currentState.mutedTracks)).toBe(
+    true
   );
-
-  expect(Object.is(expectedArray, actualState.mutedTracks)).toBe(true);
 });
