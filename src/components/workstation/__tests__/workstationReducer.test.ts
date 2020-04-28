@@ -1,5 +1,6 @@
 import {
   SET_MUTED_TRACKS,
+  STOP_AND_REWIND_PLAYBACK,
   WorkstationAction,
   workstationReducer,
   WorkstationState,
@@ -23,4 +24,13 @@ it('bails out of dispatch when muted tracks are unchanged', () => {
   expect(Object.is(previousState.mutedTracks, currentState.mutedTracks)).toBe(
     true
   );
+});
+
+it('stops and rewinds playback', () => {
+  const action: WorkstationAction = [STOP_AND_REWIND_PLAYBACK];
+
+  const currentState = workstationReducer(defaultState, action);
+
+  expect(currentState.isPlaying).toEqual(false);
+  expect(currentState.transportTime).toEqual(0);
 });

@@ -21,6 +21,17 @@
   bottom: 40px;
 }
 
+.scrubber__rewind {
+  position: absolute;
+  left: 8px;
+  bottom: 40px;
+}
+
+.scrubber__rewind--hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
 .progress {
   height: 100%;
   width: 1px;

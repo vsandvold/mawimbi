@@ -1,4 +1,7 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import { StepBackwardOutlined } from '@ant-design/icons';
+import { Button } from 'antd';
+import classNames from 'classnames';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import useAnimation from '../../hooks/useAnimation';
 import useDebounced from '../../hooks/useDebounced';
 import AudioService from '../../services/AudioService';
@@ -6,6 +9,7 @@ import './Scrubber.css';
 import useWorkstationDispatch from './useWorkstationDispatch';
 import {
   SET_TRANSPORT_TIME,
+  STOP_AND_REWIND_PLAYBACK,
   STOP_PLAYBACK,
   TOGGLE_PLAYBACK,
 } from './workstationReducer';
@@ -14,7 +18,7 @@ type ScrubberProps = {
   isPlaying: boolean;
   pixelsPerSecond: number;
   transportTime: number;
-  children: JSX.Element[] | JSX.Element;
+  children?: JSX.Element[] | JSX.Element;
 };
 
 const Scrubber = ({
@@ -27,6 +31,12 @@ const Scrubber = ({
 
   const dispatch = useWorkstationDispatch();
 
+  const [isRewindButtonHidden, setIsRewindButtonHidden] = useState(true);
+
+  const toggleRewindButton = (scrollPosition: number) => {
+    setIsRewindButtonHidden(scrollPosition < 10);
+  };
+
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const setScrollPosition = useCallback(
@@ -34,6 +44,7 @@ const Scrubber = ({
       if (scrollRef.current) {
         const scrollPosition = Math.trunc(transportTime * pixelsPerSecond);
         scrollRef.current.scrollLeft = scrollPosition;
+        toggleRewindButton(scrollPosition);
       }
     },
     [pixelsPerSecond, scrollRef]
@@ -88,6 +99,14 @@ const Scrubber = ({
     dispatch([TOGGLE_PLAYBACK]);
   };
 
+  const stopAndRewindPlayback = () => {
+    dispatch([STOP_AND_REWIND_PLAYBACK]);
+  };
+
+  const rewindButtonClass = classNames('scrubber__rewind', {
+    'scrubber__rewind--hidden': isRewindButtonHidden,
+  });
+
   return (
     <div className="scrubber">
       <div
@@ -100,6 +119,16 @@ const Scrubber = ({
       </div>
       <div className="scrubber__progress">
         <div className="progress" />
+      </div>
+      <div className={rewindButtonClass}>
+        <Button
+          type="link"
+          size="large"
+          className="button"
+          title="Rewind"
+          icon={<StepBackwardOutlined />}
+          onClick={stopAndRewindPlayback}
+        />
       </div>
     </div>
   );
