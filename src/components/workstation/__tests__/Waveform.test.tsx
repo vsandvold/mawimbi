@@ -1,4 +1,4 @@
-import { mount, shallow } from 'enzyme';
+import { render } from '@testing-library/react';
 import React from 'react';
 import { AudioBuffer } from 'standardized-audio-context-mock';
 import WaveSurfer from 'wavesurfer.js';
@@ -23,12 +23,12 @@ const defaultProps = {
 };
 
 it('renders without crashing', () => {
-  shallow(<Waveform {...defaultProps} />);
+  render(<Waveform {...defaultProps} />);
 });
 
 it('renders waveform with correct color', () => {
   const color = { r: 234, g: 456, b: 789 };
-  mount(
+  render(
     <Waveform
       {...{ ...defaultProps, track: { ...defaultProps.track, color } }}
     />
@@ -50,25 +50,23 @@ it('renders waveforms with correct opacity', () => {
     };
   }
 
-  const wrapper = mount(<Waveform {...defaultProps} />);
+  const { container, rerender } = render(<Waveform {...defaultProps} />);
 
-  expect(wrapper.html()).toContain('opacity: 1;');
+  const waveform = container.firstChild;
+  expect(waveform).toHaveStyle({ opacity: 1 });
 
-  wrapper.setProps(setVolume(defaultProps, 50));
+  rerender(<Waveform {...setVolume(defaultProps, 50)} />);
+  expect(waveform).toHaveStyle({ opacity: 0.5 });
 
-  expect(wrapper.html()).toContain('opacity: 0.5;');
+  rerender(<Waveform {...setVolume(defaultProps, 1)} />);
+  expect(waveform).toHaveStyle({ opacity: 0.01 });
 
-  wrapper.setProps(setVolume(defaultProps, 1));
-
-  expect(wrapper.html()).toContain('opacity: 0.01;');
-
-  wrapper.setProps(setVolume(defaultProps, 0));
-
-  expect(wrapper.html()).toContain('opacity: 0;');
+  rerender(<Waveform {...setVolume(defaultProps, 0)} />);
+  expect(waveform).toHaveStyle({ opacity: 0 });
 });
 
 it('loads audio buffer when mounted', () => {
-  const wrapper = mount(<Waveform {...defaultProps} />);
+  render(<Waveform {...defaultProps} />);
 
   const wavesurferInstance = WaveSurfer.create({});
 
@@ -79,9 +77,9 @@ it('loads audio buffer when mounted', () => {
 });
 
 it('destroys waveform when unmounted', () => {
-  const wrapper = mount(<Waveform {...defaultProps} />);
+  const { unmount } = render(<Waveform {...defaultProps} />);
 
-  wrapper.unmount();
+  unmount();
 
   const wavesurferInstance = WaveSurfer.create({});
   expect(wavesurferInstance.destroy).toHaveBeenCalledTimes(1);

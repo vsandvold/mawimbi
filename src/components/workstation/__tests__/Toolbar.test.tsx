@@ -1,6 +1,4 @@
-import { CaretRightOutlined, PauseOutlined } from '@ant-design/icons';
 import { fireEvent, render } from '@testing-library/react';
-import { mount } from 'enzyme';
 import React from 'react';
 import Toolbar from '../Toolbar';
 import { TOGGLE_DRAWER, TOGGLE_PLAYBACK } from '../workstationReducer';
@@ -20,51 +18,68 @@ const defaultProps = {
 };
 
 it('renders all buttons', () => {
-  const wrapper = mount(<Toolbar {...defaultProps} />);
+  const { getAllByRole } = render(<Toolbar {...defaultProps} />);
 
-  expect(wrapper.find('button')).toHaveLength(2);
+  expect(getAllByRole('button')).toHaveLength(2);
 });
 
 it('disables buttons when tracks are empty', () => {
-  const wrapper = mount(<Toolbar {...{ ...defaultProps, isEmpty: true }} />);
+  const { getAllByRole } = render(
+    <Toolbar {...{ ...defaultProps, isEmpty: true }} />
+  );
 
-  expect(wrapper.find('button').every({ disabled: true })).toEqual(true);
+  getAllByRole('button').forEach((button) => expect(button).toBeDisabled());
 });
 
 it('enables buttons when tracks are not empty', () => {
-  const wrapper = mount(<Toolbar {...{ ...defaultProps, isEmpty: false }} />);
+  const { getAllByRole } = render(
+    <Toolbar {...{ ...defaultProps, isEmpty: false }} />
+  );
 
-  expect(wrapper.find('button').some({ disabled: true })).toEqual(false);
+  getAllByRole('button').forEach((button) => expect(button).toBeEnabled());
 });
 
 it('renders play icon when paused', () => {
-  const wrapper = mount(<Toolbar {...{ ...defaultProps, isPlaying: false }} />);
+  const { container, getByTitle } = render(
+    <Toolbar {...{ ...defaultProps, isPlaying: false }} />
+  );
 
-  expect(wrapper.find('button[title="Play"]')).toHaveLength(1);
-  expect(wrapper).toContainReact(<CaretRightOutlined />);
+  const playButton = getByTitle('Play');
+  const playIcon = container.querySelector('[aria-label="caret-right"]');
+
+  expect(playButton).toBeInTheDocument();
+  expect(playIcon).toBeInTheDocument();
 });
 
 it('renders pause icon when playing', () => {
-  const wrapper = mount(<Toolbar {...{ ...defaultProps, isPlaying: true }} />);
+  const { container, getByTitle } = render(
+    <Toolbar {...{ ...defaultProps, isPlaying: true }} />
+  );
 
-  expect(wrapper.find('button[title="Pause"]')).toHaveLength(1);
-  expect(wrapper).toContainReact(<PauseOutlined />);
+  const pauseButton = getByTitle('Pause');
+  const pauseIcon = container.querySelector('[aria-label="pause"]');
+
+  expect(pauseButton).toBeInTheDocument();
+  expect(pauseIcon).toBeInTheDocument();
 });
 
 it('applies animation class to mixer icon when drawer is open', () => {
-  const wrapper = mount(
+  const { getByTitle } = render(
     <Toolbar {...{ ...defaultProps, isDrawerOpen: true }} />
   );
 
-  expect(wrapper.find('button[title="Hide mixer"]').childAt(0)).toHaveClassName(
-    'show-mixer'
-  );
+  const mixerIcon = getByTitle('Hide mixer').firstChild;
+
+  expect(mixerIcon).toHaveClass('show-mixer');
 });
 
 it('toggles playback when play/pause button is clicked', () => {
-  const wrapper = mount(<Toolbar {...{ ...defaultProps, isPlaying: true }} />);
+  const { getByTitle } = render(
+    <Toolbar {...{ ...defaultProps, isPlaying: true }} />
+  );
 
-  wrapper.find('button').filter({ title: 'Pause' }).simulate('click');
+  const playPauseButton = getByTitle('Pause');
+  fireEvent.click(playPauseButton);
 
   expect(mockDispatch).toBeCalledTimes(1);
   expect(mockDispatch).toHaveBeenCalledWith([TOGGLE_PLAYBACK]);
@@ -76,8 +91,6 @@ it('toggles drawer when mixer show/hide is clicked', () => {
   );
 
   const mixerButton = getByTitle('Show mixer');
-  expect(mixerButton).toBeInTheDocument();
-
   fireEvent.click(mixerButton);
 
   expect(mockDispatch).toBeCalledTimes(1);
