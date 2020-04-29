@@ -32,6 +32,7 @@
     "react-dropzone": "^11.0.1",
     "react-router-dom": "^5.1.2",
     "react-scripts": "3.4.0",
+    "react-test-renderer": "^16.9.0",
     "standardized-audio-context-mock": "^8.3.3",
     "tone": "14.5.45",
     "typescript": "~3.7.2",
