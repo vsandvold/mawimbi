@@ -15,11 +15,11 @@ it('renders nothing is drag is activate', () => {
 // FIXME: this test passes only when running before the one below
 it('renders message for desktop devices', () => {
   const { getByText } = render(<EmptyTimeline {...defaultProps} />);
-  const touchMessage = getByText(
-    'Drag files here, or use the upload button above'
+  const desktopMessage = getByText(
+    'Drop files here, or use the upload button above'
   );
 
-  expect(touchMessage).toBeInTheDocument();
+  expect(desktopMessage).toBeInTheDocument();
 });
 
 it('renders message for touch devices', () => {

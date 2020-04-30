@@ -62,24 +62,17 @@ const useWorkstationEffects = (
   }, [transportTime]);
 
   /*
-   * Compute scale factor for timeline transform when drawer is open.
+   * Get height of mixer drawer.
    */
 
-  const [timelineScaleFactor, setTimelineScaleFactor] = useState(1.0);
-
-  const timelineContainerRef = useRef<HTMLDivElement>(null);
   const drawerContainerRef = useRef<HTMLDivElement>(null);
+  const [drawerHeight, setDrawerHeight] = useState(0);
 
   useLayoutEffect(() => {
-    if (timelineContainerRef.current && drawerContainerRef.current) {
-      const {
-        height: timelineHeight,
-      } = timelineContainerRef.current.getBoundingClientRect();
-      const {
-        height: drawerHeight,
-      } = drawerContainerRef.current.getBoundingClientRect();
-      const scaleFactor = (timelineHeight - drawerHeight) / timelineHeight;
-      setTimelineScaleFactor(scaleFactor);
+    if (drawerContainerRef.current) {
+      // TODO: or use clientHeight?
+      const drawerHeight = drawerContainerRef.current.offsetHeight;
+      setDrawerHeight(drawerHeight);
     }
   }, []); // make sure effect only triggers once, on component mount
 
@@ -92,8 +85,7 @@ const useWorkstationEffects = (
 
   return {
     drawerContainerRef,
-    timelineContainerRef,
-    timelineScaleFactor,
+    drawerHeight,
     isDragActive,
     setIsDragActive,
     dropzoneRootProps,

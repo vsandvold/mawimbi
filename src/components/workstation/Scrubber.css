@@ -16,15 +16,16 @@
 
 .scrubber__progress {
   position: absolute;
-  top: 40px;
+  top: 0;
   left: 56px;
   bottom: 40px;
+  padding-top: 40px;
 }
 
 .scrubber__rewind {
   position: absolute;
   left: 8px;
-  bottom: 40px;
+  bottom: 28px;
 }
 
 .scrubber__rewind--hidden {

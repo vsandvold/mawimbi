@@ -19,7 +19,7 @@ const EmptyTimeline = ({ isDragActive }: EmptyTimelineProps) => {
         <Text type="secondary">Use the upload button above</Text>
       ) : (
         <Text type="secondary">
-          Drag files here, or use the upload button above
+          Drop files here, or use the upload button above
         </Text>
       )}
     </div>

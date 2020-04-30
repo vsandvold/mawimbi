@@ -14,7 +14,7 @@ const defaultOptions = {
 it('adds eventlistener to window element when mounted', () => {
   renderHook(() => useKeypress(mockCallback, defaultOptions));
 
-  expect((addEventListener as jest.Mock<any, any>).mock.calls).toEqual(
+  expect((addEventListener as jest.Mock).mock.calls).toEqual(
     expect.arrayContaining([expect.arrayContaining(['keyup'])])
   );
 });
@@ -26,12 +26,14 @@ it('removes eventlistenere when unmounted', () => {
 
   unmount();
 
-  expect((removeEventListener as jest.Mock<any, any>).mock.calls).toEqual(
+  expect((removeEventListener as jest.Mock).mock.calls).toEqual(
     expect.arrayContaining([expect.arrayContaining(['keyup'])])
   );
 });
 
-it('triggers effect when dependencies change, and not on every render', () => {});
+it('triggers effect when dependencies change, and not on every render', () => {
+  // TODO: not implemented
+});
 
 it('triggers callback when target key is pressed', () => {
   renderHook(() =>
