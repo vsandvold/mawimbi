@@ -35,9 +35,8 @@ const Workstation = (props: WorkstationProps) => {
   } = state;
 
   const {
-    timelineScaleFactor,
-    timelineContainerRef,
     drawerContainerRef,
+    drawerHeight,
     isDragActive,
     setIsDragActive,
     dropzoneRootProps,
@@ -67,6 +66,8 @@ const Workstation = (props: WorkstationProps) => {
   const memoizedScrubberTimeline = useMemo(
     () => (
       <Scrubber
+        drawerHeight={drawerHeight}
+        isDrawerOpen={isDrawerOpen}
         isPlaying={isPlaying}
         pixelsPerSecond={pixelsPerSecond}
         transportTime={transportTime}
@@ -74,18 +75,21 @@ const Workstation = (props: WorkstationProps) => {
         {memoizedTimeline}
       </Scrubber>
     ),
-    [isPlaying, memoizedTimeline, pixelsPerSecond, transportTime]
+    [
+      drawerHeight,
+      isDrawerOpen,
+      isPlaying,
+      memoizedTimeline,
+      pixelsPerSecond,
+      transportTime,
+    ]
   );
 
   return (
     <WorkstationDispatch.Provider value={dispatch}>
       <div className="workstation">
         <div className="editor" {...dropzoneRootProps}>
-          <div
-            ref={timelineContainerRef}
-            className="editor__timeline"
-            style={getTimelineStyle(isDrawerOpen, timelineScaleFactor)}
-          >
+          <div className="editor__timeline">
             {hasTracks ? (
               memoizedScrubberTimeline
             ) : (
@@ -114,17 +118,6 @@ const Workstation = (props: WorkstationProps) => {
     </WorkstationDispatch.Provider>
   );
 };
-
-function getTimelineStyle(isDrawerOpen: boolean, timelineScaleFactor: number) {
-  const defaultStyle = {
-    transformOrigin: 'top left',
-    transition: 'transform 0.3s',
-    willChange: 'transform',
-  };
-  return isDrawerOpen
-    ? { ...defaultStyle, transform: `scaleY(${timelineScaleFactor})` }
-    : defaultStyle;
-}
 
 const MemoizedDropzone = React.memo(Dropzone);
 const MemoizedEmptyTimeline = React.memo(EmptyTimeline);

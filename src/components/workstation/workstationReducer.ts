@@ -13,6 +13,7 @@ export const SET_MUTED_TRACKS = 'SET_MUTED_TRACKS';
 export const SET_TRACK_FOCUS = 'SET_TRACK_FOCUS';
 export const SET_TRACK_UNFOCUS = 'SET_TRACK_UNFOCUS';
 export const SET_TRANSPORT_TIME = 'SET_TRANSPORT_TIME';
+export const STOP_AND_REWIND_PLAYBACK = 'STOP_AND_REWIND_PLAYBACK';
 export const STOP_PLAYBACK = 'STOP_PLAYBACK';
 export const TOGGLE_DRAWER = 'TOGGLE_DRAWER';
 export const TOGGLE_PLAYBACK = 'TOGGLE_PLAYBACK';
@@ -41,6 +42,8 @@ export function workstationReducer(
       };
     case SET_TRANSPORT_TIME:
       return { ...state, transportTime: payload };
+    case STOP_AND_REWIND_PLAYBACK:
+      return { ...state, isPlaying: false, transportTime: 0 };
     case STOP_PLAYBACK:
       return { ...state, isPlaying: false };
     case TOGGLE_DRAWER:

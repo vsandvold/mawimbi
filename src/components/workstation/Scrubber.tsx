@@ -1,4 +1,13 @@
-import React, { useCallback, useEffect, useRef } from 'react';
+import { StepBackwardOutlined } from '@ant-design/icons';
+import { Button } from 'antd';
+import classNames from 'classnames';
+import React, {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import useAnimation from '../../hooks/useAnimation';
 import useDebounced from '../../hooks/useDebounced';
 import AudioService from '../../services/AudioService';
@@ -6,18 +15,25 @@ import './Scrubber.css';
 import useWorkstationDispatch from './useWorkstationDispatch';
 import {
   SET_TRANSPORT_TIME,
+  STOP_AND_REWIND_PLAYBACK,
   STOP_PLAYBACK,
   TOGGLE_PLAYBACK,
 } from './workstationReducer';
 
 type ScrubberProps = {
+  drawerHeight: number;
+  isDrawerOpen: boolean;
   isPlaying: boolean;
   pixelsPerSecond: number;
   transportTime: number;
-  children: JSX.Element[] | JSX.Element;
+  children?: JSX.Element[] | JSX.Element;
 };
 
+const TIMELINE_MARGIN = 40;
+
 const Scrubber = ({
+  drawerHeight,
+  isDrawerOpen,
   isPlaying,
   pixelsPerSecond,
   transportTime,
@@ -27,16 +43,23 @@ const Scrubber = ({
 
   const dispatch = useWorkstationDispatch();
 
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const [isRewindButtonHidden, setIsRewindButtonHidden] = useState(true);
+
+  const toggleRewindButton = (scrollPosition: number) => {
+    setIsRewindButtonHidden(scrollPosition < 10);
+  };
+
+  const timelineScrollRef = useRef<HTMLDivElement>(null);
 
   const setScrollPosition = useCallback(
     (transportTime: number) => {
-      if (scrollRef.current) {
+      if (timelineScrollRef.current) {
         const scrollPosition = Math.trunc(transportTime * pixelsPerSecond);
-        scrollRef.current.scrollLeft = scrollPosition;
+        timelineScrollRef.current.scrollLeft = scrollPosition;
+        toggleRewindButton(scrollPosition);
       }
     },
-    [pixelsPerSecond, scrollRef]
+    [pixelsPerSecond, timelineScrollRef]
   );
 
   useEffect(() => {
@@ -45,16 +68,17 @@ const Scrubber = ({
 
   const animateScrollCallback = useCallback(() => {
     function updateScrollPosition() {
-      // Update scroll position directly from transport time for performance reasons
+      // Updates scroll position directly from transport time for performance reasons
       const transportTime = AudioService.getTransportTime();
       setScrollPosition(transportTime);
     }
 
     function stopPlaybackIfEndOfScroll() {
-      if (scrollRef.current) {
+      if (timelineScrollRef.current) {
         const isEndOfScroll =
-          scrollRef.current.scrollLeft + scrollRef.current.clientWidth >=
-          scrollRef.current.scrollWidth;
+          timelineScrollRef.current.scrollLeft +
+            timelineScrollRef.current.clientWidth >=
+          timelineScrollRef.current.scrollWidth;
         if (isEndOfScroll) {
           dispatch([STOP_PLAYBACK]);
         }
@@ -73,8 +97,8 @@ const Scrubber = ({
     if (isPlaying) {
       return;
     }
-    if (scrollRef.current) {
-      const scrollPosition = scrollRef.current.scrollLeft;
+    if (timelineScrollRef.current) {
+      const scrollPosition = timelineScrollRef.current.scrollLeft;
       const transportTime = scrollPosition / pixelsPerSecond;
       dispatch([SET_TRANSPORT_TIME, transportTime]);
     }
@@ -88,21 +112,89 @@ const Scrubber = ({
     dispatch([TOGGLE_PLAYBACK]);
   };
 
+  const stopAndRewindPlayback = () => {
+    dispatch([STOP_AND_REWIND_PLAYBACK]);
+  };
+
+  const rewindButtonClass = classNames('scrubber__rewind', {
+    'scrubber__rewind--hidden': isRewindButtonHidden,
+  });
+
+  const [timelineScaleFactor, setTimelineScaleFactor] = useState(1.0);
+
+  useLayoutEffect(() => {
+    if (timelineScrollRef.current) {
+      // TODO: or use clientHeight?
+      const timelineHeight = timelineScrollRef.current.offsetHeight;
+      const scaleFactor = (timelineHeight - drawerHeight) / timelineHeight;
+      setTimelineScaleFactor(scaleFactor);
+    }
+  }, [drawerHeight]);
+
+  const timelineScaleStyle = getTimelineStyle(
+    isDrawerOpen,
+    timelineScaleFactor
+  );
+
+  const rewindButtonTranslateStyle = getRewindButtonStyle(
+    isDrawerOpen,
+    drawerHeight,
+    timelineScaleFactor
+  );
+
   return (
     <div className="scrubber">
       <div
+        ref={timelineScrollRef}
         className="scrubber__timeline"
-        ref={scrollRef}
+        style={timelineScaleStyle}
         onClick={togglePlayback}
         onScroll={debouncedSetTransportTime}
       >
         {children}
       </div>
-      <div className="scrubber__progress">
+      <div className="scrubber__progress" style={timelineScaleStyle}>
         <div className="progress" />
+      </div>
+      <div className={rewindButtonClass} style={rewindButtonTranslateStyle}>
+        <Button
+          type="link"
+          size="large"
+          className="button"
+          title="Rewind"
+          icon={<StepBackwardOutlined />}
+          onClick={stopAndRewindPlayback}
+        />
       </div>
     </div>
   );
 };
+
+const defaultTransformStyle = {
+  transformOrigin: 'top left',
+  transition: 'transform 0.3s',
+  willChange: 'transform',
+};
+
+function getTimelineStyle(isDrawerOpen: boolean, timelineScaleFactor: number) {
+  return isDrawerOpen
+    ? { ...defaultTransformStyle, transform: `scaleY(${timelineScaleFactor})` }
+    : defaultTransformStyle;
+}
+
+function getRewindButtonStyle(
+  isDrawerOpen: boolean,
+  drawerHeight: number,
+  timelineScaleFactor: number
+) {
+  const translateAmount =
+    drawerHeight - TIMELINE_MARGIN * (1 - timelineScaleFactor);
+  return isDrawerOpen
+    ? {
+        ...defaultTransformStyle,
+        transform: `translateY(-${translateAmount}px)`,
+      }
+    : defaultTransformStyle;
+}
 
 export default Scrubber;
