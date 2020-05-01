@@ -151,11 +151,11 @@ function getButtonStyle(channelOpacity: number, isActive = false) {
     channelOpacity < 0.5
       ? `rgba(255, 255, 255, ${buttonOpacity})`
       : `rgba(0, 0, 0, ${buttonOpacity})`;
-  const boxShadow = isActive ? `0 0 1px 1px ${buttonColor} inset` : 'none';
+  const buttonBorder = isActive ? `1px solid ${buttonColor}` : 'none';
   return {
     color: buttonColor,
     transition: 'color 0.5s',
-    boxShadow,
+    border: buttonBorder,
     borderRadius: '2px',
   };
 }

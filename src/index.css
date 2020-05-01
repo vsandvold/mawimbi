@@ -64,23 +64,23 @@ html {
 
 .button:focus {
   color: rgba(255, 255, 255, 0.65);
-  box-shadow: 0 0 1px 1px rgba(255, 255, 255, 0.65) inset !important;
+  border: 1px solid rgba(255, 255, 255, 0.65);
 }
 
 .button:active {
   color: rgba(255, 255, 255, 1);
-  box-shadow: 0 0 1px 1px rgba(255, 255, 255, 1) inset !important;
+  border: 1px solid rgba(255, 255, 255, 1);
 }
 
 @media (hover: hover) and (pointer: fine) {
   /* Style button hover on desktop devices only. */
   .button:hover {
-    color: rgba(255, 255, 255, 1) !important;
+    color: rgba(255, 255, 255, 1);
   }
 
   .button:hover:focus {
     color: rgba(255, 255, 255, 1);
-    box-shadow: 0 0 1px 1px rgba(255, 255, 255, 1) inset !important;
+    border: 1px solid rgba(255, 255, 255, 1);
   }
 }
 
@@ -89,8 +89,8 @@ html {
 .button[disabled]:focus,
 .button[disabled]:active,
 .button--active[disabled] {
-  color: rgba(255, 255, 255, 0.3) !important;
-  box-shadow: none !important;
+  color: rgba(255, 255, 255, 0.3);
+  border: none;
 }
 
 @media (max-width: 768px) {
