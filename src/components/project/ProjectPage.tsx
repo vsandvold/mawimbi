@@ -8,8 +8,6 @@ import useProjectEffects from './useProjectEffects';
 import useProjectReducer from './useProjectReducer';
 
 const ProjectPage = () => {
-  console.log('ProjectPage render');
-
   const [state, dispatch] = useProjectReducer();
 
   const { title, tracks } = state;

@@ -9,8 +9,6 @@ type WaveformProps = {
 };
 
 const Waveform = ({ height, pixelsPerSecond, track }: WaveformProps) => {
-  console.log('Waveform render');
-
   const containerRef = useRef<HTMLDivElement>(null);
   const waveformRef = useRef<WaveSurfer>();
 

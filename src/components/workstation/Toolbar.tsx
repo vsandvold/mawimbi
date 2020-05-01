@@ -14,8 +14,6 @@ type ToolbarProps = {
 };
 
 const Toolbar = ({ isDrawerOpen, isEmpty, isPlaying }: ToolbarProps) => {
-  console.log('Toolbar render');
-
   const dispatch = useWorkstationDispatch();
 
   const playPauseButton = (

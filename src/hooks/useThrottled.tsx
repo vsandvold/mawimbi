@@ -17,7 +17,6 @@ const useThrottled = (
   const throttled = useCallback(
     (value) => {
       if (timeoutRef.current) {
-        console.log('timeout ref current');
         return;
       }
       callback(value);

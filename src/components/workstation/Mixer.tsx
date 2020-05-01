@@ -17,8 +17,6 @@ type MixerProps = {
 
 // TODO: refactor into HOC (DroppableMixer and DraggableChannel)
 const Mixer = (mixerProps: MixerProps) => {
-  console.log('Mixer render');
-
   const projectDispatch = useProjectDispatch();
 
   function onDragEnd(result: DropResult) {

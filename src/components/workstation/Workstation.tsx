@@ -18,8 +18,6 @@ type WorkstationProps = {
 };
 
 const Workstation = (props: WorkstationProps) => {
-  console.log('Workstation render');
-
   const [state, dispatch] = useWorkstationReducer();
 
   const { tracks, uploadFile } = props;

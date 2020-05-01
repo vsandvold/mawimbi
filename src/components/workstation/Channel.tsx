@@ -26,8 +26,6 @@ type ChannelProps = {
 };
 
 const Channel = ({ isMuted, track, ...dragHandleProps }: ChannelProps) => {
-  console.log('Channel render');
-
   const projectDispatch = useProjectDispatch();
   const workstationDispatch = useWorkstationDispatch();
 

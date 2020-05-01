@@ -12,8 +12,6 @@ type DropzoneProps = {
 };
 
 const Dropzone = (props: DropzoneProps) => {
-  console.log('Dropzone render');
-
   const { setIsDragActive, setRootProps, uploadFile } = props;
 
   const {

@@ -40,7 +40,6 @@ export function projectReducer(
   state: ProjectState,
   [type, payload]: ProjectAction
 ): ProjectState {
-  console.log(type);
   switch (type) {
     case ADD_TRACK:
       return {

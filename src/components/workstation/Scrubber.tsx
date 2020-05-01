@@ -39,8 +39,6 @@ const Scrubber = ({
   transportTime,
   children,
 }: ScrubberProps) => {
-  console.log('Scrubber render');
-
   const dispatch = useWorkstationDispatch();
 
   const [isRewindButtonHidden, setIsRewindButtonHidden] = useState(true);

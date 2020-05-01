@@ -9,8 +9,6 @@ type ProjectPageHeaderProps = {
 };
 
 const ProjectPageHeader = ({ title, uploadFile }: ProjectPageHeaderProps) => {
-  console.log('ProjectPageHeader render');
-
   const history = useHistory();
 
   const uploadProps = {

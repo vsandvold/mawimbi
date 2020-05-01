@@ -22,8 +22,6 @@ export function workstationReducer(
   state: WorkstationState,
   [type, payload]: WorkstationAction
 ): WorkstationState {
-  console.log(type);
-  console.log(payload);
   switch (type) {
     case SET_MUTED_TRACKS:
       return {

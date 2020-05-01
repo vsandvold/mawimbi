@@ -17,8 +17,6 @@ const Timeline = ({
   pixelsPerSecond,
   tracks,
 }: TimelineProps) => {
-  console.log('Timeline render');
-
   const [height, setHeight] = useState(0);
 
   const containerRef = useRef<HTMLDivElement>(null);

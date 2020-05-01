@@ -6,8 +6,6 @@ type EmptyTimelineProps = {
 };
 
 const EmptyTimeline = ({ isDragActive }: EmptyTimelineProps) => {
-  console.log('EmptyTimeline render');
-
   const { Title, Text } = Typography;
 
   return isDragActive ? null : (
