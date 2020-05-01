@@ -3,8 +3,14 @@ import React from 'react';
 import { AudioBuffer } from 'standardized-audio-context-mock';
 import Scrubber from '../Scrubber';
 import Workstation from '../Workstation';
-
-jest.mock('../../../services/AudioService');
+import {
+  useDropzoneDragActive,
+  useMixerDrawerHeight,
+  useMutedTracks,
+  usePlaybackToggle,
+  useSpacebarPlaybackToggle,
+  useTransportTime,
+} from '../workstationEffects';
 
 jest.mock('../EmptyTimeline', () => () => (
   <div data-testid="empty-timeline"></div>
@@ -14,6 +20,8 @@ jest.mock('../Scrubber');
 jest.mock('../Timeline', () => () => (
   <div data-testid="regular-timeline"></div>
 ));
+
+jest.mock('../workstationEffects', () => mockWorkstationEffects());
 
 // TODO: this pattern is useful for asserting the props passed to a child component
 const mockScrubber = jest.fn(({ children }) => (
@@ -71,3 +79,37 @@ it('renders dropzone hidden by default', () => {
 
   expect(drawer).toHaveClass('editor__dropzone--hidden');
 });
+
+it('uses workstation effect hooks', () => {
+  render(<Workstation {...defaultProps} />);
+
+  expect(useDropzoneDragActive).toHaveBeenCalled();
+  expect(useMixerDrawerHeight).toHaveBeenCalled();
+  expect(useMutedTracks).toHaveBeenCalled();
+  expect(usePlaybackToggle).toHaveBeenCalled();
+  expect(useSpacebarPlaybackToggle).toHaveBeenCalled();
+  expect(useTransportTime).toHaveBeenCalled();
+});
+
+function mockWorkstationEffects() {
+  return {
+    useDropzoneDragActive: jest.fn(() => {
+      return {
+        isDragActive: false,
+        setIsDragActive: jest.fn(),
+        dropzoneRootProps: {},
+        setDropzoneRootProps: jest.fn(),
+      };
+    }),
+    useMixerDrawerHeight: jest.fn(() => {
+      return {
+        drawerContainerRef: { current: null },
+        drawerHeight: 0,
+      };
+    }),
+    useMutedTracks: jest.fn(),
+    usePlaybackToggle: jest.fn(),
+    useSpacebarPlaybackToggle: jest.fn(),
+    useTransportTime: jest.fn(),
+  };
+}

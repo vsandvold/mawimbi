@@ -6,24 +6,15 @@ import {
   SET_MUTED_TRACKS,
   TOGGLE_PLAYBACK,
   WorkstationAction,
-  WorkstationState,
 } from './workstationReducer';
 
-const useWorkstationEffects = (
-  props: { tracks: Track[] },
-  state: WorkstationState,
+export const useMutedTracks = (
+  tracks: Track[],
   dispatch: React.Dispatch<WorkstationAction>
 ) => {
-  const { tracks } = props;
-  const { isPlaying, transportTime } = state;
-
-  /*
-   * Compute muted tracks.
-   */
-
   useEffect(() => {
     function isTrackMuted(track: Track, hasSoloTracks: boolean): boolean {
-      return !track.solo && (track.mute || (hasSoloTracks && !track.solo));
+      return track.mute || (hasSoloTracks && !track.solo);
     }
 
     const hasSoloTracks = tracks.filter((track) => track.solo).length > 0;
@@ -32,19 +23,17 @@ const useWorkstationEffects = (
       .map((track) => track.id);
     dispatch([SET_MUTED_TRACKS, mutedTracks]);
   }, [tracks]); // dispatch never changes, and can safely be omitted from dependencies
+};
 
-  /*
-   * Use spacebar to toggle playback.
-   */
-
+export const useSpacebarPlaybackToggle = (
+  dispatch: React.Dispatch<WorkstationAction>
+) => {
   useKeypress(() => dispatch([TOGGLE_PLAYBACK]), {
     targetKey: ' ',
   });
+};
 
-  /*
-   * Toggle audio playback.
-   */
-
+export const usePlaybackToggle = (isPlaying: boolean) => {
   useEffect(() => {
     if (isPlaying) {
       AudioService.startPlayback();
@@ -52,19 +41,15 @@ const useWorkstationEffects = (
       AudioService.pausePlayback();
     }
   }, [isPlaying]);
+};
 
-  /*
-   * Set transport time.
-   */
-
+export const useTransportTime = (transportTime: number) => {
   useEffect(() => {
     AudioService.setTransportTime(transportTime);
   }, [transportTime]);
+};
 
-  /*
-   * Get height of mixer drawer.
-   */
-
+export const useMixerDrawerHeight = () => {
   const drawerContainerRef = useRef<HTMLDivElement>(null);
   const [drawerHeight, setDrawerHeight] = useState(0);
 
@@ -76,21 +61,20 @@ const useWorkstationEffects = (
     }
   }, []); // make sure effect only triggers once, on component mount
 
-  /*
-   * Activate dropzone on file drag
-   */
+  return {
+    drawerContainerRef,
+    drawerHeight,
+  };
+};
 
+export const useDropzoneDragActive = () => {
   const [isDragActive, setIsDragActive] = useState(false);
   const [dropzoneRootProps, setDropzoneRootProps] = useState({});
 
   return {
-    drawerContainerRef,
-    drawerHeight,
     isDragActive,
     setIsDragActive,
     dropzoneRootProps,
     setDropzoneRootProps,
   };
 };
-
-export default useWorkstationEffects;

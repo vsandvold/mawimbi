@@ -8,9 +8,16 @@ import Scrubber from './Scrubber';
 import Timeline from './Timeline';
 import Toolbar from './Toolbar';
 import { WorkstationDispatch } from './useWorkstationDispatch';
-import useWorkstationEffects from './useWorkstationEffects';
 import useWorkstationReducer from './useWorkstationReducer';
 import './Workstation.css';
+import {
+  useDropzoneDragActive,
+  useMixerDrawerHeight,
+  useMutedTracks,
+  usePlaybackToggle,
+  useSpacebarPlaybackToggle,
+  useTransportTime,
+} from './workstationEffects';
 
 type WorkstationProps = {
   tracks: Track[];
@@ -32,14 +39,18 @@ const Workstation = (props: WorkstationProps) => {
     transportTime,
   } = state;
 
+  const { drawerContainerRef, drawerHeight } = useMixerDrawerHeight();
   const {
-    drawerContainerRef,
-    drawerHeight,
     isDragActive,
     setIsDragActive,
     dropzoneRootProps,
     setDropzoneRootProps,
-  } = useWorkstationEffects(props, state, dispatch);
+  } = useDropzoneDragActive();
+
+  useMutedTracks(tracks, dispatch);
+  usePlaybackToggle(isPlaying);
+  useSpacebarPlaybackToggle(dispatch);
+  useTransportTime(transportTime);
 
   const editorDrawerClass = classNames('editor__drawer', {
     'editor__drawer--closed': !isDrawerOpen,
