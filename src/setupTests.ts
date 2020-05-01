@@ -4,6 +4,8 @@
 // learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom/extend-expect';
 
+window.TONE_SILENCE_LOGGING = true;
+
 mockReactRouterDom();
 
 function mockReactRouterDom() {
