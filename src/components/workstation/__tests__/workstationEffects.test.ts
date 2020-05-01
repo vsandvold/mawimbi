@@ -1,7 +1,7 @@
 import { fireEvent } from '@testing-library/react';
 import { renderHook } from '@testing-library/react-hooks';
 import AudioService from '../../../services/AudioService';
-import { createTrack } from '../../../testUtils';
+import { mockTrack } from '../../../testUtils';
 import {
   useMutedTracks,
   usePlaybackToggle,
@@ -16,22 +16,22 @@ const mockDispatch = jest.fn();
 
 it('computes muted tracks', () => {
   const tracks = [
-    createTrack({
+    mockTrack({
       id: 1,
       mute: true,
       solo: false,
     }),
-    createTrack({
+    mockTrack({
       id: 2,
       mute: false,
       solo: true,
     }),
-    createTrack({
+    mockTrack({
       id: 3,
       mute: true,
       solo: true,
     }),
-    createTrack({
+    mockTrack({
       id: 4,
       mute: false,
       solo: false,

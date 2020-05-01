@@ -1,5 +1,9 @@
 import React, { useReducer } from 'react';
-import { ProjectAction, projectReducer, ProjectState } from './projectReducer';
+import {
+  ProjectAction,
+  projectReducer,
+  ProjectState,
+} from './projectPageReducer';
 
 const initialState: ProjectState = {
   nextTrackId: 0,

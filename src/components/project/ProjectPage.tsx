@@ -4,7 +4,7 @@ import Workstation from '../workstation/Workstation';
 import './ProjectPage.css';
 import ProjectPageHeader from './ProjectPageHeader';
 import { ProjectDispatch } from './useProjectDispatch';
-import useProjectEffects from './useProjectEffects';
+import { useUploadFile } from './projectPageEffects';
 import useProjectReducer from './useProjectReducer';
 
 const ProjectPage = () => {
@@ -12,7 +12,7 @@ const ProjectPage = () => {
 
   const { title, tracks } = state;
 
-  const { uploadFile } = useProjectEffects({}, state, dispatch);
+  const uploadFile = useUploadFile(dispatch);
 
   return (
     <ProjectDispatch.Provider value={dispatch}>

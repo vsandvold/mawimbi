@@ -1,17 +1,9 @@
 import { useCallback } from 'react';
 import AudioService from '../../services/AudioService';
 import message from '../message';
-import { ADD_TRACK, ProjectAction, ProjectState } from './projectReducer';
+import { ADD_TRACK, ProjectAction } from './projectPageReducer';
 
-const useProjectEffects = (
-  props: any,
-  state: ProjectState,
-  dispatch: React.Dispatch<ProjectAction>
-) => {
-  /*
-   * Upload and decode audio file.
-   */
-
+export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
   const uploadFile = useCallback((file: File) => {
     const msg = message({ key: `uploadFile-${file.name}` });
     const reader = new FileReader();
@@ -32,7 +24,5 @@ const useProjectEffects = (
     reader.readAsArrayBuffer(file);
   }, []); // dispatch never changes, and can safely be omitted from dependencies
 
-  return { uploadFile };
+  return uploadFile;
 };
-
-export default useProjectEffects;

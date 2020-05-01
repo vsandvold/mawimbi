@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import useKeypress from '../../hooks/useKeypress';
 import AudioService from '../../services/AudioService';
-import { Track } from '../project/projectReducer';
+import { Track } from '../project/projectPageReducer';
 import {
   SET_MUTED_TRACKS,
   TOGGLE_PLAYBACK,

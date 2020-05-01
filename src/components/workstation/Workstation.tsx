@@ -1,7 +1,7 @@
 import classNames from 'classnames';
 import React, { useMemo } from 'react';
 import Dropzone from '../dropzone/Dropzone';
-import { Track } from '../project/projectReducer';
+import { Track } from '../project/projectPageReducer';
 import EmptyTimeline from './EmptyTimeline';
 import Mixer from './Mixer';
 import Scrubber from './Scrubber';

@@ -1,5 +1,5 @@
 import React, { createContext, useContext } from 'react';
-import { ProjectAction } from './projectReducer';
+import { ProjectAction } from './projectPageReducer';
 
 export const ProjectDispatch = createContext<React.Dispatch<ProjectAction>>(
   () => {}

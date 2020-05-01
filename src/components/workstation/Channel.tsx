@@ -14,7 +14,7 @@ import {
   SET_TRACK_SOLO,
   SET_TRACK_VOLUME,
   Track,
-} from '../project/projectReducer';
+} from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
 import './Channel.css';
 import useWorkstationDispatch from './useWorkstationDispatch';

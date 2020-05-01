@@ -5,7 +5,7 @@ import {
   Droppable,
   DropResult,
 } from 'react-beautiful-dnd';
-import { MOVE_TRACK, Track } from '../project/projectReducer';
+import { MOVE_TRACK, Track } from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
 import Channel from './Channel';
 import './Mixer.css';

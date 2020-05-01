@@ -1,13 +1,13 @@
 import { render } from '@testing-library/react';
 import React from 'react';
 import WaveSurfer from 'wavesurfer.js';
-import { createTrack } from '../../../testUtils';
+import { mockTrack } from '../../../testUtils';
 import Waveform from '../Waveform';
 
 const defaultProps = {
   height: 128,
   pixelsPerSecond: 200,
-  track: createTrack(),
+  track: mockTrack(),
 };
 
 it('renders without crashing', () => {

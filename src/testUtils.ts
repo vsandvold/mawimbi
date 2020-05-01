@@ -1,6 +1,14 @@
 import { AudioBuffer } from 'standardized-audio-context-mock';
 
-export function createTrack(trackProps: any = {}) {
+// This pattern is useful for asserting the props passed to a child component
+//
+// jest.mock('../Scrubber');
+// const mockScrubber = jest.fn(({ children }) => (
+//   <div data-testid="scrubber">{children}</div>
+// ));
+// (Scrubber as jest.Mock).mockImplementation(mockScrubber);
+
+export function mockTrack(trackProps: any = {}) {
   return {
     audioBuffer: new AudioBuffer({ length: 10, sampleRate: 44100 }),
     color: {

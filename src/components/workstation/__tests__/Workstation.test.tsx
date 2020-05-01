@@ -1,7 +1,6 @@
 import { render } from '@testing-library/react';
 import React from 'react';
-import { AudioBuffer } from 'standardized-audio-context-mock';
-import Scrubber from '../Scrubber';
+import { mockTrack } from '../../../testUtils';
 import Workstation from '../Workstation';
 import {
   useDropzoneDragActive,
@@ -11,31 +10,26 @@ import {
   useSpacebarPlaybackToggle,
   useTransportTime,
 } from '../workstationEffects';
-import { createTrack } from '../../../testUtils';
 
 jest.mock('../EmptyTimeline', () => () => (
   <div data-testid="empty-timeline"></div>
 ));
 jest.mock('../Mixer');
-jest.mock('../Scrubber');
+jest.mock('../Scrubber', () => ({ children }: any) => (
+  <div data-testid="scrubber">{children}</div>
+));
 jest.mock('../Timeline', () => () => (
   <div data-testid="regular-timeline"></div>
 ));
 
 jest.mock('../workstationEffects', () => mockWorkstationEffects());
 
-// TODO: this pattern is useful for asserting the props passed to a child component
-const mockScrubber = jest.fn(({ children }) => (
-  <div data-testid="scrubber">{children}</div>
-));
-(Scrubber as jest.Mock).mockImplementation(mockScrubber);
-
 const defaultProps = {
   tracks: [],
   uploadFile: jest.fn(),
 };
 
-const defaultTrack = createTrack();
+const defaultTrack = mockTrack();
 
 it('renders empty timeline when tracks are empty', () => {
   const { getByTestId } = render(
