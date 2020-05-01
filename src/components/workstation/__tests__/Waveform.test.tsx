@@ -1,25 +1,13 @@
 import { render } from '@testing-library/react';
 import React from 'react';
-import { AudioBuffer } from 'standardized-audio-context-mock';
 import WaveSurfer from 'wavesurfer.js';
+import { createTrack } from '../../../testUtils';
 import Waveform from '../Waveform';
 
 const defaultProps = {
   height: 128,
   pixelsPerSecond: 200,
-  track: {
-    audioBuffer: new AudioBuffer({ length: 10, sampleRate: 44100 }),
-    color: {
-      r: 255,
-      g: 255,
-      b: 255,
-    },
-    id: 0,
-    index: 0,
-    mute: false,
-    solo: false,
-    volume: 100,
-  },
+  track: createTrack(),
 };
 
 it('renders without crashing', () => {

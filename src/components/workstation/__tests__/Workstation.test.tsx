@@ -11,6 +11,7 @@ import {
   useSpacebarPlaybackToggle,
   useTransportTime,
 } from '../workstationEffects';
+import { createTrack } from '../../../testUtils';
 
 jest.mock('../EmptyTimeline', () => () => (
   <div data-testid="empty-timeline"></div>
@@ -29,24 +30,12 @@ const mockScrubber = jest.fn(({ children }) => (
 ));
 (Scrubber as jest.Mock).mockImplementation(mockScrubber);
 
-const defaultTrack = {
-  audioBuffer: new AudioBuffer({ length: 10, sampleRate: 44100 }),
-  color: {
-    r: 255,
-    g: 255,
-    b: 255,
-  },
-  id: 0,
-  index: 0,
-  mute: false,
-  solo: false,
-  volume: 100,
-};
-
 const defaultProps = {
   tracks: [],
   uploadFile: jest.fn(),
 };
+
+const defaultTrack = createTrack();
 
 it('renders empty timeline when tracks are empty', () => {
   const { getByTestId } = render(

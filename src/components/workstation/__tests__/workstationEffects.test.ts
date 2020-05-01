@@ -1,24 +1,16 @@
+import { fireEvent } from '@testing-library/react';
 import { renderHook } from '@testing-library/react-hooks';
-import { AudioBuffer } from 'standardized-audio-context-mock';
+import AudioService from '../../../services/AudioService';
+import { createTrack } from '../../../testUtils';
 import {
   useMutedTracks,
-  useSpacebarPlaybackToggle,
   usePlaybackToggle,
+  useSpacebarPlaybackToggle,
   useTransportTime,
 } from '../workstationEffects';
-import {
-  SET_MUTED_TRACKS,
-  TOGGLE_PLAYBACK,
-  SET_TRANSPORT_TIME,
-} from '../workstationReducer';
-import { fireEvent } from '@testing-library/react';
-import AudioService from '../../../services/AudioService';
+import { SET_MUTED_TRACKS, TOGGLE_PLAYBACK } from '../workstationReducer';
 
 jest.mock('../../../services/AudioService');
-
-const defaultState = {
-  tracks: [],
-};
 
 const mockDispatch = jest.fn();
 
@@ -80,20 +72,3 @@ it('sets transport time', () => {
     expectedTransportTime
   );
 });
-
-function createTrack(trackProps: any) {
-  return {
-    audioBuffer: new AudioBuffer({ length: 10, sampleRate: 44100 }),
-    color: {
-      r: 255,
-      g: 255,
-      b: 255,
-    },
-    id: 0,
-    index: 0,
-    mute: false,
-    solo: false,
-    volume: 100,
-    ...trackProps,
-  };
-}
