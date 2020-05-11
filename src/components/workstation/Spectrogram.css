@@ -1,0 +1,7 @@
+.spectrogram {
+  position: relative;
+}
+
+.spectrogram__canvas {
+  position: absolute;
+}

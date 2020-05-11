@@ -16,7 +16,7 @@ export type Track = {
   volume: number;
 };
 
-type TrackColor = {
+export type TrackColor = {
   r: number;
   g: number;
   b: number;

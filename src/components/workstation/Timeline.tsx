@@ -1,8 +1,8 @@
 import classNames from 'classnames';
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { Track } from '../project/projectPageReducer';
+import Spectrogram from './Spectrogram';
 import './Timeline.css';
-import Waveform from './Waveform';
 
 type TimelineProps = {
   focusedTracks: number[];
@@ -30,27 +30,28 @@ const Timeline = ({
 
   return (
     <div ref={containerRef} className="timeline">
-      {tracks.map((track) => {
-        const timelineWaveformClass = getTimelineWaveformClass(
-          track,
-          mutedTracks,
-          focusedTracks
-        );
-        return (
-          <div key={track.id} className={timelineWaveformClass}>
-            <MemoizedWaveform
-              height={height}
-              pixelsPerSecond={pixelsPerSecond}
-              track={track}
-            />
-          </div>
-        );
-      })}
+      {containerRef.current &&
+        tracks.map((track) => {
+          const timelineWaveformClass = getTimelineWaveformClass(
+            track,
+            mutedTracks,
+            focusedTracks
+          );
+          return (
+            <div key={track.id} className={timelineWaveformClass}>
+              <MemoizedSpectrogram
+                height={height}
+                pixelsPerSecond={pixelsPerSecond}
+                track={track}
+              />
+            </div>
+          );
+        })}
     </div>
   );
 };
 
-const MemoizedWaveform = React.memo(Waveform);
+const MemoizedSpectrogram = React.memo(Spectrogram);
 
 function getTimelineWaveformClass(
   track: Track,
