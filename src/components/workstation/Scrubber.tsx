@@ -155,9 +155,11 @@ const Scrubber = ({
       >
         {children}
       </div>
-      <div className="scrubber__shade" style={timelineScaleStyle}></div>
+      <div className="scrubber__shade" style={timelineScaleStyle}>
+        <div className="shade"></div>
+      </div>
       <div className="scrubber__cursor" style={timelineScaleStyle}>
-        <div className={cursorClass} />
+        <div className={cursorClass}></div>
       </div>
       <div className={rewindButtonClass} style={rewindButtonTranslateStyle}>
         <Button

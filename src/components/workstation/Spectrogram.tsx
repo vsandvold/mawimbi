@@ -31,7 +31,7 @@ const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
       const canvasContext = canvasRef.current.getContext('2d');
       offlineAnalyser.getLogarithmicFrequencyData(
         (frequencyData: Uint8Array, currentTime: number) => {
-          const x = currentTime * pixelsPerSecond;
+          const x = Math.trunc(currentTime * pixelsPerSecond);
           drawSpectrogramFrame(
             frequencyData,
             canvasHeight,

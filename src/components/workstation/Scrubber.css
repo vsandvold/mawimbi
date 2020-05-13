@@ -20,18 +20,11 @@
 
 .scrubber__shade {
   position: absolute;
-  top: 40px;
+  top: 0;
   bottom: 40px;
   left: 0;
   right: 0;
-  background-image: linear-gradient(
-    to right,
-    #000,
-    #0000 75%,
-    #000c 75%,
-    #000f 100%
-  );
-  filter: grayscale(100%);
+  padding-top: 40px;
   pointer-events: none;
 }
 
@@ -52,6 +45,17 @@
 .scrubber__rewind--hidden {
   opacity: 0;
   pointer-events: none;
+}
+
+.shade {
+  height: 100%;
+  background-image: linear-gradient(
+    to right,
+    #000,
+    #0000 75%,
+    #000c 75%,
+    #000f 100%
+  );
 }
 
 .cursor {
