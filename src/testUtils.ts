@@ -1,4 +1,5 @@
 import { AudioBuffer } from 'standardized-audio-context-mock';
+import { Track } from './components/project/projectPageReducer';
 
 // This pattern is useful for asserting the props passed to a child component
 //
@@ -8,7 +9,7 @@ import { AudioBuffer } from 'standardized-audio-context-mock';
 // ));
 // (Scrubber as jest.Mock).mockImplementation(mockScrubber);
 
-export function mockTrack(trackProps: any = {}) {
+export function mockTrack(trackProps: any = {}): Track {
   return {
     audioBuffer: new AudioBuffer({ length: 10, sampleRate: 44100 }),
     color: {

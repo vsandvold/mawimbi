@@ -1,6 +1,8 @@
 import classNames from 'classnames';
 import React, { useLayoutEffect, useRef, useState } from 'react';
+import { useBrowserSupport } from '../../browserSupport';
 import { Track } from '../project/projectPageReducer';
+import Spectrogram from './Spectrogram';
 import './Timeline.css';
 import Waveform from './Waveform';
 
@@ -28,28 +30,40 @@ const Timeline = ({
     }
   }, []); // make sure effect only triggers once, on component mount
 
+  const browserSupport = useBrowserSupport();
+
   return (
     <div ref={containerRef} className="timeline">
-      {tracks.map((track) => {
-        const timelineWaveformClass = getTimelineWaveformClass(
-          track,
-          mutedTracks,
-          focusedTracks
-        );
-        return (
-          <div key={track.id} className={timelineWaveformClass}>
-            <MemoizedWaveform
-              height={height}
-              pixelsPerSecond={pixelsPerSecond}
-              track={track}
-            />
-          </div>
-        );
-      })}
+      {containerRef.current &&
+        tracks.map((track) => {
+          const timelineWaveformClass = getTimelineWaveformClass(
+            track,
+            mutedTracks,
+            focusedTracks
+          );
+          return (
+            <div key={track.id} className={timelineWaveformClass}>
+              {browserSupport.webkitOfflineAudioContext ? (
+                <MemoizedWaveform
+                  height={height}
+                  pixelsPerSecond={pixelsPerSecond}
+                  track={track}
+                />
+              ) : (
+                <MemoizedSpectrogram
+                  height={height}
+                  pixelsPerSecond={pixelsPerSecond}
+                  track={track}
+                />
+              )}
+            </div>
+          );
+        })}
     </div>
   );
 };
 
+const MemoizedSpectrogram = React.memo(Spectrogram);
 const MemoizedWaveform = React.memo(Waveform);
 
 function getTimelineWaveformClass(

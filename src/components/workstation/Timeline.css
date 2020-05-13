@@ -4,7 +4,7 @@
   grid-template-rows: 1fr;
   grid-column-gap: 0px;
   grid-row-gap: 0px;
-  padding-right: calc(100vw - 56px);
+  padding-right: calc(0.25 * 100vw);
 }
 
 .timeline__waveform {

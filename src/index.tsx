@@ -2,6 +2,7 @@ import { message } from 'antd';
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { BrowserRouter } from 'react-router-dom';
+import { BrowserSupportProvider } from './browserSupport';
 import App from './components/App';
 import './index.css';
 import AudioService from './services/AudioService';
@@ -12,9 +13,11 @@ AudioService.startAudio()
   .catch(() => message.error('failed to start audio'));
 
 ReactDOM.render(
-  <BrowserRouter>
-    <App />
-  </BrowserRouter>,
+  <BrowserSupportProvider>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  </BrowserSupportProvider>,
   document.getElementById('root')
 );
 

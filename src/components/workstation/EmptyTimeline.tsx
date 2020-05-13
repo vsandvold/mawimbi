@@ -1,5 +1,6 @@
-import React from 'react';
 import { Typography } from 'antd';
+import React from 'react';
+import { useBrowserSupport } from '../../browserSupport';
 
 type EmptyTimelineProps = {
   isDragActive: boolean;
@@ -8,12 +9,14 @@ type EmptyTimelineProps = {
 const EmptyTimeline = ({ isDragActive }: EmptyTimelineProps) => {
   const { Title, Text } = Typography;
 
+  const browserSupport = useBrowserSupport();
+
   return isDragActive ? null : (
     <div className="empty-timeline">
       <Title level={4} type="secondary">
         Upload audio files to get started
       </Title>
-      {isTouchEnabled() ? (
+      {browserSupport.touchEvents ? (
         <Text type="secondary">Use the upload button above</Text>
       ) : (
         <Text type="secondary">
@@ -23,13 +26,5 @@ const EmptyTimeline = ({ isDragActive }: EmptyTimelineProps) => {
     </div>
   );
 };
-
-function isTouchEnabled() {
-  return (
-    'ontouchstart' in window ||
-    navigator.maxTouchPoints > 0 ||
-    navigator.msMaxTouchPoints > 0
-  );
-}
 
 export default EmptyTimeline;
