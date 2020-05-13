@@ -138,11 +138,15 @@ class OfflineAnalyser {
     const upper = this.frequencyBinCount + 1;
     const b = Math.log(lower / upper) / (lower - upper);
     const a = 1; // lower / Math.exp(b * lower);
-    for (let i = 0; i < this.frequencyBinCount; i++) {
+    for (let i = 0, binCount = this.frequencyBinCount; i < binCount; i++) {
       const logIdx = Math.trunc(a * Math.exp(b * i)) - 1;
       logFrequencyMapping[i] = [logIdx];
     }
-    for (let i = 0; i < this.frequencyBinCount - 1; i++) {
+    for (
+      let i = 0, binCountDec = this.frequencyBinCount - 1;
+      i < binCountDec;
+      i++
+    ) {
       const df = logFrequencyMapping[i + 1][0] - logFrequencyMapping[i][0];
       if (df === 1) {
         continue;
@@ -158,12 +162,16 @@ class OfflineAnalyser {
     frequencyData: Uint8Array,
     frequencyMapping: number[][]
   ) {
-    for (let i = 0; i < this.frequencyBinCount; i++) {
+    for (let i = 0, binCount = this.frequencyBinCount; i < binCount; i++) {
       this.frequencyDataCopy[i] = frequencyData[i];
     }
-    for (let i = 0; i < this.frequencyBinCount; i++) {
+    for (let i = 0, binCount = this.frequencyBinCount; i < binCount; i++) {
       frequencyData[i] = 0;
-      for (let j = 0; j < frequencyMapping[i].length; j++) {
+      for (
+        let j = 0, poolCount = frequencyMapping[i].length;
+        j < poolCount;
+        j++
+      ) {
         frequencyData[i] += this.frequencyDataCopy[frequencyMapping[i][j]];
       }
     }

@@ -97,12 +97,12 @@ function drawSpectrogramFrame(
   widthFactor: number,
   x: number
 ) {
-  for (let bin = 0; bin < frequencyData.length; bin++) {
-    const color = colorMap[frequencyData[bin]];
+  for (let i = 0, binCount = frequencyData.length; i < binCount; i++) {
+    const color = colorMap[frequencyData[i]];
     canvasContext.fillStyle = `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${color[3]})`;
     canvasContext.fillRect(
       x,
-      height - bin * heightFactor,
+      height - i * heightFactor,
       widthFactor,
       heightFactor
     );
