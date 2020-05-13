@@ -1,8 +1,10 @@
 import classNames from 'classnames';
 import React, { useLayoutEffect, useRef, useState } from 'react';
+import { useBrowserSupport } from '../../browserSupport';
 import { Track } from '../project/projectPageReducer';
 import Spectrogram from './Spectrogram';
 import './Timeline.css';
+import Waveform from './Waveform';
 
 type TimelineProps = {
   focusedTracks: number[];
@@ -28,6 +30,8 @@ const Timeline = ({
     }
   }, []); // make sure effect only triggers once, on component mount
 
+  const browserSupport = useBrowserSupport();
+
   return (
     <div ref={containerRef} className="timeline">
       {containerRef.current &&
@@ -39,11 +43,19 @@ const Timeline = ({
           );
           return (
             <div key={track.id} className={timelineWaveformClass}>
-              <MemoizedSpectrogram
-                height={height}
-                pixelsPerSecond={pixelsPerSecond}
-                track={track}
-              />
+              {browserSupport.webkitOfflineAudioContext ? (
+                <MemoizedWaveform
+                  height={height}
+                  pixelsPerSecond={pixelsPerSecond}
+                  track={track}
+                />
+              ) : (
+                <MemoizedSpectrogram
+                  height={height}
+                  pixelsPerSecond={pixelsPerSecond}
+                  track={track}
+                />
+              )}
             </div>
           );
         })}
@@ -52,6 +64,7 @@ const Timeline = ({
 };
 
 const MemoizedSpectrogram = React.memo(Spectrogram);
+const MemoizedWaveform = React.memo(Waveform);
 
 function getTimelineWaveformClass(
   track: Track,

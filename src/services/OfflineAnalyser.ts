@@ -16,8 +16,11 @@ class OfflineAnalyser {
     const bufferLength = audioBuffer.length;
     const sampleRate = audioBuffer.sampleRate;
 
-    const offlineContext = new (window.OfflineAudioContext ||
-      window.webkitOfflineAudioContext)(numChannels, bufferLength, sampleRate);
+    const offlineContext = new window.OfflineAudioContext(
+      numChannels,
+      bufferLength,
+      sampleRate
+    );
     const analyser = this.createAnalyser(offlineContext);
     const isContextSuspendSupported = this.detectContextSuspendSupported(
       offlineContext
@@ -45,8 +48,7 @@ class OfflineAnalyser {
   }
 
   private detectContextSuspendSupported(offlineContext: OfflineAudioContext) {
-    const isSafari = window.hasOwnProperty('webkitOfflineAudioContext');
-    return 'suspend' in offlineContext && !isSafari;
+    return 'suspend' in offlineContext;
   }
 
   getFrequencyData(
