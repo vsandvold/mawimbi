@@ -33,6 +33,7 @@
   overflow-y: scroll;
   transition: transform 0.3s;
   background-color: var(--component-background);
+  will-change: transform;
 }
 
 .editor__drawer--closed {

@@ -4,6 +4,7 @@
 }
 
 .page__header {
+  height: auto;
   padding: 0;
 }
 

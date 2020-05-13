@@ -15,7 +15,6 @@
   min-width: 100vw;
   padding: 40px 0 40px calc(0.75 * 100vw);
   overflow-x: scroll;
-  will-change: scroll-position;
 }
 
 .scrubber__shade {
