@@ -60,7 +60,7 @@ it('transforms timeline vertical scale when drawer is open', () => {
     <Scrubber {...{ ...defaultProps, drawerHeight: 120, isDrawerOpen: true }} />
   );
 
-  const progressCursor = container.querySelector('.scrubber__progress');
+  const progressCursor = container.querySelector('.scrubber__cursor');
   const rewindButton = container.querySelector('.scrubber__rewind');
   const timeline = container.querySelector('.scrubber__timeline');
 

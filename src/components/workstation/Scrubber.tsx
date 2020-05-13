@@ -140,8 +140,12 @@ const Scrubber = ({
     timelineScaleFactor
   );
 
+  const cursorClass = classNames('cursor', {
+    'cursor--is-playing': isPlaying,
+  });
+
   return (
-    <div className="scrubber">
+    <div className="scrubber scrubber--firefox-scroll-fix">
       <div
         ref={timelineScrollRef}
         className="scrubber__timeline"
@@ -151,8 +155,9 @@ const Scrubber = ({
       >
         {children}
       </div>
-      <div className="scrubber__progress" style={timelineScaleStyle}>
-        <div className="progress" />
+      <div className="scrubber__shade" style={timelineScaleStyle}></div>
+      <div className="scrubber__cursor" style={timelineScaleStyle}>
+        <div className={cursorClass} />
       </div>
       <div className={rewindButtonClass} style={rewindButtonTranslateStyle}>
         <Button
