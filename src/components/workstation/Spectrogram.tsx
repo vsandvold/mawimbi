@@ -16,59 +16,66 @@ const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
 
   const offlineAnalyser = new OfflineAnalyser(audioBuffer);
 
-  const heightPixelRatio = height / offlineAnalyser.frequencyBinCount;
+  const frequencyBinCount = offlineAnalyser.frequencyBinCount;
+  const timeResolution = offlineAnalyser.timeResolution;
+
+  const heightPixelRatio = height / frequencyBinCount;
   const heightFactor = Math.ceil(heightPixelRatio);
-  const widthFactor = Math.ceil(
-    pixelsPerSecond * offlineAnalyser.timeResolution
-  );
-  const canvasWidth = Math.trunc(audioBuffer.duration * pixelsPerSecond);
-  const canvasHeight =
-    Math.ceil(heightPixelRatio) * offlineAnalyser.frequencyBinCount;
+  const widthFactor = Math.ceil(pixelsPerSecond * timeResolution);
+  const canvasWidth = Math.trunc(audioBuffer.duration / timeResolution);
+  const canvasHeight = Math.ceil(heightPixelRatio) * frequencyBinCount;
 
   useEffect(() => {
     if (canvasRef.current) {
       const colorMap = createColorMap(color);
       const canvasContext = canvasRef.current.getContext('2d');
-      offlineAnalyser.getLogarithmicFrequencyData(
-        (frequencyData: Uint8Array, currentTime: number) => {
-          const x = Math.trunc(currentTime * pixelsPerSecond);
-          drawSpectrogramFrame(
-            frequencyData,
-            canvasHeight,
-            colorMap,
-            canvasContext as CanvasRenderingContext2D,
-            heightFactor,
-            widthFactor,
-            x
-          );
-        }
-      );
+      const renderCallback = (
+        frequencyData: Uint8Array,
+        currentTime: number
+      ) => {
+        const x = Math.trunc(currentTime / timeResolution);
+        drawSpectrogramFrame(
+          frequencyData,
+          canvasHeight,
+          colorMap,
+          canvasContext as CanvasRenderingContext2D,
+          heightFactor,
+          x
+        );
+      };
+      offlineAnalyser.getLogarithmicFrequencyData(renderCallback);
     }
   }, [
     audioBuffer,
     color,
-    height,
-    pixelsPerSecond,
     canvasHeight,
+    height,
     heightFactor,
     offlineAnalyser,
+    pixelsPerSecond,
+    timeResolution,
     widthFactor,
   ]);
 
-  const wrapperStyle = {
+  const containerWidth = canvasWidth * widthFactor;
+  const containerHeight = canvasHeight * heightPixelRatio;
+
+  const containerStyles = {
     opacity: convertToOpacity(volume),
-    transform: `scaleY(${heightPixelRatio})`,
-    transformOrigin: 'top left',
-    width: `${canvasWidth}px`,
+    width: containerWidth,
   };
 
   return (
-    <div className="spectrogram" style={wrapperStyle}>
+    <div className="spectrogram" style={containerStyles}>
       <canvas
         ref={canvasRef}
         className="spectrogram__canvas"
         width={canvasWidth}
         height={canvasHeight}
+        style={{
+          width: containerWidth,
+          height: containerHeight,
+        }}
       />
     </div>
   );
@@ -94,18 +101,12 @@ function drawSpectrogramFrame(
   colorMap: number[][],
   canvasContext: CanvasRenderingContext2D,
   heightFactor: number,
-  widthFactor: number,
   x: number
 ) {
   for (let i = 0, binCount = frequencyData.length; i < binCount; i++) {
     const color = colorMap[frequencyData[i]];
     canvasContext.fillStyle = `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${color[3]})`;
-    canvasContext.fillRect(
-      x,
-      height - i * heightFactor,
-      widthFactor,
-      heightFactor
-    );
+    canvasContext.fillRect(x, height - i * heightFactor, 1, heightFactor);
   }
 }
 
