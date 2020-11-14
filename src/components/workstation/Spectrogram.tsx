@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import OfflineAnalyser from '../../services/OfflineAnalyser';
 import { Track, TrackColor } from '../project/projectPageReducer';
 import './Spectrogram.css';
@@ -12,48 +12,70 @@ type SpectrogramProps = {
 const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  const frequencyBinCountRef = useRef(0);
+  const timeResolutionRef = useRef(0);
+
+  const frequencyDataRef = useRef<Uint8Array>();
+  const currentWidthOffsetRef = useRef(0);
+  const previousWidthOffsetRef = useRef(0);
+
+  const [isRendering, setIsRendering] = useState(false);
+
   const { audioBuffer, color, volume } = track;
 
-  const offlineAnalyser = new OfflineAnalyser(audioBuffer);
-
-  const heightPixelRatio = height / offlineAnalyser.frequencyBinCount;
+  const heightPixelRatio = height / frequencyBinCountRef.current;
   const heightFactor = Math.ceil(heightPixelRatio);
-  const widthFactor = Math.ceil(
-    pixelsPerSecond * offlineAnalyser.timeResolution
-  );
+  const widthFactor = Math.ceil(pixelsPerSecond * timeResolutionRef.current);
   const canvasWidth = Math.trunc(audioBuffer.duration * pixelsPerSecond);
   const canvasHeight =
-    Math.ceil(heightPixelRatio) * offlineAnalyser.frequencyBinCount;
+    Math.ceil(heightPixelRatio) * frequencyBinCountRef.current;
 
   useEffect(() => {
-    if (canvasRef.current) {
-      const colorMap = createColorMap(color);
-      const canvasContext = canvasRef.current.getContext('2d');
-      offlineAnalyser.getLogarithmicFrequencyData(
+    const offlineAnalyser = new OfflineAnalyser(audioBuffer);
+    frequencyBinCountRef.current = offlineAnalyser.frequencyBinCount;
+    timeResolutionRef.current = offlineAnalyser.timeResolution;
+
+    setIsRendering(true);
+    offlineAnalyser
+      .getLogarithmicFrequencyData(
         (frequencyData: Uint8Array, currentTime: number) => {
-          const x = Math.trunc(currentTime * pixelsPerSecond);
-          drawSpectrogramFrame(
-            frequencyData,
-            canvasHeight,
-            colorMap,
-            canvasContext as CanvasRenderingContext2D,
-            heightFactor,
-            widthFactor,
-            x
+          console.log('get frequency data');
+          frequencyDataRef.current = frequencyData;
+          currentWidthOffsetRef.current = Math.trunc(
+            currentTime * pixelsPerSecond
           );
         }
-      );
+      )
+      .then(() => setIsRendering(false));
+  }, [audioBuffer, pixelsPerSecond]);
+
+  useEffect(() => {
+    const colorMap = createColorMap(color);
+    const canvasContext = canvasRef.current!.getContext('2d');
+
+    function renderingCallback() {
+      if (currentWidthOffsetRef.current !== previousWidthOffsetRef.current) {
+        console.log('render frame');
+        drawSpectrogramFrame(
+          frequencyDataRef.current!,
+          canvasHeight,
+          colorMap,
+          canvasContext as CanvasRenderingContext2D,
+          heightFactor,
+          widthFactor,
+          currentWidthOffsetRef.current
+        );
+        previousWidthOffsetRef.current = currentWidthOffsetRef.current;
+      }
+      if (isRendering) {
+        requestAnimationFrame(renderingCallback);
+      }
     }
-  }, [
-    audioBuffer,
-    color,
-    height,
-    pixelsPerSecond,
-    canvasHeight,
-    heightFactor,
-    offlineAnalyser,
-    widthFactor,
-  ]);
+    if (isRendering) {
+      requestAnimationFrame(renderingCallback);
+      console.log('start rendering');
+    }
+  }, [canvasHeight, color, heightFactor, isRendering, widthFactor]);
 
   const wrapperStyle = {
     opacity: convertToOpacity(volume),
