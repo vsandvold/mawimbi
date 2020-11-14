@@ -48,20 +48,21 @@ const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
   }, [
     audioBuffer,
     color,
-    height,
-    pixelsPerSecond,
     canvasHeight,
+    height,
     heightFactor,
     offlineAnalyser,
+    pixelsPerSecond,
     timeResolution,
     widthFactor,
   ]);
 
+  const containerWidth = canvasWidth * widthFactor;
+  const containerHeight = canvasHeight * heightPixelRatio;
+
   const containerStyles = {
     opacity: convertToOpacity(volume),
-    transform: `scaleY(${heightPixelRatio})`,
-    transformOrigin: 'top left',
-    width: canvasWidth * widthFactor,
+    width: containerWidth,
   };
 
   return (
@@ -72,8 +73,8 @@ const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
         width={canvasWidth}
         height={canvasHeight}
         style={{
-          width: canvasWidth * widthFactor,
-          height: canvasHeight,
+          width: containerWidth,
+          height: containerHeight,
         }}
       />
     </div>
