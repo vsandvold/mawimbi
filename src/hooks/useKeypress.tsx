@@ -10,8 +10,10 @@ const defaultOptions: KeypressOptions = {
 
 const useKeypress = (callback: () => void, { targetKey } = defaultOptions) => {
   useEffect(() => {
-    const handleKeyUp = ({ key }: KeyboardEvent) => {
-      if (key === targetKey) {
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === targetKey) {
+        e.stopPropagation();
+        e.preventDefault();
         callback();
       }
     };
