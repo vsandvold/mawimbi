@@ -40,7 +40,7 @@
   transform: translateY(120px);
 }
 
-@media (min-height: 376px) {
+@media (min-height: 426px) {
   .editor__drawer {
     height: 240px;
   }
