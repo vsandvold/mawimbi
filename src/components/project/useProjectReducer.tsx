@@ -3,9 +3,11 @@ import {
   ProjectAction,
   projectReducer,
   ProjectState,
+  COLOR_PALETTE,
 } from './projectPageReducer';
 
 const initialState: ProjectState = {
+  colorOffset: Math.floor(Math.random() * Math.floor(COLOR_PALETTE.length)),
   nextTrackId: 0,
   title: 'Untitled',
   tracks: [],
