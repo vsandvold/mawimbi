@@ -1,4 +1,5 @@
 export type ProjectState = {
+  colorOffset: number;
   nextTrackId: number;
   title: string;
   tracks: Track[];
@@ -22,7 +23,7 @@ export type TrackColor = {
   b: number;
 };
 
-const COLOR_PALETTE: TrackColor[] = [
+export const COLOR_PALETTE: TrackColor[] = [
   { r: 77, g: 238, b: 234 },
   { r: 116, g: 238, b: 21 },
   { r: 255, g: 231, b: 0 },
@@ -42,10 +43,15 @@ export function projectReducer(
 ): ProjectState {
   switch (type) {
     case ADD_TRACK:
+      const colorIdx =
+        (state.nextTrackId + state.colorOffset) % COLOR_PALETTE.length;
       return {
         ...state,
         nextTrackId: state.nextTrackId + 1,
-        tracks: [...state.tracks, createTrack(state.nextTrackId, payload)],
+        tracks: [
+          ...state.tracks,
+          createTrack(state.nextTrackId, colorIdx, payload),
+        ],
       };
     case MOVE_TRACK:
       return { ...state, tracks: moveTrack(state.tracks, payload) };
@@ -60,13 +66,16 @@ export function projectReducer(
   }
 }
 
-function createTrack(id: number, audioBuffer: AudioBuffer): Track {
-  const colorIndex = id % COLOR_PALETTE.length;
+function createTrack(
+  trackId: number,
+  colorIdx: number,
+  audioBuffer: AudioBuffer
+): Track {
   return {
     audioBuffer,
-    color: COLOR_PALETTE[colorIndex],
-    id,
-    index: id,
+    color: COLOR_PALETTE[colorIdx],
+    id: trackId,
+    index: trackId,
     mute: false,
     solo: false,
     volume: 100,
