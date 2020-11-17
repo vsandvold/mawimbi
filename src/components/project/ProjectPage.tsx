@@ -1,47 +1,38 @@
-import { FullscreenExitOutlined, FullscreenOutlined } from '@ant-design/icons';
-import { Button } from 'antd';
 import React from 'react';
-import { FullScreen, useFullScreenHandle } from 'react-full-screen';
+import Fullscreen, { useFullScreenHandle } from '../fullscreen/Fullscreen';
 import { PageContent, PageHeader, PageLayout } from '../layout/PageLayout';
 import Workstation from '../workstation/Workstation';
 import './ProjectPage.css';
 import { useUploadFile } from './projectPageEffects';
 import ProjectPageHeader from './ProjectPageHeader';
+import { TOGGLE_FULLSCREEN } from './projectPageReducer';
 import { ProjectDispatch } from './useProjectDispatch';
 import useProjectReducer from './useProjectReducer';
 
 const ProjectPage = () => {
   const [state, dispatch] = useProjectReducer();
 
+  const fullScreenHandle = useFullScreenHandle();
   const uploadFile = useUploadFile(dispatch);
 
-  const fullscreenHandle = useFullScreenHandle();
-  const fullScreenButton = (
-    <Button
-      type="link"
-      size="large"
-      className="button"
-      icon={
-        fullscreenHandle.active ? (
-          <FullscreenExitOutlined />
-        ) : (
-          <FullscreenOutlined />
-        )
-      }
-      title={fullscreenHandle.active ? 'Exit fullscreen' : 'Enter fullscreen'}
-      onClick={
-        fullscreenHandle.active ? fullscreenHandle.exit : fullscreenHandle.enter
-      }
-    />
-  );
+  const reactivateFullscreen = () => {
+    if (state.isFullscreen) {
+      fullScreenHandle.enter();
+    }
+  };
+
+  const updateFullscreenState = (state: boolean) => {
+    dispatch([TOGGLE_FULLSCREEN, state]);
+  };
 
   return (
     <ProjectDispatch.Provider value={dispatch}>
-      <FullScreen handle={fullscreenHandle}>
+      <Fullscreen handle={fullScreenHandle} onClick={updateFullscreenState}>
         <PageLayout>
           <PageHeader>
             <MemoizedProjectPageHeader
               title={state.title}
+              reactivateFullscreen={reactivateFullscreen}
               uploadFile={uploadFile}
             />
           </PageHeader>
@@ -49,8 +40,7 @@ const ProjectPage = () => {
             <Workstation tracks={state.tracks} uploadFile={uploadFile} />
           </PageContent>
         </PageLayout>
-        <div className="fullscreen__button">{fullScreenButton}</div>
-      </FullScreen>
+      </Fullscreen>
     </ProjectDispatch.Provider>
   );
 };

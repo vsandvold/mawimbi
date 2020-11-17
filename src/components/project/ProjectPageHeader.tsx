@@ -5,10 +5,15 @@ import { useHistory } from 'react-router-dom';
 
 type ProjectPageHeaderProps = {
   title: string;
+  reactivateFullscreen: () => void;
   uploadFile: (file: File) => void;
 };
 
-const ProjectPageHeader = ({ title, uploadFile }: ProjectPageHeaderProps) => {
+const ProjectPageHeader = ({
+  title,
+  reactivateFullscreen,
+  uploadFile,
+}: ProjectPageHeaderProps) => {
   const history = useHistory();
 
   const uploadProps = {
@@ -20,6 +25,7 @@ const ProjectPageHeader = ({ title, uploadFile }: ProjectPageHeaderProps) => {
       if (info.file) {
         uploadFile(info.file);
       }
+      reactivateFullscreen();
     },
   };
 
