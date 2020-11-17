@@ -9,6 +9,7 @@ import {
 const initialState: ProjectState = {
   colorOffset: Math.floor(Math.random() * Math.floor(COLOR_PALETTE.length)),
   isFullscreen: false,
+  isFullscreenDismissed: false,
   nextTrackId: 0,
   title: 'Untitled',
   tracks: [],

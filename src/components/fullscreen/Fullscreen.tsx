@@ -1,5 +1,5 @@
-import { FullscreenExitOutlined, FullscreenOutlined } from '@ant-design/icons';
-import { Button } from 'antd';
+import { FullscreenOutlined } from '@ant-design/icons';
+import { Button, Typography } from 'antd';
 import React from 'react';
 import { FullScreen, FullScreenHandle } from 'react-full-screen';
 import './Fullscreen.css';
@@ -9,37 +9,46 @@ export type { FullScreenHandle } from 'react-full-screen';
 
 type FullscreenProps = React.PropsWithChildren<{
   handle: FullScreenHandle;
-  onClick: (state: boolean) => void;
+  showOverlay: boolean;
+  onActivate: (state: boolean) => void;
+  onDismiss: () => void;
 }>;
 
 const Fullscreen = (props: FullscreenProps) => {
-  const { handle, onClick } = props;
+  const { handle, onActivate, onDismiss, showOverlay } = props;
 
-  const toggleFullscreen = () => {
-    const activateFullscreen = !handle.active;
-    if (activateFullscreen) {
+  const activateFullscreen = () => {
+    const isActivated = !handle.active;
+    if (isActivated) {
       handle.enter();
     } else {
       handle.exit();
     }
-    onClick(activateFullscreen);
+    onActivate(isActivated);
   };
+
+  const dismissFullscreen = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onDismiss();
+  };
+
+  const { Title, Text } = Typography;
 
   return (
     <FullScreen handle={handle}>
       {props.children}
-      <div className="fullscreen__button">
-        <Button
-          type="link"
-          size="large"
-          className="button"
-          icon={
-            handle.active ? <FullscreenExitOutlined /> : <FullscreenOutlined />
-          }
-          title={handle.active ? 'Exit Full Screen' : 'Enter Full Screen'}
-          onClick={toggleFullscreen}
-        />
-      </div>
+      {showOverlay && (
+        <div className="fullscreen__overlay">
+          <div className="overlay-content" onClick={activateFullscreen}>
+            <Text>
+              <FullscreenOutlined className="fullscreen-icon" />
+            </Text>
+            <Title level={4}>Tap to enter full screen</Title>
+            <Button onClick={dismissFullscreen}>Dismiss</Button>
+          </div>
+        </div>
+      )}
     </FullScreen>
   );
 };

@@ -5,15 +5,25 @@ import Workstation from '../workstation/Workstation';
 import './ProjectPage.css';
 import { useUploadFile } from './projectPageEffects';
 import ProjectPageHeader from './ProjectPageHeader';
-import { TOGGLE_FULLSCREEN } from './projectPageReducer';
+import { DISMISS_FULLSCREEN, TOGGLE_FULLSCREEN } from './projectPageReducer';
 import { ProjectDispatch } from './useProjectDispatch';
 import useProjectReducer from './useProjectReducer';
 
 const ProjectPage = () => {
   const [state, dispatch] = useProjectReducer();
 
-  const fullScreenHandle = useFullScreenHandle();
   const uploadFile = useUploadFile(dispatch);
+
+  const fullScreenHandle = useFullScreenHandle();
+
+  const toggleFullscreen = (state: boolean) => {
+    dispatch([TOGGLE_FULLSCREEN, state]);
+    dispatch([DISMISS_FULLSCREEN]);
+  };
+
+  const dismissFullscreen = () => {
+    dispatch([DISMISS_FULLSCREEN]);
+  };
 
   const reactivateFullscreen = () => {
     if (state.isFullscreen) {
@@ -21,13 +31,14 @@ const ProjectPage = () => {
     }
   };
 
-  const updateFullscreenState = (state: boolean) => {
-    dispatch([TOGGLE_FULLSCREEN, state]);
-  };
-
   return (
     <ProjectDispatch.Provider value={dispatch}>
-      <Fullscreen handle={fullScreenHandle} onClick={updateFullscreenState}>
+      <Fullscreen
+        handle={fullScreenHandle}
+        showOverlay={!state.isFullscreen && !state.isFullscreenDismissed}
+        onActivate={toggleFullscreen}
+        onDismiss={dismissFullscreen}
+      >
         <PageLayout>
           <PageHeader>
             <MemoizedProjectPageHeader
