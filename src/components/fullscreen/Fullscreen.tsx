@@ -5,13 +5,25 @@ import { FullScreen, FullScreenHandle } from 'react-full-screen';
 import './Fullscreen.css';
 
 export { useFullScreenHandle } from 'react-full-screen';
+export type { FullScreenHandle } from 'react-full-screen';
 
 type FullscreenProps = React.PropsWithChildren<{
   handle: FullScreenHandle;
+  onClick: (state: boolean) => void;
 }>;
 
 const Fullscreen = (props: FullscreenProps) => {
-  const { handle } = props;
+  const { handle, onClick } = props;
+
+  const toggleFullscreen = () => {
+    const activateFullscreen = !handle.active;
+    if (activateFullscreen) {
+      handle.enter();
+    } else {
+      handle.exit();
+    }
+    onClick(activateFullscreen);
+  };
 
   return (
     <FullScreen handle={handle}>
@@ -25,7 +37,7 @@ const Fullscreen = (props: FullscreenProps) => {
             handle.active ? <FullscreenExitOutlined /> : <FullscreenOutlined />
           }
           title={handle.active ? 'Exit Full Screen' : 'Enter Full Screen'}
-          onClick={handle.active ? handle.exit : handle.enter}
+          onClick={toggleFullscreen}
         />
       </div>
     </FullScreen>
