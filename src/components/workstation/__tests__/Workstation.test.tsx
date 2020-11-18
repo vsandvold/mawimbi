@@ -8,6 +8,7 @@ import {
   useMutedTracks,
   usePlaybackToggle,
   useSpacebarPlaybackToggle,
+  useTotalTime,
   useTransportTime,
 } from '../workstationEffects';
 
@@ -71,6 +72,7 @@ it('uses workstation effect hooks', () => {
   expect(useMutedTracks).toHaveBeenCalled();
   expect(usePlaybackToggle).toHaveBeenCalled();
   expect(useSpacebarPlaybackToggle).toHaveBeenCalled();
+  expect(useTotalTime).toHaveBeenCalled();
   expect(useTransportTime).toHaveBeenCalled();
 });
 
@@ -93,6 +95,7 @@ function mockWorkstationEffects() {
     useMutedTracks: jest.fn(),
     usePlaybackToggle: jest.fn(),
     useSpacebarPlaybackToggle: jest.fn(),
+    useTotalTime: jest.fn(),
     useTransportTime: jest.fn(),
   };
 }
