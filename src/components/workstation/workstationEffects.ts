@@ -4,6 +4,7 @@ import AudioService from '../../services/AudioService';
 import { Track } from '../project/projectPageReducer';
 import {
   SET_MUTED_TRACKS,
+  SET_TOTAL_TIME,
   TOGGLE_PLAYBACK,
   WorkstationAction,
 } from './workstationReducer';
@@ -41,6 +42,18 @@ export const usePlaybackToggle = (isPlaying: boolean) => {
       AudioService.pausePlayback();
     }
   }, [isPlaying]);
+};
+
+export const useTotalTime = (
+  tracks: Track[],
+  dispatch: React.Dispatch<WorkstationAction>
+) => {
+  useEffect(() => {
+    const maxDuration = tracks
+      .map((track) => track.audioBuffer.duration)
+      .reduce((prev, curr) => (prev >= curr ? prev : curr), 0);
+    dispatch([SET_TOTAL_TIME, maxDuration]);
+  }, [tracks]); // dispatch never changes, and can safely be omitted from dependencies
 };
 
 export const useTransportTime = (transportTime: number) => {

@@ -16,6 +16,7 @@ import {
   useMutedTracks,
   usePlaybackToggle,
   useSpacebarPlaybackToggle,
+  useTotalTime,
   useTransportTime,
 } from './workstationEffects';
 
@@ -50,6 +51,7 @@ const Workstation = (props: WorkstationProps) => {
   useMutedTracks(tracks, dispatch);
   usePlaybackToggle(isPlaying);
   useSpacebarPlaybackToggle(dispatch);
+  useTotalTime(tracks, dispatch);
   useTransportTime(transportTime);
 
   const editorDrawerClass = classNames('editor__drawer', {

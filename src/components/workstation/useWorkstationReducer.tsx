@@ -11,6 +11,7 @@ const initialState: WorkstationState = {
   isPlaying: false,
   mutedTracks: [],
   pixelsPerSecond: 200,
+  totalTime: 0,
   transportTime: 0,
 };
 
