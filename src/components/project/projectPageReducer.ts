@@ -1,9 +1,4 @@
-type ProjectPageState = {
-  isFullscreen: boolean;
-  isFullscreenDismissed: boolean;
-};
-
-export type ProjectState = ProjectPageState & {
+export type ProjectState = {
   colorOffset: number;
   nextTrackId: number;
   title: string;
@@ -42,9 +37,6 @@ export const SET_TRACK_MUTE = 'SET_TRACK_MUTE';
 export const SET_TRACK_SOLO = 'SET_TRACK_SOLO';
 export const SET_TRACK_VOLUME = 'SET_TRACK_VOLUME';
 
-export const DISMISS_FULLSCREEN = 'DISMISS_FULLSCREEN';
-export const TOGGLE_FULLSCREEN = 'TOGGLE_FULLSCREEN';
-
 export function projectReducer(
   state: ProjectState,
   [type, payload]: ProjectAction
@@ -69,10 +61,6 @@ export function projectReducer(
       return { ...state, tracks: setTrackSolo(state.tracks, payload) };
     case SET_TRACK_VOLUME:
       return { ...state, tracks: setTrackVolume(state.tracks, payload) };
-    case DISMISS_FULLSCREEN:
-      return { ...state, isFullscreenDismissed: true };
-    case TOGGLE_FULLSCREEN:
-      return { ...state, isFullscreen: payload };
     default:
       throw new Error();
   }
