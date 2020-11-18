@@ -21,16 +21,12 @@ export const useBrowserSupport = () => {
   return useContext(BrowserSupport);
 };
 
-type BrowserSupportProviderProps = {
-  children: JSX.Element[] | JSX.Element;
-};
+type BrowserSupportProviderProps = React.PropsWithChildren<{}>;
 
-export const BrowserSupportProvider = ({
-  children,
-}: BrowserSupportProviderProps) => {
+export const BrowserSupportProvider = (props: BrowserSupportProviderProps) => {
   return (
     <BrowserSupport.Provider value={browserSupport}>
-      {children}
+      {props.children}
     </BrowserSupport.Provider>
   );
 };

@@ -20,25 +20,25 @@ import {
   TOGGLE_PLAYBACK,
 } from './workstationReducer';
 
-type ScrubberProps = {
+type ScrubberProps = React.PropsWithChildren<{
   drawerHeight: number;
   isDrawerOpen: boolean;
   isPlaying: boolean;
   pixelsPerSecond: number;
   transportTime: number;
-  children?: JSX.Element[] | JSX.Element;
-};
+}>;
 
 const TIMELINE_MARGIN = 40;
 
-const Scrubber = ({
-  drawerHeight,
-  isDrawerOpen,
-  isPlaying,
-  pixelsPerSecond,
-  transportTime,
-  children,
-}: ScrubberProps) => {
+const Scrubber = (props: ScrubberProps) => {
+  const {
+    drawerHeight,
+    isDrawerOpen,
+    isPlaying,
+    pixelsPerSecond,
+    transportTime,
+  } = props;
+
   const dispatch = useWorkstationDispatch();
 
   const [isRewindButtonHidden, setIsRewindButtonHidden] = useState(true);
@@ -85,7 +85,7 @@ const Scrubber = ({
 
     updateScrollPosition();
     stopPlaybackIfEndOfScroll();
-  }, [setScrollPosition]);
+  }, [setScrollPosition]); // dispatch never changes, and can safely be omitted from dependencies
 
   useAnimation(animateScrollCallback, {
     isActive: isPlaying,
@@ -153,7 +153,7 @@ const Scrubber = ({
         onClick={togglePlayback}
         onScroll={debouncedSetTransportTime}
       >
-        {children}
+        {props.children}
       </div>
       <div className="scrubber__shade" style={timelineScaleStyle}>
         <div className="shade"></div>
