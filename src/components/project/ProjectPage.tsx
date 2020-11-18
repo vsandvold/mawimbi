@@ -5,35 +5,35 @@ import Workstation from '../workstation/Workstation';
 import './ProjectPage.css';
 import { useUploadFile } from './projectPageEffects';
 import ProjectPageHeader from './ProjectPageHeader';
-import { TOGGLE_FULLSCREEN } from './projectPageReducer';
 import { ProjectDispatch } from './useProjectDispatch';
 import useProjectReducer from './useProjectReducer';
 
 const ProjectPage = () => {
   const [state, dispatch] = useProjectReducer();
 
-  const fullScreenHandle = useFullScreenHandle();
   const uploadFile = useUploadFile(dispatch);
 
-  const reactivateFullscreen = () => {
-    if (state.isFullscreen) {
-      fullScreenHandle.enter();
-    }
-  };
+  const fullScreenHandle = useFullScreenHandle();
 
-  const updateFullscreenState = (state: boolean) => {
-    dispatch([TOGGLE_FULLSCREEN, state]);
+  const toggleFullscreen = (state?: boolean) => {
+    const activateFullscreen = state ?? !fullScreenHandle.active;
+    if (activateFullscreen) {
+      fullScreenHandle.enter();
+    } else {
+      fullScreenHandle.exit();
+    }
   };
 
   return (
     <ProjectDispatch.Provider value={dispatch}>
-      <Fullscreen handle={fullScreenHandle} onClick={updateFullscreenState}>
+      <Fullscreen handle={fullScreenHandle}>
         <PageLayout>
           <PageHeader>
             <MemoizedProjectPageHeader
               title={state.title}
-              reactivateFullscreen={reactivateFullscreen}
               uploadFile={uploadFile}
+              isFullscreen={fullScreenHandle.active}
+              toggleFullscreen={toggleFullscreen}
             />
           </PageHeader>
           <PageContent>

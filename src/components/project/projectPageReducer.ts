@@ -1,6 +1,5 @@
 export type ProjectState = {
   colorOffset: number;
-  isFullscreen: boolean;
   nextTrackId: number;
   title: string;
   tracks: Track[];
@@ -37,7 +36,6 @@ export const MOVE_TRACK = 'MOVE_TRACK';
 export const SET_TRACK_MUTE = 'SET_TRACK_MUTE';
 export const SET_TRACK_SOLO = 'SET_TRACK_SOLO';
 export const SET_TRACK_VOLUME = 'SET_TRACK_VOLUME';
-export const TOGGLE_FULLSCREEN = 'TOGGLE_FULLSCREEN';
 
 export function projectReducer(
   state: ProjectState,
@@ -63,8 +61,6 @@ export function projectReducer(
       return { ...state, tracks: setTrackSolo(state.tracks, payload) };
     case SET_TRACK_VOLUME:
       return { ...state, tracks: setTrackVolume(state.tracks, payload) };
-    case TOGGLE_FULLSCREEN:
-      return { ...state, isFullscreen: payload };
     default:
       throw new Error();
   }

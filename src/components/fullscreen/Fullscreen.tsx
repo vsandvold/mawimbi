@@ -1,45 +1,61 @@
-import { FullscreenExitOutlined, FullscreenOutlined } from '@ant-design/icons';
-import { Button } from 'antd';
-import React from 'react';
+import { FullscreenOutlined } from '@ant-design/icons';
+import { Button, Typography } from 'antd';
+import React, { useState } from 'react';
 import { FullScreen, FullScreenHandle } from 'react-full-screen';
 import './Fullscreen.css';
+import { useBrowserSupport } from '../../browserSupport';
 
 export { useFullScreenHandle } from 'react-full-screen';
 export type { FullScreenHandle } from 'react-full-screen';
 
 type FullscreenProps = React.PropsWithChildren<{
   handle: FullScreenHandle;
-  onClick: (state: boolean) => void;
 }>;
 
 const Fullscreen = (props: FullscreenProps) => {
-  const { handle, onClick } = props;
+  const { handle } = props;
 
-  const toggleFullscreen = () => {
-    const activateFullscreen = !handle.active;
-    if (activateFullscreen) {
-      handle.enter();
-    } else {
-      handle.exit();
-    }
-    onClick(activateFullscreen);
+  const browserSupport = useBrowserSupport();
+  const [isFullscreen, setFullscreen] = useState(false);
+  const [isFullscreenDismissed, setFullscreenDismissed] = useState(false);
+
+  const showOverlay =
+    !isFullscreen && !isFullscreenDismissed && browserSupport.touchEvents;
+
+  const activateFullscreen = () => {
+    handle.enter();
+    setFullscreen(true);
+    setFullscreenDismissed(true);
   };
 
+  const dismissFullscreen = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setFullscreenDismissed(true);
+  };
+
+  const onFullscreenChanged = (state: boolean) => {
+    setFullscreen(state);
+  };
+
+  const { Title, Text } = Typography;
+
   return (
-    <FullScreen handle={handle}>
+    <FullScreen handle={handle} onChange={onFullscreenChanged}>
       {props.children}
-      <div className="fullscreen__button">
-        <Button
-          type="link"
-          size="large"
-          className="button"
-          icon={
-            handle.active ? <FullscreenExitOutlined /> : <FullscreenOutlined />
-          }
-          title={handle.active ? 'Exit Full Screen' : 'Enter Full Screen'}
-          onClick={toggleFullscreen}
-        />
-      </div>
+      {showOverlay && (
+        <div className="fullscreen__overlay">
+          <div className="overlay-content" onClick={activateFullscreen}>
+            <Text>
+              <FullscreenOutlined className="fullscreen-icon" />
+            </Text>
+            <Title level={4}>Tap to enter full screen</Title>
+            <Button type="link" className="button" onClick={dismissFullscreen}>
+              Dismiss
+            </Button>
+          </div>
+        </div>
+      )}
     </FullScreen>
   );
 };
