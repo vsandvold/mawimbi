@@ -1,5 +1,9 @@
 import { useCallback } from 'react';
 import AudioService from '../../services/AudioService';
+import {
+  FullScreenHandle,
+  useFullScreenHandle,
+} from '../fullscreen/Fullscreen';
 import message from '../message';
 import { ADD_TRACK, ProjectAction } from './projectPageReducer';
 
@@ -25,4 +29,22 @@ export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
   }, []); // dispatch never changes, and can safely be omitted from dependencies
 
   return uploadFile;
+};
+
+export const useFullscreen = () => {
+  const fullScreenHandle = useFullScreenHandle();
+
+  const toggleFullscreen = useCallback((state?: boolean) => {
+    const activateFullscreen = state ?? !fullScreenHandle.active;
+    if (activateFullscreen) {
+      fullScreenHandle.enter();
+    } else {
+      fullScreenHandle.exit();
+    }
+  }, []); // fullScreenHandle omitted from deps on purpose
+
+  return [fullScreenHandle, toggleFullscreen] as [
+    FullScreenHandle,
+    (state?: boolean) => void
+  ];
 };

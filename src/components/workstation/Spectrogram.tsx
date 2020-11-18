@@ -28,7 +28,7 @@ const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
   const canvasHeight = Math.ceil(heightPixelRatio) * frequencyBinCount;
 
   useEffect(() => {
-    if (canvasRef.current && analyserRef.current) {
+    if (analyserRef.current && canvasRef.current) {
       const canvasRenderer = new SpectrogramCanvasRenderer(
         canvasRef.current,
         color,

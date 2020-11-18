@@ -1,9 +1,9 @@
 import React from 'react';
-import Fullscreen, { useFullScreenHandle } from '../fullscreen/Fullscreen';
+import Fullscreen from '../fullscreen/Fullscreen';
 import { PageContent, PageHeader, PageLayout } from '../layout/PageLayout';
 import Workstation from '../workstation/Workstation';
 import './ProjectPage.css';
-import { useUploadFile } from './projectPageEffects';
+import { useFullscreen, useUploadFile } from './projectPageEffects';
 import ProjectPageHeader from './ProjectPageHeader';
 import { ProjectDispatch } from './useProjectDispatch';
 import useProjectReducer from './useProjectReducer';
@@ -12,17 +12,7 @@ const ProjectPage = () => {
   const [state, dispatch] = useProjectReducer();
 
   const uploadFile = useUploadFile(dispatch);
-
-  const fullScreenHandle = useFullScreenHandle();
-
-  const toggleFullscreen = (state?: boolean) => {
-    const activateFullscreen = state ?? !fullScreenHandle.active;
-    if (activateFullscreen) {
-      fullScreenHandle.enter();
-    } else {
-      fullScreenHandle.exit();
-    }
-  };
+  const [fullScreenHandle, toggleFullscreen] = useFullscreen();
 
   return (
     <ProjectDispatch.Provider value={dispatch}>

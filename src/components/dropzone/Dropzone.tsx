@@ -1,5 +1,5 @@
 import { UploadOutlined } from '@ant-design/icons';
-import { Typography } from 'antd';
+import { Typography, Button } from 'antd';
 import classNames from 'classnames';
 import React, { useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
