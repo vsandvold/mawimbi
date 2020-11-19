@@ -6,7 +6,7 @@
 
 .channel__swipe {
   padding-left: 40px;
-  background-color: #0004;
+  background-color: rgba(0, 0, 0, 0.35);
   margin: -4px 8px -4px -8px;
 }
 
@@ -23,4 +23,140 @@
 .channel__volume {
   flex: 1;
   margin-right: 8px;
+}
+
+/* Channel button */
+.channel-button,
+.channel-button:hover,
+.channel-button:disabled {
+  color: rgba(0, 0, 0, 0.65);
+  border-radius: 2px;
+  transition: initial;
+}
+
+.channel-button:focus {
+  color: rgba(0, 0, 0, 1);
+}
+
+.channel-button:active {
+  color: rgba(0, 0, 0, 1);
+  border: 1px solid #000000;
+}
+
+.channel-button--active,
+.channel-button--active:focus {
+  color: rgba(0, 0, 0, 0.65);
+  border: 1px solid rgba(0, 0, 0, 0.65);
+}
+
+.channel-button--active:active {
+  color: rgba(0, 0, 0, 1);
+  border: 1px solid rgba(0, 0, 0, 1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  /* Style button hover on desktop devices only. */
+  .channel-button:hover,
+  .channel-button:hover:focus {
+    color: rgba(0, 0, 0, 1);
+  }
+
+  .channel-button--active:hover,
+  .channel-button--active:hover:focus {
+    border: 1px solid rgba(0, 0, 0, 1);
+  }
+}
+
+.channel--inverted .channel-button,
+.channel--inverted .channel-button:hover,
+.channel--inverted .channel-button:disabled {
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.channel--inverted .channel-button:focus {
+  color: rgba(255, 255, 255, 1);
+}
+
+.channel--inverted .channel-button:active {
+  color: rgba(255, 255, 255, 1);
+  border: 1px solid rgba(255, 255, 255, 1);
+}
+
+.channel--inverted .channel-button--active,
+.channel--inverted .channel-button--active:focus {
+  color: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+}
+
+.channel--inverted .channel-button--active:active {
+  color: rgba(255, 255, 255, 1);
+  border: 1px solid rgba(255, 255, 255, 1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  /* Style button hover on desktop devices only. */
+  .channel--inverted .channel-button:hover,
+  .channel--inverted .channel-button:hover:focus {
+    color: rgba(255, 255, 255, 1);
+  }
+
+  .channel--inverted .channel-button--active:hover,
+  .channel--inverted .channel-button--active:hover:focus {
+    border: 1px solid rgba(255, 255, 255, 1);
+  }
+}
+
+/* Channel slider */
+.channel-slider .ant-slider-handle {
+  background-color: rgba(0, 0, 0, 0.9);
+  border-color: rgba(0, 0, 0, 0);
+}
+
+.channel-slider .ant-slider-handle:focus,
+.channel-slider .ant-slider-handle.ant-tooltip-open {
+  background-color: rgba(0, 0, 0, 1);
+  box-shadow: 0 0 0 5px rgba(0, 0, 0, 0.12);
+}
+
+.channel-slider.ant-slider:hover .ant-slider-handle:not(.ant-tooltip-open) {
+  border-color: rgba(0, 0, 0, 0);
+  box-shadow: 0 0 0 5px rgba(0, 0, 0, 0.12);
+}
+
+.channel-slider .ant-slider-rail,
+.channel-slider.ant-slider:hover .ant-slider-rail {
+  background-color: rgba(0, 0, 0, 0.35);
+}
+
+.channel-slider .ant-slider-track,
+.channel-slider.ant-slider:hover .ant-slider-track {
+  background-color: rgba(0, 0, 0, 0.65);
+}
+
+.channel--inverted .channel-slider .ant-slider-handle {
+  background-color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0);
+}
+
+.channel--inverted .channel-slider .ant-slider-handle:focus,
+.channel--inverted .channel-slider .ant-slider-handle.ant-tooltip-open {
+  background-color: rgba(255, 255, 255, 1);
+  box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.12);
+}
+
+.channel--inverted
+  .channel-slider.ant-slider:hover
+  .ant-slider-handle:not(.ant-tooltip-open) {
+  border-color: rgba(255, 255, 255, 0);
+  box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.12);
+}
+
+.channel--inverted .channel-slider .ant-slider-rail,
+.channel--inverted .channel-slider.ant-slider:hover .ant-slider-rail {
+  background-color: rgba(255, 255, 255, 0.35);
+}
+
+.channel--inverted .channel-slider .ant-slider-track,
+.channel--inverted .channel-slider.ant-slider:hover .ant-slider-track {
+  background-color: rgba(255, 255, 255, 0.65);
 }

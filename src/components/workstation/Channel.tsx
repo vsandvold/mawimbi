@@ -4,6 +4,7 @@ import {
   SoundOutlined,
 } from '@ant-design/icons';
 import { Button, Slider } from 'antd';
+import classNames from 'classnames';
 import React, { useEffect, useRef } from 'react';
 import useDebounced from '../../hooks/useDebounced';
 import useThrottled from '../../hooks/useThrottled';
@@ -85,11 +86,14 @@ const Channel = ({ isMuted, track, ...dragHandleProps }: ChannelProps) => {
 
   const { r, g, b } = color;
   const channelOpacity = isMuted ? 0 : convertToOpacity(volume);
+  const isInverted = channelOpacity < 0.5 || mute;
   const channelColor = `rgba(${r},${g},${b}, ${channelOpacity})`;
 
   return (
     <div
-      className="channel"
+      className={classNames('channel', {
+        'channel--inverted': isInverted,
+      })}
       style={{
         backgroundColor: channelColor,
       }}
@@ -97,7 +101,9 @@ const Channel = ({ isMuted, track, ...dragHandleProps }: ChannelProps) => {
       <div className="channel__swipe"></div>
       <div className="channel__solo">
         <Button
-          style={getButtonStyle(channelOpacity, solo)}
+          className={classNames('channel-button', {
+            'channel-button--active': solo,
+          })}
           icon={<CustomerServiceOutlined />}
           type="link"
           title="Solo"
@@ -106,7 +112,9 @@ const Channel = ({ isMuted, track, ...dragHandleProps }: ChannelProps) => {
       </div>
       <div className="channel__mute">
         <Button
-          style={getButtonStyle(channelOpacity, mute)}
+          className={classNames('channel-button', {
+            'channel-button--active': mute,
+          })}
           icon={<SoundOutlined />}
           type="link"
           title="Mute"
@@ -115,15 +123,19 @@ const Channel = ({ isMuted, track, ...dragHandleProps }: ChannelProps) => {
       </div>
       <div className="channel__volume">
         <Slider
+          className="channel-slider"
           defaultValue={volume}
           min={0}
           max={100}
           onChange={throttledUpdateVolume}
+          handleStyle={{}}
+          trackStyle={{}}
         />
       </div>
       <div className="channel__move" {...dragHandleProps}>
         <Button
-          style={{ ...getButtonStyle(channelOpacity), pointerEvents: 'none' }}
+          className="channel-button"
+          style={{ pointerEvents: 'none' }}
           icon={<MenuOutlined />}
           type="link"
           title="Move"
@@ -140,21 +152,6 @@ function convertToDecibel(value: number): number {
 
 function convertToOpacity(value: number): number {
   return parseFloat((value / 100).toFixed(2));
-}
-
-function getButtonStyle(channelOpacity: number, isActive = false) {
-  const buttonOpacity = isActive ? 1 : 0.65;
-  const buttonColor =
-    channelOpacity < 0.5
-      ? `rgba(255, 255, 255, ${buttonOpacity})`
-      : `rgba(0, 0, 0, ${buttonOpacity})`;
-  const buttonBorder = isActive ? `1px solid ${buttonColor}` : 'none';
-  return {
-    color: buttonColor,
-    transition: 'color 0.5s',
-    border: buttonBorder,
-    borderRadius: '2px',
-  };
 }
 
 export default Channel;
