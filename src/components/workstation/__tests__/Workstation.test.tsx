@@ -6,10 +6,9 @@ import {
   useDropzoneDragActive,
   useMixerDrawerHeight,
   useMutedTracks,
-  usePlaybackToggle,
+  usePlaybackControl,
   useSpacebarPlaybackToggle,
   useTotalTime,
-  useTransportTime,
 } from '../workstationEffects';
 
 jest.mock('../EmptyTimeline', () => () => (
@@ -70,10 +69,9 @@ it('uses workstation effect hooks', () => {
   expect(useDropzoneDragActive).toHaveBeenCalled();
   expect(useMixerDrawerHeight).toHaveBeenCalled();
   expect(useMutedTracks).toHaveBeenCalled();
-  expect(usePlaybackToggle).toHaveBeenCalled();
+  expect(usePlaybackControl).toHaveBeenCalled();
   expect(useSpacebarPlaybackToggle).toHaveBeenCalled();
   expect(useTotalTime).toHaveBeenCalled();
-  expect(useTransportTime).toHaveBeenCalled();
 });
 
 function mockWorkstationEffects() {
@@ -93,9 +91,8 @@ function mockWorkstationEffects() {
       };
     }),
     useMutedTracks: jest.fn(),
-    usePlaybackToggle: jest.fn(),
+    usePlaybackControl: jest.fn(),
     useSpacebarPlaybackToggle: jest.fn(),
     useTotalTime: jest.fn(),
-    useTransportTime: jest.fn(),
   };
 }

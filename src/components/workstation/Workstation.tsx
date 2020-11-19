@@ -14,10 +14,9 @@ import {
   useDropzoneDragActive,
   useMixerDrawerHeight,
   useMutedTracks,
-  usePlaybackToggle,
+  usePlaybackControl,
   useSpacebarPlaybackToggle,
   useTotalTime,
-  useTransportTime,
 } from './workstationEffects';
 
 type WorkstationProps = {
@@ -49,10 +48,9 @@ const Workstation = (props: WorkstationProps) => {
   } = useDropzoneDragActive();
 
   useMutedTracks(tracks, dispatch);
-  usePlaybackToggle(isPlaying);
+  usePlaybackControl(isPlaying, transportTime);
   useSpacebarPlaybackToggle(dispatch);
   useTotalTime(tracks, dispatch);
-  useTransportTime(transportTime);
 
   const editorDrawerClass = classNames('editor__drawer', {
     'editor__drawer--closed': !isDrawerOpen,

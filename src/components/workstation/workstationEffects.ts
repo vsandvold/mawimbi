@@ -34,14 +34,19 @@ export const useSpacebarPlaybackToggle = (
   });
 };
 
-export const usePlaybackToggle = (isPlaying: boolean) => {
+export const usePlaybackControl = (
+  isPlaying: boolean,
+  transportTime: number
+) => {
   useEffect(() => {
     if (isPlaying) {
+      AudioService.setTransportTime(transportTime);
       AudioService.startPlayback();
     } else {
       AudioService.pausePlayback();
+      AudioService.setTransportTime(transportTime);
     }
-  }, [isPlaying]);
+  }, [isPlaying, transportTime]);
 };
 
 export const useTotalTime = (
@@ -54,12 +59,6 @@ export const useTotalTime = (
       .reduce((prev, curr) => (prev >= curr ? prev : curr), 0);
     dispatch([SET_TOTAL_TIME, maxDuration]);
   }, [tracks]); // dispatch never changes, and can safely be omitted from dependencies
-};
-
-export const useTransportTime = (transportTime: number) => {
-  useEffect(() => {
-    AudioService.setTransportTime(transportTime);
-  }, [transportTime]);
 };
 
 export const useMixerDrawerHeight = () => {

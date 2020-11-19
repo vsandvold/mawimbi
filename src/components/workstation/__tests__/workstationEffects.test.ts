@@ -4,9 +4,8 @@ import AudioService from '../../../services/AudioService';
 import { mockTrack } from '../../../testUtils';
 import {
   useMutedTracks,
-  usePlaybackToggle,
+  usePlaybackControl,
   useSpacebarPlaybackToggle,
-  useTransportTime,
 } from '../workstationEffects';
 import { SET_MUTED_TRACKS, TOGGLE_PLAYBACK } from '../workstationReducer';
 
@@ -51,23 +50,24 @@ it('toggles playback with spacebar', () => {
   expect(mockDispatch).toHaveBeenLastCalledWith([TOGGLE_PLAYBACK]);
 });
 
-it('toggles playback', () => {
-  let isPlaying = false;
-  const { rerender } = renderHook(() => usePlaybackToggle(isPlaying));
+it('controls playback', () => {
+  let isPlaying = true;
+  let expectedTransportTime = 0;
 
-  expect(AudioService.pausePlayback).toHaveBeenCalledTimes(1);
-
-  isPlaying = true;
-  rerender();
+  const { rerender } = renderHook(() =>
+    usePlaybackControl(isPlaying, expectedTransportTime)
+  );
 
   expect(AudioService.startPlayback).toHaveBeenCalledTimes(1);
-});
+  expect(AudioService.setTransportTime).toHaveBeenCalledWith(
+    expectedTransportTime
+  );
 
-it('sets transport time', () => {
-  const expectedTransportTime = 100;
+  isPlaying = false;
+  expectedTransportTime = 300;
+  rerender();
 
-  renderHook(() => useTransportTime(expectedTransportTime));
-
+  expect(AudioService.pausePlayback).toHaveBeenCalledTimes(1);
   expect(AudioService.setTransportTime).toHaveBeenCalledWith(
     expectedTransportTime
   );
