@@ -17,6 +17,7 @@ type MixerProps = {
 
 // TODO: refactor into HOC (DroppableMixer and DraggableChannel)
 const Mixer = (mixerProps: MixerProps) => {
+  const { tracks } = mixerProps;
   const projectDispatch = useProjectDispatch();
 
   function onDragEnd(result: DropResult) {
@@ -26,8 +27,9 @@ const Mixer = (mixerProps: MixerProps) => {
     if (result.destination.index === result.source.index) {
       return;
     }
-    const fromIndex = result.source.index;
-    const toIndex = result.destination.index;
+    const offset = tracks.length - 1;
+    const fromIndex = offset - result.source.index;
+    const toIndex = offset - result.destination.index;
     projectDispatch([MOVE_TRACK, { fromIndex, toIndex }]);
   }
 
@@ -51,15 +53,20 @@ const Mixer = (mixerProps: MixerProps) => {
 
 // TODO: add custom drag handle to Channel
 const ChannelList = ({ mutedTracks, tracks }: MixerProps) => {
+  const reversedTracks = tracks
+    .slice() // Make a copy of the array, because reverse is done in place.
+    .reverse();
+  const offset = tracks.length - 1;
   return (
     <>
-      {tracks.map((track) => {
+      {reversedTracks.map((track) => {
+        const reversedIdx = offset - track.index;
         const isMuted = mutedTracks.includes(track.id);
         return (
           <Draggable
             key={track.id}
             draggableId={track.id.toString()}
-            index={track.index}
+            index={reversedIdx}
           >
             {(provided) => (
               <div
