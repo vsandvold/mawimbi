@@ -55,7 +55,12 @@ const Dropzone = (props: DropzoneProps) => {
         <Text>
           <UploadOutlined className="upload-icon" />
         </Text>
-        <Title level={4}>Drag and drop audio files here</Title>
+        {isDragAccept && (
+          <Title level={4}>Drag and drop audio files here</Title>
+        )}
+        {isDragReject && (
+          <Title level={4}>Oops, this does not look like an audio file</Title>
+        )}
         <Text>All audio files are accepted</Text>
       </div>
     </div>

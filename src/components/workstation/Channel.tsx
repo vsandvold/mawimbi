@@ -4,7 +4,6 @@ import {
   SoundOutlined,
 } from '@ant-design/icons';
 import { Button, Slider } from 'antd';
-import { SliderValue } from 'antd/lib/slider';
 import React, { useEffect, useRef } from 'react';
 import useDebounced from '../../hooks/useDebounced';
 import useThrottled from '../../hooks/useThrottled';
@@ -54,7 +53,7 @@ const Channel = ({ isMuted, track, ...dragHandleProps }: ChannelProps) => {
 
   const debouncedUnfocusTrack = useDebounced(unfocusTrack, { timeoutMs: 250 });
 
-  const updateVolume = (value: SliderValue) => {
+  const updateVolume = (value: number) => {
     if (channelRef.current) {
       projectDispatch([SET_TRACK_VOLUME, { id: trackId, volume: value }]);
       workstationDispatch([SET_TRACK_FOCUS, trackId]);
