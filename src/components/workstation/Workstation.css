@@ -23,7 +23,7 @@
   display: flex;
 }
 
-.editor__drawer {
+.editor__mixer {
   flex: 1;
   position: absolute;
   bottom: 0;
@@ -36,16 +36,16 @@
   will-change: transform;
 }
 
-.editor__drawer--closed {
+.editor__mixer--closed {
   transform: translateY(120px);
 }
 
 @media (min-height: 426px) {
-  .editor__drawer {
+  .editor__mixer {
     height: 240px;
   }
 
-  .editor__drawer--closed {
+  .editor__mixer--closed {
     transform: translateY(240px);
   }
 }

@@ -1,7 +1,8 @@
 export type WorkstationState = {
   focusedTracks: number[];
-  isDrawerOpen: boolean;
+  isMixerOpen: boolean;
   isPlaying: boolean;
+  isRecording: boolean;
   mutedTracks: number[];
   pixelsPerSecond: number;
   totalTime: number;
@@ -17,8 +18,9 @@ export const SET_TOTAL_TIME = 'SET_TOTAL_TIME';
 export const SET_TRANSPORT_TIME = 'SET_TRANSPORT_TIME';
 export const STOP_AND_REWIND_PLAYBACK = 'STOP_AND_REWIND_PLAYBACK';
 export const STOP_PLAYBACK = 'STOP_PLAYBACK';
-export const TOGGLE_DRAWER = 'TOGGLE_DRAWER';
+export const TOGGLE_MIXER = 'TOGGLE_MIXER';
 export const TOGGLE_PLAYBACK = 'TOGGLE_PLAYBACK';
+export const TOGGLE_RECORDING = 'TOGGLE_RECORDING';
 
 export function workstationReducer(
   state: WorkstationState,
@@ -48,8 +50,8 @@ export function workstationReducer(
       return { ...state, isPlaying: false, transportTime: 0 };
     case STOP_PLAYBACK:
       return { ...state, isPlaying: false };
-    case TOGGLE_DRAWER:
-      return { ...state, isDrawerOpen: !state.isDrawerOpen };
+    case TOGGLE_MIXER:
+      return { ...state, isMixerOpen: !state.isMixerOpen };
     case TOGGLE_PLAYBACK:
       const isEndOfPlayback =
         state.transportTime.toFixed(1) === state.totalTime.toFixed(1);
@@ -58,6 +60,8 @@ export function workstationReducer(
       } else {
         return { ...state, isPlaying: !state.isPlaying };
       }
+    case TOGGLE_RECORDING:
+      return { ...state, isRecording: !state.isRecording };
     default:
       throw new Error();
   }

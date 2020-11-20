@@ -61,21 +61,21 @@ export const useTotalTime = (
   }, [tracks]); // dispatch never changes, and can safely be omitted from dependencies
 };
 
-export const useMixerDrawerHeight = () => {
-  const drawerContainerRef = useRef<HTMLDivElement>(null);
-  const [drawerHeight, setDrawerHeight] = useState(0);
+export const useMixerHeight = () => {
+  const mixerContainerRef = useRef<HTMLDivElement>(null);
+  const [mixerHeight, setMixerHeight] = useState(0);
 
   useLayoutEffect(() => {
-    if (drawerContainerRef.current) {
+    if (mixerContainerRef.current) {
       // TODO: or use clientHeight?
-      const drawerHeight = drawerContainerRef.current.offsetHeight;
-      setDrawerHeight(drawerHeight);
+      const height = mixerContainerRef.current.offsetHeight;
+      setMixerHeight(height);
     }
   }, []); // make sure effect only triggers once, on component mount
 
   return {
-    drawerContainerRef,
-    drawerHeight,
+    mixerContainerRef,
+    mixerHeight,
   };
 };
 

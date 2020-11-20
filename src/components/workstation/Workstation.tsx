@@ -12,7 +12,7 @@ import useWorkstationReducer from './useWorkstationReducer';
 import './Workstation.css';
 import {
   useDropzoneDragActive,
-  useMixerDrawerHeight,
+  useMixerHeight,
   useMutedTracks,
   usePlaybackControl,
   useSpacebarPlaybackToggle,
@@ -32,14 +32,15 @@ const Workstation = (props: WorkstationProps) => {
 
   const {
     focusedTracks,
-    isDrawerOpen,
+    isMixerOpen,
     isPlaying,
+    isRecording,
     mutedTracks,
     pixelsPerSecond,
     transportTime,
   } = state;
 
-  const { drawerContainerRef, drawerHeight } = useMixerDrawerHeight();
+  const { mixerContainerRef, mixerHeight } = useMixerHeight();
   const {
     isDragActive,
     setIsDragActive,
@@ -52,8 +53,8 @@ const Workstation = (props: WorkstationProps) => {
   useSpacebarPlaybackToggle(dispatch);
   useTotalTime(tracks, dispatch);
 
-  const editorDrawerClass = classNames('editor__drawer', {
-    'editor__drawer--closed': !isDrawerOpen,
+  const editorMixerClass = classNames('editor__mixer', {
+    'editor__mixer--closed': !isMixerOpen,
   });
 
   const editorDropzoneClass = classNames('editor__dropzone', {
@@ -75,8 +76,8 @@ const Workstation = (props: WorkstationProps) => {
   const memoizedScrubberTimeline = useMemo(
     () => (
       <Scrubber
-        drawerHeight={drawerHeight}
-        isDrawerOpen={isDrawerOpen}
+        drawerHeight={mixerHeight}
+        isMixerOpen={isMixerOpen}
         isPlaying={isPlaying}
         pixelsPerSecond={pixelsPerSecond}
         transportTime={transportTime}
@@ -85,8 +86,8 @@ const Workstation = (props: WorkstationProps) => {
       </Scrubber>
     ),
     [
-      drawerHeight,
-      isDrawerOpen,
+      mixerHeight,
+      isMixerOpen,
       isPlaying,
       memoizedTimeline,
       pixelsPerSecond,
@@ -105,7 +106,7 @@ const Workstation = (props: WorkstationProps) => {
               <MemoizedEmptyTimeline isDragActive={isDragActive} />
             )}
           </div>
-          <div ref={drawerContainerRef} className={editorDrawerClass}>
+          <div ref={mixerContainerRef} className={editorMixerClass}>
             <MemoizedMixer mutedTracks={mutedTracks} tracks={tracks} />
           </div>
           <div className={editorDropzoneClass}>
@@ -118,9 +119,10 @@ const Workstation = (props: WorkstationProps) => {
         </div>
         <div className="workstation__toolbar">
           <MemoizedToolbar
-            isDrawerOpen={isDrawerOpen}
+            isMixerOpen={isMixerOpen}
             isEmpty={!hasTracks}
             isPlaying={isPlaying}
+            isRecording={isRecording}
           />
         </div>
       </div>
