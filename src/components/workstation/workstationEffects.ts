@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useAudioService } from '../../hooks/useAudioService';
 import useKeypress from '../../hooks/useKeypress';
-import AudioService from '../../services/AudioService';
 import { Track } from '../project/projectPageReducer';
 import {
   SET_MUTED_TRACKS,
@@ -38,15 +38,14 @@ export const usePlaybackControl = (
   isPlaying: boolean,
   transportTime: number
 ) => {
+  const audioService = useAudioService();
   useEffect(() => {
     if (isPlaying) {
-      AudioService.setTransportTime(transportTime);
-      AudioService.startPlayback();
+      audioService.startPlayback(transportTime);
     } else {
-      AudioService.pausePlayback();
-      AudioService.setTransportTime(transportTime);
+      audioService.pausePlayback(transportTime);
     }
-  }, [isPlaying, transportTime]);
+  }, [isPlaying, transportTime]); // audioService never changes, and can safely be omitted from dependencies
 };
 
 export const useTotalTime = (
@@ -59,6 +58,17 @@ export const useTotalTime = (
       .reduce((prev, curr) => (prev >= curr ? prev : curr), 0);
     dispatch([SET_TOTAL_TIME, maxDuration]);
   }, [tracks]); // dispatch never changes, and can safely be omitted from dependencies
+};
+
+export const useMicrophone = (isRecording: boolean) => {
+  const audioService = useAudioService();
+  useEffect(() => {
+    if (isRecording) {
+      audioService.microphone.open();
+    } else {
+      audioService.microphone.close();
+    }
+  }, [isRecording]); // audioService never changes, and can safely be omitted from dependencies
 };
 
 export const useMixerHeight = () => {

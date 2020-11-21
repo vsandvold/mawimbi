@@ -9,8 +9,8 @@ import React, {
   useState,
 } from 'react';
 import useAnimation from '../../hooks/useAnimation';
+import { useAudioService } from '../../hooks/useAudioService';
 import useDebounced from '../../hooks/useDebounced';
-import AudioService from '../../services/AudioService';
 import './Scrubber.css';
 import useWorkstationDispatch from './useWorkstationDispatch';
 import {
@@ -64,10 +64,11 @@ const Scrubber = (props: ScrubberProps) => {
     setScrollPosition(transportTime);
   }, [transportTime, setScrollPosition]);
 
+  const audioService = useAudioService();
   const animateScrollCallback = useCallback(() => {
     function updateScrollPosition() {
       // Updates scroll position directly from transport time for performance reasons
-      const transportTime = AudioService.getTransportTime();
+      const transportTime = audioService.getTransportTime();
       setScrollPosition(transportTime);
     }
 
@@ -85,7 +86,7 @@ const Scrubber = (props: ScrubberProps) => {
 
     updateScrollPosition();
     stopPlaybackIfEndOfScroll();
-  }, [setScrollPosition]); // dispatch never changes, and can safely be omitted from dependencies
+  }, [setScrollPosition]); // audioService and dispatch never changes, and can safely be omitted from dependencies
 
   useAnimation(animateScrollCallback, {
     isActive: isPlaying,

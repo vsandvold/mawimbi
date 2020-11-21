@@ -6,9 +6,10 @@ import {
 import { Button, Slider } from 'antd';
 import classNames from 'classnames';
 import React, { useEffect, useRef } from 'react';
+import { useAudioService } from '../../hooks/useAudioService';
 import useDebounced from '../../hooks/useDebounced';
 import useThrottled from '../../hooks/useThrottled';
-import AudioService, { AudioServiceChannel } from '../../services/AudioService';
+import { AudioServiceChannel } from '../../services/AudioService';
 import {
   SET_TRACK_MUTE,
   SET_TRACK_SOLO,
@@ -26,6 +27,7 @@ type ChannelProps = {
 };
 
 const Channel = ({ isMuted, track, ...dragHandleProps }: ChannelProps) => {
+  const audioService = useAudioService();
   const projectDispatch = useProjectDispatch();
   const workstationDispatch = useWorkstationDispatch();
 
@@ -34,13 +36,13 @@ const Channel = ({ isMuted, track, ...dragHandleProps }: ChannelProps) => {
   const { id: trackId, audioBuffer, color, volume, mute, solo } = track;
 
   useEffect(() => {
-    channelRef.current = AudioService.createChannel(audioBuffer);
+    channelRef.current = audioService.createChannel(audioBuffer);
     return () => {
       if (channelRef.current) {
         channelRef.current.dispose();
       }
     };
-  }, [audioBuffer]);
+  }, [audioBuffer]); // audioService never changes, and can safely be omitted from dependencies
 
   useEffect(() => {
     if (channelRef.current) {

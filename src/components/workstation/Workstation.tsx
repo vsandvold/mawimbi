@@ -12,6 +12,7 @@ import useWorkstationReducer from './useWorkstationReducer';
 import './Workstation.css';
 import {
   useDropzoneDragActive,
+  useMicrophone,
   useMixerHeight,
   useMutedTracks,
   usePlaybackControl,
@@ -52,6 +53,7 @@ const Workstation = (props: WorkstationProps) => {
   usePlaybackControl(isPlaying, transportTime);
   useSpacebarPlaybackToggle(dispatch);
   useTotalTime(tracks, dispatch);
+  useMicrophone(isRecording);
 
   const editorMixerClass = classNames('editor__mixer', {
     'editor__mixer--closed': !isMixerOpen,

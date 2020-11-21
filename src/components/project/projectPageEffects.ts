@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import AudioService from '../../services/AudioService';
+import { useAudioService } from '../../hooks/useAudioService';
 import {
   FullScreenHandle,
   useFullScreenHandle,
@@ -8,6 +8,7 @@ import message from '../message';
 import { ADD_TRACK, ProjectAction } from './projectPageReducer';
 
 export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
+  const audioService = useAudioService();
   const uploadFile = useCallback((file: File) => {
     const msg = message({ key: `uploadFile-${file.name}` });
     const reader = new FileReader();
@@ -15,7 +16,8 @@ export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
     reader.onerror = () => msg.error(file.name);
     reader.onload = () => {
       const arrayBuffer = reader.result as ArrayBuffer;
-      AudioService.decodeAudioData(arrayBuffer)
+      audioService
+        .decodeAudioData(arrayBuffer)
         .then((audioBuffer) => {
           dispatch([ADD_TRACK, audioBuffer]);
           msg.success(file.name);
@@ -26,7 +28,7 @@ export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
     };
     msg.loading(file.name);
     reader.readAsArrayBuffer(file);
-  }, []); // dispatch never changes, and can safely be omitted from dependencies
+  }, []); // audioService and dispatch never changes, and can safely be omitted from dependencies
 
   return uploadFile;
 };
