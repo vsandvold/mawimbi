@@ -5,13 +5,13 @@ import {
   Droppable,
   DropResult,
 } from 'react-beautiful-dnd';
-import { MOVE_TRACK, Track } from '../project/projectPageReducer';
+import { MOVE_TRACK, Track, TrackId } from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
 import Channel from './Channel';
 import './Mixer.css';
 
 type MixerProps = {
-  mutedTracks: number[];
+  mutedTracks: TrackId[];
   tracks: Track[];
 };
 
@@ -61,11 +61,11 @@ const ChannelList = ({ mutedTracks, tracks }: MixerProps) => {
     <>
       {reversedTracks.map((track) => {
         const reversedIdx = offset - track.index;
-        const isMuted = mutedTracks.includes(track.id);
+        const isMuted = mutedTracks.includes(track.trackId);
         return (
           <Draggable
-            key={track.id}
-            draggableId={track.id.toString()}
+            key={track.trackId}
+            draggableId={track.trackId.toString()}
             index={reversedIdx}
           >
             {(provided) => (

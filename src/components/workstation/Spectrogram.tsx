@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { useAudioService } from '../../hooks/useAudioService';
 import OfflineAnalyser from '../../services/OfflineAnalyser';
 import { Track, TrackColor } from '../project/projectPageReducer';
 import './Spectrogram.css';
@@ -13,7 +14,10 @@ const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
   const analyserRef = useRef<OfflineAnalyser | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const { audioBuffer, color, volume } = track;
+  const { trackId, color, volume } = track;
+
+  const audioService = useAudioService();
+  const audioBuffer = audioService.retrieveAudioBuffer(trackId)!;
 
   if (!analyserRef.current) {
     analyserRef.current = new OfflineAnalyser(audioBuffer);

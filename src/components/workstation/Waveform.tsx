@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import WaveSurfer from 'wavesurfer.js';
+import { useAudioService } from '../../hooks/useAudioService';
 import { Track } from '../project/projectPageReducer';
 
 type WaveformProps = {
@@ -12,9 +13,12 @@ const Waveform = ({ height, pixelsPerSecond, track }: WaveformProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const waveformRef = useRef<WaveSurfer>();
 
-  const { audioBuffer, color, volume } = track;
+  const { trackId, color, volume } = track;
 
+  const audioService = useAudioService();
   useEffect(() => {
+    const audioBuffer = audioService.retrieveAudioBuffer(trackId)!;
+
     const defaultParams = {
       backgroundColor: 'transparent',
       cursorColor: 'transparent',
@@ -37,7 +41,7 @@ const Waveform = ({ height, pixelsPerSecond, track }: WaveformProps) => {
         waveformRef.current.destroy();
       }
     };
-  }, [audioBuffer, color, height, pixelsPerSecond]);
+  }, [trackId, color, height, pixelsPerSecond]);
 
   const opacity = convertToOpacity(volume);
 

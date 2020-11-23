@@ -13,17 +13,12 @@ export const useMutedTracks = (
   tracks: Track[],
   dispatch: React.Dispatch<WorkstationAction>
 ) => {
+  const audioService = useAudioService();
   useEffect(() => {
-    function isTrackMuted(track: Track, hasSoloTracks: boolean): boolean {
-      return track.mute || (hasSoloTracks && !track.solo);
-    }
-
-    const hasSoloTracks = tracks.filter((track) => track.solo).length > 0;
-    const mutedTracks = tracks
-      .filter((track) => isTrackMuted(track, hasSoloTracks))
-      .map((track) => track.id);
+    // TODO: check side-effect
+    const mutedTracks = audioService.mixer.getMutedChannels();
     dispatch([SET_MUTED_TRACKS, mutedTracks]);
-  }, [tracks]); // dispatch never changes, and can safely be omitted from dependencies
+  }, [tracks]); // audioService and dispatch never changes, and can safely be omitted from dependencies
 };
 
 export const useSpacebarPlaybackToggle = (
@@ -52,12 +47,12 @@ export const useTotalTime = (
   tracks: Track[],
   dispatch: React.Dispatch<WorkstationAction>
 ) => {
+  const audioService = useAudioService();
   useEffect(() => {
-    const maxDuration = tracks
-      .map((track) => track.audioBuffer.duration)
-      .reduce((prev, curr) => (prev >= curr ? prev : curr), 0);
-    dispatch([SET_TOTAL_TIME, maxDuration]);
-  }, [tracks]); // dispatch never changes, and can safely be omitted from dependencies
+    // TODO: check side-effect
+    const totalTime = audioService.getTotalTime();
+    dispatch([SET_TOTAL_TIME, totalTime]);
+  }, [tracks]); // audioService and dispatch never changes, and can safely be omitted from dependencies
 };
 
 export const useMicrophone = (isRecording: boolean) => {

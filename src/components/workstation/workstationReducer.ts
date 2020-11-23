@@ -1,9 +1,11 @@
+import { TrackId } from '../project/projectPageReducer';
+
 export type WorkstationState = {
-  focusedTracks: number[];
+  focusedTracks: TrackId[];
   isMixerOpen: boolean;
   isPlaying: boolean;
   isRecording: boolean;
-  mutedTracks: number[];
+  mutedTracks: TrackId[];
   pixelsPerSecond: number;
   totalTime: number;
   transportTime: number;
@@ -68,8 +70,8 @@ export function workstationReducer(
 }
 
 function setMutedTracksOrBail(
-  previousMutedTracks: number[],
-  currentMutedTracks: number[]
+  previousMutedTracks: TrackId[],
+  currentMutedTracks: TrackId[]
 ) {
   const hasEqualLength =
     previousMutedTracks.length === currentMutedTracks.length;
@@ -81,12 +83,12 @@ function setMutedTracksOrBail(
   return isArrayEqual ? previousMutedTracks : currentMutedTracks;
 }
 
-function setTrackFocus(focusedTracks: number[], focusedTrackId: number) {
+function setTrackFocus(focusedTracks: TrackId[], focusedTrackId: TrackId) {
   return focusedTracks.includes(focusedTrackId)
     ? focusedTracks
     : [...focusedTracks, focusedTrackId];
 }
 
-function setTrackUnfocus(focusedTracks: number[], unfocusedTrackId: number) {
+function setTrackUnfocus(focusedTracks: TrackId[], unfocusedTrackId: TrackId) {
   return focusedTracks.filter((trackId) => trackId !== unfocusedTrackId);
 }

@@ -5,11 +5,10 @@ import {
 } from '@ant-design/icons';
 import { Button, Slider } from 'antd';
 import classNames from 'classnames';
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { useAudioService } from '../../hooks/useAudioService';
 import useDebounced from '../../hooks/useDebounced';
 import useThrottled from '../../hooks/useThrottled';
-import { AudioServiceChannel } from '../../services/AudioService';
 import {
   SET_TRACK_MUTE,
   SET_TRACK_SOLO,
@@ -31,24 +30,14 @@ const Channel = ({ isMuted, track, ...dragHandleProps }: ChannelProps) => {
   const projectDispatch = useProjectDispatch();
   const workstationDispatch = useWorkstationDispatch();
 
-  const channelRef = useRef<AudioServiceChannel | null>(null);
-
-  const { id: trackId, audioBuffer, color, volume, mute, solo } = track;
+  const { trackId, color, volume, mute, solo } = track;
 
   useEffect(() => {
-    channelRef.current = audioService.createChannel(audioBuffer);
-    return () => {
-      if (channelRef.current) {
-        channelRef.current.dispose();
-      }
-    };
-  }, [audioBuffer]); // audioService never changes, and can safely be omitted from dependencies
-
-  useEffect(() => {
-    if (channelRef.current) {
-      channelRef.current.volume.rampTo(convertToDecibel(volume), 0.1);
+    const channel = audioService.mixer.retrieveChannel(trackId);
+    if (channel) {
+      channel.volume.rampTo(convertToDecibel(volume), 0.1);
     }
-  }, [volume]);
+  }, [trackId, volume]);
 
   const unfocusTrack = () => {
     workstationDispatch([SET_TRACK_UNFOCUS, trackId]);
@@ -57,11 +46,9 @@ const Channel = ({ isMuted, track, ...dragHandleProps }: ChannelProps) => {
   const debouncedUnfocusTrack = useDebounced(unfocusTrack, { timeoutMs: 250 });
 
   const updateVolume = (value: number) => {
-    if (channelRef.current) {
-      projectDispatch([SET_TRACK_VOLUME, { id: trackId, volume: value }]);
-      workstationDispatch([SET_TRACK_FOCUS, trackId]);
-      debouncedUnfocusTrack();
-    }
+    projectDispatch([SET_TRACK_VOLUME, { id: trackId, volume: value }]);
+    workstationDispatch([SET_TRACK_FOCUS, trackId]);
+    debouncedUnfocusTrack();
   };
 
   const throttledUpdateVolume = useThrottled(updateVolume, { timeoutMs: 100 });
@@ -71,20 +58,22 @@ const Channel = ({ isMuted, track, ...dragHandleProps }: ChannelProps) => {
   };
 
   useEffect(() => {
-    if (channelRef.current) {
-      channelRef.current.mute = mute;
+    const channel = audioService.mixer.retrieveChannel(trackId);
+    if (channel) {
+      channel.mute = mute;
     }
-  }, [mute]);
+  }, [trackId, mute]);
 
   const updateSolo = () => {
     projectDispatch([SET_TRACK_SOLO, { id: trackId, solo: !solo }]);
   };
 
   useEffect(() => {
-    if (channelRef.current) {
-      channelRef.current.solo = solo;
+    const channel = audioService.mixer.retrieveChannel(trackId);
+    if (channel) {
+      channel.solo = solo;
     }
-  }, [solo]);
+  }, [trackId, solo]);
 
   const { r, g, b } = color;
   const channelOpacity = isMuted ? 0 : convertToOpacity(volume);

@@ -7,8 +7,8 @@ import {
 } from './projectPageReducer';
 
 const initialState: ProjectState = {
-  colorOffset: Math.floor(Math.random() * Math.floor(COLOR_PALETTE.length)),
-  nextTrackId: 0,
+  nextColorId: Math.floor(Math.random() * Math.floor(COLOR_PALETTE.length)),
+  nextIndex: 0,
   title: 'Untitled',
   tracks: [],
 };
