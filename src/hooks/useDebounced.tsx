@@ -7,13 +7,13 @@ type DebouncedOptions = {
 const defaultOptions: DebouncedOptions = { timeoutMs: 100 };
 
 const useDebounced = (callback: () => void, { timeoutMs } = defaultOptions) => {
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<number | null>(null);
 
   const debounced = useCallback(() => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
-    timeoutRef.current = setTimeout(() => {
+    timeoutRef.current = window.setTimeout(() => {
       callback();
       timeoutRef.current = null;
     }, timeoutMs);

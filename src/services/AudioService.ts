@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import MicrophoneUserMedia from './MicrophoneUserMedia';
 import Mixer from './Mixer';
 
-function startAudioContext(this: any, event: Event) {
+function startAudioContext(this: any, event: Event): void {
   event.preventDefault();
   event.stopPropagation();
   Tone.start()
@@ -58,32 +58,32 @@ class AudioService {
     });
   }
 
-  retrieveAudioBuffer(trackId: string) {
+  retrieveAudioBuffer(trackId: string): AudioBuffer | undefined {
     return this.audioSourceRepository.get(trackId)?.audioBuffer;
   }
 
-  startPlayback(transportTime?: number) {
+  startPlayback(transportTime?: number): void {
     if (transportTime !== undefined) {
       this.setTransportTime(transportTime);
     }
     Tone.Transport.start();
   }
 
-  pausePlayback(transportTime?: number) {
+  pausePlayback(transportTime?: number): void {
     Tone.Transport.pause();
     if (transportTime !== undefined) {
       this.setTransportTime(transportTime);
     }
   }
 
-  stopPlayback(transportTime?: number) {
+  stopPlayback(transportTime?: number): void {
     Tone.Transport.stop();
     if (transportTime !== undefined) {
       this.setTransportTime(transportTime);
     }
   }
 
-  togglePlayback() {
+  togglePlayback(): void {
     if (Tone.Transport.state === 'started') {
       Tone.Transport.pause();
     } else {
@@ -91,15 +91,15 @@ class AudioService {
     }
   }
 
-  getTransportTime() {
+  getTransportTime(): number {
     return Tone.Transport.seconds;
   }
 
-  setTransportTime(transportTime: number) {
+  setTransportTime(transportTime: number): void {
     Tone.Transport.seconds = transportTime;
   }
 
-  getTotalTime() {
+  getTotalTime(): number {
     return this.audioSourceRepository
       .getAll()
       .map((source) => source.audioBuffer.duration)
@@ -114,7 +114,7 @@ class AudioSourceRepository {
     this.audioSources = [];
   }
 
-  add(source: AudioSource) {
+  add(source: AudioSource): void {
     this.audioSources.push(source);
   }
 
@@ -126,5 +126,7 @@ class AudioSourceRepository {
     return this.audioSources;
   }
 }
+
+export { AudioChannel } from './Mixer';
 
 export default AudioService;

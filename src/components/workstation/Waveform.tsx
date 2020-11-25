@@ -16,9 +16,8 @@ const Waveform = ({ height, pixelsPerSecond, track }: WaveformProps) => {
   const { trackId, color, volume } = track;
 
   const audioService = useAudioService();
-  useEffect(() => {
-    const audioBuffer = audioService.retrieveAudioBuffer(trackId)!;
 
+  useEffect(() => {
     const defaultParams = {
       backgroundColor: 'transparent',
       cursorColor: 'transparent',
@@ -35,13 +34,14 @@ const Waveform = ({ height, pixelsPerSecond, track }: WaveformProps) => {
       minPxPerSec: pixelsPerSecond,
       waveColor,
     });
-    waveformRef.current.loadDecodedBuffer(audioBuffer);
+    const audioBuffer = audioService.retrieveAudioBuffer(trackId);
+    if (audioBuffer) {
+      waveformRef.current.loadDecodedBuffer(audioBuffer);
+    }
     return () => {
-      if (waveformRef.current) {
-        waveformRef.current.destroy();
-      }
+      waveformRef.current?.destroy();
     };
-  }, [trackId, color, height, pixelsPerSecond]);
+  }, [trackId, color, height, pixelsPerSecond]); // audioService never changes, and can safely be omitted from dependencies
 
   const opacity = convertToOpacity(volume);
 

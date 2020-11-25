@@ -5,10 +5,11 @@ import {
 } from '@ant-design/icons';
 import { Button, Slider } from 'antd';
 import classNames from 'classnames';
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useAudioService } from '../../hooks/useAudioService';
 import useDebounced from '../../hooks/useDebounced';
 import useThrottled from '../../hooks/useThrottled';
+import { AudioChannel } from '../../services/AudioService';
 import {
   SET_TRACK_MUTE,
   SET_TRACK_SOLO,
@@ -32,48 +33,49 @@ const Channel = ({ isMuted, track, ...dragHandleProps }: ChannelProps) => {
 
   const { trackId, color, volume, mute, solo } = track;
 
+  const channelRef = useRef<AudioChannel>();
+
   useEffect(() => {
-    const channel = audioService.mixer.retrieveChannel(trackId);
-    if (channel) {
-      channel.volume.rampTo(convertToDecibel(volume), 0.1);
+    channelRef.current = audioService.mixer.retrieveChannel(trackId);
+  }, [trackId]); // audioService never changes, and can safely be omitted from dependencies
+
+  useEffect(() => {
+    if (channelRef.current) {
+      channelRef.current.volume = volume;
     }
-  }, [trackId, volume]);
+  }, [volume]);
 
-  const unfocusTrack = () => {
-    workstationDispatch([SET_TRACK_UNFOCUS, trackId]);
-  };
+  useEffect(() => {
+    if (channelRef.current) {
+      channelRef.current.mute = mute;
+    }
+  }, [mute]);
 
-  const debouncedUnfocusTrack = useDebounced(unfocusTrack, { timeoutMs: 250 });
+  useEffect(() => {
+    if (channelRef.current) {
+      channelRef.current.solo = solo;
+    }
+  }, [solo]);
 
   const updateVolume = (value: number) => {
     projectDispatch([SET_TRACK_VOLUME, { id: trackId, volume: value }]);
     workstationDispatch([SET_TRACK_FOCUS, trackId]);
     debouncedUnfocusTrack();
   };
-
   const throttledUpdateVolume = useThrottled(updateVolume, { timeoutMs: 100 });
+
+  const unfocusTrack = () => {
+    workstationDispatch([SET_TRACK_UNFOCUS, trackId]);
+  };
+  const debouncedUnfocusTrack = useDebounced(unfocusTrack, { timeoutMs: 250 });
 
   const updateMute = () => {
     projectDispatch([SET_TRACK_MUTE, { id: trackId, mute: !mute }]);
   };
 
-  useEffect(() => {
-    const channel = audioService.mixer.retrieveChannel(trackId);
-    if (channel) {
-      channel.mute = mute;
-    }
-  }, [trackId, mute]);
-
   const updateSolo = () => {
     projectDispatch([SET_TRACK_SOLO, { id: trackId, solo: !solo }]);
   };
-
-  useEffect(() => {
-    const channel = audioService.mixer.retrieveChannel(trackId);
-    if (channel) {
-      channel.solo = solo;
-    }
-  }, [trackId, solo]);
 
   const { r, g, b } = color;
   const channelOpacity = isMuted ? 0 : convertToOpacity(volume);
@@ -136,10 +138,6 @@ const Channel = ({ isMuted, track, ...dragHandleProps }: ChannelProps) => {
     </div>
   );
 };
-
-function convertToDecibel(value: number): number {
-  return 20 * Math.log((value + 1) / 101);
-}
 
 function convertToOpacity(value: number): number {
   return parseFloat((value / 100).toFixed(2));
