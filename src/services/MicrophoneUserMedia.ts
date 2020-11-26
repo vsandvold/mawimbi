@@ -1,8 +1,10 @@
 import * as Tone from 'tone';
 
 class MicrophoneUserMedia {
+  // TODO: make private again
+  microphone: Tone.UserMedia;
+
   private meter: Tone.Meter;
-  private microphone: Tone.UserMedia;
   private meterIntervalHandle?: number;
 
   constructor() {
@@ -10,18 +12,17 @@ class MicrophoneUserMedia {
     this.microphone = new Tone.UserMedia().connect(this.meter);
   }
 
-  open(): Promise<void> {
-    return this.microphone.open().then(() => {
-      this.meterIntervalHandle = window.setInterval(
-        () => console.log(this.meter.getValue()),
-        100
-      );
-    });
+  async open(): Promise<void> {
+    await this.microphone.open();
+    this.meterIntervalHandle = window.setInterval(
+      () => console.log(this.meter.getValue()),
+      100
+    );
   }
 
   close() {
-    this.microphone.close();
     clearInterval(this.meterIntervalHandle);
+    this.microphone.close();
   }
 
   mute() {

@@ -1,7 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAudioService } from '../../hooks/useAudioService';
 import useKeypress from '../../hooks/useKeypress';
-import { Track } from '../project/projectPageReducer';
+import message from '../message';
+import { ADD_TRACK, Track } from '../project/projectPageReducer';
+import useProjectDispatch from '../project/useProjectDispatch';
 import {
   SET_MUTED_TRACKS,
   SET_TOTAL_TIME,
@@ -15,7 +17,6 @@ export const useMutedTracks = (
 ) => {
   const audioService = useAudioService();
   useEffect(() => {
-    // TODO: check side-effect
     const mutedTracks = audioService.mixer.getMutedChannels();
     dispatch([SET_MUTED_TRACKS, mutedTracks]);
   }, [tracks]); // audioService and dispatch never changes, and can safely be omitted from dependencies
@@ -49,7 +50,6 @@ export const useTotalTime = (
 ) => {
   const audioService = useAudioService();
   useEffect(() => {
-    // TODO: check side-effect
     const totalTime = audioService.getTotalTime();
     dispatch([SET_TOTAL_TIME, totalTime]);
   }, [tracks]); // audioService and dispatch never changes, and can safely be omitted from dependencies
@@ -57,13 +57,35 @@ export const useTotalTime = (
 
 export const useMicrophone = (isRecording: boolean) => {
   const audioService = useAudioService();
+  const projectDispatch = useProjectDispatch();
   useEffect(() => {
+    const msg = message({ key: 'microphone' });
+    const startRecording = async () => {
+      try {
+        await audioService.microphone.open();
+        await audioService.startRecording();
+        msg.success('Recording started');
+      } catch (error) {
+        msg.error('Recording failed');
+      }
+    };
+    const stopRecording = async () => {
+      try {
+        const arrayBuffer = await audioService.stopRecording();
+        const trackId = await audioService.createTrack(arrayBuffer);
+        projectDispatch([ADD_TRACK, { trackId, fileName: 'New Track' }]);
+        audioService.microphone.close();
+        msg.success('Recording stopped');
+      } catch (error) {
+        msg.error('Recording failed');
+      }
+    };
     if (isRecording) {
-      audioService.microphone.open();
+      startRecording();
     } else {
-      audioService.microphone.close();
+      stopRecording();
     }
-  }, [isRecording]); // audioService never changes, and can safely be omitted from dependencies
+  }, [isRecording]); // audioService and projectDispatch never changes, and can safely be omitted from dependencies
 };
 
 export const useMixerHeight = () => {

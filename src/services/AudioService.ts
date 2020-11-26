@@ -23,11 +23,14 @@ class AudioService {
 
   private static instance: AudioService;
   private audioSourceRepository: AudioSourceRepository;
+  private recorder: Tone.Recorder;
 
   private constructor() {
     this.audioSourceRepository = new AudioSourceRepository();
     this.microphone = new MicrophoneUserMedia();
     this.mixer = new Mixer();
+    // TODO: Create class
+    this.recorder = new Tone.Recorder();
   }
 
   static getInstance(): AudioService {
@@ -46,16 +49,15 @@ class AudioService {
     });
   }
 
-  createTrack(arrayBuffer: ArrayBuffer): Promise<string> {
-    return Tone.context.decodeAudioData(arrayBuffer).then((audioBuffer) => {
-      const trackId = uuidv4();
-      this.audioSourceRepository.add({
-        id: trackId,
-        audioBuffer,
-      });
-      this.mixer.createChannel(trackId, audioBuffer);
-      return trackId;
+  async createTrack(arrayBuffer: ArrayBuffer): Promise<string> {
+    const audioBuffer = await Tone.context.decodeAudioData(arrayBuffer);
+    const trackId = uuidv4();
+    this.mixer.createChannel(trackId, audioBuffer);
+    this.audioSourceRepository.add({
+      id: trackId,
+      audioBuffer,
     });
+    return trackId;
   }
 
   retrieveAudioBuffer(trackId: string): AudioBuffer | undefined {
@@ -104,6 +106,23 @@ class AudioService {
       .getAll()
       .map((source) => source.audioBuffer.duration)
       .reduce((prev, curr) => (prev >= curr ? prev : curr), 0);
+  }
+
+  async startRecording(): Promise<unknown> {
+    if (this.microphone.microphone.state !== 'started') {
+      return Promise.reject();
+    }
+    // TODO: find better way to connect source
+    this.microphone.microphone.connect(this.recorder);
+    return await this.recorder.start();
+  }
+
+  async stopRecording(): Promise<ArrayBuffer> {
+    if (this.recorder.state === 'stopped') {
+      return Promise.reject();
+    }
+    const blob = await this.recorder.stop();
+    return await blob.arrayBuffer();
   }
 }
 
