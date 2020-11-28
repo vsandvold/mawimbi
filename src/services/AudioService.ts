@@ -124,6 +124,10 @@ class AudioService {
     const blob = await this.recorder.stop();
     return await blob.arrayBuffer();
   }
+
+  isRecording(): boolean {
+    return this.recorder.state === 'started';
+  }
 }
 
 class AudioSourceRepository {

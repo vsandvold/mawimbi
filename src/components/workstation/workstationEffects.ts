@@ -70,6 +70,9 @@ export const useMicrophone = (isRecording: boolean) => {
       }
     };
     const stopRecording = async () => {
+      if (!audioService.isRecording()) {
+        return;
+      }
       try {
         const arrayBuffer = await audioService.stopRecording();
         const trackId = await audioService.createTrack(arrayBuffer);
