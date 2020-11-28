@@ -1,7 +1,7 @@
 import { fireEvent, render } from '@testing-library/react';
 import React from 'react';
 import Toolbar from '../Toolbar';
-import { TOGGLE_DRAWER, TOGGLE_PLAYBACK } from '../workstationReducer';
+import { TOGGLE_MIXER, TOGGLE_PLAYBACK } from '../workstationReducer';
 
 const mockDispatch = jest.fn();
 
@@ -12,23 +12,26 @@ jest.mock('../useWorkstationDispatch', () => {
 });
 
 const defaultProps = {
-  isDrawerOpen: false,
+  isMixerOpen: false,
   isEmpty: false,
   isPlaying: false,
+  isRecording: false,
 };
 
 it('renders all buttons', () => {
   const { getAllByRole } = render(<Toolbar {...defaultProps} />);
 
-  expect(getAllByRole('button')).toHaveLength(2);
+  expect(getAllByRole('button')).toHaveLength(3);
 });
 
 it('disables buttons when tracks are empty', () => {
-  const { getAllByRole } = render(
+  const { getByTitle } = render(
     <Toolbar {...{ ...defaultProps, isEmpty: true }} />
   );
 
-  getAllByRole('button').forEach((button) => expect(button).toBeDisabled());
+  expect(getByTitle('Show mixer')).toBeDisabled();
+  expect(getByTitle('Play')).toBeDisabled();
+  expect(getByTitle('Record')).not.toBeDisabled();
 });
 
 it('enables buttons when tracks are not empty', () => {
@@ -40,32 +43,44 @@ it('enables buttons when tracks are not empty', () => {
 });
 
 it('renders play icon when paused', () => {
-  const { container, getByTitle } = render(
+  const { getByTitle } = render(
     <Toolbar {...{ ...defaultProps, isPlaying: false }} />
   );
 
   const playButton = getByTitle('Play');
-  const playIcon = container.querySelector('[aria-label="caret-right"]');
+  const playIcon = playButton.querySelector('[aria-label="caret-right"]');
 
   expect(playButton).toBeInTheDocument();
   expect(playIcon).toBeInTheDocument();
 });
 
 it('renders pause icon when playing', () => {
-  const { container, getByTitle } = render(
+  const { getByTitle } = render(
     <Toolbar {...{ ...defaultProps, isPlaying: true }} />
   );
 
   const pauseButton = getByTitle('Pause');
-  const pauseIcon = container.querySelector('[aria-label="pause"]');
+  const pauseIcon = pauseButton.querySelector('[aria-label="pause"]');
 
   expect(pauseButton).toBeInTheDocument();
   expect(pauseIcon).toBeInTheDocument();
 });
 
-it('applies animation class to mixer icon when drawer is open', () => {
+it('renders microphone icon', () => {
   const { getByTitle } = render(
-    <Toolbar {...{ ...defaultProps, isDrawerOpen: true }} />
+    <Toolbar {...{ ...defaultProps, isPlaying: false }} />
+  );
+
+  const recordButton = getByTitle('Record');
+  const recordIcon = recordButton.querySelector('[aria-label="audio"]');
+
+  expect(recordButton).toBeInTheDocument();
+  expect(recordIcon).toBeInTheDocument();
+});
+
+it('applies animation class to mixer icon when mixer is open', () => {
+  const { getByTitle } = render(
+    <Toolbar {...{ ...defaultProps, isMixerOpen: true }} />
   );
 
   const mixerIcon = getByTitle('Hide mixer').firstChild;
@@ -85,14 +100,14 @@ it('toggles playback when play/pause button is clicked', () => {
   expect(mockDispatch).toHaveBeenCalledWith([TOGGLE_PLAYBACK]);
 });
 
-it('toggles drawer when mixer show/hide is clicked', () => {
+it('toggles mixer when mixer show/hide is clicked', () => {
   const { getByTitle } = render(
-    <Toolbar {...{ ...defaultProps, isDrawerOpen: false }} />
+    <Toolbar {...{ ...defaultProps, isMixerOpen: false }} />
   );
 
   const mixerButton = getByTitle('Show mixer');
   fireEvent.click(mixerButton);
 
   expect(mockDispatch).toBeCalledTimes(1);
-  expect(mockDispatch).toHaveBeenCalledWith([TOGGLE_DRAWER]);
+  expect(mockDispatch).toHaveBeenCalledWith([TOGGLE_MIXER]);
 });

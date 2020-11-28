@@ -9,7 +9,7 @@ const mockDispatch = jest.fn();
 
 const defaultProps = {
   drawerHeight: 0,
-  isDrawerOpen: false,
+  isMixerOpen: false,
   isPlaying: false,
   pixelsPerSecond: 200,
   transportTime: 0,
@@ -57,7 +57,7 @@ it('stops and rewinds playback when rewind button is clicked', () => {
 
 it('transforms timeline vertical scale when drawer is open', () => {
   const { container } = render(
-    <Scrubber {...{ ...defaultProps, drawerHeight: 120, isDrawerOpen: true }} />
+    <Scrubber {...{ ...defaultProps, drawerHeight: 120, isMixerOpen: true }} />
   );
 
   const progressCursor = container.querySelector('.scrubber__cursor');

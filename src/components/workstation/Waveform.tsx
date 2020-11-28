@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import WaveSurfer from 'wavesurfer.js';
+import { useAudioService } from '../../hooks/useAudioService';
 import { Track } from '../project/projectPageReducer';
 
 type WaveformProps = {
@@ -12,7 +13,9 @@ const Waveform = ({ height, pixelsPerSecond, track }: WaveformProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const waveformRef = useRef<WaveSurfer>();
 
-  const { audioBuffer, color, volume } = track;
+  const { trackId, color, volume } = track;
+
+  const audioService = useAudioService();
 
   useEffect(() => {
     const defaultParams = {
@@ -31,13 +34,14 @@ const Waveform = ({ height, pixelsPerSecond, track }: WaveformProps) => {
       minPxPerSec: pixelsPerSecond,
       waveColor,
     });
-    waveformRef.current.loadDecodedBuffer(audioBuffer);
+    const audioBuffer = audioService.retrieveAudioBuffer(trackId);
+    if (audioBuffer) {
+      waveformRef.current.loadDecodedBuffer(audioBuffer);
+    }
     return () => {
-      if (waveformRef.current) {
-        waveformRef.current.destroy();
-      }
+      waveformRef.current?.destroy();
     };
-  }, [audioBuffer, color, height, pixelsPerSecond]);
+  }, [trackId, color, height, pixelsPerSecond]); // audioService never changes, and can safely be omitted from dependencies
 
   const opacity = convertToOpacity(volume);
 

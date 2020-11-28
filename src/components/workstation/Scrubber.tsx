@@ -9,8 +9,8 @@ import React, {
   useState,
 } from 'react';
 import useAnimation from '../../hooks/useAnimation';
+import { useAudioService } from '../../hooks/useAudioService';
 import useDebounced from '../../hooks/useDebounced';
-import AudioService from '../../services/AudioService';
 import './Scrubber.css';
 import useWorkstationDispatch from './useWorkstationDispatch';
 import {
@@ -22,7 +22,7 @@ import {
 
 type ScrubberProps = React.PropsWithChildren<{
   drawerHeight: number;
-  isDrawerOpen: boolean;
+  isMixerOpen: boolean;
   isPlaying: boolean;
   pixelsPerSecond: number;
   transportTime: number;
@@ -33,7 +33,7 @@ const TIMELINE_MARGIN = 40;
 const Scrubber = (props: ScrubberProps) => {
   const {
     drawerHeight,
-    isDrawerOpen,
+    isMixerOpen,
     isPlaying,
     pixelsPerSecond,
     transportTime,
@@ -64,10 +64,11 @@ const Scrubber = (props: ScrubberProps) => {
     setScrollPosition(transportTime);
   }, [transportTime, setScrollPosition]);
 
+  const audioService = useAudioService();
   const animateScrollCallback = useCallback(() => {
     function updateScrollPosition() {
       // Updates scroll position directly from transport time for performance reasons
-      const transportTime = AudioService.getTransportTime();
+      const transportTime = audioService.getTransportTime();
       setScrollPosition(transportTime);
     }
 
@@ -85,7 +86,7 @@ const Scrubber = (props: ScrubberProps) => {
 
     updateScrollPosition();
     stopPlaybackIfEndOfScroll();
-  }, [setScrollPosition]); // dispatch never changes, and can safely be omitted from dependencies
+  }, [setScrollPosition]); // audioService and dispatch never changes, and can safely be omitted from dependencies
 
   useAnimation(animateScrollCallback, {
     isActive: isPlaying,
@@ -129,13 +130,10 @@ const Scrubber = (props: ScrubberProps) => {
     }
   }, [drawerHeight]);
 
-  const timelineScaleStyle = getTimelineStyle(
-    isDrawerOpen,
-    timelineScaleFactor
-  );
+  const timelineScaleStyle = getTimelineStyle(isMixerOpen, timelineScaleFactor);
 
   const rewindButtonTranslateStyle = getRewindButtonStyle(
-    isDrawerOpen,
+    isMixerOpen,
     drawerHeight,
     timelineScaleFactor
   );
@@ -181,20 +179,20 @@ const defaultTransformStyle = {
   willChange: 'transform',
 };
 
-function getTimelineStyle(isDrawerOpen: boolean, timelineScaleFactor: number) {
-  return isDrawerOpen
+function getTimelineStyle(isMixerOpen: boolean, timelineScaleFactor: number) {
+  return isMixerOpen
     ? { ...defaultTransformStyle, transform: `scaleY(${timelineScaleFactor})` }
     : defaultTransformStyle;
 }
 
 function getRewindButtonStyle(
-  isDrawerOpen: boolean,
+  isMixerOpen: boolean,
   drawerHeight: number,
   timelineScaleFactor: number
 ) {
   const translateAmount =
     drawerHeight - TIMELINE_MARGIN * (1 - timelineScaleFactor);
-  return isDrawerOpen
+  return isMixerOpen
     ? {
         ...defaultTransformStyle,
         transform: `translateY(-${translateAmount}px)`,

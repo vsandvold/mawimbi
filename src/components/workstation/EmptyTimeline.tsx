@@ -14,7 +14,7 @@ const EmptyTimeline = ({ isDragActive }: EmptyTimelineProps) => {
   return isDragActive ? null : (
     <div className="empty-timeline">
       <Title level={4} type="secondary">
-        Upload audio files to get started
+        Start recording, or upload some audio files
       </Title>
       {browserSupport.touchEvents ? (
         <Text type="secondary">Use the upload button above</Text>

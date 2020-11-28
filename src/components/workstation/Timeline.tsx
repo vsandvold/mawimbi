@@ -1,14 +1,14 @@
 import classNames from 'classnames';
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { useBrowserSupport } from '../../browserSupport';
-import { Track } from '../project/projectPageReducer';
+import { Track, TrackId } from '../project/projectPageReducer';
 import Spectrogram from './Spectrogram';
 import './Timeline.css';
 import Waveform from './Waveform';
 
 type TimelineProps = {
-  focusedTracks: number[];
-  mutedTracks: number[];
+  focusedTracks: TrackId[];
+  mutedTracks: TrackId[];
   pixelsPerSecond: number;
   tracks: Track[];
 };
@@ -42,7 +42,7 @@ const Timeline = ({
             focusedTracks
           );
           return (
-            <div key={track.id} className={timelineWaveformClass}>
+            <div key={track.trackId} className={timelineWaveformClass}>
               {browserSupport.webkitOfflineAudioContext ? (
                 <MemoizedWaveform
                   height={height}
@@ -68,11 +68,11 @@ const MemoizedWaveform = React.memo(Waveform);
 
 function getTimelineWaveformClass(
   track: Track,
-  mutedTracks: number[],
-  focusedTracks: number[]
+  mutedTracks: TrackId[],
+  focusedTracks: TrackId[]
 ) {
-  const isMuted = mutedTracks.includes(track.id);
-  const isForeground = focusedTracks.includes(track.id);
+  const isMuted = mutedTracks.includes(track.trackId);
+  const isForeground = focusedTracks.includes(track.trackId);
   const isBackground = focusedTracks.length > 0 && !isForeground;
   return classNames('timeline__waveform', {
     'timeline__waveform--muted': isMuted,

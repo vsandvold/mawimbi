@@ -4,7 +4,7 @@ import { mockTrack } from '../../../testUtils';
 import Workstation from '../Workstation';
 import {
   useDropzoneDragActive,
-  useMixerDrawerHeight,
+  useMixerHeight,
   useMutedTracks,
   usePlaybackControl,
   useSpacebarPlaybackToggle,
@@ -47,27 +47,27 @@ it('renders regular timeline when tracks are non-empty', () => {
   expect(getByTestId('regular-timeline')).toBeInTheDocument();
 });
 
-it('renders closed drawer by default', () => {
+it('renders closed mixer by default', () => {
   const { container } = render(<Workstation {...defaultProps} />);
 
-  const drawer = container.querySelector('.editor__drawer');
+  const mixer = container.querySelector('.editor__mixer');
 
-  expect(drawer).toHaveClass('editor__drawer--closed');
+  expect(mixer).toHaveClass('editor__mixer--closed');
 });
 
 it('renders dropzone hidden by default', () => {
   const { container } = render(<Workstation {...defaultProps} />);
 
-  const drawer = container.querySelector('.editor__dropzone');
+  const dropzone = container.querySelector('.editor__dropzone');
 
-  expect(drawer).toHaveClass('editor__dropzone--hidden');
+  expect(dropzone).toHaveClass('editor__dropzone--hidden');
 });
 
 it('uses workstation effect hooks', () => {
   render(<Workstation {...defaultProps} />);
 
   expect(useDropzoneDragActive).toHaveBeenCalled();
-  expect(useMixerDrawerHeight).toHaveBeenCalled();
+  expect(useMixerHeight).toHaveBeenCalled();
   expect(useMutedTracks).toHaveBeenCalled();
   expect(usePlaybackControl).toHaveBeenCalled();
   expect(useSpacebarPlaybackToggle).toHaveBeenCalled();
@@ -84,7 +84,7 @@ function mockWorkstationEffects() {
         setDropzoneRootProps: jest.fn(),
       };
     }),
-    useMixerDrawerHeight: jest.fn(() => {
+    useMixerHeight: jest.fn(() => {
       return {
         drawerContainerRef: { current: null },
         drawerHeight: 0,

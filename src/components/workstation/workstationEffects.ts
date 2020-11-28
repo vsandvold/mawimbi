@@ -1,7 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useAudioService } from '../../hooks/useAudioService';
 import useKeypress from '../../hooks/useKeypress';
-import AudioService from '../../services/AudioService';
-import { Track } from '../project/projectPageReducer';
+import message from '../message';
+import { ADD_TRACK, Track } from '../project/projectPageReducer';
+import useProjectDispatch from '../project/useProjectDispatch';
 import {
   SET_MUTED_TRACKS,
   SET_TOTAL_TIME,
@@ -13,17 +15,11 @@ export const useMutedTracks = (
   tracks: Track[],
   dispatch: React.Dispatch<WorkstationAction>
 ) => {
+  const audioService = useAudioService();
   useEffect(() => {
-    function isTrackMuted(track: Track, hasSoloTracks: boolean): boolean {
-      return track.mute || (hasSoloTracks && !track.solo);
-    }
-
-    const hasSoloTracks = tracks.filter((track) => track.solo).length > 0;
-    const mutedTracks = tracks
-      .filter((track) => isTrackMuted(track, hasSoloTracks))
-      .map((track) => track.id);
+    const mutedTracks = audioService.mixer.getMutedChannels();
     dispatch([SET_MUTED_TRACKS, mutedTracks]);
-  }, [tracks]); // dispatch never changes, and can safely be omitted from dependencies
+  }, [tracks]); // audioService and dispatch never changes, and can safely be omitted from dependencies
 };
 
 export const useSpacebarPlaybackToggle = (
@@ -38,44 +34,78 @@ export const usePlaybackControl = (
   isPlaying: boolean,
   transportTime: number
 ) => {
+  const audioService = useAudioService();
   useEffect(() => {
     if (isPlaying) {
-      AudioService.setTransportTime(transportTime);
-      AudioService.startPlayback();
+      audioService.startPlayback(transportTime);
     } else {
-      AudioService.pausePlayback();
-      AudioService.setTransportTime(transportTime);
+      audioService.pausePlayback(transportTime);
     }
-  }, [isPlaying, transportTime]);
+  }, [isPlaying, transportTime]); // audioService never changes, and can safely be omitted from dependencies
 };
 
 export const useTotalTime = (
   tracks: Track[],
   dispatch: React.Dispatch<WorkstationAction>
 ) => {
+  const audioService = useAudioService();
   useEffect(() => {
-    const maxDuration = tracks
-      .map((track) => track.audioBuffer.duration)
-      .reduce((prev, curr) => (prev >= curr ? prev : curr), 0);
-    dispatch([SET_TOTAL_TIME, maxDuration]);
-  }, [tracks]); // dispatch never changes, and can safely be omitted from dependencies
+    const totalTime = audioService.getTotalTime();
+    dispatch([SET_TOTAL_TIME, totalTime]);
+  }, [tracks]); // audioService and dispatch never changes, and can safely be omitted from dependencies
 };
 
-export const useMixerDrawerHeight = () => {
-  const drawerContainerRef = useRef<HTMLDivElement>(null);
-  const [drawerHeight, setDrawerHeight] = useState(0);
+export const useMicrophone = (isRecording: boolean) => {
+  const audioService = useAudioService();
+  const projectDispatch = useProjectDispatch();
+  useEffect(() => {
+    const msg = message({ key: 'microphone' });
+    const startRecording = async () => {
+      try {
+        await audioService.microphone.open();
+        await audioService.startRecording();
+        msg.success('Recording started');
+      } catch (error) {
+        msg.error('Recording failed');
+      }
+    };
+    const stopRecording = async () => {
+      if (!audioService.isRecording()) {
+        return;
+      }
+      try {
+        const arrayBuffer = await audioService.stopRecording();
+        const trackId = await audioService.createTrack(arrayBuffer);
+        projectDispatch([ADD_TRACK, { trackId, fileName: 'New Track' }]);
+        audioService.microphone.close();
+        msg.success('Recording stopped');
+      } catch (error) {
+        msg.error('Recording failed');
+      }
+    };
+    if (isRecording) {
+      startRecording();
+    } else {
+      stopRecording();
+    }
+  }, [isRecording]); // audioService and projectDispatch never changes, and can safely be omitted from dependencies
+};
+
+export const useMixerHeight = () => {
+  const mixerContainerRef = useRef<HTMLDivElement>(null);
+  const [mixerHeight, setMixerHeight] = useState(0);
 
   useLayoutEffect(() => {
-    if (drawerContainerRef.current) {
+    if (mixerContainerRef.current) {
       // TODO: or use clientHeight?
-      const drawerHeight = drawerContainerRef.current.offsetHeight;
-      setDrawerHeight(drawerHeight);
+      const height = mixerContainerRef.current.offsetHeight;
+      setMixerHeight(height);
     }
   }, []); // make sure effect only triggers once, on component mount
 
   return {
-    drawerContainerRef,
-    drawerHeight,
+    mixerContainerRef,
+    mixerHeight,
   };
 };
 

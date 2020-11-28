@@ -1,20 +1,46 @@
-import Icon, { CaretRightOutlined, PauseOutlined } from '@ant-design/icons';
+import Icon, {
+  AudioFilled,
+  AudioOutlined,
+  CaretRightOutlined,
+  PauseOutlined,
+} from '@ant-design/icons';
 import { Button } from 'antd';
 import classNames from 'classnames';
 import React from 'react';
 import { ReactComponent as ControlSvg } from '../../icons/control.svg';
 import './Toolbar.css';
 import useWorkstationDispatch from './useWorkstationDispatch';
-import { TOGGLE_DRAWER, TOGGLE_PLAYBACK } from './workstationReducer';
+import {
+  TOGGLE_MIXER,
+  TOGGLE_PLAYBACK,
+  TOGGLE_RECORDING,
+} from './workstationReducer';
 
 type ToolbarProps = {
-  isDrawerOpen: boolean;
+  isMixerOpen: boolean;
   isEmpty: boolean;
   isPlaying: boolean;
+  isRecording: boolean;
 };
 
-const Toolbar = ({ isDrawerOpen, isEmpty, isPlaying }: ToolbarProps) => {
+const Toolbar = (props: ToolbarProps) => {
+  const { isMixerOpen, isEmpty, isPlaying, isRecording } = props;
   const dispatch = useWorkstationDispatch();
+
+  const mixerIconClass = classNames({ 'show-mixer': isMixerOpen });
+  const mixerIcon = <Icon component={ControlSvg} className={mixerIconClass} />;
+
+  const mixerButton = (
+    <Button
+      type="link"
+      size="large"
+      className="button"
+      icon={mixerIcon}
+      title={isMixerOpen ? 'Hide mixer' : 'Show mixer'}
+      onClick={() => dispatch([TOGGLE_MIXER])}
+      disabled={isEmpty}
+    />
+  );
 
   const playPauseButton = (
     <Button
@@ -28,25 +54,21 @@ const Toolbar = ({ isDrawerOpen, isEmpty, isPlaying }: ToolbarProps) => {
     />
   );
 
-  const mixerIconClass = classNames({ 'show-mixer': isDrawerOpen });
-  const mixerIcon = <Icon component={ControlSvg} className={mixerIconClass} />;
-
-  const mixerButton = (
+  const microphoneButton = (
     <Button
       type="link"
       size="large"
       className="button"
-      icon={mixerIcon}
-      title={isDrawerOpen ? 'Hide mixer' : 'Show mixer'}
-      onClick={() => dispatch([TOGGLE_DRAWER])}
-      disabled={isEmpty}
+      icon={isRecording ? <AudioFilled /> : <AudioOutlined />}
+      title="Record"
+      onClick={() => dispatch([TOGGLE_RECORDING])}
     />
   );
-
   return (
     <div className="toolbar">
-      <div className="toolbar__button">{playPauseButton}</div>
       <div className="toolbar__button">{mixerButton}</div>
+      <div className="toolbar__button">{playPauseButton}</div>
+      <div className="toolbar__button">{microphoneButton}</div>
     </div>
   );
 };

@@ -1,16 +1,18 @@
 export type ProjectState = {
-  colorOffset: number;
-  nextTrackId: number;
+  nextColorId: number;
+  nextIndex: number;
   title: string;
   tracks: Track[];
 };
 
 export type ProjectAction = [string, any?];
 
+export type TrackId = string;
+
 export type Track = {
-  audioBuffer: AudioBuffer;
+  trackId: TrackId;
   color: TrackColor;
-  id: number;
+  fileName: string;
   index: number;
   mute: boolean;
   solo: boolean;
@@ -43,14 +45,13 @@ export function projectReducer(
 ): ProjectState {
   switch (type) {
     case ADD_TRACK:
-      const colorIdx =
-        (state.nextTrackId + state.colorOffset) % COLOR_PALETTE.length;
       return {
         ...state,
-        nextTrackId: state.nextTrackId + 1,
+        nextColorId: (state.nextColorId + 1) % COLOR_PALETTE.length,
+        nextIndex: state.nextIndex + 1,
         tracks: [
           ...state.tracks,
-          createTrack(state.nextTrackId, colorIdx, payload),
+          createTrack(state.nextIndex, state.nextColorId, payload),
         ],
       };
     case MOVE_TRACK:
@@ -67,15 +68,15 @@ export function projectReducer(
 }
 
 function createTrack(
-  trackId: number,
+  index: number,
   colorIdx: number,
-  audioBuffer: AudioBuffer
+  { trackId, fileName }: any
 ): Track {
   return {
-    audioBuffer,
     color: COLOR_PALETTE[colorIdx],
-    id: trackId,
-    index: trackId,
+    fileName,
+    trackId,
+    index,
     mute: false,
     solo: false,
     volume: 100,
@@ -90,15 +91,19 @@ function moveTrack(tracks: Track[], { fromIndex, toIndex }: any): Track[] {
 }
 
 function setTrackMute(tracks: Track[], { id, mute }: any): Track[] {
-  return tracks.map((track) => (track.id === id ? { ...track, mute } : track));
+  return tracks.map((track) =>
+    track.trackId === id ? { ...track, mute } : track
+  );
 }
 
 function setTrackSolo(tracks: Track[], { id, solo }: any): Track[] {
-  return tracks.map((track) => (track.id === id ? { ...track, solo } : track));
+  return tracks.map((track) =>
+    track.trackId === id ? { ...track, solo } : track
+  );
 }
 
 function setTrackVolume(tracks: Track[], { id, volume }: any): Track[] {
   return tracks.map((track) =>
-    track.id === id ? { ...track, volume } : track
+    track.trackId === id ? { ...track, volume } : track
   );
 }

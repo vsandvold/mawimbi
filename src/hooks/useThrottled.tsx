@@ -12,7 +12,7 @@ const useThrottled = (
   callback: (value: any) => void,
   { timeoutMs } = defaultOptions
 ) => {
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const timeoutRef = useRef<number | null>(null);
 
   const throttled = useCallback(
     (value) => {
@@ -20,7 +20,7 @@ const useThrottled = (
         return;
       }
       callback(value);
-      timeoutRef.current = setTimeout(() => {
+      timeoutRef.current = window.setTimeout(() => {
         timeoutRef.current = null;
       }, timeoutMs);
     },

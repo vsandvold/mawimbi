@@ -7,8 +7,9 @@ import {
 
 const initialState: WorkstationState = {
   focusedTracks: [],
-  isDrawerOpen: false,
+  isMixerOpen: false,
   isPlaying: false,
+  isRecording: false,
   mutedTracks: [],
   pixelsPerSecond: 200,
   totalTime: 0,

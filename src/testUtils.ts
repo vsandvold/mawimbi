@@ -17,7 +17,7 @@ export function mockTrack(trackProps: any = {}): Track {
       g: 255,
       b: 255,
     },
-    id: 0,
+    trackId: 0,
     index: 0,
     mute: false,
     solo: false,
