@@ -5,8 +5,8 @@ import { BrowserRouter } from 'react-router-dom';
 import { BrowserSupportProvider } from './browserSupport';
 import App from './components/App';
 import './index.css';
-import AudioService from './services/AudioService';
 import reportWebVitals from './reportWebVitals';
+import AudioService from './services/AudioService';
 
 AudioService.startAudio()
   .then(() => console.log('audio is ready'))
