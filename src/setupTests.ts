@@ -3,7 +3,6 @@
 // expect(element).toHaveTextContent(/react/i)
 // learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom';
-// import '@testing-library/jest-dom/extend-expect';
 
 window.TONE_SILENCE_LOGGING = true;
 
@@ -14,18 +13,17 @@ function mockReactRouterDom() {
   const mockHistoryPush = jest.fn();
 
   jest.mock('react-router-dom', () => ({
-    ...jest.requireActual('react-router-dom'),
     useHistory: () => ({
       goBack: mockHistoryGoBack,
       push: mockHistoryPush,
     }),
     useLocation: () => ({
-      pathname: 'path',
+      pathname: 'path/to/app',
     }),
   }));
 }
 
-mockWaveSurfer();
+// mockWaveSurfer();
 
 function mockWaveSurfer() {
   const mockDestroy = jest.fn();
