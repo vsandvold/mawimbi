@@ -3,6 +3,16 @@ import React from 'react';
 import { useHistory } from 'react-router-dom';
 import ProjectPageHeader from '../ProjectPageHeader';
 
+const mockHistoryGoBack = jest.fn();
+const mockHistoryPush = jest.fn();
+
+jest.mock('react-router-dom', () => ({
+  useHistory: () => ({
+    goBack: mockHistoryGoBack,
+    push: mockHistoryPush,
+  }),
+}));
+
 const defaultProps = {
   title: 'Mawimbi No. 5',
   uploadFile: jest.fn(),

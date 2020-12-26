@@ -6,23 +6,6 @@ import '@testing-library/jest-dom';
 
 window.TONE_SILENCE_LOGGING = true;
 
-mockReactRouterDom();
-
-function mockReactRouterDom() {
-  const mockHistoryGoBack = jest.fn();
-  const mockHistoryPush = jest.fn();
-
-  jest.mock('react-router-dom', () => ({
-    useHistory: () => ({
-      goBack: mockHistoryGoBack,
-      push: mockHistoryPush,
-    }),
-    useLocation: () => ({
-      pathname: 'path/to/app',
-    }),
-  }));
-}
-
 // mockWaveSurfer();
 
 function mockWaveSurfer() {

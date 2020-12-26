@@ -8,6 +8,13 @@ jest.mock('../project/ProjectPage', () => () => (
   <div data-testid="project-page"></div>
 ));
 
+jest.mock('react-router-dom', () => ({
+  ...jest.requireActual('react-router-dom'),
+  useLocation: () => ({
+    pathname: 'path/to/app',
+  }),
+}));
+
 it('renders route to home page', () => {
   const { getByTestId } = render(
     <MemoryRouter initialEntries={['/']}>
