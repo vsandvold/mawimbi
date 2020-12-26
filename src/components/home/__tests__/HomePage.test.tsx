@@ -3,6 +3,14 @@ import React from 'react';
 import { useHistory } from 'react-router-dom';
 import HomePage from '../HomePage';
 
+const mockHistoryPush = jest.fn();
+
+jest.mock('react-router-dom', () => ({
+  useHistory: () => ({
+    push: mockHistoryPush,
+  }),
+}));
+
 it('renders create project button', () => {
   const { getByText } = render(<HomePage />);
 
