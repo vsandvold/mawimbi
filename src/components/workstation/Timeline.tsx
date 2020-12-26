@@ -33,7 +33,7 @@ const Timeline = ({
   const browserSupport = useBrowserSupport();
 
   return (
-    <div ref={containerRef} className="timeline">
+    <div ref={containerRef} className="timeline" data-testid="timeline">
       {containerRef.current &&
         tracks.map((track) => {
           const timelineWaveformClass = getTimelineWaveformClass(

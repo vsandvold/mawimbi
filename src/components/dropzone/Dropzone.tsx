@@ -49,7 +49,7 @@ const Dropzone = (props: DropzoneProps) => {
   const { Title, Text } = Typography;
 
   return (
-    <div className={dropzoneClass}>
+    <div className={dropzoneClass} data-testid="dropzone">
       <input {...getInputProps()} />
       <div className="dropzone__content">
         <Text>
