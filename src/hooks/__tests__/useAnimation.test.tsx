@@ -1,27 +1,25 @@
 import { renderHook } from '@testing-library/react-hooks';
 import useAnimation from '../useAnimation';
 
-beforeAll(() => {
-  jest.useFakeTimers();
-});
-
-afterEach(() => {
-  jest.clearAllTimers();
-});
-
-afterAll(() => {
-  jest.useRealTimers();
-});
-
 const FRAME_TIME = 1;
 const REQUEST_ID = 123;
 
-jest.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-  setTimeout(callback, FRAME_TIME);
-  return REQUEST_ID;
-});
+beforeEach(() => {
+  jest.useFakeTimers();
+  jest.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+    setTimeout(callback, FRAME_TIME);
+    return REQUEST_ID;
+  });
 
-jest.spyOn(window, 'cancelAnimationFrame');
+  jest.spyOn(window, 'cancelAnimationFrame');
+})
+
+// Running all pending timers and switching to real timers using Jest
+afterEach(() => {
+  jest.runOnlyPendingTimers()
+  jest.clearAllTimers();
+  jest.useRealTimers()
+})
 
 const mockCallback = jest.fn();
 
@@ -91,11 +89,11 @@ it('throttles requests with given frame rate', () => {
     useAnimation(mockCallback, { ...defaultOptions, frameRate: 1 })
   );
 
-  expect(mockCallback).toHaveBeenCalledTimes(0);
+  expect(mockCallback).not.toHaveBeenCalled();
 
   jest.advanceTimersByTime(FRAME_TIME);
 
-  expect(mockCallback).toHaveBeenCalledTimes(0);
+  expect(mockCallback).not.toHaveBeenCalled();
 
   jest.advanceTimersByTime(FRAME_TIME * 60);
 

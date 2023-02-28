@@ -36,8 +36,9 @@ const useAnimation = (
 
     if (isActive) {
       requestRef.current = requestAnimationFrame(requestCallback);
-      return () => cancelAnimationFrame(requestRef.current);
     }
+
+    return () => cancelAnimationFrame(requestRef.current);
   }, [callback, frameRate, isActive]);
 };
 
