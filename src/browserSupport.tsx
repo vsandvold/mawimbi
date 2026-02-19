@@ -10,7 +10,7 @@ const browserSupport: BrowserSupportContext = {
     'ontouchstart' in window ||
     navigator.maxTouchPoints > 0 ||
     (navigator as any).msMaxTouchPoints > 0,
-  webkitOfflineAudioContext: window.hasOwnProperty('webkitOfflineAudioContext'),
+  webkitOfflineAudioContext: 'webkitOfflineAudioContext' in window,
 };
 
 export const BrowserSupport =
@@ -20,7 +20,7 @@ export const useBrowserSupport = () => {
   return useContext(BrowserSupport);
 };
 
-type BrowserSupportProviderProps = React.PropsWithChildren<{}>;
+type BrowserSupportProviderProps = React.PropsWithChildren;
 
 export const BrowserSupportProvider = (props: BrowserSupportProviderProps) => {
   return (

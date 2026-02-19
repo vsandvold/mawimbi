@@ -1,7 +1,6 @@
 import { fireEvent } from '@testing-library/react';
 import { renderHook } from '@testing-library/react';
 import { vi } from 'vitest';
-import AudioService from '../../../services/AudioService';
 import { mockTrack } from '../../../testUtils';
 import {
   useMutedTracks,

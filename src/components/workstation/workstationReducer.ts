@@ -26,7 +26,7 @@ export const TOGGLE_RECORDING = 'TOGGLE_RECORDING';
 
 export function workstationReducer(
   state: WorkstationState,
-  [type, payload]: WorkstationAction
+  [type, payload]: WorkstationAction,
 ): WorkstationState {
   switch (type) {
     case SET_MUTED_TRACKS:
@@ -54,7 +54,7 @@ export function workstationReducer(
       return { ...state, isPlaying: false };
     case TOGGLE_MIXER:
       return { ...state, isMixerOpen: !state.isMixerOpen };
-    case TOGGLE_PLAYBACK:
+    case TOGGLE_PLAYBACK: {
       const isEndOfPlayback =
         state.transportTime.toFixed(1) === state.totalTime.toFixed(1);
       if (isEndOfPlayback && !state.isPlaying) {
@@ -62,6 +62,7 @@ export function workstationReducer(
       } else {
         return { ...state, isPlaying: !state.isPlaying };
       }
+    }
     case TOGGLE_RECORDING:
       return { ...state, isRecording: !state.isRecording };
     default:
@@ -71,14 +72,14 @@ export function workstationReducer(
 
 function setMutedTracksOrBail(
   previousMutedTracks: TrackId[],
-  currentMutedTracks: TrackId[]
+  currentMutedTracks: TrackId[],
 ) {
   const hasEqualLength =
     previousMutedTracks.length === currentMutedTracks.length;
   const isArrayEqual =
     hasEqualLength &&
     previousMutedTracks.every(
-      (value, index) => value === currentMutedTracks[index]
+      (value, index) => value === currentMutedTracks[index],
     );
   return isArrayEqual ? previousMutedTracks : currentMutedTracks;
 }
