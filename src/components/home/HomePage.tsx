@@ -1,14 +1,14 @@
 import { Button, Typography } from 'antd';
 import React from 'react';
-import { useHistory } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { PageContent, PageLayout } from '../layout/PageLayout';
 import './HomePage.css';
 
 const HomePage = () => {
-  const history = useHistory();
+  const navigate = useNavigate();
 
   function handleClick() {
-    history.push('/project');
+    navigate('/project');
   }
 
   const { Title, Text } = Typography;

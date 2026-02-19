@@ -1,6 +1,6 @@
 import { App as AntApp, ConfigProvider, message, theme } from 'antd';
 import React from 'react';
-import ReactDOM from 'react-dom';
+import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { BrowserSupportProvider } from './browserSupport';
 import App from './components/App';
@@ -11,7 +11,8 @@ AudioService.startAudio()
   .then(() => console.log('audio is ready'))
   .catch(() => message.error('failed to start audio'));
 
-ReactDOM.render(
+const root = createRoot(document.getElementById('root')!);
+root.render(
   <ConfigProvider theme={{ algorithm: theme.darkAlgorithm }}>
     <AntApp>
       <BrowserSupportProvider>
@@ -21,5 +22,4 @@ ReactDOM.render(
       </BrowserSupportProvider>
     </AntApp>
   </ConfigProvider>,
-  document.getElementById('root'),
 );

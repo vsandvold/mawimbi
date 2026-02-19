@@ -11,7 +11,7 @@ type WaveformProps = {
 
 const Waveform = ({ height, pixelsPerSecond, track }: WaveformProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const waveformRef = useRef<WaveSurfer>();
+  const waveformRef = useRef<WaveSurfer | undefined>(undefined);
 
   const { trackId, color, volume } = track;
 

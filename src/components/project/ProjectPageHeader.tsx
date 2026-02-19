@@ -6,7 +6,7 @@ import {
 import { Button, Dropdown, Typography, Upload } from 'antd';
 import type { MenuProps } from 'antd';
 import React from 'react';
-import { useHistory } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import './ProjectPageHeader.css';
 
 type ProjectPageHeaderProps = {
@@ -17,7 +17,7 @@ type ProjectPageHeaderProps = {
 };
 
 const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
-  const history = useHistory();
+  const navigate = useNavigate();
 
   return (
     <div className="project-page-header">
@@ -26,7 +26,7 @@ const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
         className="button back-button"
         icon={<ArrowLeftOutlined />}
         aria-label="Back"
-        onClick={() => history.goBack()}
+        onClick={() => navigate(-1)}
       />
       <Typography.Title level={5} className="project-page-header__title">
         {props.title}

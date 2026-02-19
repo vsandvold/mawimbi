@@ -1,6 +1,6 @@
 import { fireEvent, render } from '@testing-library/react';
 import React from 'react';
-import { useHistory } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { vi } from 'vitest';
 import ProjectPageHeader from '../ProjectPageHeader';
 
@@ -29,8 +29,8 @@ it('navigates back from project page', () => {
   const backButton = container.querySelector('[aria-label="Back"]');
   fireEvent.click(backButton as Element);
 
-  const history = useHistory();
-  expect(history.goBack).toHaveBeenCalledTimes(1);
+  const navigate = useNavigate();
+  expect(navigate).toHaveBeenCalledWith(-1);
 });
 
 it('accepts multiple audio files for upload', () => {

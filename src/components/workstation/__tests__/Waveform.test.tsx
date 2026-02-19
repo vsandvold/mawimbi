@@ -4,11 +4,27 @@ import WaveSurfer from 'wavesurfer.js';
 import { mockTrack } from '../../../testUtils';
 import Waveform from '../Waveform';
 
+const { mockRetrieveAudioBuffer } = vi.hoisted(() => ({
+  mockRetrieveAudioBuffer: vi.fn(),
+}));
+
+vi.mock('../../../hooks/useAudioService', () => ({
+  useAudioService: () => ({
+    retrieveAudioBuffer: mockRetrieveAudioBuffer,
+  }),
+}));
+
 const defaultProps = {
   height: 128,
   pixelsPerSecond: 200,
   track: mockTrack(),
 };
+
+beforeEach(() => {
+  mockRetrieveAudioBuffer.mockReturnValue(
+    (defaultProps.track as any).audioBuffer,
+  );
+});
 
 it('renders without crashing', () => {
   render(<Waveform {...defaultProps} />);

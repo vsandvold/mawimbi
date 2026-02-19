@@ -3,9 +3,45 @@ import { vi } from 'vitest';
 
 window.TONE_SILENCE_LOGGING = true;
 
-const { mockHistoryGoBack, mockHistoryPush } = vi.hoisted(() => ({
-  mockHistoryGoBack: vi.fn(),
-  mockHistoryPush: vi.fn(),
+vi.mock('tone', () => {
+  const makeNode = () => ({
+    connect: vi.fn().mockReturnThis(),
+    chain: vi.fn().mockReturnThis(),
+    sync: vi.fn().mockReturnThis(),
+    start: vi.fn().mockReturnThis(),
+    toDestination: vi.fn().mockReturnThis(),
+    dispose: vi.fn(),
+    mute: false,
+    solo: false,
+    volume: { rampTo: vi.fn() },
+    state: 'stopped',
+    getValue: vi.fn().mockReturnValue(0),
+    open: vi.fn().mockResolvedValue(undefined),
+    close: vi.fn(),
+    stop: vi.fn().mockResolvedValue(new Blob()),
+  });
+  return {
+    Meter: vi.fn().mockImplementation(makeNode),
+    UserMedia: vi.fn().mockImplementation(makeNode),
+    Player: vi.fn().mockImplementation(makeNode),
+    Channel: vi.fn().mockImplementation(makeNode),
+    Recorder: vi
+      .fn()
+      .mockImplementation(() => ({ ...makeNode(), state: 'stopped' })),
+    Transport: {
+      start: vi.fn(),
+      stop: vi.fn(),
+      pause: vi.fn(),
+      seconds: 0,
+      state: 'stopped',
+    },
+    start: vi.fn().mockResolvedValue(undefined),
+    context: { decodeAudioData: vi.fn().mockResolvedValue({}) },
+  };
+});
+
+const { mockNavigate } = vi.hoisted(() => ({
+  mockNavigate: vi.fn(),
 }));
 
 vi.mock('react-router-dom', async () => {
@@ -15,10 +51,7 @@ vi.mock('react-router-dom', async () => {
     );
   return {
     ...actual,
-    useHistory: () => ({
-      goBack: mockHistoryGoBack,
-      push: mockHistoryPush,
-    }),
+    useNavigate: () => mockNavigate,
     useLocation: () => ({
       pathname: 'path',
     }),

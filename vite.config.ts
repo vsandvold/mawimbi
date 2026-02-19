@@ -8,5 +8,11 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: ['./src/setupTests.ts'],
+    clearMocks: true,
+    server: {
+      deps: {
+        inline: ['tone'],
+      },
+    },
   },
 });

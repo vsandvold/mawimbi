@@ -10,12 +10,12 @@ const defaultOptions: ThrottledOptions = {
 
 const useThrottled = (
   callback: (value: any) => void,
-  { timeoutMs } = defaultOptions
+  { timeoutMs } = defaultOptions,
 ) => {
   const timeoutRef = useRef<number | null>(null);
 
   const throttled = useCallback(
-    (value) => {
+    (value: any) => {
       if (timeoutRef.current) {
         return;
       }
@@ -24,7 +24,7 @@ const useThrottled = (
         timeoutRef.current = null;
       }, timeoutMs);
     },
-    [callback, timeoutMs]
+    [callback, timeoutMs],
   );
 
   return throttled;

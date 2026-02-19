@@ -11,7 +11,7 @@ type SpectrogramProps = {
 };
 
 const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
-  const analyserRef = useRef<OfflineAnalyser>();
+  const analyserRef = useRef<OfflineAnalyser | undefined>(undefined);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const { trackId, color, volume } = track;
@@ -38,11 +38,11 @@ const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
         canvasRef.current,
         color,
         canvasHeight,
-        heightFactor
+        heightFactor,
       );
       const renderCallback = (
         frequencyData: Uint8Array,
-        currentTime: number
+        currentTime: number,
       ) => {
         const x = Math.trunc(currentTime / timeResolution);
         canvasRenderer.drawSpectrogramFrame(frequencyData, x);
@@ -89,7 +89,7 @@ class SpectrogramCanvasRenderer {
     canvas: HTMLCanvasElement,
     color: TrackColor,
     height: number,
-    heightFactor: number
+    heightFactor: number,
   ) {
     this.canvasContext = SpectrogramCanvasRenderer.createCanvasContext(canvas);
     this.colorMap = SpectrogramCanvasRenderer.createColorMap(color);
@@ -98,7 +98,7 @@ class SpectrogramCanvasRenderer {
   }
 
   private static createCanvasContext(
-    canvas: HTMLCanvasElement
+    canvas: HTMLCanvasElement,
   ): CanvasRenderingContext2D | null {
     const canvasContext = canvas.getContext('2d', {
       alpha: true,
@@ -131,7 +131,7 @@ class SpectrogramCanvasRenderer {
         x,
         this.height - i * this.heightFactor,
         1,
-        this.heightFactor
+        this.heightFactor,
       );
     }
   }

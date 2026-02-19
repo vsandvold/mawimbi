@@ -82,9 +82,9 @@ it('applies animation class to mixer icon when mixer is open', () => {
     <Toolbar {...{ ...defaultProps, isMixerOpen: true }} />,
   );
 
-  const mixerIcon = getByTitle('Hide mixer').firstChild;
+  const mixerButton = getByTitle('Hide mixer');
 
-  expect(mixerIcon).toHaveClass('show-mixer');
+  expect(mixerButton.querySelector('.show-mixer')).toBeInTheDocument();
 });
 
 it('toggles playback when play/pause button is clicked', () => {

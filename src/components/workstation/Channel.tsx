@@ -22,18 +22,19 @@ import useWorkstationDispatch from './useWorkstationDispatch';
 import { SET_TRACK_FOCUS, SET_TRACK_UNFOCUS } from './workstationReducer';
 
 type ChannelProps = {
+  dragHandleProps?: Record<string, unknown>;
   isMuted: boolean;
   track: Track;
 };
 
-const Channel = ({ isMuted, track, ...dragHandleProps }: ChannelProps) => {
+const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
   const audioService = useAudioService();
   const projectDispatch = useProjectDispatch();
   const workstationDispatch = useWorkstationDispatch();
 
   const { trackId, color, volume, mute, solo } = track;
 
-  const channelRef = useRef<AudioChannel>();
+  const channelRef = useRef<AudioChannel | undefined>(undefined);
 
   useEffect(() => {
     channelRef.current = audioService.mixer.retrieveChannel(trackId);
