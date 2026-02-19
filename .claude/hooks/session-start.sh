@@ -8,8 +8,11 @@ fi
 
 cd "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
 
-echo "Installing npm dependencies..."
-npm install
+# Only install if node_modules is missing or package-lock.json has changed
+if [ ! -d node_modules ] || [ package-lock.json -nt node_modules ]; then
+  echo "Installing npm dependencies..."
+  npm install
+fi
 
 # Install Netlify CLI if not present
 if ! type netlify &>/dev/null; then
