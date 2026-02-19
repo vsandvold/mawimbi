@@ -11,32 +11,28 @@ type WaveformProps = {
 
 const Waveform = ({ height, pixelsPerSecond, track }: WaveformProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const waveformRef = useRef<WaveSurfer>();
+  const waveformRef = useRef<WaveSurfer | undefined>(undefined);
 
   const { trackId, color, volume } = track;
 
   const audioService = useAudioService();
 
   useEffect(() => {
-    const defaultParams = {
-      backgroundColor: 'transparent',
-      cursorColor: 'transparent',
-      fillParent: false,
-      scrollParent: false,
-      interact: false,
-    };
+    if (!containerRef.current) return;
     const { r, g, b } = color;
     const waveColor = `rgb(${r},${g},${b})`;
     waveformRef.current = WaveSurfer.create({
-      ...defaultParams,
       container: containerRef.current,
       height,
       minPxPerSec: pixelsPerSecond,
       waveColor,
+      cursorColor: 'transparent',
+      fillParent: false,
+      interact: false,
     });
-    const audioBuffer = audioService.retrieveAudioBuffer(trackId);
-    if (audioBuffer) {
-      waveformRef.current.loadDecodedBuffer(audioBuffer);
+    const blobUrl = audioService.retrieveBlobUrl(trackId);
+    if (blobUrl) {
+      waveformRef.current.load(blobUrl);
     }
     return () => {
       waveformRef.current?.destroy();

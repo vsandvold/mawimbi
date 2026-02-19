@@ -1,6 +1,6 @@
 import { fireEvent, render } from '@testing-library/react';
 import React from 'react';
-import { useHistory } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import HomePage from '../HomePage';
 
 it('renders create project button', () => {
@@ -11,6 +11,6 @@ it('renders create project button', () => {
 
   fireEvent.click(buttonElement);
 
-  const history = useHistory();
-  expect(history.push).toHaveBeenCalledWith('/project');
+  const navigate = useNavigate();
+  expect(navigate).toHaveBeenCalledWith('/project');
 });

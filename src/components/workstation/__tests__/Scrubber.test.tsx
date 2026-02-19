@@ -5,7 +5,7 @@ import Scrubber from '../Scrubber';
 import { WorkstationDispatch } from '../useWorkstationDispatch';
 import { STOP_AND_REWIND_PLAYBACK } from '../workstationReducer';
 
-const mockDispatch = jest.fn();
+const mockDispatch = vi.fn();
 
 const defaultProps = {
   drawerHeight: 0,
@@ -17,7 +17,7 @@ const defaultProps = {
 
 it('hides rewind button at start of playback', () => {
   const { getByTitle } = render(
-    <Scrubber {...{ ...defaultProps, transportTime: 0 }} />
+    <Scrubber {...{ ...defaultProps, transportTime: 0 }} />,
   );
 
   const rewindButton = getByTitle('Rewind');
@@ -30,7 +30,7 @@ it('hides rewind button at start of playback', () => {
 
 it('shows rewind button when playback has progressed', () => {
   const { getByTitle } = render(
-    <Scrubber {...{ ...defaultProps, transportTime: 100 }} />
+    <Scrubber {...{ ...defaultProps, transportTime: 100 }} />,
   );
 
   const rewindButton = getByTitle('Rewind');
@@ -45,7 +45,7 @@ it('stops and rewinds playback when rewind button is clicked', () => {
   const { getByTitle } = render(
     <WorkstationDispatch.Provider value={mockDispatch}>
       <Scrubber {...defaultProps} />
-    </WorkstationDispatch.Provider>
+    </WorkstationDispatch.Provider>,
   );
 
   const rewindButton = getByTitle('Rewind');
@@ -57,7 +57,7 @@ it('stops and rewinds playback when rewind button is clicked', () => {
 
 it('transforms timeline vertical scale when drawer is open', () => {
   const { container } = render(
-    <Scrubber {...{ ...defaultProps, drawerHeight: 120, isMixerOpen: true }} />
+    <Scrubber {...{ ...defaultProps, drawerHeight: 120, isMixerOpen: true }} />,
   );
 
   const progressCursor = container.querySelector('.scrubber__cursor');
@@ -69,12 +69,12 @@ it('transforms timeline vertical scale when drawer is open', () => {
   expect(rewindButton).toBeInTheDocument();
 
   expect(timeline?.outerHTML).toEqual(
-    expect.stringContaining('transform: scaleY')
+    expect.stringContaining('transform: scaleY'),
   );
   expect(progressCursor?.outerHTML).toEqual(
-    expect.stringContaining('transform: scaleY')
+    expect.stringContaining('transform: scaleY'),
   );
   expect(rewindButton?.outerHTML).toEqual(
-    expect.stringContaining('transform: translateY')
+    expect.stringContaining('transform: translateY'),
   );
 });

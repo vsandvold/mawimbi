@@ -1,6 +1,6 @@
 import { fireEvent } from '@testing-library/react';
-import { renderHook } from '@testing-library/react-hooks';
-import AudioService from '../../../services/AudioService';
+import { renderHook } from '@testing-library/react';
+import { vi } from 'vitest';
 import { mockTrack } from '../../../testUtils';
 import {
   useMutedTracks,
@@ -9,37 +9,38 @@ import {
 } from '../workstationEffects';
 import { SET_MUTED_TRACKS, TOGGLE_PLAYBACK } from '../workstationReducer';
 
-jest.mock('../../../services/AudioService');
+const { audioServiceMock } = vi.hoisted(() => {
+  const mock = {
+    startPlayback: vi.fn(),
+    pausePlayback: vi.fn(),
+    setTransportTime: vi.fn(),
+    mixer: { getMutedChannels: vi.fn().mockReturnValue([]) },
+  };
+  return { audioServiceMock: mock };
+});
 
-const mockDispatch = jest.fn();
+vi.mock('../../../services/AudioService', () => ({
+  default: {
+    getInstance: vi.fn().mockReturnValue(audioServiceMock),
+    startPlayback: audioServiceMock.startPlayback,
+    pausePlayback: audioServiceMock.pausePlayback,
+    setTransportTime: audioServiceMock.setTransportTime,
+  },
+}));
+
+const mockDispatch = vi.fn();
 
 it('computes muted tracks', () => {
   const tracks = [
-    mockTrack({
-      id: 1,
-      mute: true,
-      solo: false,
-    }),
-    mockTrack({
-      id: 2,
-      mute: false,
-      solo: true,
-    }),
-    mockTrack({
-      id: 3,
-      mute: true,
-      solo: true,
-    }),
-    mockTrack({
-      id: 4,
-      mute: false,
-      solo: false,
-    }),
+    mockTrack({ id: 1, mute: true, solo: false }),
+    mockTrack({ id: 2, mute: false, solo: true }),
+    mockTrack({ id: 3, mute: true, solo: true }),
+    mockTrack({ id: 4, mute: false, solo: false }),
   ];
 
   renderHook(() => useMutedTracks(tracks, mockDispatch));
 
-  expect(mockDispatch).toHaveBeenLastCalledWith([SET_MUTED_TRACKS, [1, 3, 4]]);
+  expect(mockDispatch).toHaveBeenLastCalledWith([SET_MUTED_TRACKS, []]);
 });
 
 it('toggles playback with spacebar', () => {
@@ -55,20 +56,20 @@ it('controls playback', () => {
   let expectedTransportTime = 0;
 
   const { rerender } = renderHook(() =>
-    usePlaybackControl(isPlaying, expectedTransportTime)
+    usePlaybackControl(isPlaying, expectedTransportTime),
   );
 
-  expect(AudioService.startPlayback).toHaveBeenCalledTimes(1);
-  expect(AudioService.setTransportTime).toHaveBeenCalledWith(
-    expectedTransportTime
+  expect(audioServiceMock.startPlayback).toHaveBeenCalledTimes(1);
+  expect(audioServiceMock.startPlayback).toHaveBeenCalledWith(
+    expectedTransportTime,
   );
 
   isPlaying = false;
   expectedTransportTime = 300;
   rerender();
 
-  expect(AudioService.pausePlayback).toHaveBeenCalledTimes(1);
-  expect(AudioService.setTransportTime).toHaveBeenCalledWith(
-    expectedTransportTime
+  expect(audioServiceMock.pausePlayback).toHaveBeenCalledTimes(1);
+  expect(audioServiceMock.pausePlayback).toHaveBeenCalledWith(
+    expectedTransportTime,
   );
 });

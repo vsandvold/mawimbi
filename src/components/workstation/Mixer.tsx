@@ -1,10 +1,17 @@
-import React from 'react';
 import {
-  DragDropContext,
-  Draggable,
-  Droppable,
-  DropResult,
-} from 'react-beautiful-dnd';
+  DndContext,
+  DragEndEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import React from 'react';
 import { MOVE_TRACK, Track, TrackId } from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
 import Channel from './Channel';
@@ -15,76 +22,68 @@ type MixerProps = {
   tracks: Track[];
 };
 
-// TODO: refactor into HOC (DroppableMixer and DraggableChannel)
 const Mixer = (mixerProps: MixerProps) => {
   const { tracks } = mixerProps;
   const projectDispatch = useProjectDispatch();
+  const sensors = useSensors(useSensor(PointerSensor));
 
-  function onDragEnd(result: DropResult) {
-    if (!result.destination) {
-      return;
-    }
-    if (result.destination.index === result.source.index) {
-      return;
-    }
+  const reversedTracks = tracks.slice().reverse();
+  const reversedIds = reversedTracks.map((t) => t.trackId);
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
     const offset = tracks.length - 1;
-    const fromIndex = offset - result.source.index;
-    const toIndex = offset - result.destination.index;
+    const oldRevIdx = reversedIds.indexOf(active.id as TrackId);
+    const newRevIdx = reversedIds.indexOf(over.id as TrackId);
+    const fromIndex = offset - oldRevIdx;
+    const toIndex = offset - newRevIdx;
     projectDispatch([MOVE_TRACK, { fromIndex, toIndex }]);
   }
 
   return (
-    <DragDropContext onDragEnd={onDragEnd}>
-      <Droppable droppableId="channelList">
-        {(provided) => (
-          <div
-            className="mixer"
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-          >
-            <ChannelList {...mixerProps} />
-            {provided.placeholder}
-          </div>
-        )}
-      </Droppable>
-    </DragDropContext>
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+      <SortableContext
+        items={reversedIds}
+        strategy={verticalListSortingStrategy}
+      >
+        <div className="mixer">
+          {reversedTracks.map((track) => (
+            <SortableChannelItem
+              key={track.trackId}
+              track={track}
+              isMuted={mixerProps.mutedTracks.includes(track.trackId)}
+            />
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
   );
 };
 
-// TODO: add custom drag handle to Channel
-const ChannelList = ({ mutedTracks, tracks }: MixerProps) => {
-  const reversedTracks = tracks
-    .slice() // Make a copy of the array, because reverse is done in place.
-    .reverse();
-  const offset = tracks.length - 1;
+type SortableChannelItemProps = {
+  track: Track;
+  isMuted: boolean;
+};
+
+const SortableChannelItem = ({ track, isMuted }: SortableChannelItemProps) => {
+  const { attributes, listeners, setNodeRef, transform, transition } =
+    useSortable({ id: track.trackId });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
   return (
-    <>
-      {reversedTracks.map((track) => {
-        const reversedIdx = offset - track.index;
-        const isMuted = mutedTracks.includes(track.trackId);
-        return (
-          <Draggable
-            key={track.trackId}
-            draggableId={track.trackId.toString()}
-            index={reversedIdx}
-          >
-            {(provided) => (
-              <div
-                className="mixer__channel"
-                ref={provided.innerRef}
-                {...provided.draggableProps}
-              >
-                <MemoizedChannel
-                  isMuted={isMuted}
-                  track={track}
-                  {...provided.dragHandleProps}
-                />
-              </div>
-            )}
-          </Draggable>
-        );
-      })}
-    </>
+    <div className="mixer__channel" ref={setNodeRef} style={style}>
+      <MemoizedChannel
+        isMuted={isMuted}
+        track={track}
+        dragHandleProps={{ ...attributes, ...listeners }}
+      />
+    </div>
   );
 };
 

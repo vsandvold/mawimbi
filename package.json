@@ -2,55 +2,57 @@
   "name": "mawimbi",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "dependencies": {
-    "@ant-design/dark-theme": "^2.0.2",
-    "@testing-library/jest-dom": "^5.11.6",
-    "@testing-library/react": "^11.2.2",
-    "@testing-library/user-event": "^12.2.2",
-    "@types/classnames": "^2.2.11",
-    "@types/jest": "^26.0.15",
-    "@types/node": "^12.19.7",
-    "@types/react": "^16.9.53",
-    "@types/react-beautiful-dnd": "^13.0.0",
-    "@types/react-dom": "^16.9.8",
-    "@types/react-router-dom": "^5.1.5",
-    "@types/uuid": "^8.3.0",
-    "antd": "^4.8.6",
-    "babel-plugin-import": "^1.13.3",
-    "classnames": "^2.2.6",
-    "customize-cra": "^1.0.0",
-    "husky": "^4.3.0",
-    "less": "^3.12.2",
-    "less-loader": "^7.1.0",
-    "lint-staged": "^10.5.2",
-    "prettier": "^2.2.1",
-    "react": "^16.13.1",
-    "react-app-rewired": "^2.1.6",
-    "react-beautiful-dnd": "^13.0.0",
-    "react-dom": "^16.13.1",
-    "react-dropzone": "^11.0.1",
-    "react-full-screen": "^0.3.1",
-    "react-router-dom": "^5.1.2",
-    "react-scripts": "^4.0.1",
-    "react-test-renderer": "^16.13.1",
-    "standardized-audio-context-mock": "^8.3.4",
-    "tone": "^14.7.58",
-    "typescript": "^3.9.7",
-    "uuid": "^8.3.1",
-    "wavesurfer.js": "^3.3.3",
-    "web-vitals": "^0.2.4"
+    "@ant-design/icons": "^5.3.7",
+    "@dnd-kit/core": "^6.1.0",
+    "@dnd-kit/sortable": "^8.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@eslint/js": "^9.0.0",
+    "@testing-library/jest-dom": "^6.4.6",
+    "@testing-library/react": "^16.0.0",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/uuid": "^9.0.8",
+    "@vitejs/plugin-react": "^4.3.0",
+    "antd": "^5.17.4",
+    "classnames": "^2.3.3",
+    "eslint": "^9.0.0",
+    "eslint-plugin-react": "^7.34.3",
+    "eslint-plugin-react-hooks": "^5.0.0",
+    "globals": "^15.0.0",
+    "husky": "^9.0.0",
+    "jsdom": "^24.1.1",
+    "lint-staged": "^15.2.7",
+    "prettier": "^3.3.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-dropzone": "^14.2.3",
+    "react-full-screen": "^1.1.0",
+    "react-router-dom": "^7.0.0",
+    "standardized-audio-context-mock": "^9.7.20",
+    "tone": "^14.7.77",
+    "typescript": "^5.4.5",
+    "typescript-eslint": "^8.0.0",
+    "uuid": "^9.0.1",
+    "vite": "^5.2.11",
+    "vite-plugin-svgr": "^4.2.0",
+    "vitest": "^1.6.0",
+    "wavesurfer.js": "^7.0.0"
   },
   "scripts": {
-    "start": "react-app-rewired start",
-    "build": "react-app-rewired build",
-    "test": "react-app-rewired test",
-    "coverage": "react-app-rewired test --coverage"
-  },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
+    "start": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "lint": "eslint src",
+    "test": "vitest",
+    "coverage": "vitest run --coverage",
+    "prepare": "husky"
   },
   "browserslist": {
     "production": [
@@ -64,13 +66,12 @@
       "last 1 safari version"
     ]
   },
-  "husky": {
-    "hooks": {
-      "pre-commit": "lint-staged"
-    }
-  },
   "lint-staged": {
-    "src/**/*.{js,jsx,ts,tsx,json,css,scss,md}": [
+    "src/**/*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "src/**/*.{js,jsx,json,css,scss,md}": [
       "prettier --write"
     ]
   },

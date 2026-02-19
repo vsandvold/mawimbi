@@ -1,19 +1,19 @@
-import { renderHook } from '@testing-library/react-hooks';
+import { renderHook } from '@testing-library/react';
 import useDebounced from '../useDebounced';
 
 beforeAll(() => {
-  jest.useFakeTimers();
+  vi.useFakeTimers();
 });
 
 afterEach(() => {
-  jest.clearAllTimers();
+  vi.clearAllTimers();
 });
 
 afterAll(() => {
-  jest.useRealTimers();
+  vi.useRealTimers();
 });
 
-const mockCallback = jest.fn();
+const mockCallback = vi.fn();
 
 const defaultOptions = {
   timeoutMs: 100,
@@ -21,26 +21,26 @@ const defaultOptions = {
 
 it('debounces callback within timeout', () => {
   const { result } = renderHook(() =>
-    useDebounced(mockCallback, { ...defaultOptions, timeoutMs: 100 })
+    useDebounced(mockCallback, { ...defaultOptions, timeoutMs: 100 }),
   );
 
   const debouncedCallback = result.current;
 
   debouncedCallback();
-  jest.advanceTimersByTime(50);
+  vi.advanceTimersByTime(50);
 
   debouncedCallback();
-  jest.advanceTimersByTime(50);
+  vi.advanceTimersByTime(50);
 
   debouncedCallback();
-  jest.advanceTimersByTime(50);
+  vi.advanceTimersByTime(50);
 
   debouncedCallback();
-  jest.advanceTimersByTime(50);
+  vi.advanceTimersByTime(50);
 
   expect(mockCallback).toHaveBeenCalledTimes(0);
 
-  jest.advanceTimersByTime(50);
+  vi.advanceTimersByTime(50);
 
   expect(mockCallback).toHaveBeenCalledTimes(1);
 });
@@ -48,13 +48,13 @@ it('debounces callback within timeout', () => {
 it('updates callback when dependencies change', () => {
   const { result, rerender } = renderHook(
     ({ options }) => useDebounced(mockCallback, options),
-    { initialProps: { options: { ...defaultOptions, timeoutMs: 10 } } }
+    { initialProps: { options: { ...defaultOptions, timeoutMs: 10 } } },
   );
 
   let debouncedCallback = result.current;
 
   debouncedCallback();
-  jest.advanceTimersByTime(10);
+  vi.advanceTimersByTime(10);
 
   expect(mockCallback).toHaveBeenCalledTimes(1);
 
@@ -63,11 +63,11 @@ it('updates callback when dependencies change', () => {
   debouncedCallback = result.current;
 
   debouncedCallback();
-  jest.advanceTimersByTime(10);
+  vi.advanceTimersByTime(10);
 
   expect(mockCallback).toHaveBeenCalledTimes(1);
 
-  jest.advanceTimersByTime(90);
+  vi.advanceTimersByTime(90);
 
   expect(mockCallback).toHaveBeenCalledTimes(2);
 });
@@ -80,7 +80,7 @@ it('has fallback to default timeout option', () => {
   expect(mockCallback).toHaveBeenCalledTimes(0);
 
   debouncedCallback();
-  jest.advanceTimersByTime(100);
+  vi.advanceTimersByTime(100);
 
   expect(mockCallback).toHaveBeenCalledTimes(1);
 });

@@ -15,6 +15,7 @@ function startAudioContext(this: any, event: Event): void {
 type AudioSource = {
   id: string;
   audioBuffer: AudioBuffer;
+  blobUrl: string;
 };
 
 class AudioService {
@@ -44,7 +45,7 @@ class AudioService {
     return new Promise((resolve, reject) => {
       clickElement.addEventListener(
         'click',
-        startAudioContext.bind({ resolve, reject })
+        startAudioContext.bind({ resolve, reject }),
       );
     });
   }
@@ -52,16 +53,23 @@ class AudioService {
   async createTrack(arrayBuffer: ArrayBuffer): Promise<string> {
     const audioBuffer = await Tone.context.decodeAudioData(arrayBuffer);
     const trackId = uuidv4();
+    const blob = new Blob([arrayBuffer], { type: 'audio/*' });
+    const blobUrl = URL.createObjectURL(blob);
     this.mixer.createChannel(trackId, audioBuffer);
     this.audioSourceRepository.add({
       id: trackId,
       audioBuffer,
+      blobUrl,
     });
     return trackId;
   }
 
   retrieveAudioBuffer(trackId: string): AudioBuffer | undefined {
     return this.audioSourceRepository.get(trackId)?.audioBuffer;
+  }
+
+  retrieveBlobUrl(trackId: string): string | undefined {
+    return this.audioSourceRepository.get(trackId)?.blobUrl;
   }
 
   startPlayback(transportTime?: number): void {

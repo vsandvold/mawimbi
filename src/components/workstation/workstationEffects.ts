@@ -13,7 +13,7 @@ import {
 
 export const useMutedTracks = (
   tracks: Track[],
-  dispatch: React.Dispatch<WorkstationAction>
+  dispatch: React.Dispatch<WorkstationAction>,
 ) => {
   const audioService = useAudioService();
   useEffect(() => {
@@ -23,7 +23,7 @@ export const useMutedTracks = (
 };
 
 export const useSpacebarPlaybackToggle = (
-  dispatch: React.Dispatch<WorkstationAction>
+  dispatch: React.Dispatch<WorkstationAction>,
 ) => {
   useKeypress(() => dispatch([TOGGLE_PLAYBACK]), {
     targetKey: ' ',
@@ -32,7 +32,7 @@ export const useSpacebarPlaybackToggle = (
 
 export const usePlaybackControl = (
   isPlaying: boolean,
-  transportTime: number
+  transportTime: number,
 ) => {
   const audioService = useAudioService();
   useEffect(() => {
@@ -46,7 +46,7 @@ export const usePlaybackControl = (
 
 export const useTotalTime = (
   tracks: Track[],
-  dispatch: React.Dispatch<WorkstationAction>
+  dispatch: React.Dispatch<WorkstationAction>,
 ) => {
   const audioService = useAudioService();
   useEffect(() => {
@@ -65,7 +65,7 @@ export const useMicrophone = (isRecording: boolean) => {
         await audioService.microphone.open();
         await audioService.startRecording();
         msg.success('Recording started');
-      } catch (error) {
+      } catch {
         msg.error('Recording failed');
       }
     };
@@ -79,7 +79,7 @@ export const useMicrophone = (isRecording: boolean) => {
         projectDispatch([ADD_TRACK, { trackId, fileName: 'New Track' }]);
         audioService.microphone.close();
         msg.success('Recording stopped');
-      } catch (error) {
+      } catch {
         msg.error('Recording failed');
       }
     };

@@ -1,7 +1,8 @@
-import message from '../message';
 import { message as antdMessage } from 'antd';
+import { vi } from 'vitest';
+import message from '../message';
 
-jest.spyOn(antdMessage, 'success');
+vi.spyOn(antdMessage, 'success');
 
 it('renders message with given content and key', () => {
   const msg = message({ key: 'messageKey' });
@@ -22,6 +23,6 @@ it('has fallback to default message key', () => {
   expect(antdMessage.success).toHaveBeenCalledWith(
     expect.objectContaining({
       content: 'it works!',
-    })
+    }),
   );
 });
