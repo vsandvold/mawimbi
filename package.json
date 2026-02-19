@@ -51,6 +51,7 @@
     "preview": "vite preview",
     "lint": "eslint src",
     "test": "vitest",
+    "test:e2e": "playwright test",
     "coverage": "vitest run --coverage",
     "prepare": "husky"
   },
@@ -77,5 +78,8 @@
   },
   "prettier": {
     "singleQuote": true
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.56.1"
   }
 }

@@ -9,6 +9,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/setupTests.ts'],
     clearMocks: true,
+    exclude: ['**/node_modules/**', 'e2e/**'],
     server: {
       deps: {
         inline: ['tone'],
