@@ -9,27 +9,30 @@ Mawimbi is a web-based music creation and audio editing application built with R
 ## Commands
 
 ```bash
-yarn start        # Dev server at http://localhost:3000
-yarn build        # Production build
-yarn test         # Jest in watch mode
-yarn coverage     # Tests with coverage report
+npm start         # Dev server at http://localhost:5173
+npm run build     # Production build (tsc + vite build)
+npm run lint      # ESLint
+npm test          # Vitest in watch mode
+npm run coverage  # Tests with coverage report
 ```
 
 To run a single test file:
 ```bash
-yarn test -- --testPathPattern="<filename>"
+npm test -- src/path/to/File.test.tsx
 ```
 
-There is no separate lint command; ESLint runs via CRA's built-in integration. Prettier runs automatically on pre-commit via husky + lint-staged.
+Prettier runs automatically on pre-commit via Husky + lint-staged (ESLint --fix + prettier --write on staged TS/TSX files).
 
 ## Tech Stack
 
-- **React 16** with TypeScript 3.9, bootstrapped with Create React App (customized via react-app-rewired)
-- **Tone.js** for audio engine (playback, recording, transport)
-- **WaveSurfer.js** for waveform visualization (with spectrogram fallback)
-- **Ant Design** with dark theme (configured in `config-overrides.js` via Less)
-- **Node 12.16.3** (see `.nvmrc`)
-- **Yarn** as package manager
+- **React 19** with TypeScript 5, built with **Vite 5**
+- **Tone.js 14** for audio engine (playback, recording, transport)
+- **WaveSurfer.js 7** for waveform visualization
+- **Ant Design 5** with dark theme (CSS-in-JS via `ConfigProvider + theme.darkAlgorithm`)
+- **React Router 7** (library mode) for routing
+- **@dnd-kit** for drag-and-drop track reordering in the Mixer
+- **Node 22 LTS** (see `.nvmrc`)
+- **npm** as package manager
 
 ## Architecture
 
@@ -49,7 +52,7 @@ Side effects (file upload, audio playback, recording) are handled in separate `*
 - `MicrophoneUserMedia` — wraps `Tone.UserMedia` for recording
 - `OfflineAnalyser` — generates waveform/spectrogram data offline
 
-Audio flow: upload → decode `AudioBuffer` → `Mixer.createChannel()` → `Tone.Transport` controls playback → WaveSurfer renders visualization.
+Audio flow: upload → decode `AudioBuffer` + create Blob URL → `Mixer.createChannel()` → `Tone.Transport` controls playback → WaveSurfer 7 renders waveform via `load(blobUrl)`.
 
 ### Component Structure
 
@@ -61,7 +64,7 @@ Audio flow: upload → decode `AudioBuffer` → `Mixer.createChannel()` → `Ton
 
 ### Routing
 
-React Router v5 with three routes: Home (`/`), Project (`/project`), and a 404 catch-all.
+React Router v7 (library mode) with three routes: Home (`/`), Project (`/project`), and a 404 catch-all.
 
 ## Code Conventions
 
@@ -74,4 +77,9 @@ React Router v5 with three routes: Home (`/`), Project (`/project`), and a 404 c
 
 ## Testing
 
-React Testing Library + Jest. Test setup (`setupTests.ts`) mocks `react-router-dom` (useHistory, useLocation) and `wavesurfer.js` globally, and silences Tone.js logging.
+Vitest + React Testing Library. Test setup (`setupTests.ts`) globally mocks:
+- `tone` — prevents Web Audio API initialization in jsdom
+- `wavesurfer.js` — mock `create()` returning `{ load, destroy }` fns
+- `react-router-dom` — mock `useNavigate` and `useLocation`
+
+`clearMocks: true` in `vite.config.ts` resets mock call counts between tests.
