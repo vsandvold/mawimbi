@@ -51,8 +51,9 @@
     "preview": "vite preview",
     "lint": "eslint src",
     "test": "vitest",
-    "test:e2e": "playwright test",
     "coverage": "vitest run --coverage",
+    "test:e2e": "playwright test",
+    "test:e2e:update": "playwright test --update-snapshots",
     "prepare": "husky"
   },
   "browserslist": {
@@ -80,6 +81,6 @@
     "singleQuote": true
   },
   "devDependencies": {
-    "@playwright/test": "^1.56.1"
+    "@playwright/test": "^1.56.0"
   }
 }
