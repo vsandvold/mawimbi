@@ -10,6 +10,8 @@
 
 # production
 /build
+/dist
+tsconfig.tsbuildinfo
 
 # Optional eslint cache
 .eslintcache

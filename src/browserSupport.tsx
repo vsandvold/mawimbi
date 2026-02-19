@@ -9,13 +9,12 @@ const browserSupport: BrowserSupportContext = {
   touchEvents:
     'ontouchstart' in window ||
     navigator.maxTouchPoints > 0 ||
-    navigator.msMaxTouchPoints > 0,
+    (navigator as any).msMaxTouchPoints > 0,
   webkitOfflineAudioContext: window.hasOwnProperty('webkitOfflineAudioContext'),
 };
 
-export const BrowserSupport = createContext<BrowserSupportContext>(
-  browserSupport
-);
+export const BrowserSupport =
+  createContext<BrowserSupportContext>(browserSupport);
 
 export const useBrowserSupport = () => {
   return useContext(BrowserSupport);

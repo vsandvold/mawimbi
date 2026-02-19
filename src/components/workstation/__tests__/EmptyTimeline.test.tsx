@@ -1,9 +1,10 @@
-import React from 'react';
 import { render } from '@testing-library/react';
-import EmptyTimeline from '../EmptyTimeline';
+import React from 'react';
+import { vi } from 'vitest';
 import { useBrowserSupport } from '../../../browserSupport';
+import EmptyTimeline from '../EmptyTimeline';
 
-jest.mock('../../../browserSupport');
+vi.mock('../../../browserSupport');
 
 const defaultProps = {
   isDragActive: false,
@@ -16,21 +17,23 @@ it('renders nothing is drag is activate', () => {
 });
 
 it('renders message for desktop devices', () => {
-  (useBrowserSupport as jest.Mock).mockImplementationOnce(() => ({
+  vi.mocked(useBrowserSupport).mockImplementationOnce(() => ({
     touchEvents: false,
+    webkitOfflineAudioContext: true,
   }));
 
   const { getByText } = render(<EmptyTimeline {...defaultProps} />);
   const desktopMessage = getByText(
-    'Drop files here, or use the upload button above'
+    'Drop files here, or use the upload button above',
   );
 
   expect(desktopMessage).toBeInTheDocument();
 });
 
 it('renders message for touch devices', () => {
-  (useBrowserSupport as jest.Mock).mockImplementationOnce(() => ({
+  vi.mocked(useBrowserSupport).mockImplementationOnce(() => ({
     touchEvents: true,
+    webkitOfflineAudioContext: true,
   }));
 
   const { getByText } = render(<EmptyTimeline {...defaultProps} />);

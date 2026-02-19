@@ -1,5 +1,10 @@
-import { UploadOutlined, EllipsisOutlined } from '@ant-design/icons';
-import { Button, PageHeader, Upload, Dropdown, Menu } from 'antd';
+import {
+  ArrowLeftOutlined,
+  EllipsisOutlined,
+  UploadOutlined,
+} from '@ant-design/icons';
+import { Button, Dropdown, Typography, Upload } from 'antd';
+import type { MenuProps } from 'antd';
 import React from 'react';
 import { useHistory } from 'react-router-dom';
 import './ProjectPageHeader.css';
@@ -15,19 +20,25 @@ const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
   const history = useHistory();
 
   return (
-    <PageHeader
-      ghost={false}
-      onBack={() => history.goBack()}
-      title={props.title}
-      extra={[
-        <UploadButton key="upload-button" uploadFile={props.uploadFile} />,
+    <div className="project-page-header">
+      <Button
+        type="link"
+        className="button back-button"
+        icon={<ArrowLeftOutlined />}
+        aria-label="Back"
+        onClick={() => history.goBack()}
+      />
+      <Typography.Title level={5} className="project-page-header__title">
+        {props.title}
+      </Typography.Title>
+      <div className="project-page-header__extra">
+        <UploadButton uploadFile={props.uploadFile} />
         <OverflowMenu
-          key="overflow-menu"
           isFullscreen={props.isFullscreen}
           toggleFullscreen={props.toggleFullscreen}
-        />,
-      ]}
-    />
+        />
+      </div>
+    </div>
   );
 };
 
@@ -69,16 +80,16 @@ type OverflowMenuProps = {
 const OverflowMenu = (props: OverflowMenuProps) => {
   const { isFullscreen, toggleFullscreen } = props;
 
-  const menu = (
-    <Menu>
-      <Menu.Item onClick={() => toggleFullscreen()}>
-        {isFullscreen ? 'Exit Full Screen' : 'Enter Full Screen'}
-      </Menu.Item>
-    </Menu>
-  );
+  const items: MenuProps['items'] = [
+    {
+      key: 'fullscreen',
+      label: isFullscreen ? 'Exit Full Screen' : 'Enter Full Screen',
+      onClick: () => toggleFullscreen(),
+    },
+  ];
 
   return (
-    <Dropdown overlay={menu} trigger={['click']}>
+    <Dropdown menu={{ items }} trigger={['click']}>
       <Button type="link" className="button overflow-button">
         <EllipsisOutlined />
       </Button>

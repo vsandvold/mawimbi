@@ -2,18 +2,18 @@ import { renderHook } from '@testing-library/react-hooks';
 import useThrottled from '../useThrottled';
 
 beforeAll(() => {
-  jest.useFakeTimers();
+  vi.useFakeTimers();
 });
 
 afterEach(() => {
-  jest.clearAllTimers();
+  vi.clearAllTimers();
 });
 
 afterAll(() => {
-  jest.useRealTimers();
+  vi.useRealTimers();
 });
 
-const mockCallback = jest.fn();
+const mockCallback = vi.fn();
 
 const defaultOptions = {
   timeoutMs: 100,
@@ -23,7 +23,7 @@ const defaultValue = 1.0;
 
 it('throttles callback with given timeout', () => {
   const { result } = renderHook(() =>
-    useThrottled(mockCallback, defaultOptions)
+    useThrottled(mockCallback, defaultOptions),
   );
 
   const throttledCallback = result.current;
@@ -34,12 +34,12 @@ it('throttles callback with given timeout', () => {
 
   expect(mockCallback).toHaveBeenCalledTimes(1);
 
-  jest.advanceTimersByTime(50);
+  vi.advanceTimersByTime(50);
   throttledCallback(defaultValue);
 
   expect(mockCallback).toHaveBeenCalledTimes(1);
 
-  jest.advanceTimersByTime(50);
+  vi.advanceTimersByTime(50);
   throttledCallback(defaultValue);
 
   expect(mockCallback).toHaveBeenCalledTimes(2);
@@ -47,7 +47,7 @@ it('throttles callback with given timeout', () => {
 
 it('passes value onto callback', () => {
   const { result } = renderHook(() =>
-    useThrottled(mockCallback, defaultOptions)
+    useThrottled(mockCallback, defaultOptions),
   );
 
   const throttledCallback = result.current;
@@ -60,14 +60,14 @@ it('passes value onto callback', () => {
 it('updates callback when dependencies change', () => {
   const { result, rerender } = renderHook(
     ({ options }) => useThrottled(mockCallback, options),
-    { initialProps: { options: { ...defaultOptions, timeoutMs: 10 } } }
+    { initialProps: { options: { ...defaultOptions, timeoutMs: 10 } } },
   );
   let throttledCallback = result.current;
 
   throttledCallback(defaultValue);
-  jest.advanceTimersByTime(10);
+  vi.advanceTimersByTime(10);
   throttledCallback(defaultValue);
-  jest.advanceTimersByTime(10);
+  vi.advanceTimersByTime(10);
 
   expect(mockCallback).toHaveBeenCalledTimes(2);
 
@@ -75,16 +75,16 @@ it('updates callback when dependencies change', () => {
   throttledCallback = result.current;
 
   throttledCallback(defaultValue);
-  jest.advanceTimersByTime(10);
+  vi.advanceTimersByTime(10);
 
   expect(mockCallback).toHaveBeenCalledTimes(3);
 
   throttledCallback(defaultValue);
-  jest.advanceTimersByTime(10);
+  vi.advanceTimersByTime(10);
 
   expect(mockCallback).toHaveBeenCalledTimes(3);
 
-  jest.advanceTimersByTime(80);
+  vi.advanceTimersByTime(80);
   throttledCallback(defaultValue);
 
   expect(mockCallback).toHaveBeenCalledTimes(4);
@@ -98,7 +98,7 @@ it('has fallback to default timeout option', () => {
   expect(mockCallback).toHaveBeenCalledTimes(0);
 
   throttledCallback(defaultValue);
-  jest.advanceTimersByTime(100);
+  vi.advanceTimersByTime(100);
   throttledCallback(defaultValue);
 
   expect(mockCallback).toHaveBeenCalledTimes(2);

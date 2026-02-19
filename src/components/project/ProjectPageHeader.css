@@ -1,3 +1,30 @@
+.project-page-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 100%;
+}
+
+.project-page-header__title {
+  margin: 0 !important;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project-page-header__extra {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
 .overflow-button {
   padding: 4px;
+}
+
+.back-button {
+  flex-shrink: 0;
 }

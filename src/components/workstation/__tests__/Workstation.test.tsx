@@ -1,5 +1,6 @@
 import { render } from '@testing-library/react';
 import React from 'react';
+import { vi } from 'vitest';
 import { mockTrack } from '../../../testUtils';
 import Workstation from '../Workstation';
 import {
@@ -11,29 +12,29 @@ import {
   useTotalTime,
 } from '../workstationEffects';
 
-jest.mock('../EmptyTimeline', () => () => (
-  <div data-testid="empty-timeline"></div>
-));
-jest.mock('../Mixer');
-jest.mock('../Scrubber', () => ({ children }: any) => (
-  <div data-testid="scrubber">{children}</div>
-));
-jest.mock('../Timeline', () => () => (
-  <div data-testid="regular-timeline"></div>
-));
+vi.mock('../EmptyTimeline', () => ({
+  default: () => <div data-testid="empty-timeline"></div>,
+}));
+vi.mock('../Mixer');
+vi.mock('../Scrubber', () => ({
+  default: ({ children }: any) => <div data-testid="scrubber">{children}</div>,
+}));
+vi.mock('../Timeline', () => ({
+  default: () => <div data-testid="regular-timeline"></div>,
+}));
 
-jest.mock('../workstationEffects', () => mockWorkstationEffects());
+vi.mock('../workstationEffects', () => mockWorkstationEffects());
 
 const defaultProps = {
   tracks: [],
-  uploadFile: jest.fn(),
+  uploadFile: vi.fn(),
 };
 
 const defaultTrack = mockTrack();
 
 it('renders empty timeline when tracks are empty', () => {
   const { getByTestId } = render(
-    <Workstation {...{ ...defaultProps, tracks: [] }} />
+    <Workstation {...{ ...defaultProps, tracks: [] }} />,
   );
 
   expect(getByTestId('empty-timeline')).toBeInTheDocument();
@@ -41,7 +42,7 @@ it('renders empty timeline when tracks are empty', () => {
 
 it('renders regular timeline when tracks are non-empty', () => {
   const { getByTestId } = render(
-    <Workstation {...{ ...defaultProps, tracks: [defaultTrack] }} />
+    <Workstation {...{ ...defaultProps, tracks: [defaultTrack] }} />,
   );
 
   expect(getByTestId('regular-timeline')).toBeInTheDocument();
@@ -76,23 +77,19 @@ it('uses workstation effect hooks', () => {
 
 function mockWorkstationEffects() {
   return {
-    useDropzoneDragActive: jest.fn(() => {
-      return {
-        isDragActive: false,
-        setIsDragActive: jest.fn(),
-        dropzoneRootProps: {},
-        setDropzoneRootProps: jest.fn(),
-      };
-    }),
-    useMixerHeight: jest.fn(() => {
-      return {
-        drawerContainerRef: { current: null },
-        drawerHeight: 0,
-      };
-    }),
-    useMutedTracks: jest.fn(),
-    usePlaybackControl: jest.fn(),
-    useSpacebarPlaybackToggle: jest.fn(),
-    useTotalTime: jest.fn(),
+    useDropzoneDragActive: vi.fn(() => ({
+      isDragActive: false,
+      setIsDragActive: vi.fn(),
+      dropzoneRootProps: {},
+      setDropzoneRootProps: vi.fn(),
+    })),
+    useMixerHeight: vi.fn(() => ({
+      drawerContainerRef: { current: null },
+      drawerHeight: 0,
+    })),
+    useMutedTracks: vi.fn(),
+    usePlaybackControl: vi.fn(),
+    useSpacebarPlaybackToggle: vi.fn(),
+    useTotalTime: vi.fn(),
   };
 }

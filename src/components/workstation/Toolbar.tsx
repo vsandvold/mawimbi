@@ -7,7 +7,7 @@ import Icon, {
 import { Button } from 'antd';
 import classNames from 'classnames';
 import React from 'react';
-import { ReactComponent as ControlSvg } from '../../icons/control.svg';
+import ControlSvg from '../../icons/control.svg?react';
 import './Toolbar.css';
 import useWorkstationDispatch from './useWorkstationDispatch';
 import {

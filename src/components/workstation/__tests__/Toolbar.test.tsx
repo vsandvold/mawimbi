@@ -1,15 +1,14 @@
 import { fireEvent, render } from '@testing-library/react';
 import React from 'react';
+import { vi } from 'vitest';
 import Toolbar from '../Toolbar';
 import { TOGGLE_MIXER, TOGGLE_PLAYBACK } from '../workstationReducer';
 
-const mockDispatch = jest.fn();
+const mockDispatch = vi.fn();
 
-jest.mock('../useWorkstationDispatch', () => {
-  return () => {
-    return mockDispatch;
-  };
-});
+vi.mock('../useWorkstationDispatch', () => ({
+  default: () => mockDispatch,
+}));
 
 const defaultProps = {
   isMixerOpen: false,
@@ -26,7 +25,7 @@ it('renders all buttons', () => {
 
 it('disables buttons when tracks are empty', () => {
   const { getByTitle } = render(
-    <Toolbar {...{ ...defaultProps, isEmpty: true }} />
+    <Toolbar {...{ ...defaultProps, isEmpty: true }} />,
   );
 
   expect(getByTitle('Show mixer')).toBeDisabled();
@@ -36,7 +35,7 @@ it('disables buttons when tracks are empty', () => {
 
 it('enables buttons when tracks are not empty', () => {
   const { getAllByRole } = render(
-    <Toolbar {...{ ...defaultProps, isEmpty: false }} />
+    <Toolbar {...{ ...defaultProps, isEmpty: false }} />,
   );
 
   getAllByRole('button').forEach((button) => expect(button).toBeEnabled());
@@ -44,7 +43,7 @@ it('enables buttons when tracks are not empty', () => {
 
 it('renders play icon when paused', () => {
   const { getByTitle } = render(
-    <Toolbar {...{ ...defaultProps, isPlaying: false }} />
+    <Toolbar {...{ ...defaultProps, isPlaying: false }} />,
   );
 
   const playButton = getByTitle('Play');
@@ -56,7 +55,7 @@ it('renders play icon when paused', () => {
 
 it('renders pause icon when playing', () => {
   const { getByTitle } = render(
-    <Toolbar {...{ ...defaultProps, isPlaying: true }} />
+    <Toolbar {...{ ...defaultProps, isPlaying: true }} />,
   );
 
   const pauseButton = getByTitle('Pause');
@@ -68,7 +67,7 @@ it('renders pause icon when playing', () => {
 
 it('renders microphone icon', () => {
   const { getByTitle } = render(
-    <Toolbar {...{ ...defaultProps, isPlaying: false }} />
+    <Toolbar {...{ ...defaultProps, isPlaying: false }} />,
   );
 
   const recordButton = getByTitle('Record');
@@ -80,7 +79,7 @@ it('renders microphone icon', () => {
 
 it('applies animation class to mixer icon when mixer is open', () => {
   const { getByTitle } = render(
-    <Toolbar {...{ ...defaultProps, isMixerOpen: true }} />
+    <Toolbar {...{ ...defaultProps, isMixerOpen: true }} />,
   );
 
   const mixerIcon = getByTitle('Hide mixer').firstChild;
@@ -90,7 +89,7 @@ it('applies animation class to mixer icon when mixer is open', () => {
 
 it('toggles playback when play/pause button is clicked', () => {
   const { getByTitle } = render(
-    <Toolbar {...{ ...defaultProps, isPlaying: true }} />
+    <Toolbar {...{ ...defaultProps, isPlaying: true }} />,
   );
 
   const playPauseButton = getByTitle('Pause');
@@ -102,7 +101,7 @@ it('toggles playback when play/pause button is clicked', () => {
 
 it('toggles mixer when mixer show/hide is clicked', () => {
   const { getByTitle } = render(
-    <Toolbar {...{ ...defaultProps, isMixerOpen: false }} />
+    <Toolbar {...{ ...defaultProps, isMixerOpen: false }} />,
   );
 
   const mixerButton = getByTitle('Show mixer');

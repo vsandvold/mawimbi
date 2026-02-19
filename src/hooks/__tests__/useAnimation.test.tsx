@@ -2,28 +2,28 @@ import { renderHook } from '@testing-library/react-hooks';
 import useAnimation from '../useAnimation';
 
 beforeAll(() => {
-  jest.useFakeTimers();
+  vi.useFakeTimers();
 });
 
 afterEach(() => {
-  jest.clearAllTimers();
+  vi.clearAllTimers();
 });
 
 afterAll(() => {
-  jest.useRealTimers();
+  vi.useRealTimers();
 });
 
 const FRAME_TIME = 1;
 const REQUEST_ID = 123;
 
-jest.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
   setTimeout(callback, FRAME_TIME);
   return REQUEST_ID;
 });
 
-jest.spyOn(window, 'cancelAnimationFrame');
+vi.spyOn(window, 'cancelAnimationFrame');
 
-const mockCallback = jest.fn();
+const mockCallback = vi.fn();
 
 const defaultOptions = {
   frameRate: 60,
@@ -42,7 +42,7 @@ it('cancels animation frame request when unmounted', () => {
   expect(cancelAnimationFrame).not.toHaveBeenCalled();
 
   const { unmount } = renderHook(() =>
-    useAnimation(mockCallback, defaultOptions)
+    useAnimation(mockCallback, defaultOptions),
   );
 
   expect(cancelAnimationFrame).toHaveBeenCalledTimes(0);
@@ -56,7 +56,7 @@ it('cancels animation frame request when unmounted', () => {
 it('triggers effect when dependencies change, and not on every render', () => {
   const { rerender } = renderHook(
     ({ options }) => useAnimation(mockCallback, options),
-    { initialProps: { options: defaultOptions } }
+    { initialProps: { options: defaultOptions } },
   );
 
   expect(cancelAnimationFrame).toHaveBeenCalledTimes(0);
@@ -76,45 +76,45 @@ it('triggers effect when dependencies change, and not on every render', () => {
 
 it('does not run animation when deactivated', () => {
   renderHook(() =>
-    useAnimation(mockCallback, { ...defaultOptions, isActive: false })
+    useAnimation(mockCallback, { ...defaultOptions, isActive: false }),
   );
 
   expect(requestAnimationFrame).toHaveBeenCalledTimes(0);
 
-  jest.advanceTimersByTime(FRAME_TIME);
+  vi.advanceTimersByTime(FRAME_TIME);
 
   expect(requestAnimationFrame).toHaveBeenCalledTimes(0);
 });
 
 it('throttles requests with given frame rate', () => {
   renderHook(() =>
-    useAnimation(mockCallback, { ...defaultOptions, frameRate: 1 })
+    useAnimation(mockCallback, { ...defaultOptions, frameRate: 1 }),
   );
 
   expect(mockCallback).toHaveBeenCalledTimes(0);
 
-  jest.advanceTimersByTime(FRAME_TIME);
+  vi.advanceTimersByTime(FRAME_TIME);
 
   expect(mockCallback).toHaveBeenCalledTimes(0);
 
-  jest.advanceTimersByTime(FRAME_TIME * 60);
+  vi.advanceTimersByTime(FRAME_TIME * 60);
 
   expect(mockCallback).toHaveBeenCalledTimes(1);
 });
 
 it('has fallback to default frameRate option', () => {
   renderHook(() =>
-    useAnimation(mockCallback, { isActive: defaultOptions.isActive })
+    useAnimation(mockCallback, { isActive: defaultOptions.isActive }),
   );
 
-  jest.advanceTimersByTime(1);
+  vi.advanceTimersByTime(1);
 
   expect(mockCallback).toHaveBeenCalledTimes(1);
 });
 
 it('has fallback to default isActive option', () => {
   renderHook(() =>
-    useAnimation(mockCallback, { frameRate: defaultOptions.frameRate })
+    useAnimation(mockCallback, { frameRate: defaultOptions.frameRate }),
   );
 
   expect(requestAnimationFrame).toHaveBeenCalledTimes(1);

@@ -121,8 +121,6 @@ const Channel = ({ isMuted, track, ...dragHandleProps }: ChannelProps) => {
           min={0}
           max={100}
           onChange={throttledUpdateVolume}
-          handleStyle={{}}
-          trackStyle={{}}
         />
       </div>
       <div className="channel__move" {...dragHandleProps}>

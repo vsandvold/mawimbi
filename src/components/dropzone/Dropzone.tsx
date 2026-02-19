@@ -22,7 +22,7 @@ const Dropzone = (props: DropzoneProps) => {
     isDragAccept,
     isDragReject,
   } = useDropzone({
-    accept: 'audio/*',
+    accept: { 'audio/*': [] },
     multiple: true,
     noClick: true,
     noKeyboard: true,

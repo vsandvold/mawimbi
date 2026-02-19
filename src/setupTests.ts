@@ -1,20 +1,20 @@
-// jest-dom adds custom jest matchers for asserting on DOM nodes.
-// allows you to do things like:
-// expect(element).toHaveTextContent(/react/i)
-// learn more: https://github.com/testing-library/jest-dom
 import '@testing-library/jest-dom';
-// import '@testing-library/jest-dom/extend-expect';
+import { vi } from 'vitest';
 
 window.TONE_SILENCE_LOGGING = true;
 
-mockReactRouterDom();
+const { mockHistoryGoBack, mockHistoryPush } = vi.hoisted(() => ({
+  mockHistoryGoBack: vi.fn(),
+  mockHistoryPush: vi.fn(),
+}));
 
-function mockReactRouterDom() {
-  const mockHistoryGoBack = jest.fn();
-  const mockHistoryPush = jest.fn();
-
-  jest.mock('react-router-dom', () => ({
-    ...jest.requireActual('react-router-dom'),
+vi.mock('react-router-dom', async () => {
+  const actual =
+    await vi.importActual<typeof import('react-router-dom')>(
+      'react-router-dom',
+    );
+  return {
+    ...actual,
     useHistory: () => ({
       goBack: mockHistoryGoBack,
       push: mockHistoryPush,
@@ -22,24 +22,24 @@ function mockReactRouterDom() {
     useLocation: () => ({
       pathname: 'path',
     }),
+  };
+});
+
+const { mockDestroy, mockLoadDecodedBuffer, mockCreate } = vi.hoisted(() => {
+  const mockDestroy = vi.fn();
+  const mockLoadDecodedBuffer = vi.fn();
+  const mockCreate = vi.fn().mockImplementation(() => ({
+    destroy: mockDestroy,
+    loadDecodedBuffer: mockLoadDecodedBuffer,
   }));
-}
+  return { mockDestroy, mockLoadDecodedBuffer, mockCreate };
+});
 
-mockWaveSurfer();
-
-function mockWaveSurfer() {
-  const mockDestroy = jest.fn();
-  const mockLoadDecodedBuffer = jest.fn();
-
-  const mockCreate = jest.fn().mockImplementation(() => {
-    return {
-      destroy: mockDestroy,
-      loadDecodedBuffer: mockLoadDecodedBuffer,
-    };
-  });
-
-  jest.mock('wavesurfer.js', () => ({
-    ...jest.requireActual('wavesurfer.js'),
-    create: mockCreate,
-  }));
-}
+vi.mock('wavesurfer.js', async () => {
+  const actual =
+    await vi.importActual<typeof import('wavesurfer.js')>('wavesurfer.js');
+  return {
+    ...actual,
+    default: { create: mockCreate },
+  };
+});

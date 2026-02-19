@@ -1,13 +1,16 @@
 import { fireEvent, render } from '@testing-library/react';
 import React from 'react';
 import { useHistory } from 'react-router-dom';
+import { vi } from 'vitest';
 import ProjectPageHeader from '../ProjectPageHeader';
 
-const mockUploadFile = jest.fn();
+const mockUploadFile = vi.fn();
 
 const defaultProps = {
   title: 'Mawimbi No. 5',
   uploadFile: mockUploadFile,
+  isFullscreen: false,
+  toggleFullscreen: vi.fn(),
 };
 
 it('renders without crashing', () => {
@@ -23,7 +26,7 @@ it('renders project title', () => {
 it('navigates back from project page', () => {
   const { container } = render(<ProjectPageHeader {...defaultProps} />);
 
-  const backButton = container.querySelector('[role=button][aria-label=Back]');
+  const backButton = container.querySelector('[aria-label="Back"]');
   fireEvent.click(backButton as Element);
 
   const history = useHistory();
@@ -40,7 +43,7 @@ it('accepts multiple audio files for upload', () => {
   expect(fileInput).toHaveAttribute('multiple', '');
 });
 
-xit('submits uploaded files', () => {
+it.skip('submits uploaded files', () => {
   // FIXME: this test is broken
   const { getByText } = render(<ProjectPageHeader {...defaultProps} />);
 

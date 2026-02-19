@@ -19,14 +19,14 @@ it('renders waveform with correct color', () => {
   render(
     <Waveform
       {...{ ...defaultProps, track: { ...defaultProps.track, color } }}
-    />
+    />,
   );
 
   expect(WaveSurfer.create).toHaveBeenCalledTimes(1);
   expect(WaveSurfer.create).toHaveBeenCalledWith(
     expect.objectContaining({
       waveColor: `rgb(${color.r},${color.g},${color.b})`,
-    })
+    }),
   );
 });
 
@@ -60,7 +60,7 @@ it('loads audio buffer when mounted', () => {
 
   expect(wavesurferInstance.loadDecodedBuffer).toHaveBeenCalledTimes(1);
   expect(wavesurferInstance.loadDecodedBuffer).toHaveBeenCalledWith(
-    defaultProps.track.audioBuffer
+    (defaultProps.track as any).audioBuffer,
   );
 });
 
