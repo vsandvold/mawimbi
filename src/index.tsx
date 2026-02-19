@@ -1,3 +1,4 @@
+import { StyleProvider } from '@ant-design/cssinjs';
 import { App as AntApp, ConfigProvider, message, theme } from 'antd';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
@@ -13,13 +14,15 @@ AudioService.startAudio()
 
 const root = createRoot(document.getElementById('root')!);
 root.render(
-  <ConfigProvider theme={{ algorithm: theme.darkAlgorithm }}>
-    <AntApp>
-      <BrowserSupportProvider>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      </BrowserSupportProvider>
-    </AntApp>
-  </ConfigProvider>,
+  <StyleProvider layer>
+    <ConfigProvider theme={{ algorithm: theme.darkAlgorithm }}>
+      <AntApp>
+        <BrowserSupportProvider>
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </BrowserSupportProvider>
+      </AntApp>
+    </ConfigProvider>
+  </StyleProvider>,
 );
