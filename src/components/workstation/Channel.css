@@ -106,20 +106,20 @@
   }
 }
 
-/* Channel slider */
-.channel-slider .ant-slider-handle {
+/* Channel slider (antd v5: visible handle is ::after pseudo-element) */
+.channel-slider .ant-slider-handle::after {
   background-color: rgba(0, 0, 0, 0.9);
-  border-color: rgba(0, 0, 0, 0);
+  box-shadow: none;
 }
 
-.channel-slider .ant-slider-handle:focus,
-.channel-slider .ant-slider-handle.ant-tooltip-open {
+.channel-slider .ant-slider-handle:focus::after,
+.channel-slider .ant-slider-handle.ant-tooltip-open::after {
   background-color: rgba(0, 0, 0, 1);
   box-shadow: 0 0 0 5px rgba(0, 0, 0, 0.12);
 }
 
-.channel-slider.ant-slider:hover .ant-slider-handle:not(.ant-tooltip-open) {
-  border-color: rgba(0, 0, 0, 0);
+.channel-slider.ant-slider:hover
+  .ant-slider-handle:not(.ant-tooltip-open)::after {
   box-shadow: 0 0 0 5px rgba(0, 0, 0, 0.12);
 }
 
@@ -133,21 +133,20 @@
   background-color: rgba(0, 0, 0, 0.65);
 }
 
-.channel--inverted .channel-slider .ant-slider-handle {
+.channel--inverted .channel-slider .ant-slider-handle::after {
   background-color: rgba(255, 255, 255, 0.9);
-  border-color: rgba(255, 255, 255, 0);
+  box-shadow: none;
 }
 
-.channel--inverted .channel-slider .ant-slider-handle:focus,
-.channel--inverted .channel-slider .ant-slider-handle.ant-tooltip-open {
+.channel--inverted .channel-slider .ant-slider-handle:focus::after,
+.channel--inverted .channel-slider .ant-slider-handle.ant-tooltip-open::after {
   background-color: rgba(255, 255, 255, 1);
   box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.12);
 }
 
 .channel--inverted
   .channel-slider.ant-slider:hover
-  .ant-slider-handle:not(.ant-tooltip-open) {
-  border-color: rgba(255, 255, 255, 0);
+  .ant-slider-handle:not(.ant-tooltip-open)::after {
   box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.12);
 }
 

@@ -1,6 +1,11 @@
+@layer antd;
+
 body {
   height: 100vh;
   width: 100vw;
+  margin: 0;
+  background-color: #000;
+  color: rgba(255, 255, 255, 0.85);
 }
 
 #root {
@@ -17,17 +22,6 @@ html {
   --error-color: #ff4d4f;
 }
 
-@media (max-width: 768px) {
-  /* Override header extra styling for mobile devices in portrait mode. */
-  .ant-page-header-heading-extra {
-    display: initial;
-    float: right;
-    clear: initial;
-    width: initial;
-    padding-top: 0;
-  }
-}
-
 @media (hover: hover) and (pointer: fine) {
   /* Style scrollbar on desktop devices only. */
   html {
@@ -37,7 +31,7 @@ html {
 
   div {
     scrollbar-width: thin;
-    scrollbar-color: dark;
+    scrollbar-color: var(--scrollbar-thumb-color) var(--scrollbar-track-color);
   }
 
   div::-webkit-scrollbar {
