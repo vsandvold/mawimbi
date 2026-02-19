@@ -27,8 +27,8 @@ if ! type gh &>/dev/null; then
   apt-get update -q && apt-get install -y gh
 fi
 
-# Install Playwright browsers if not present
-if ! playwright show-browsers 2>/dev/null | grep -q chromium; then
+# Install Playwright browsers if not present (uses project's @playwright/test version)
+if ! npx playwright show-browsers 2>/dev/null | grep -q chromium; then
   echo "Installing Playwright Chromium..."
   npx playwright install --with-deps chromium
 fi
