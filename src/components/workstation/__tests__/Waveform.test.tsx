@@ -4,13 +4,17 @@ import WaveSurfer from 'wavesurfer.js';
 import { mockTrack } from '../../../testUtils';
 import Waveform from '../Waveform';
 
-const { mockRetrieveAudioBuffer } = vi.hoisted(() => ({
-  mockRetrieveAudioBuffer: vi.fn(),
-}));
+const { mockRetrieveBlobUrl, MOCK_BLOB_URL } = vi.hoisted(() => {
+  const url = 'blob:mock-url';
+  return {
+    MOCK_BLOB_URL: url,
+    mockRetrieveBlobUrl: vi.fn().mockReturnValue(url),
+  };
+});
 
 vi.mock('../../../hooks/useAudioService', () => ({
   useAudioService: () => ({
-    retrieveAudioBuffer: mockRetrieveAudioBuffer,
+    retrieveBlobUrl: mockRetrieveBlobUrl,
   }),
 }));
 
@@ -19,12 +23,6 @@ const defaultProps = {
   pixelsPerSecond: 200,
   track: mockTrack(),
 };
-
-beforeEach(() => {
-  mockRetrieveAudioBuffer.mockReturnValue(
-    (defaultProps.track as any).audioBuffer,
-  );
-});
 
 it('renders without crashing', () => {
   render(<Waveform {...defaultProps} />);
@@ -69,15 +67,13 @@ it('renders waveforms with correct opacity', () => {
   expect(waveform).toHaveStyle({ opacity: 0 });
 });
 
-it('loads audio buffer when mounted', () => {
+it('loads audio url when mounted', () => {
   render(<Waveform {...defaultProps} />);
 
-  const wavesurferInstance = WaveSurfer.create({});
+  const wavesurferInstance = WaveSurfer.create({} as any);
 
-  expect(wavesurferInstance.loadDecodedBuffer).toHaveBeenCalledTimes(1);
-  expect(wavesurferInstance.loadDecodedBuffer).toHaveBeenCalledWith(
-    (defaultProps.track as any).audioBuffer,
-  );
+  expect(wavesurferInstance.load).toHaveBeenCalledTimes(1);
+  expect(wavesurferInstance.load).toHaveBeenCalledWith(MOCK_BLOB_URL);
 });
 
 it('destroys waveform when unmounted', () => {
@@ -85,6 +81,6 @@ it('destroys waveform when unmounted', () => {
 
   unmount();
 
-  const wavesurferInstance = WaveSurfer.create({});
+  const wavesurferInstance = WaveSurfer.create({} as any);
   expect(wavesurferInstance.destroy).toHaveBeenCalledTimes(1);
 });

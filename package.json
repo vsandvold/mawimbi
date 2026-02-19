@@ -37,7 +37,7 @@
     "vite": "^5.2.11",
     "vite-plugin-svgr": "^4.2.0",
     "vitest": "^1.6.0",
-    "wavesurfer.js": "^3.3.3"
+    "wavesurfer.js": "^7.0.0"
   },
   "scripts": {
     "start": "vite",
