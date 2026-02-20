@@ -9,7 +9,7 @@ import {
 const initialState: ProjectState = {
   nextColorId: Math.floor(Math.random() * Math.floor(COLOR_PALETTE.length)),
   nextIndex: 0,
-  title: 'Untitled',
+  title: 'New Project',
   tracks: [],
 };
 

@@ -17,7 +17,7 @@ const useAnimation = (
   {
     frameRate = defaultOptions.frameRate,
     isActive = defaultOptions.isActive,
-  } = defaultOptions
+  } = defaultOptions,
 ) => {
   const frameCountRef = useRef(0);
   const requestRef = useRef(0);
@@ -36,8 +36,9 @@ const useAnimation = (
 
     if (isActive) {
       requestRef.current = requestAnimationFrame(requestCallback);
-      return () => cancelAnimationFrame(requestRef.current);
     }
+
+    return () => cancelAnimationFrame(requestRef.current);
   }, [callback, frameRate, isActive]);
 };
 
