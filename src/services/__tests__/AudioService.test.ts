@@ -110,7 +110,7 @@ describe('playback control', () => {
   });
 
   it('toggles from stopped to started', () => {
-    Tone.Transport.state = 'stopped';
+    (Tone.Transport as any).state = 'stopped';
 
     audioService.togglePlayback();
 
@@ -118,7 +118,7 @@ describe('playback control', () => {
   });
 
   it('toggles from started to paused', () => {
-    Tone.Transport.state = 'started';
+    (Tone.Transport as any).state = 'started';
 
     audioService.togglePlayback();
 
