@@ -13,7 +13,7 @@ const defaultProps = {
 it('renders nothing is drag is activate', () => {
   const { container } = render(<EmptyTimeline isDragActive={true} />);
 
-  expect(container).toBeEmpty();
+  expect(container).toBeEmptyDOMElement();
 });
 
 it('renders message for desktop devices', () => {
