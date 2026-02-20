@@ -254,3 +254,98 @@ test.describe('Rewind control', () => {
     }
   });
 });
+
+test.describe('Visual regression - audio states', () => {
+  // Seed Math.random so the track color palette starts at index 0 (teal)
+  // on every test run, making color-sensitive screenshots deterministic.
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      Math.random = () => 0;
+    });
+  });
+
+  test('timeline with single waveform track', async ({ page }) => {
+    await page.goto('/project');
+    await uploadAudioFile(page, SHORT_AUDIO);
+
+    const timeline = page.locator('.timeline');
+    await expect(timeline.locator('canvas').first()).toBeVisible();
+
+    await expect(page.locator('.editor')).toHaveScreenshot(
+      'timeline-single-track.png',
+    );
+  });
+
+  test('timeline with two waveform tracks', async ({ page }) => {
+    await page.goto('/project');
+    await uploadAudioFile(page, SHORT_AUDIO);
+    await uploadAudioFile(page, LONG_AUDIO);
+
+    await expect(page.locator('.timeline__waveform')).toHaveCount(2);
+    const timeline = page.locator('.timeline');
+    await expect(timeline.locator('canvas').first()).toBeVisible();
+
+    await expect(page.locator('.editor')).toHaveScreenshot(
+      'timeline-two-tracks.png',
+    );
+  });
+
+  test('toolbar while playing', async ({ page }) => {
+    await page.goto('/project');
+    await uploadAudioFile(page, SHORT_AUDIO);
+    await expect(page.locator('.timeline__waveform')).toBeVisible();
+
+    await page.getByTitle('Play').click();
+    await expect(page.getByTitle('Pause')).toBeVisible();
+
+    await expect(page.locator('.workstation__toolbar')).toHaveScreenshot(
+      'toolbar-playing.png',
+    );
+
+    await page.getByTitle('Pause').click();
+  });
+
+  test('mixer open with one channel', async ({ page }) => {
+    await page.goto('/project');
+    await uploadAudioFile(page, SHORT_AUDIO);
+    await expect(page.locator('.timeline__waveform')).toBeVisible();
+
+    await page.getByTitle('Show mixer').click();
+    await expect(page.locator('.channel')).toBeVisible();
+
+    await expect(page.locator('.editor__mixer')).toHaveScreenshot(
+      'mixer-one-channel.png',
+    );
+  });
+
+  test('mixer with muted channel', async ({ page }) => {
+    await page.goto('/project');
+    await uploadAudioFile(page, SHORT_AUDIO);
+    await expect(page.locator('.timeline__waveform')).toBeVisible();
+
+    await page.getByTitle('Show mixer').click();
+    await page.getByTitle('Mute').click();
+    await expect(
+      page.locator('.timeline__waveform--muted'),
+    ).toBeVisible();
+
+    await expect(page.locator('.editor')).toHaveScreenshot(
+      'timeline-muted-track.png',
+    );
+  });
+
+  test('mixer with solo channel', async ({ page }) => {
+    await page.goto('/project');
+    await uploadAudioFile(page, SHORT_AUDIO);
+    await uploadAudioFile(page, LONG_AUDIO);
+    await expect(page.locator('.timeline__waveform')).toHaveCount(2);
+
+    await page.getByTitle('Show mixer').click();
+    await page.getByTitle('Solo').first().click();
+    await expect(page.locator('.timeline__waveform--muted')).toHaveCount(1);
+
+    await expect(page.locator('.editor')).toHaveScreenshot(
+      'timeline-solo-track.png',
+    );
+  });
+});
