@@ -66,6 +66,100 @@ Audio flow: upload → decode `AudioBuffer` + create Blob URL → `Mixer.createC
 
 React Router v7 (library mode) with three routes: Home (`/`), Project (`/project`), and a 404 catch-all.
 
+## File Map
+
+Key source files and their responsibilities:
+
+```
+src/
+├── index.tsx                          # Bootstrap: Ant Design dark theme + AudioService.startAudio() + BrowserRouter
+├── browserSupport.tsx                 # Context for browser capability detection (webkitOfflineAudioContext)
+├── setupTests.ts                      # Vitest/RTL global mocks: tone, wavesurfer.js, react-router-dom
+├── testUtils.ts                       # Shared test utilities
+│
+├── components/
+│   ├── App.tsx                        # Route definitions: /, /project, 404
+│   ├── message.ts                     # Ant Design message wrapper with key-based deduplication
+│   ├── layout/PageLayout.tsx          # Layout grid: PageLayout, PageHeader, PageContent
+│   ├── fullscreen/Fullscreen.tsx      # react-full-screen library wrapper
+│   ├── dropzone/Dropzone.tsx          # react-dropzone wrapper for file upload
+│   │
+│   ├── project/
+│   │   ├── ProjectPage.tsx            # Provides ProjectDispatch context + Fullscreen wrapper
+│   │   ├── ProjectPageHeader.tsx      # Title, file upload button, fullscreen toggle
+│   │   ├── projectPageReducer.ts      # Track list state: ADD_TRACK, MOVE_TRACK, SET_TRACK_MUTE/SOLO/VOLUME
+│   │   ├── projectPageEffects.ts      # useUploadFile (File → AudioService.createTrack), useFullscreen
+│   │   ├── useProjectReducer.tsx      # useReducer wrapper with initial state
+│   │   └── useProjectDispatch.tsx     # Context consumer hook for project dispatch
+│   │
+│   └── workstation/
+│       ├── Workstation.tsx            # Provides WorkstationDispatch context + editor layout
+│       ├── Toolbar.tsx                # Playback/record/mixer toggle controls
+│       ├── Timeline.tsx               # Track list: renders Waveform or Spectrogram per track (memoized)
+│       ├── Waveform.tsx               # WaveSurfer.js integration per track
+│       ├── Spectrogram.tsx            # OfflineAnalyser frequency data visualization
+│       ├── Scrubber.tsx               # Playhead indicator + scrubbing interaction
+│       ├── Mixer.tsx                  # @dnd-kit drag-and-drop container for track reordering
+│       ├── Channel.tsx                # Single track controls: mute/solo buttons, volume slider
+│       ├── EmptyTimeline.tsx          # Placeholder shown when no tracks exist
+│       ├── workstationReducer.ts      # Playback/UI state: TOGGLE_PLAYBACK, SET_TRANSPORT_TIME, SET_ZOOM, etc.
+│       ├── workstationEffects.ts      # usePlaybackControl, useMutedTracks, useMicrophone, useMixerHeight
+│       ├── useWorkstationReducer.tsx  # useReducer wrapper with initial state
+│       └── useWorkstationDispatch.tsx # Context consumer hook for workstation dispatch
+│
+├── services/
+│   ├── AudioService.ts                # Singleton: track creation, Tone.Transport playback, recording
+│   ├── Mixer.ts                       # Tone.Player + Tone.Channel chain per track; mute/solo/volume
+│   ├── MicrophoneUserMedia.ts         # Tone.UserMedia wrapper + meter for microphone input
+│   └── OfflineAnalyser.ts             # OfflineAudioContext + AnalyserNode for waveform/spectrogram data
+│
+└── hooks/
+    ├── useAudioService.tsx            # Context hook providing AudioService singleton
+    ├── useAnimation.tsx               # requestAnimationFrame wrapper with FPS throttling
+    ├── useKeypress.tsx                # Window keyup listener (default: spacebar → play/pause)
+    ├── useDebounced.tsx               # Trailing debounce wrapper
+    └── useThrottled.tsx               # Leading throttle wrapper
+```
+
+## Non-Obvious Patterns
+
+### Reducer action format is tuple-based
+Actions are `[ACTION_TYPE, payload?]` tuples, **not** `{ type, payload }` objects:
+```ts
+dispatch(['ADD_TRACK', { id, filename, color }]);
+dispatch(['TOGGLE_PLAYBACK']);
+```
+
+### Repository pattern inside services
+`AudioService` owns an `AudioSourceRepository` (decoded `AudioBuffer`s); `Mixer` owns an `AudioChannelRepository` (`Tone.Channel` instances). Both are private and accessed only through their parent service.
+
+### Mixer displays tracks in reverse order
+`Mixer.tsx` reverses the track array for visual stacking. Drag-and-drop indices are converted back before dispatching `MOVE_TRACK`, so callers always deal with logical (non-reversed) indices.
+
+### Muting is dual-layered
+- `ProjectState` stores per-track `mute`/`solo` booleans (user intent)
+- `WorkstationState` stores the computed array of currently muted track IDs (derived, recalculated by `Mixer.getMutedChannels()` after each change)
+- `Timeline` reads from `WorkstationState` for visual styling; `Mixer` reads from `ProjectState` for audio routing
+
+### AudioService initialisation on app boot
+`AudioService.startAudio()` is `await`ed in `src/index.tsx` before rendering. This starts the Tone.js `AudioContext` and must happen in response to user gesture (handled by the library). Don't call it elsewhere.
+
+### Intentional dependency omissions in hooks
+`useEffect`/`useCallback` deps arrays intentionally omit `audioService` and `dispatch` refs with inline comments. These are stable across renders; adding them would cause spurious re-runs.
+
+### Volume slider uses dB conversion
+Channel volume (slider 0–100) is converted to decibels: `20 * Math.log((value + 1) / 101)`. This is applied inside `Mixer.setVolume()`, not in the component.
+
+### Throttle vs. debounce in Channel
+- Volume slider → `useThrottled(100ms)` — limits audio engine calls while dragging
+- Track unfocus → `useDebounced(250ms)` — batches rapid focus changes
+
+### OfflineAnalyser browser detection
+`OfflineAnalyser` auto-detects API support at runtime: uses `OfflineAudioContext.suspend()` if available, otherwise falls back to `ScriptProcessorNode`. This is why `browserSupport.tsx` exists as a context.
+
+### @dnd-kit is PointerSensor only
+`Mixer` registers only `PointerSensor` (not `MouseSensor` or `TouchSensor`). This is intentional to unify pointer events across devices.
+
 ## Code Conventions
 
 - Functional components only, with `React.memo` for performance-sensitive components
