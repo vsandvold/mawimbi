@@ -13,6 +13,11 @@ body {
   height: 100%;
 }
 
+/* AntApp renders a div wrapper that must also fill the full height */
+.ant-app {
+  height: 100%;
+}
+
 /* TODO: move common styling here */
 html {
   --body-background: #000;
