@@ -226,6 +226,80 @@ test.describe('Waveform and spectrogram rendering', () => {
   });
 });
 
+test.describe('Scrubber', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/project');
+    await uploadAudioFile(page, LONG_AUDIO);
+    await expect(page.locator('.timeline__waveform')).toBeVisible();
+  });
+
+  test('scrolling forward shows the rewind button', async ({ page }) => {
+    const timeline = page.locator('.scrubber__timeline');
+    const rewindButton = page.locator('.scrubber__rewind');
+
+    // Rewind button starts hidden at position 0
+    await expect(rewindButton).toHaveClass(/scrubber__rewind--hidden/);
+
+    // Scroll forward past the 10px threshold
+    await timeline.evaluate((el) => {
+      el.scrollLeft = 200;
+    });
+
+    // Wait for the 200ms debounce + React update cycle
+    await page.waitForTimeout(400);
+
+    // Rewind button should now be visible
+    await expect(rewindButton).not.toHaveClass(/scrubber__rewind--hidden/);
+  });
+
+  test('scrolling back to the start hides the rewind button', async ({
+    page,
+  }) => {
+    const timeline = page.locator('.scrubber__timeline');
+    const rewindButton = page.locator('.scrubber__rewind');
+
+    // Scroll forward to show the rewind button
+    await timeline.evaluate((el) => {
+      el.scrollLeft = 200;
+    });
+    await page.waitForTimeout(400);
+    await expect(rewindButton).not.toHaveClass(/scrubber__rewind--hidden/);
+
+    // Scroll back to the beginning
+    await timeline.evaluate((el) => {
+      el.scrollLeft = 0;
+    });
+    await page.waitForTimeout(400);
+
+    // Rewind button should be hidden again
+    await expect(rewindButton).toHaveClass(/scrubber__rewind--hidden/);
+  });
+
+  test('clicking the rewind button scrolls back to the start', async ({
+    page,
+  }) => {
+    const timeline = page.locator('.scrubber__timeline');
+    const rewindButton = page.locator('.scrubber__rewind');
+
+    // Scroll forward to expose the rewind button
+    await timeline.evaluate((el) => {
+      el.scrollLeft = 200;
+    });
+    await page.waitForTimeout(400);
+    await expect(rewindButton).not.toHaveClass(/scrubber__rewind--hidden/);
+
+    // Click the rewind button
+    await page.getByTitle('Rewind').click();
+
+    // Rewind button should hide (transport time reset to 0 → scrollLeft = 0)
+    await expect(rewindButton).toHaveClass(/scrubber__rewind--hidden/);
+
+    // Timeline scroll position should be back at 0
+    const scrollLeft = await timeline.evaluate((el) => el.scrollLeft);
+    expect(scrollLeft).toBe(0);
+  });
+});
+
 test.describe('Rewind control', () => {
   test('rewind button appears and resets playback', async ({ page }) => {
     await page.goto('/project');
