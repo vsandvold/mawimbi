@@ -4,6 +4,7 @@ import {
   SET_TRACK_FOCUS,
   SET_TRACK_UNFOCUS,
   SET_TRANSPORT_TIME,
+  START_PLAYBACK,
   STOP_AND_REWIND_PLAYBACK,
   STOP_PLAYBACK,
   TOGGLE_MIXER,
@@ -112,6 +113,25 @@ describe('TOGGLE_PLAYBACK', () => {
 
     expect(result.isPlaying).toBe(true);
     expect(result.transportTime).toBe(9.8);
+  });
+});
+
+describe('START_PLAYBACK', () => {
+  it('starts playback when not playing', () => {
+    const state = { ...defaultState, isPlaying: false };
+
+    const result = workstationReducer(state, [START_PLAYBACK]);
+
+    expect(result.isPlaying).toBe(true);
+  });
+
+  it('returns same state reference when already playing', () => {
+    const state = { ...defaultState, isPlaying: true };
+
+    const result = workstationReducer(state, [START_PLAYBACK]);
+
+    expect(result).toBe(state);
+    expect(result.isPlaying).toBe(true);
   });
 });
 
