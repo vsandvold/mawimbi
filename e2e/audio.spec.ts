@@ -422,4 +422,25 @@ test.describe('Visual regression - audio states', () => {
       'timeline-solo-track.png',
     );
   });
+
+  test('scrubber scrolled forward with rewind button visible', async ({
+    page,
+  }) => {
+    await page.goto('/project');
+    await uploadAudioFile(page, LONG_AUDIO);
+    await expect(page.locator('.timeline__waveform')).toBeVisible();
+
+    const timeline = page.locator('.scrubber__timeline');
+    await timeline.evaluate((el) => {
+      el.scrollLeft = 200;
+    });
+    await page.waitForTimeout(400);
+    await expect(page.locator('.scrubber__rewind')).not.toHaveClass(
+      /scrubber__rewind--hidden/,
+    );
+
+    await expect(page.locator('.editor')).toHaveScreenshot(
+      'scrubber-scrolled-forward.png',
+    );
+  });
 });
