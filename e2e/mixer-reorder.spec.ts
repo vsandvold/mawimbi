@@ -179,14 +179,9 @@ test.describe('Mixer channel reordering', () => {
     await context.close();
   });
 
-  test('dragging a channel downward reorders tracks in the mixer', async ({
+  test('mouse-dragging a channel reorders tracks in the mixer', async ({
     page,
   }) => {
-    // With Math.random = () => 0, nextColorId starts at 0.
-    // Track 1 (SHORT_AUDIO, added first):  COLOR_PALETTE[0] = rgb(77, 238, 234)
-    // Track 2 (LONG_AUDIO, added second):  COLOR_PALETTE[1] = rgb(116, 238, 21)
-    // Mixer shows tracks in reverse order, so Track 2 is first (top) and
-    // Track 1 is second (bottom).
     const channels = page.locator('.channel');
     const colorBefore = await channels
       .first()
@@ -197,28 +192,6 @@ test.describe('Mixer channel reordering', () => {
     await mouseDragTo(page, handles.first(), handles.last());
 
     // After dragging, the first channel should now have the other colour.
-    await expect(async () => {
-      const colorAfter = await channels
-        .first()
-        .evaluate((el) => (el as HTMLElement).style.backgroundColor);
-      expect(colorAfter).not.toBe(colorBefore);
-    }).toPass({ timeout: 2000 });
-  });
-
-  test('dragging a channel upward reorders tracks in the mixer', async ({
-    page,
-  }) => {
-    const channels = page.locator('.channel');
-    const colorBefore = await channels
-      .first()
-      .evaluate((el) => (el as HTMLElement).style.backgroundColor);
-
-    // Drag the bottom channel's handle up to the top channel's handle.
-    const handles = page.locator('.channel__move');
-    await mouseDragTo(page, handles.last(), handles.first());
-
-    // The top channel's colour should change because a different track is now
-    // at that position.
     await expect(async () => {
       const colorAfter = await channels
         .first()

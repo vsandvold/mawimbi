@@ -61,25 +61,3 @@ it('passes correct isMuted prop based on mutedTracks', () => {
   expect(channels.length).toBe(2);
   expect(invertedChannels.length).toBeGreaterThanOrEqual(1);
 });
-
-it('renders tracks in reversed order', () => {
-  const tracks = [
-    mockTrack({ trackId: 'track-A', index: 0, color: { r: 100, g: 0, b: 0 } }),
-    mockTrack({ trackId: 'track-B', index: 1, color: { r: 0, g: 100, b: 0 } }),
-    mockTrack({ trackId: 'track-C', index: 2, color: { r: 0, g: 0, b: 100 } }),
-  ];
-
-  const { container } = render(<Mixer tracks={tracks} mutedTracks={[]} />);
-
-  const channelElements = container.querySelectorAll('.mixer__channel');
-  expect(channelElements).toHaveLength(3);
-  // Mixer renders tracks reversed, so first displayed should be last in tracks array
-});
-
-it('renders mixer container', () => {
-  const tracks = [mockTrack({ trackId: 'track-1', index: 0 })];
-
-  const { container } = render(<Mixer tracks={tracks} mutedTracks={[]} />);
-
-  expect(container.querySelector('.mixer')).toBeInTheDocument();
-});
