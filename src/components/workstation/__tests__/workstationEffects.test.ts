@@ -73,3 +73,31 @@ it('controls playback', () => {
     expectedTransportTime,
   );
 });
+
+it('does not seek when stopping and resuming without a transport time change', () => {
+  // Simulates the bug: transportTime in state is set when user scrolls, but never
+  // updated during playback. If the user stops and starts again, the stale scroll
+  // position must not cause a jump back to where the user originally scrolled.
+  let isPlaying = true;
+  const transportTime = 5; // set by user scroll, stays stale during playback
+
+  const { rerender } = renderHook(() =>
+    usePlaybackControl(isPlaying, transportTime),
+  );
+
+  expect(audioServiceMock.startPlayback).toHaveBeenCalledWith(5);
+
+  // User stops playback; transportTime in state is still the stale scroll position
+  isPlaying = false;
+  rerender();
+
+  // Should pause without seeking back to the stale scroll position
+  expect(audioServiceMock.pausePlayback).toHaveBeenCalledWith();
+
+  // User starts playback again; transportTime is still stale
+  isPlaying = true;
+  rerender();
+
+  // Should resume from the audio engine's current position, not the stale scroll position
+  expect(audioServiceMock.startPlayback).toHaveBeenLastCalledWith();
+});
