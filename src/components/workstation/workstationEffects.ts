@@ -35,11 +35,32 @@ export const usePlaybackControl = (
   transportTime: number,
 ) => {
   const audioService = useAudioService();
+  // Initialised to null so the first render always counts as a transport time change,
+  // ensuring the audio engine is seeked to the initial position on mount.
+  const prevTransportTimeRef = useRef<number | null>(null);
+
   useEffect(() => {
+    const transportTimeChanged = prevTransportTimeRef.current !== transportTime;
+    prevTransportTimeRef.current = transportTime;
+
     if (isPlaying) {
-      audioService.startPlayback(transportTime);
+      // Only seek when transport time was explicitly changed (e.g. by scrolling).
+      // When merely resuming, pass no position so the engine continues from where
+      // it paused rather than jumping back to the stale scroll position.
+      if (transportTimeChanged) {
+        audioService.startPlayback(transportTime);
+      } else {
+        audioService.startPlayback();
+      }
     } else {
-      audioService.pausePlayback(transportTime);
+      // Only seek when transport time was explicitly changed (e.g. scroll while
+      // paused, or rewind). When stopping normally, omit the position so the engine
+      // retains the actual playback position for the next resume.
+      if (transportTimeChanged) {
+        audioService.pausePlayback(transportTime);
+      } else {
+        audioService.pausePlayback();
+      }
     }
   }, [isPlaying, transportTime]); // audioService never changes, and can safely be omitted from dependencies
 };
