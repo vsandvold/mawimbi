@@ -130,6 +130,11 @@ const Scrubber = (props: ScrubberProps) => {
     debouncedSetTransportTime();
   };
 
+  const handleTouchMove = () => {
+    pauseForUserScroll();
+    debouncedSetTransportTime();
+  };
+
   const handleScroll = () => {
     if (isProgrammaticScrollRef.current) {
       isProgrammaticScrollRef.current = false;
@@ -188,6 +193,7 @@ const Scrubber = (props: ScrubberProps) => {
         onClick={togglePlayback}
         onScroll={handleScroll}
         onWheel={handleWheel}
+        onTouchMove={handleTouchMove}
       >
         {props.children}
       </div>
