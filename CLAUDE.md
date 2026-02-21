@@ -203,14 +203,3 @@ Vitest + React Testing Library. Test setup (`setupTests.ts`) globally mocks:
 
 `clearMocks: true` in `vite.config.ts` resets mock call counts between tests.
 
-### E2E tests with touch emulation
-
-When using `test.use({ hasTouch: true })`, the browser reports touch support and `browserSupport.touchEvents` becomes `true`. This triggers the fullscreen overlay in `Fullscreen.tsx`, which covers the entire page and intercepts all pointer events. Always dismiss it in `beforeEach` before interacting with the page:
-
-```ts
-const dismissButton = page.getByText('Dismiss');
-if (await dismissButton.isVisible()) {
-  await dismissButton.click();
-}
-await expect(page.locator('.fullscreen__overlay')).not.toBeVisible();
-```
