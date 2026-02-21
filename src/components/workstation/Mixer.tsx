@@ -2,7 +2,6 @@ import {
   DndContext,
   DragEndEvent,
   PointerSensor,
-  closestCenter,
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
@@ -44,16 +43,7 @@ const Mixer = (mixerProps: MixerProps) => {
   }
 
   return (
-    // closestCenter is required so the dragged strip follows the pointer
-    // immediately. The default rectIntersection returns no `over` until the
-    // active rect overlaps another channel (~21 px), which prevents
-    // useSortable from applying any transform to the active item — making it
-    // appear frozen until it suddenly jumps into position.
-    <DndContext
-      sensors={sensors}
-      collisionDetection={closestCenter}
-      onDragEnd={handleDragEnd}
-    >
+    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
       <SortableContext
         items={reversedIds}
         strategy={verticalListSortingStrategy}
