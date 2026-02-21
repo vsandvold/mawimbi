@@ -32,6 +32,8 @@ gh pr create --repo vsandvold/mawimbi ...
 
 The main branch is `master`.
 
+`Read` only works on files — passing a directory path returns `EISDIR`. Use `Glob` to explore directory contents instead.
+
 Prettier runs automatically on pre-commit via Husky + lint-staged (ESLint --fix + prettier --write on staged TS/TSX files).
 
 ## Tech Stack
