@@ -89,7 +89,7 @@ const Scrubber = (props: ScrubberProps) => {
             timelineScrollRef.current.clientWidth >=
           timelineScrollRef.current.scrollWidth;
         if (isEndOfScroll) {
-          dispatch([STOP_PLAYBACK]);
+          dispatch([STOP_AND_REWIND_PLAYBACK]);
         }
       }
     }
@@ -140,6 +140,7 @@ const Scrubber = (props: ScrubberProps) => {
       toggleRewindButton(timelineScrollRef.current.scrollLeft);
     }
 
+    pauseForUserScroll();
     debouncedSetTransportTime();
   };
 
