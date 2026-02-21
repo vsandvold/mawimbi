@@ -169,6 +169,14 @@ Channel volume (slider 0–100) is converted to decibels: `20 * Math.log((value 
 - Reducer actions use `CONSTANT_CASE`
 - Component files use PascalCase; hooks use `use` prefix
 
+## Code Style
+
+- **Function ordering:** Callers above callees. Public before private.
+- **Small functions:** One responsibility per function. No boolean flag arguments — split into separate functions instead.
+- **No magic numbers:** Extract numeric and string literals into named constants.
+- **Explaining variables:** Extract complex expressions into named variables rather than inlining them.
+- **Comments:** Explain _why_, never _what_. Code should be self-explanatory; comments document intent and reasoning.
+
 ## Testing
 
 Vitest + React Testing Library. Test setup (`setupTests.ts`) globally mocks:
