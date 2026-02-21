@@ -25,6 +25,10 @@
   margin-right: 8px;
 }
 
+.channel__move {
+  touch-action: none;
+}
+
 /* Channel button */
 .channel-button,
 .channel-button:hover,

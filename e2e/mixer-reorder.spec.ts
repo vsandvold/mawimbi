@@ -70,6 +70,16 @@ test.describe('Mixer channel reordering', () => {
     await page.waitForTimeout(MIXER_ANIMATION_MS);
   });
 
+  test('drag handle disables browser touch actions to prevent pointer cancel', async ({
+    page,
+  }) => {
+    const handle = page.locator('.channel__move').first();
+    const touchAction = await handle.evaluate(
+      (el) => getComputedStyle(el).touchAction,
+    );
+    expect(touchAction).toBe('none');
+  });
+
   test('dragging a channel downward reorders tracks in the mixer', async ({
     page,
   }) => {
