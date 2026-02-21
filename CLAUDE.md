@@ -21,6 +21,19 @@ To run a single test file:
 npm test -- src/path/to/File.test.tsx
 ```
 
+### GitHub CLI
+
+The git remote uses a local proxy URL, so `gh` cannot infer the repo from the remote. Always pass `--repo vsandvold/mawimbi` explicitly:
+
+```bash
+gh issue view 19 --repo vsandvold/mawimbi
+gh pr create --repo vsandvold/mawimbi ...
+```
+
+The main branch is `master`.
+
+`Read` only works on files — passing a directory path returns `EISDIR`. Use `Glob` to explore directory contents instead.
+
 Prettier runs automatically on pre-commit via Husky + lint-staged (ESLint --fix + prettier --write on staged TS/TSX files).
 
 ## Tech Stack
@@ -193,3 +206,4 @@ Vitest + React Testing Library. Test setup (`setupTests.ts`) globally mocks:
 - `react-router-dom` — mock `useNavigate` and `useLocation`
 
 `clearMocks: true` in `vite.config.ts` resets mock call counts between tests.
+
