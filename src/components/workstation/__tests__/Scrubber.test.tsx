@@ -3,7 +3,7 @@ import { fireEvent, render } from '@testing-library/react';
 import React from 'react';
 import Scrubber from '../Scrubber';
 import { WorkstationDispatch } from '../useWorkstationDispatch';
-import { STOP_AND_REWIND_PLAYBACK } from '../workstationReducer';
+import { STOP_AND_REWIND_PLAYBACK, STOP_PLAYBACK } from '../workstationReducer';
 
 const mockDispatch = vi.fn();
 
@@ -53,6 +53,32 @@ it('stops and rewinds playback when rewind button is clicked', () => {
 
   expect(mockDispatch).toHaveBeenCalledTimes(1);
   expect(mockDispatch).toHaveBeenCalledWith([STOP_AND_REWIND_PLAYBACK]);
+});
+
+it('pauses playback when timeline is scrolled while playing', () => {
+  const { container } = render(
+    <WorkstationDispatch.Provider value={mockDispatch}>
+      <Scrubber {...{ ...defaultProps, isPlaying: true }} />
+    </WorkstationDispatch.Provider>,
+  );
+
+  const timeline = container.querySelector('.scrubber__timeline')!;
+  fireEvent.scroll(timeline);
+
+  expect(mockDispatch).toHaveBeenCalledWith([STOP_PLAYBACK]);
+});
+
+it('does not pause playback when timeline is scrolled while paused', () => {
+  const { container } = render(
+    <WorkstationDispatch.Provider value={mockDispatch}>
+      <Scrubber {...{ ...defaultProps, isPlaying: false }} />
+    </WorkstationDispatch.Provider>,
+  );
+
+  const timeline = container.querySelector('.scrubber__timeline')!;
+  fireEvent.scroll(timeline);
+
+  expect(mockDispatch).not.toHaveBeenCalledWith([STOP_PLAYBACK]);
 });
 
 it('transforms timeline vertical scale when drawer is open', () => {
