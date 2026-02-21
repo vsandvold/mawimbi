@@ -177,6 +177,14 @@ Channel volume (slider 0–100) is converted to decibels: `20 * Math.log((value 
 - **Explaining variables:** Extract complex expressions into named variables rather than inlining them.
 - **Comments:** Explain _why_, never _what_. Code should be self-explanatory; comments document intent and reasoning.
 
+## Bug Fixes
+
+When fixing a bug, always write a failing test that demonstrates the bug **before** implementing the fix. This confirms the test correctly captures the bug and ensures the fix is verified by the test rather than assumed correct.
+
+1. Write a unit or e2e test that reproduces the bug and confirm it fails
+2. Implement the fix
+3. Confirm the previously failing test now passes
+
 ## Testing
 
 Vitest + React Testing Library. Test setup (`setupTests.ts`) globally mocks:
