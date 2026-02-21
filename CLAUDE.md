@@ -30,10 +30,7 @@ gh issue view 19 --repo vsandvold/mawimbi
 gh pr create --repo vsandvold/mawimbi ...
 ```
 
-### Git branch and push rules
-
-- `master` is protected — direct pushes return 403. Always work on a `claude/` branch and open a PR.
-- Use `git checkout <branch>` to switch to an existing branch. `git checkout -b` fails if the branch already exists.
+The main branch is `master`.
 
 Prettier runs automatically on pre-commit via Husky + lint-staged (ESLint --fix + prettier --write on staged TS/TSX files).
 
