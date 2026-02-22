@@ -25,10 +25,6 @@ vi.mock('../../project/useProjectDispatch', () => ({
   default: () => mockProjectDispatch,
 }));
 
-vi.mock('../useWorkstationDispatch', () => ({
-  default: () => vi.fn(),
-}));
-
 afterEach(() => {
   resetAllSignals();
 });

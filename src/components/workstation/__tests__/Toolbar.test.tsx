@@ -6,18 +6,16 @@ import {
   resetTransportSignals,
 } from '../../../signals/transportSignals';
 import Toolbar from '../Toolbar';
-import { TOGGLE_MIXER } from '../workstationReducer';
 
-const mockDispatch = vi.fn();
-
-vi.mock('../useWorkstationDispatch', () => ({
-  default: () => mockDispatch,
-}));
+const mockToggleMixer = vi.fn();
+const mockToggleRecording = vi.fn();
 
 const defaultProps = {
   isMixerOpen: false,
   isEmpty: false,
   isRecording: false,
+  onToggleMixer: mockToggleMixer,
+  onToggleRecording: mockToggleRecording,
 };
 
 afterEach(() => {
@@ -107,6 +105,5 @@ it('toggles mixer when mixer show/hide is clicked', () => {
   const mixerButton = getByTitle('Show mixer');
   fireEvent.click(mixerButton);
 
-  expect(mockDispatch).toBeCalledTimes(1);
-  expect(mockDispatch).toHaveBeenCalledWith([TOGGLE_MIXER]);
+  expect(mockToggleMixer).toHaveBeenCalledTimes(1);
 });

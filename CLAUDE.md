@@ -51,12 +51,15 @@ Prettier runs automatically on pre-commit via Husky + lint-staged (ESLint --fix 
 
 ### State Management
 
-Uses React Context + `useReducer` (no Redux). Two independent state domains:
+Uses a mix of React Context + `useReducer` and `@preact/signals-react`:
 
-- **Project state** (`projectPageReducer.ts`): Track list, track metadata (color, filename, volume, mute/solo). Dispatch via `useProjectDispatch`.
-- **Workstation state** (`workstationReducer.ts`): Playback/recording status, zoom level, transport time, focused/muted tracks, mixer visibility. Dispatch via `useWorkstationDispatch`.
+- **Project state** (`projectPageReducer.ts`): Track list, track metadata (color, filename). Dispatch via `useProjectDispatch`.
+- **Workstation state**: `isMixerOpen` and `isRecording` are local `useState` in `Workstation.tsx`, passed as props/callbacks to `Toolbar`. `pixelsPerSecond` (zoom level) is a signal in `src/signals/workstationSignals.ts`.
+- **Transport signals** (`transportSignals.ts`): Playback status, transport time, loudness.
+- **Track signals** (`trackSignals.ts`): Per-track volume, mute, solo. Computed `mutedTracks` signal derives which tracks are currently muted.
+- **Focus signals** (`focusSignals.ts`): Focused track IDs with debounced unfocus.
 
-Side effects (file upload, audio playback, recording) are handled in separate `*Effects.ts` files that respond to dispatched actions.
+Side effects (file upload, audio playback, recording) are handled in separate `*Effects.ts` files.
 
 ### Audio Service Layer (`src/services/`)
 
@@ -106,7 +109,7 @@ src/
 │   │   └── useProjectDispatch.tsx     # Context consumer hook for project dispatch
 │   │
 │   └── workstation/
-│       ├── Workstation.tsx            # Provides WorkstationDispatch context + editor layout
+│       ├── Workstation.tsx            # Editor layout with local state (isMixerOpen, isRecording)
 │       ├── Toolbar.tsx                # Playback/record/mixer toggle controls
 │       ├── Timeline.tsx               # Track list: renders Waveform or Spectrogram per track (memoized)
 │       ├── Waveform.tsx               # WaveSurfer.js integration per track
@@ -115,10 +118,13 @@ src/
 │       ├── Mixer.tsx                  # @dnd-kit drag-and-drop container for track reordering
 │       ├── Channel.tsx                # Single track controls: mute/solo buttons, volume slider
 │       ├── EmptyTimeline.tsx          # Placeholder shown when no tracks exist
-│       ├── workstationReducer.ts      # Playback/UI state: TOGGLE_PLAYBACK, SET_TRANSPORT_TIME, SET_ZOOM, etc.
-│       ├── workstationEffects.ts      # usePlaybackControl, useMutedTracks, useMicrophone, useMixerHeight
-│       ├── useWorkstationReducer.tsx  # useReducer wrapper with initial state
-│       └── useWorkstationDispatch.tsx # Context consumer hook for workstation dispatch
+│       └── workstationEffects.ts      # useSpacebarPlaybackToggle, useMicrophone, useMixerHeight
+│
+├── signals/
+│   ├── transportSignals.ts            # Playback state: isPlaying, transportTime, loudness, totalTime
+│   ├── trackSignals.ts                # Per-track signals: volume, mute, solo + computed mutedTracks
+│   ├── focusSignals.ts                # Focused track IDs with debounced unfocus
+│   └── workstationSignals.ts          # Zoom level: pixelsPerSecond
 │
 ├── services/
 │   ├── AudioService.ts                # Singleton: track creation, Tone.Transport playback, recording
@@ -136,11 +142,11 @@ src/
 
 ## Non-Obvious Patterns
 
-### Reducer action format is tuple-based
+### Project reducer action format is tuple-based
 Actions are `[ACTION_TYPE, payload?]` tuples, **not** `{ type, payload }` objects:
 ```ts
-dispatch(['ADD_TRACK', { id, filename, color }]);
-dispatch(['TOGGLE_PLAYBACK']);
+dispatch(['ADD_TRACK', { trackId, fileName }]);
+dispatch(['MOVE_TRACK', { fromIndex, toIndex }]);
 ```
 
 ### Repository pattern inside services
@@ -149,10 +155,10 @@ dispatch(['TOGGLE_PLAYBACK']);
 ### Mixer displays tracks in reverse order
 `Mixer.tsx` reverses the track array for visual stacking. Drag-and-drop indices are converted back before dispatching `MOVE_TRACK`, so callers always deal with logical (non-reversed) indices.
 
-### Muting is dual-layered
-- `ProjectState` stores per-track `mute`/`solo` booleans (user intent)
-- `WorkstationState` stores the computed array of currently muted track IDs (derived, recalculated by `Mixer.getMutedChannels()` after each change)
-- `Timeline` reads from `WorkstationState` for visual styling; `Mixer` reads from `ProjectState` for audio routing
+### Muting uses signals
+- Per-track `mute`/`solo` signals live in `TrackSignalStore` (user intent)
+- `mutedTracks` is a computed signal that derives the currently muted track IDs from per-track mute/solo state
+- `Timeline` and `Mixer` both read from signals for visual styling and audio routing
 
 ### AudioService initialisation on app boot
 `AudioService.startAudio()` is `await`ed in `src/index.tsx` before rendering. This starts the Tone.js `AudioContext` and must happen in response to user gesture (handled by the library). Don't call it elsewhere.

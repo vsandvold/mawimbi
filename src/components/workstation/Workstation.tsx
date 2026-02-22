@@ -1,6 +1,8 @@
 import classNames from 'classnames';
+import { useState } from 'react';
 import { useAudioBridge } from '../../hooks/useAudioBridge';
 import { useTransportBridge } from '../../hooks/useTransportBridge';
+import { pixelsPerSecond as pixelsPerSecondSignal } from '../../signals/workstationSignals';
 import Dropzone from '../dropzone/Dropzone';
 import { Track } from '../project/projectPageReducer';
 import EmptyTimeline from './EmptyTimeline';
@@ -8,8 +10,6 @@ import Mixer from './Mixer';
 import Scrubber from './Scrubber';
 import Timeline from './Timeline';
 import Toolbar from './Toolbar';
-import { WorkstationDispatch } from './useWorkstationDispatch';
-import useWorkstationReducer from './useWorkstationReducer';
 import './Workstation.css';
 import {
   useDropzoneDragActive,
@@ -25,12 +25,13 @@ type WorkstationProps = {
 };
 
 const Workstation = (props: WorkstationProps) => {
-  const [state, dispatch] = useWorkstationReducer();
+  const [isMixerOpen, setIsMixerOpen] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
 
   const { tracks, uploadFile } = props;
   const hasTracks = tracks.length > 0;
 
-  const { isMixerOpen, isRecording, pixelsPerSecond } = state;
+  const pixelsPerSecond = pixelsPerSecondSignal.value;
 
   const { mixerContainerRef, mixerHeight } = useMixerHeight();
   const {
@@ -47,6 +48,9 @@ const Workstation = (props: WorkstationProps) => {
   useTotalTime(tracks);
   useMicrophone(isRecording);
 
+  const toggleMixer = () => setIsMixerOpen((prev) => !prev);
+  const toggleRecording = () => setIsRecording((prev) => !prev);
+
   const editorMixerClass = classNames('editor__mixer', {
     'editor__mixer--closed': !isMixerOpen,
   });
@@ -56,42 +60,42 @@ const Workstation = (props: WorkstationProps) => {
   });
 
   return (
-    <WorkstationDispatch.Provider value={dispatch}>
-      <div className="workstation">
-        <div className="editor" {...dropzoneRootProps}>
-          <div className="editor__timeline">
-            {hasTracks ? (
-              <Scrubber
-                drawerHeight={mixerHeight}
-                isMixerOpen={isMixerOpen}
-                pixelsPerSecond={pixelsPerSecond}
-              >
-                <Timeline pixelsPerSecond={pixelsPerSecond} tracks={tracks} />
-              </Scrubber>
-            ) : (
-              <EmptyTimeline isDragActive={isDragActive} />
-            )}
-          </div>
-          <div ref={mixerContainerRef} className={editorMixerClass}>
-            <Mixer tracks={tracks} />
-          </div>
-          <div className={editorDropzoneClass}>
-            <Dropzone
-              setIsDragActive={setIsDragActive}
-              setRootProps={setDropzoneRootProps}
-              uploadFile={uploadFile}
-            />
-          </div>
+    <div className="workstation">
+      <div className="editor" {...dropzoneRootProps}>
+        <div className="editor__timeline">
+          {hasTracks ? (
+            <Scrubber
+              drawerHeight={mixerHeight}
+              isMixerOpen={isMixerOpen}
+              pixelsPerSecond={pixelsPerSecond}
+            >
+              <Timeline pixelsPerSecond={pixelsPerSecond} tracks={tracks} />
+            </Scrubber>
+          ) : (
+            <EmptyTimeline isDragActive={isDragActive} />
+          )}
         </div>
-        <div className="workstation__toolbar">
-          <Toolbar
-            isMixerOpen={isMixerOpen}
-            isEmpty={!hasTracks}
-            isRecording={isRecording}
+        <div ref={mixerContainerRef} className={editorMixerClass}>
+          <Mixer tracks={tracks} />
+        </div>
+        <div className={editorDropzoneClass}>
+          <Dropzone
+            setIsDragActive={setIsDragActive}
+            setRootProps={setDropzoneRootProps}
+            uploadFile={uploadFile}
           />
         </div>
       </div>
-    </WorkstationDispatch.Provider>
+      <div className="workstation__toolbar">
+        <Toolbar
+          isMixerOpen={isMixerOpen}
+          isEmpty={!hasTracks}
+          isRecording={isRecording}
+          onToggleMixer={toggleMixer}
+          onToggleRecording={toggleRecording}
+        />
+      </div>
+    </div>
   );
 };
 
