@@ -36,6 +36,7 @@ vi.mock('tone', () => {
       state: 'stopped',
     },
     start: vi.fn().mockResolvedValue(undefined),
+    getDestination: vi.fn().mockReturnValue(makeNode()),
     context: { decodeAudioData: vi.fn().mockResolvedValue({}) },
   };
 });

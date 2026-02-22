@@ -1,10 +1,22 @@
 import * as Tone from 'tone';
 
+const SMOOTHING = 0.8;
+const POWER_CURVE_EXPONENT = 0.6;
+
 class Mixer {
   private audioChannelRepository: AudioChannelRepository;
+  private meter: Tone.Meter;
 
   constructor() {
     this.audioChannelRepository = new AudioChannelRepository();
+    this.meter = new Tone.Meter({ normalRange: true, smoothing: SMOOTHING });
+    Tone.getDestination().connect(this.meter);
+  }
+
+  getLoudness(): number {
+    const value = this.meter.getValue();
+    const clamped = typeof value === 'number' ? Math.max(0, value) : 0;
+    return Math.pow(clamped, POWER_CURVE_EXPONENT);
   }
 
   createChannel(trackId: string, audioBuffer: AudioBuffer): void {
@@ -41,7 +53,7 @@ class Mixer {
 
   private isChannelMuted(
     channel: AudioChannel,
-    hasSoloChannels: boolean
+    hasSoloChannels: boolean,
   ): boolean {
     return channel.mute || (hasSoloChannels && !channel.solo);
   }
@@ -108,7 +120,7 @@ class AudioChannelRepository {
     const channelToRemove = this.get(id);
     if (channelToRemove) {
       this.audioChannels = this.audioChannels.filter(
-        (channel) => channel !== channelToRemove
+        (channel) => channel !== channelToRemove,
       );
     }
     return channelToRemove;
