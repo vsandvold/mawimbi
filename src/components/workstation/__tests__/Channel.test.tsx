@@ -1,5 +1,4 @@
 import { fireEvent, render } from '@testing-library/react';
-import React from 'react';
 import { vi } from 'vitest';
 import { TrackSignalStore } from '../../../signals/trackSignals';
 import { resetAllSignals } from '../../../signals/__tests__/testUtils';

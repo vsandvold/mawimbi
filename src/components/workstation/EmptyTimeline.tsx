@@ -1,5 +1,4 @@
 import { Typography } from 'antd';
-import React from 'react';
 import { useBrowserSupport } from '../../browserSupport';
 
 type EmptyTimelineProps = {

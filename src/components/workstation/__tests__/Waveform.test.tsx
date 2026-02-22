@@ -1,5 +1,4 @@
 import { render } from '@testing-library/react';
-import React from 'react';
 import WaveSurfer from 'wavesurfer.js';
 import { TrackSignalStore } from '../../../signals/trackSignals';
 import { resetAllSignals } from '../../../signals/__tests__/testUtils';
@@ -96,7 +95,7 @@ it('renders with zero opacity when volume signal is 0', () => {
 it('loads audio url when mounted', () => {
   render(<Waveform {...defaultProps} />);
 
-  const wavesurferInstance = WaveSurfer.create({} as any);
+  const wavesurferInstance = vi.mocked(WaveSurfer.create).mock.results[0].value;
 
   expect(wavesurferInstance.load).toHaveBeenCalledTimes(1);
   expect(wavesurferInstance.load).toHaveBeenCalledWith(MOCK_BLOB_URL);
@@ -107,6 +106,6 @@ it('destroys waveform when unmounted', () => {
 
   unmount();
 
-  const wavesurferInstance = WaveSurfer.create({} as any);
+  const wavesurferInstance = vi.mocked(WaveSurfer.create).mock.results[0].value;
   expect(wavesurferInstance.destroy).toHaveBeenCalledTimes(1);
 });

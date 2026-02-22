@@ -70,7 +70,7 @@ export const useTrackSideEffects = (tracks: Track[]) => {
     }
 
     previousTracksRef.current = tracks;
-  }, [tracks]); // audioService is a stable singleton
+  }, [tracks, audioService]);
 };
 
 export const useFullscreen = () => {

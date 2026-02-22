@@ -38,5 +38,5 @@ export function useAudioBridge(trackIds: TrackId[]): void {
         dispose();
       }
     };
-  }, [trackIds]);
+  }, [trackIds, audioService.mixer]);
 }

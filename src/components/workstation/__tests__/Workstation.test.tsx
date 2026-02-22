@@ -1,5 +1,5 @@
 import { render } from '@testing-library/react';
-import React from 'react';
+import { type ReactNode } from 'react';
 import { vi } from 'vitest';
 import { useFileDropzone } from '../../dropzone/useFileDropzone';
 import { useAudioBridge } from '../../../hooks/useAudioBridge';
@@ -17,7 +17,9 @@ vi.mock('../EmptyTimeline', () => ({
 }));
 vi.mock('../Mixer');
 vi.mock('../Scrubber', () => ({
-  default: ({ children }: any) => <div data-testid="scrubber">{children}</div>,
+  default: ({ children }: { children: ReactNode }) => (
+    <div data-testid="scrubber">{children}</div>
+  ),
 }));
 vi.mock('../Timeline', () => ({
   default: () => <div data-testid="regular-timeline"></div>,

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAudioService } from '../../hooks/useAudioService';
 import { useTrackVolume } from '../../hooks/useTrackVolume';
 import OfflineAnalyser from '../../services/OfflineAnalyser';

@@ -5,7 +5,25 @@ export type ProjectState = {
   tracks: Track[];
 };
 
-export type ProjectAction = [string, any?];
+type AddTrackPayload = {
+  trackId: TrackId;
+  fileName?: string;
+  restore?: Track;
+};
+
+type DeleteTrackPayload = {
+  trackId: TrackId;
+};
+
+type MoveTrackPayload = {
+  fromIndex: number;
+  toIndex: number;
+};
+
+export type ProjectAction =
+  | [typeof ADD_TRACK, AddTrackPayload]
+  | [typeof DELETE_TRACK, DeleteTrackPayload]
+  | [typeof MOVE_TRACK, MoveTrackPayload];
 
 export type TrackId = string;
 
@@ -36,15 +54,15 @@ export const MOVE_TRACK = 'MOVE_TRACK';
 
 export function projectReducer(
   state: ProjectState,
-  [type, payload]: ProjectAction,
+  action: ProjectAction,
 ): ProjectState {
-  switch (type) {
+  switch (action[0]) {
     case ADD_TRACK:
-      return addTrack(state, payload);
+      return addTrack(state, action[1]);
     case DELETE_TRACK:
-      return deleteTrack(state, payload);
+      return deleteTrack(state, action[1]);
     case MOVE_TRACK:
-      return { ...state, tracks: moveTrack(state.tracks, payload) };
+      return { ...state, tracks: moveTrack(state.tracks, action[1]) };
     default:
       throw new Error();
   }
@@ -52,27 +70,27 @@ export function projectReducer(
 
 export function reverseProjectAction(
   state: ProjectState,
-  [type, payload]: ProjectAction,
+  action: ProjectAction,
 ): ProjectAction | null {
-  switch (type) {
+  switch (action[0]) {
     case ADD_TRACK:
-      return [DELETE_TRACK, { trackId: payload.trackId }];
+      return [DELETE_TRACK, { trackId: action[1].trackId }];
     case DELETE_TRACK: {
-      const track = state.tracks.find((t) => t.trackId === payload.trackId);
+      const track = state.tracks.find((t) => t.trackId === action[1].trackId);
       if (!track) return null;
       return [ADD_TRACK, { trackId: track.trackId, restore: track }];
     }
     case MOVE_TRACK:
       return [
         MOVE_TRACK,
-        { fromIndex: payload.toIndex, toIndex: payload.fromIndex },
+        { fromIndex: action[1].toIndex, toIndex: action[1].fromIndex },
       ];
     default:
       return null;
   }
 }
 
-function addTrack(state: ProjectState, payload: any): ProjectState {
+function addTrack(state: ProjectState, payload: AddTrackPayload): ProjectState {
   if (payload.restore) {
     return {
       ...state,
@@ -90,7 +108,10 @@ function addTrack(state: ProjectState, payload: any): ProjectState {
   };
 }
 
-function deleteTrack(state: ProjectState, payload: any): ProjectState {
+function deleteTrack(
+  state: ProjectState,
+  payload: DeleteTrackPayload,
+): ProjectState {
   return {
     ...state,
     tracks: state.tracks
@@ -102,17 +123,20 @@ function deleteTrack(state: ProjectState, payload: any): ProjectState {
 function createTrack(
   index: number,
   colorIdx: number,
-  { trackId, fileName }: any,
+  { trackId, fileName }: AddTrackPayload,
 ): Track {
   return {
     color: COLOR_PALETTE[colorIdx],
-    fileName,
+    fileName: fileName ?? '',
     trackId,
     index,
   };
 }
 
-function moveTrack(tracks: Track[], { fromIndex, toIndex }: any): Track[] {
+function moveTrack(
+  tracks: Track[],
+  { fromIndex, toIndex }: MoveTrackPayload,
+): Track[] {
   const updatedTracks = [...tracks];
   const [removed] = updatedTracks.splice(fromIndex, 1);
   updatedTracks.splice(toIndex, 0, removed);

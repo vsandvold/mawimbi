@@ -5,7 +5,6 @@ import {
 } from '@ant-design/icons';
 import { Button, Slider } from 'antd';
 import classNames from 'classnames';
-import React from 'react';
 import { Track } from '../project/projectPageReducer';
 import './Channel.css';
 import { useChannelControls } from './useChannelControls';

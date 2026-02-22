@@ -6,7 +6,6 @@ import Icon, {
 } from '@ant-design/icons';
 import { Button } from 'antd';
 import classNames from 'classnames';
-import React from 'react';
 import ControlSvg from '../../icons/control.svg?react';
 import {
   isPlaying as isPlayingSignal,

@@ -1,5 +1,4 @@
 import { fireEvent, render } from '@testing-library/react';
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import HomePage from '../HomePage';
 

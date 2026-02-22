@@ -3,7 +3,12 @@ import { v4 as uuidv4 } from 'uuid';
 import MicrophoneUserMedia from './MicrophoneUserMedia';
 import Mixer from './Mixer';
 
-function startAudioContext(this: any, event: Event): void {
+type AudioContextStarter = {
+  resolve: () => void;
+  reject: () => void;
+};
+
+function startAudioContext(this: AudioContextStarter, event: Event): void {
   event.preventDefault();
   event.stopPropagation();
   Tone.start()
@@ -41,7 +46,7 @@ class AudioService {
     return AudioService.instance;
   }
 
-  static startAudio(clickElement = window): Promise<any> {
+  static startAudio(clickElement = window): Promise<void> {
     return new Promise((resolve, reject) => {
       clickElement.addEventListener(
         'click',

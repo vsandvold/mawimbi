@@ -3,6 +3,7 @@ import { Button } from 'antd';
 import classNames from 'classnames';
 import {
   PropsWithChildren,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -43,16 +44,19 @@ const Scrubber = (props: ScrubberProps) => {
   const isProgrammaticScrollRef = useRef(false);
   const shouldResumeRef = useRef(false);
 
-  const setScrollPosition = (time: number) => {
-    if (timelineScrollRef.current) {
-      const scrollPosition = Math.trunc(time * pixelsPerSecond);
-      if (timelineScrollRef.current.scrollLeft !== scrollPosition) {
-        isProgrammaticScrollRef.current = true;
-        timelineScrollRef.current.scrollLeft = scrollPosition;
+  const setScrollPosition = useCallback(
+    (time: number) => {
+      if (timelineScrollRef.current) {
+        const scrollPosition = Math.trunc(time * pixelsPerSecond);
+        if (timelineScrollRef.current.scrollLeft !== scrollPosition) {
+          isProgrammaticScrollRef.current = true;
+          timelineScrollRef.current.scrollLeft = scrollPosition;
+        }
+        setIsRewindButtonHidden(scrollPosition < 10);
       }
-      toggleRewindButton(scrollPosition);
-    }
-  };
+    },
+    [pixelsPerSecond],
+  );
 
   const audioService = useAudioService();
 
@@ -93,14 +97,14 @@ const Scrubber = (props: ScrubberProps) => {
     rafId = requestAnimationFrame(animate);
 
     return () => cancelAnimationFrame(rafId);
-  }, [playing, pixelsPerSecond]);
+  }, [playing, audioService, setScrollPosition]);
 
   // Sync scroll position to transportTime when not playing (e.g. after rewind)
   useEffect(() => {
     if (!playing) {
       setScrollPosition(transportTime.peek());
     }
-  }, [playing, pixelsPerSecond]);
+  }, [playing, setScrollPosition]);
 
   const setTransportTimeFromScroll = () => {
     if (timelineScrollRef.current) {

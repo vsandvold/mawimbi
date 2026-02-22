@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import WaveSurfer from 'wavesurfer.js';
 import { useAudioService } from '../../hooks/useAudioService';
 import { useTrackVolume } from '../../hooks/useTrackVolume';
@@ -38,7 +38,7 @@ const Waveform = ({ height, pixelsPerSecond, track }: WaveformProps) => {
     return () => {
       waveformRef.current?.destroy();
     };
-  }, [trackId, color, height, pixelsPerSecond]);
+  }, [trackId, color, height, pixelsPerSecond, audioService]);
 
   const { opacity } = useTrackVolume(trackId);
 

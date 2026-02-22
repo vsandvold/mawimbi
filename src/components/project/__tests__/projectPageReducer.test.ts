@@ -152,7 +152,7 @@ describe('reverseProjectAction', () => {
 
   it('returns null for unknown actions', () => {
     const state = createState();
-    const action: ProjectAction = ['UNKNOWN_ACTION'];
+    const action = ['UNKNOWN_ACTION'] as unknown as ProjectAction;
 
     const reverse = reverseProjectAction(state, action);
 

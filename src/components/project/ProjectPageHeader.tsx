@@ -6,8 +6,7 @@ import {
   UploadOutlined,
 } from '@ant-design/icons';
 import { Button, Dropdown, Typography, Upload } from 'antd';
-import type { MenuProps } from 'antd';
-import React from 'react';
+import type { MenuProps, UploadProps } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import './ProjectPageHeader.css';
 
@@ -71,16 +70,16 @@ type UploadButtonProps = {
 const UploadButton = (props: UploadButtonProps) => {
   const { uploadFile } = props;
 
-  const uploadProps = {
+  const uploadProps: UploadProps = {
     accept: 'audio/*',
     multiple: true,
     showUploadList: false,
     beforeUpload: () => false,
-    onChange(info: any) {
-      if (info.file) {
-        uploadFile(info.file);
+    onChange(info) {
+      const file = info.file.originFileObj;
+      if (file) {
+        uploadFile(file);
       }
-      // TODO: force fullscreen if already enabled
     },
   };
 
