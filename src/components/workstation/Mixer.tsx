@@ -11,7 +11,6 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import React from 'react';
 import { mutedTracks as mutedTracksSignal } from '../../signals/trackSignals';
 import { MOVE_TRACK, Track, TrackId } from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
@@ -78,7 +77,7 @@ const SortableChannelItem = ({ track, isMuted }: SortableChannelItemProps) => {
 
   return (
     <div className="mixer__channel" ref={setNodeRef} style={style}>
-      <MemoizedChannel
+      <Channel
         isMuted={isMuted}
         track={track}
         dragHandleProps={{ ...attributes, ...listeners }}
@@ -86,7 +85,5 @@ const SortableChannelItem = ({ track, isMuted }: SortableChannelItemProps) => {
     </div>
   );
 };
-
-const MemoizedChannel = React.memo(Channel);
 
 export default Mixer;

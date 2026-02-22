@@ -1,5 +1,5 @@
 import classNames from 'classnames';
-import React, { useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { useBrowserSupport } from '../../browserSupport';
 import { focusedTracks as focusedTracksSignal } from '../../signals/focusSignals';
 import { mutedTracks as mutedTracksSignal } from '../../signals/trackSignals';
@@ -41,13 +41,13 @@ const Timeline = ({ pixelsPerSecond, tracks }: TimelineProps) => {
           return (
             <div key={track.trackId} className={timelineWaveformClass}>
               {browserSupport.webkitOfflineAudioContext ? (
-                <MemoizedWaveform
+                <Waveform
                   height={height}
                   pixelsPerSecond={pixelsPerSecond}
                   track={track}
                 />
               ) : (
-                <MemoizedSpectrogram
+                <Spectrogram
                   height={height}
                   pixelsPerSecond={pixelsPerSecond}
                   track={track}
@@ -59,9 +59,6 @@ const Timeline = ({ pixelsPerSecond, tracks }: TimelineProps) => {
     </div>
   );
 };
-
-const MemoizedSpectrogram = React.memo(Spectrogram);
-const MemoizedWaveform = React.memo(Waveform);
 
 function getTimelineWaveformClass(
   track: Track,

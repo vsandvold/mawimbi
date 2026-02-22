@@ -20,7 +20,7 @@ export const useTotalTime = (tracks: Track[]) => {
   const audioService = useAudioService();
   useEffect(() => {
     totalTimeSignal.value = audioService.getTotalTime();
-  }, [tracks]); // audioService never changes, and can safely be omitted from dependencies
+  }, [tracks]);
 };
 
 export const useMicrophone = (isRecording: boolean) => {
@@ -57,7 +57,7 @@ export const useMicrophone = (isRecording: boolean) => {
     } else {
       stopRecording();
     }
-  }, [isRecording]); // audioService and projectDispatch never changes, and can safely be omitted from dependencies
+  }, [isRecording]);
 };
 
 export const useMixerHeight = () => {
