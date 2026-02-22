@@ -1,7 +1,13 @@
 import { StepBackwardOutlined } from '@ant-design/icons';
 import { Button } from 'antd';
 import classNames from 'classnames';
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  PropsWithChildren,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import { useAudioService } from '../../hooks/useAudioService';
 import useDebounced from '../../hooks/useDebounced';
 import {
@@ -13,7 +19,7 @@ import {
 } from '../../signals/transportSignals';
 import './Scrubber.css';
 
-type ScrubberProps = React.PropsWithChildren<{
+type ScrubberProps = PropsWithChildren<{
   drawerHeight: number;
   isMixerOpen: boolean;
   pixelsPerSecond: number;
@@ -87,7 +93,7 @@ const Scrubber = (props: ScrubberProps) => {
     rafId = requestAnimationFrame(animate);
 
     return () => cancelAnimationFrame(rafId);
-  }, [playing, pixelsPerSecond]); // audioService never changes, and can safely be omitted from dependencies
+  }, [playing, pixelsPerSecond]);
 
   // Sync scroll position to transportTime when not playing (e.g. after rewind)
   useEffect(() => {

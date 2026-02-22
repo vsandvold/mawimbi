@@ -33,5 +33,5 @@ export function useTransportBridge(): void {
     });
 
     return dispose;
-  }, []); // audioService never changes, and can safely be omitted from dependencies
+  }, []);
 }

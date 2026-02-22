@@ -1,4 +1,3 @@
-import React from 'react';
 import Fullscreen from '../fullscreen/Fullscreen';
 import { PageContent, PageHeader, PageLayout } from '../layout/PageLayout';
 import Workstation from '../workstation/Workstation';
@@ -19,7 +18,7 @@ const ProjectPage = () => {
       <Fullscreen handle={fullScreenHandle}>
         <PageLayout>
           <PageHeader>
-            <MemoizedProjectPageHeader
+            <ProjectPageHeader
               title={state.title}
               uploadFile={uploadFile}
               isFullscreen={fullScreenHandle.active}
@@ -34,7 +33,5 @@ const ProjectPage = () => {
     </ProjectDispatch.Provider>
   );
 };
-
-const MemoizedProjectPageHeader = React.memo(ProjectPageHeader);
 
 export default ProjectPage;

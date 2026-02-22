@@ -1,5 +1,4 @@
 import classNames from 'classnames';
-import React, { useMemo } from 'react';
 import { useAudioBridge } from '../../hooks/useAudioBridge';
 import { useTransportBridge } from '../../hooks/useTransportBridge';
 import Dropzone from '../dropzone/Dropzone';
@@ -41,7 +40,7 @@ const Workstation = (props: WorkstationProps) => {
     setDropzoneRootProps,
   } = useDropzoneDragActive();
 
-  const trackIds = useMemo(() => tracks.map((t) => t.trackId), [tracks]);
+  const trackIds = tracks.map((t) => t.trackId);
   useAudioBridge(trackIds);
   useTransportBridge();
   useSpacebarPlaybackToggle();
@@ -56,40 +55,28 @@ const Workstation = (props: WorkstationProps) => {
     'editor__dropzone--hidden': !isDragActive,
   });
 
-  const memoizedTimeline = useMemo(
-    () => <Timeline pixelsPerSecond={pixelsPerSecond} tracks={tracks} />,
-    [pixelsPerSecond, tracks],
-  );
-
-  const memoizedScrubberTimeline = useMemo(
-    () => (
-      <Scrubber
-        drawerHeight={mixerHeight}
-        isMixerOpen={isMixerOpen}
-        pixelsPerSecond={pixelsPerSecond}
-      >
-        {memoizedTimeline}
-      </Scrubber>
-    ),
-    [mixerHeight, isMixerOpen, memoizedTimeline, pixelsPerSecond],
-  );
-
   return (
     <WorkstationDispatch.Provider value={dispatch}>
       <div className="workstation">
         <div className="editor" {...dropzoneRootProps}>
           <div className="editor__timeline">
             {hasTracks ? (
-              memoizedScrubberTimeline
+              <Scrubber
+                drawerHeight={mixerHeight}
+                isMixerOpen={isMixerOpen}
+                pixelsPerSecond={pixelsPerSecond}
+              >
+                <Timeline pixelsPerSecond={pixelsPerSecond} tracks={tracks} />
+              </Scrubber>
             ) : (
-              <MemoizedEmptyTimeline isDragActive={isDragActive} />
+              <EmptyTimeline isDragActive={isDragActive} />
             )}
           </div>
           <div ref={mixerContainerRef} className={editorMixerClass}>
-            <MemoizedMixer tracks={tracks} />
+            <Mixer tracks={tracks} />
           </div>
           <div className={editorDropzoneClass}>
-            <MemoizedDropzone
+            <Dropzone
               setIsDragActive={setIsDragActive}
               setRootProps={setDropzoneRootProps}
               uploadFile={uploadFile}
@@ -97,7 +84,7 @@ const Workstation = (props: WorkstationProps) => {
           </div>
         </div>
         <div className="workstation__toolbar">
-          <MemoizedToolbar
+          <Toolbar
             isMixerOpen={isMixerOpen}
             isEmpty={!hasTracks}
             isRecording={isRecording}
@@ -107,10 +94,5 @@ const Workstation = (props: WorkstationProps) => {
     </WorkstationDispatch.Provider>
   );
 };
-
-const MemoizedDropzone = React.memo(Dropzone);
-const MemoizedEmptyTimeline = React.memo(EmptyTimeline);
-const MemoizedMixer = React.memo(Mixer);
-const MemoizedToolbar = React.memo(Toolbar);
 
 export default Workstation;

@@ -40,7 +40,7 @@ const Waveform = ({ height, pixelsPerSecond, track }: WaveformProps) => {
     return () => {
       waveformRef.current?.destroy();
     };
-  }, [trackId, color, height, pixelsPerSecond]); // audioService never changes, and can safely be omitted from dependencies
+  }, [trackId, color, height, pixelsPerSecond]);
 
   const volume = TrackSignalStore.get(trackId)?.volume.value ?? DEFAULT_VOLUME;
   const opacity = convertToOpacity(volume);

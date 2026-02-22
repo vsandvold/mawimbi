@@ -38,5 +38,5 @@ export function useAudioBridge(trackIds: TrackId[]): void {
         dispose();
       }
     };
-  }, [trackIds]); // audioService never changes, and can safely be omitted from dependencies
+  }, [trackIds]);
 }

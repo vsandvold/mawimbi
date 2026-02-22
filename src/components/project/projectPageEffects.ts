@@ -1,4 +1,3 @@
-import { useCallback } from 'react';
 import { useAudioService } from '../../hooks/useAudioService';
 import { TrackSignalStore } from '../../signals/trackSignals';
 import {
@@ -10,7 +9,8 @@ import { ADD_TRACK, ProjectAction } from './projectPageReducer';
 
 export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
   const audioService = useAudioService();
-  const uploadFile = useCallback((file: File) => {
+
+  const uploadFile = (file: File) => {
     const fileName = file.name;
     const msg = message({ key: `uploadFile-${fileName}` });
     const reader = new FileReader();
@@ -31,7 +31,7 @@ export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
     };
     msg.loading(fileName);
     reader.readAsArrayBuffer(file);
-  }, []); // audioService and dispatch never changes, and can safely be omitted from dependencies
+  };
 
   return uploadFile;
 };
@@ -39,14 +39,14 @@ export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
 export const useFullscreen = () => {
   const fullScreenHandle = useFullScreenHandle();
 
-  const toggleFullscreen = useCallback((state?: boolean) => {
+  const toggleFullscreen = (state?: boolean) => {
     const activateFullscreen = state ?? !fullScreenHandle.active;
     if (activateFullscreen) {
       fullScreenHandle.enter();
     } else {
       fullScreenHandle.exit();
     }
-  }, []); // fullScreenHandle omitted from deps on purpose
+  };
 
   return [fullScreenHandle, toggleFullscreen] as [
     FullScreenHandle,
