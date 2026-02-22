@@ -12,23 +12,23 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import React from 'react';
+import { mutedTracks as mutedTracksSignal } from '../../signals/trackSignals';
 import { MOVE_TRACK, Track, TrackId } from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
 import Channel from './Channel';
 import './Mixer.css';
 
 type MixerProps = {
-  mutedTracks: TrackId[];
   tracks: Track[];
 };
 
-const Mixer = (mixerProps: MixerProps) => {
-  const { tracks } = mixerProps;
+const Mixer = ({ tracks }: MixerProps) => {
   const projectDispatch = useProjectDispatch();
   const sensors = useSensors(useSensor(PointerSensor));
 
   const reversedTracks = tracks.slice().reverse();
   const reversedIds = reversedTracks.map((t) => t.trackId);
+  const mutedTracks = mutedTracksSignal.value;
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -53,7 +53,7 @@ const Mixer = (mixerProps: MixerProps) => {
             <SortableChannelItem
               key={track.trackId}
               track={track}
-              isMuted={mixerProps.mutedTracks.includes(track.trackId)}
+              isMuted={mutedTracks.includes(track.trackId)}
             />
           ))}
         </div>

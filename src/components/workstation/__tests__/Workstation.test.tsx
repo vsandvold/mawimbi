@@ -7,7 +7,6 @@ import Workstation from '../Workstation';
 import {
   useDropzoneDragActive,
   useMixerHeight,
-  useMutedTracks,
   usePlaybackControl,
   useSpacebarPlaybackToggle,
   useTotalTime,
@@ -75,7 +74,6 @@ it('uses workstation effect hooks', () => {
   expect(useAudioBridge).toHaveBeenCalled();
   expect(useDropzoneDragActive).toHaveBeenCalled();
   expect(useMixerHeight).toHaveBeenCalled();
-  expect(useMutedTracks).toHaveBeenCalled();
   expect(usePlaybackControl).toHaveBeenCalled();
   expect(useSpacebarPlaybackToggle).toHaveBeenCalled();
   expect(useTotalTime).toHaveBeenCalled();
@@ -93,7 +91,6 @@ function mockWorkstationEffects() {
       drawerContainerRef: { current: null },
       drawerHeight: 0,
     })),
-    useMutedTracks: vi.fn(),
     usePlaybackControl: vi.fn(),
     useSpacebarPlaybackToggle: vi.fn(),
     useTotalTime: vi.fn(),

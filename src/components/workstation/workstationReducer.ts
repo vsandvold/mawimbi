@@ -5,7 +5,6 @@ export type WorkstationState = {
   isMixerOpen: boolean;
   isPlaying: boolean;
   isRecording: boolean;
-  mutedTracks: TrackId[];
   pixelsPerSecond: number;
   totalTime: number;
   transportTime: number;
@@ -13,7 +12,6 @@ export type WorkstationState = {
 
 export type WorkstationAction = [string, any?];
 
-export const SET_MUTED_TRACKS = 'SET_MUTED_TRACKS';
 export const SET_TRACK_FOCUS = 'SET_TRACK_FOCUS';
 export const SET_TRACK_UNFOCUS = 'SET_TRACK_UNFOCUS';
 export const SET_TOTAL_TIME = 'SET_TOTAL_TIME';
@@ -30,11 +28,6 @@ export function workstationReducer(
   [type, payload]: WorkstationAction,
 ): WorkstationState {
   switch (type) {
-    case SET_MUTED_TRACKS:
-      return {
-        ...state,
-        mutedTracks: setMutedTracksOrBail(state.mutedTracks, payload),
-      };
     case SET_TRACK_FOCUS:
       return {
         ...state,
@@ -71,20 +64,6 @@ export function workstationReducer(
     default:
       throw new Error();
   }
-}
-
-function setMutedTracksOrBail(
-  previousMutedTracks: TrackId[],
-  currentMutedTracks: TrackId[],
-) {
-  const hasEqualLength =
-    previousMutedTracks.length === currentMutedTracks.length;
-  const isArrayEqual =
-    hasEqualLength &&
-    previousMutedTracks.every(
-      (value, index) => value === currentMutedTracks[index],
-    );
-  return isArrayEqual ? previousMutedTracks : currentMutedTracks;
 }
 
 function setTrackFocus(focusedTracks: TrackId[], focusedTrackId: TrackId) {

@@ -15,7 +15,6 @@ import {
   useDropzoneDragActive,
   useMicrophone,
   useMixerHeight,
-  useMutedTracks,
   usePlaybackControl,
   useSpacebarPlaybackToggle,
   useTotalTime,
@@ -37,7 +36,6 @@ const Workstation = (props: WorkstationProps) => {
     isMixerOpen,
     isPlaying,
     isRecording,
-    mutedTracks,
     pixelsPerSecond,
     transportTime,
   } = state;
@@ -52,7 +50,6 @@ const Workstation = (props: WorkstationProps) => {
 
   const trackIds = useMemo(() => tracks.map((t) => t.trackId), [tracks]);
   useAudioBridge(trackIds);
-  useMutedTracks(tracks, dispatch);
   usePlaybackControl(isPlaying, transportTime);
   useSpacebarPlaybackToggle(dispatch);
   useTotalTime(tracks, dispatch);
@@ -70,12 +67,11 @@ const Workstation = (props: WorkstationProps) => {
     () => (
       <Timeline
         focusedTracks={focusedTracks}
-        mutedTracks={mutedTracks}
         pixelsPerSecond={pixelsPerSecond}
         tracks={tracks}
       />
     ),
-    [focusedTracks, mutedTracks, pixelsPerSecond, tracks],
+    [focusedTracks, pixelsPerSecond, tracks],
   );
 
   const memoizedScrubberTimeline = useMemo(
@@ -112,7 +108,7 @@ const Workstation = (props: WorkstationProps) => {
             )}
           </div>
           <div ref={mixerContainerRef} className={editorMixerClass}>
-            <MemoizedMixer mutedTracks={mutedTracks} tracks={tracks} />
+            <MemoizedMixer tracks={tracks} />
           </div>
           <div className={editorDropzoneClass}>
             <MemoizedDropzone

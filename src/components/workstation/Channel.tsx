@@ -5,17 +5,10 @@ import {
 } from '@ant-design/icons';
 import { Button, Slider } from 'antd';
 import classNames from 'classnames';
-import React, { useEffect, useRef } from 'react';
-import { useAudioService } from '../../hooks/useAudioService';
+import React from 'react';
 import useDebounced from '../../hooks/useDebounced';
-import { AudioChannel } from '../../services/AudioService';
 import { TrackSignalStore } from '../../signals/trackSignals';
-import {
-  SET_TRACK_MUTE,
-  SET_TRACK_SOLO,
-  Track,
-} from '../project/projectPageReducer';
-import useProjectDispatch from '../project/useProjectDispatch';
+import { Track } from '../project/projectPageReducer';
 import './Channel.css';
 import useWorkstationDispatch from './useWorkstationDispatch';
 import { SET_TRACK_FOCUS, SET_TRACK_UNFOCUS } from './workstationReducer';
@@ -29,34 +22,16 @@ type ChannelProps = {
 const DEFAULT_VOLUME = 100;
 
 const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
-  const audioService = useAudioService();
-  const projectDispatch = useProjectDispatch();
   const workstationDispatch = useWorkstationDispatch();
 
-  const { trackId, color, mute, solo } = track;
+  const { trackId, color } = track;
 
-  const channelRef = useRef<AudioChannel | undefined>(undefined);
-
-  useEffect(() => {
-    channelRef.current = audioService.mixer.retrieveChannel(trackId);
-  }, [trackId]); // audioService never changes, and can safely be omitted from dependencies
-
-  useEffect(() => {
-    if (channelRef.current) {
-      channelRef.current.mute = mute;
-    }
-  }, [mute]);
-
-  useEffect(() => {
-    if (channelRef.current) {
-      channelRef.current.solo = solo;
-    }
-  }, [solo]);
-
-  const volume = TrackSignalStore.get(trackId)?.volume.value ?? DEFAULT_VOLUME;
+  const trackSignals = TrackSignalStore.get(trackId);
+  const volume = trackSignals?.volume.value ?? DEFAULT_VOLUME;
+  const mute = trackSignals?.mute.value ?? false;
+  const solo = trackSignals?.solo.value ?? false;
 
   const updateVolume = (value: number) => {
-    const trackSignals = TrackSignalStore.get(trackId);
     if (trackSignals) {
       trackSignals.volume.value = value;
     }
@@ -70,11 +45,15 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
   const debouncedUnfocusTrack = useDebounced(unfocusTrack, { timeoutMs: 250 });
 
   const updateMute = () => {
-    projectDispatch([SET_TRACK_MUTE, { id: trackId, mute: !mute }]);
+    if (trackSignals) {
+      trackSignals.mute.value = !mute;
+    }
   };
 
   const updateSolo = () => {
-    projectDispatch([SET_TRACK_SOLO, { id: trackId, solo: !solo }]);
+    if (trackSignals) {
+      trackSignals.solo.value = !solo;
+    }
   };
 
   const { r, g, b } = color;

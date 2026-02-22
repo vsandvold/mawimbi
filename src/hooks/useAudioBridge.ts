@@ -17,12 +17,20 @@ export function useAudioBridge(trackIds: TrackId[]): void {
       const channel = audioService.mixer.retrieveChannel(trackId);
       if (!channel) continue;
 
-      const dispose = effect(() => {
+      const disposeVolume = effect(() => {
         const volume = trackSignals.volume.value;
         channel.volume = volume;
       });
 
-      disposers.push(dispose);
+      const disposeMute = effect(() => {
+        channel.mute = trackSignals.mute.value;
+      });
+
+      const disposeSolo = effect(() => {
+        channel.solo = trackSignals.solo.value;
+      });
+
+      disposers.push(disposeVolume, disposeMute, disposeSolo);
     }
 
     return () => {

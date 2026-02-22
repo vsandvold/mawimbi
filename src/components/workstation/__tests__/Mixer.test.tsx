@@ -34,7 +34,7 @@ afterEach(() => {
 });
 
 it('renders without crashing with empty tracks', () => {
-  render(<Mixer tracks={[]} mutedTracks={[]} />);
+  render(<Mixer tracks={[]} />);
 });
 
 it('renders a channel for each track', () => {
@@ -47,24 +47,24 @@ it('renders a channel for each track', () => {
     mockTrack({ trackId: 'track-3', index: 2 }),
   ];
 
-  const { getAllByTitle } = render(<Mixer tracks={tracks} mutedTracks={[]} />);
+  const { getAllByTitle } = render(<Mixer tracks={tracks} />);
 
   // Each channel renders a Mute button
   const muteButtons = getAllByTitle('Mute');
   expect(muteButtons).toHaveLength(3);
 });
 
-it('passes correct isMuted prop based on mutedTracks', () => {
+it('marks channel as muted via mute signal', () => {
   TrackSignalStore.create('track-1');
   TrackSignalStore.create('track-2');
+  TrackSignalStore.get('track-1')!.mute.value = true;
+
   const tracks = [
     mockTrack({ trackId: 'track-1', index: 0 }),
     mockTrack({ trackId: 'track-2', index: 1 }),
   ];
 
-  const { container } = render(
-    <Mixer tracks={tracks} mutedTracks={['track-1']} />,
-  );
+  const { container } = render(<Mixer tracks={tracks} />);
 
   // The muted channel should have the inverted class
   const channels = container.querySelectorAll('.channel');

@@ -1,13 +1,11 @@
 import { fireEvent } from '@testing-library/react';
 import { renderHook } from '@testing-library/react';
 import { vi } from 'vitest';
-import { mockTrack } from '../../../testUtils';
 import {
-  useMutedTracks,
   usePlaybackControl,
   useSpacebarPlaybackToggle,
 } from '../workstationEffects';
-import { SET_MUTED_TRACKS, TOGGLE_PLAYBACK } from '../workstationReducer';
+import { TOGGLE_PLAYBACK } from '../workstationReducer';
 
 const { audioServiceMock } = vi.hoisted(() => {
   const mock = {
@@ -29,19 +27,6 @@ vi.mock('../../../services/AudioService', () => ({
 }));
 
 const mockDispatch = vi.fn();
-
-it('computes muted tracks', () => {
-  const tracks = [
-    mockTrack({ id: 1, mute: true, solo: false }),
-    mockTrack({ id: 2, mute: false, solo: true }),
-    mockTrack({ id: 3, mute: true, solo: true }),
-    mockTrack({ id: 4, mute: false, solo: false }),
-  ];
-
-  renderHook(() => useMutedTracks(tracks, mockDispatch));
-
-  expect(mockDispatch).toHaveBeenLastCalledWith([SET_MUTED_TRACKS, []]);
-});
 
 it('toggles playback with spacebar', () => {
   renderHook(() => useSpacebarPlaybackToggle(mockDispatch));

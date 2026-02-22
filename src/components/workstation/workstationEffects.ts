@@ -6,22 +6,10 @@ import message from '../message';
 import { ADD_TRACK, Track } from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
 import {
-  SET_MUTED_TRACKS,
   SET_TOTAL_TIME,
   TOGGLE_PLAYBACK,
   WorkstationAction,
 } from './workstationReducer';
-
-export const useMutedTracks = (
-  tracks: Track[],
-  dispatch: React.Dispatch<WorkstationAction>,
-) => {
-  const audioService = useAudioService();
-  useEffect(() => {
-    const mutedTracks = audioService.mixer.getMutedChannels();
-    dispatch([SET_MUTED_TRACKS, mutedTracks]);
-  }, [tracks]); // audioService and dispatch never changes, and can safely be omitted from dependencies
-};
 
 export const useSpacebarPlaybackToggle = (
   dispatch: React.Dispatch<WorkstationAction>,
