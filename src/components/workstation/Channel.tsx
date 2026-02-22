@@ -6,10 +6,9 @@ import {
 import { Button, Slider } from 'antd';
 import classNames from 'classnames';
 import React from 'react';
-import { debouncedUnfocusTrack, focusTrack } from '../../signals/focusSignals';
-import { TrackSignalStore } from '../../signals/trackSignals';
 import { Track } from '../project/projectPageReducer';
 import './Channel.css';
+import { useChannelControls } from './useChannelControls';
 
 type ChannelProps = {
   dragHandleProps?: Record<string, unknown>;
@@ -17,35 +16,13 @@ type ChannelProps = {
   track: Track;
 };
 
-const DEFAULT_VOLUME = 100;
+const PERCENT_DIVISOR = 100;
 
 const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
   const { trackId, color } = track;
 
-  const trackSignals = TrackSignalStore.get(trackId);
-  const volume = trackSignals?.volume.value ?? DEFAULT_VOLUME;
-  const mute = trackSignals?.mute.value ?? false;
-  const solo = trackSignals?.solo.value ?? false;
-
-  const updateVolume = (value: number) => {
-    if (trackSignals) {
-      trackSignals.volume.value = value;
-    }
-    focusTrack(trackId);
-    debouncedUnfocusTrack(trackId);
-  };
-
-  const updateMute = () => {
-    if (trackSignals) {
-      trackSignals.mute.value = !mute;
-    }
-  };
-
-  const updateSolo = () => {
-    if (trackSignals) {
-      trackSignals.solo.value = !solo;
-    }
-  };
+  const { volume, mute, solo, updateVolume, updateMute, updateSolo } =
+    useChannelControls(trackId);
 
   const { r, g, b } = color;
   const channelOpacity = isMuted ? 0 : convertToOpacity(volume);
@@ -108,7 +85,7 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
 };
 
 function convertToOpacity(value: number): number {
-  return parseFloat((value / 100).toFixed(2));
+  return parseFloat((value / PERCENT_DIVISOR).toFixed(2));
 }
 
 export default Channel;

@@ -4,6 +4,7 @@ import { useAudioBridge } from '../../hooks/useAudioBridge';
 import { useTransportBridge } from '../../hooks/useTransportBridge';
 import { pixelsPerSecond as pixelsPerSecondSignal } from '../../signals/workstationSignals';
 import Dropzone from '../dropzone/Dropzone';
+import { useFileDropzone } from '../dropzone/useFileDropzone';
 import { Track } from '../project/projectPageReducer';
 import EmptyTimeline from './EmptyTimeline';
 import Mixer from './Mixer';
@@ -12,7 +13,6 @@ import Timeline from './Timeline';
 import Toolbar from './Toolbar';
 import './Workstation.css';
 import {
-  useDropzoneDragActive,
   useMicrophone,
   useMixerHeight,
   useSpacebarPlaybackToggle,
@@ -34,12 +34,8 @@ const Workstation = (props: WorkstationProps) => {
   const pixelsPerSecond = pixelsPerSecondSignal.value;
 
   const { mixerContainerRef, mixerHeight } = useMixerHeight();
-  const {
-    isDragActive,
-    setIsDragActive,
-    dropzoneRootProps,
-    setDropzoneRootProps,
-  } = useDropzoneDragActive();
+  const { isDragActive, isDragAccept, isDragReject, rootProps, inputProps } =
+    useFileDropzone(uploadFile);
 
   const trackIds = tracks.map((t) => t.trackId);
   useAudioBridge(trackIds);
@@ -61,7 +57,7 @@ const Workstation = (props: WorkstationProps) => {
 
   return (
     <div className="workstation">
-      <div className="editor" {...dropzoneRootProps}>
+      <div className="editor" {...rootProps}>
         <div className="editor__timeline">
           {hasTracks ? (
             <Scrubber
@@ -80,9 +76,10 @@ const Workstation = (props: WorkstationProps) => {
         </div>
         <div className={editorDropzoneClass}>
           <Dropzone
-            setIsDragActive={setIsDragActive}
-            setRootProps={setDropzoneRootProps}
-            uploadFile={uploadFile}
+            isDragActive={isDragActive}
+            isDragAccept={isDragAccept}
+            isDragReject={isDragReject}
+            inputProps={inputProps}
           />
         </div>
       </div>

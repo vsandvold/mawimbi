@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useAudioService } from '../../hooks/useAudioService';
+import { useTrackVolume } from '../../hooks/useTrackVolume';
 import OfflineAnalyser from '../../services/OfflineAnalyser';
-import { TrackSignalStore } from '../../signals/trackSignals';
 import { Track, TrackColor } from '../project/projectPageReducer';
 import './Spectrogram.css';
 
@@ -55,11 +55,10 @@ const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
   const containerWidth = canvasWidth * widthFactor;
   const containerHeight = canvasHeight * heightPixelRatio;
 
-  const DEFAULT_VOLUME = 100;
-  const volume = TrackSignalStore.get(trackId)?.volume.value ?? DEFAULT_VOLUME;
+  const { opacity } = useTrackVolume(trackId);
 
   const containerStyles = {
-    opacity: convertToOpacity(volume),
+    opacity,
     width: containerWidth,
   };
 
@@ -78,10 +77,6 @@ const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
     </div>
   );
 };
-
-function convertToOpacity(value: number): string {
-  return (value / 100).toFixed(2);
-}
 
 class SpectrogramCanvasRenderer {
   private canvasContext: CanvasRenderingContext2D | null;

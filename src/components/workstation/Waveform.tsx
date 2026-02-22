@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import WaveSurfer from 'wavesurfer.js';
 import { useAudioService } from '../../hooks/useAudioService';
-import { TrackSignalStore } from '../../signals/trackSignals';
+import { useTrackVolume } from '../../hooks/useTrackVolume';
 import { Track } from '../project/projectPageReducer';
 
 type WaveformProps = {
@@ -9,8 +9,6 @@ type WaveformProps = {
   pixelsPerSecond: number;
   track: Track;
 };
-
-const DEFAULT_VOLUME = 100;
 
 const Waveform = ({ height, pixelsPerSecond, track }: WaveformProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -42,14 +40,9 @@ const Waveform = ({ height, pixelsPerSecond, track }: WaveformProps) => {
     };
   }, [trackId, color, height, pixelsPerSecond]);
 
-  const volume = TrackSignalStore.get(trackId)?.volume.value ?? DEFAULT_VOLUME;
-  const opacity = convertToOpacity(volume);
+  const { opacity } = useTrackVolume(trackId);
 
   return <div ref={containerRef} style={{ opacity }} />;
 };
-
-function convertToOpacity(value: number): string {
-  return (value / 100).toFixed(2);
-}
 
 export default Waveform;

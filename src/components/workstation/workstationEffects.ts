@@ -1,5 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect } from 'react';
 import { useAudioService } from '../../hooks/useAudioService';
+import { useContainerHeight } from '../../hooks/useContainerHeight';
 import useKeypress from '../../hooks/useKeypress';
 import { TrackSignalStore } from '../../signals/trackSignals';
 import {
@@ -61,31 +62,11 @@ export const useMicrophone = (isRecording: boolean) => {
 };
 
 export const useMixerHeight = () => {
-  const mixerContainerRef = useRef<HTMLDivElement>(null);
-  const [mixerHeight, setMixerHeight] = useState(0);
-
-  useLayoutEffect(() => {
-    if (mixerContainerRef.current) {
-      // TODO: or use clientHeight?
-      const height = mixerContainerRef.current.offsetHeight;
-      setMixerHeight(height);
-    }
-  }, []); // make sure effect only triggers once, on component mount
+  const { containerRef: mixerContainerRef, height: mixerHeight } =
+    useContainerHeight();
 
   return {
     mixerContainerRef,
     mixerHeight,
-  };
-};
-
-export const useDropzoneDragActive = () => {
-  const [isDragActive, setIsDragActive] = useState(false);
-  const [dropzoneRootProps, setDropzoneRootProps] = useState({});
-
-  return {
-    isDragActive,
-    setIsDragActive,
-    dropzoneRootProps,
-    setDropzoneRootProps,
   };
 };
