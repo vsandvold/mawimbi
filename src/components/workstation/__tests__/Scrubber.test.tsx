@@ -1,6 +1,7 @@
 import { isInaccessible } from '@testing-library/dom';
-import { fireEvent, render } from '@testing-library/react';
+import { act, fireEvent, render } from '@testing-library/react';
 import React from 'react';
+import AudioService from '../../../services/AudioService';
 import Scrubber from '../Scrubber';
 import { WorkstationDispatch } from '../useWorkstationDispatch';
 import { STOP_AND_REWIND_PLAYBACK, STOP_PLAYBACK } from '../workstationReducer';
@@ -103,4 +104,42 @@ it('transforms timeline vertical scale when drawer is open', () => {
   expect(rewindButton?.outerHTML).toEqual(
     expect.stringContaining('transform: translateY'),
   );
+});
+
+it('sets --loudness CSS variable on cursor during playback', () => {
+  const audioService = AudioService.getInstance();
+  const getLoudnessSpy = vi
+    .spyOn(audioService.mixer, 'getLoudness')
+    .mockReturnValue(0.75);
+
+  let rafCallback: FrameRequestCallback = () => {};
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+    rafCallback = cb;
+    return 1;
+  });
+
+  const { container } = render(
+    <Scrubber {...{ ...defaultProps, isPlaying: true }} />,
+  );
+
+  act(() => {
+    rafCallback(0);
+  });
+
+  const cursor = container.querySelector('.cursor');
+  expect(getLoudnessSpy).toHaveBeenCalled();
+  expect(cursor?.getAttribute('style')).toContain('--loudness: 0.75');
+});
+
+it('does not set --loudness when playback is stopped', () => {
+  const audioService = AudioService.getInstance();
+  const getLoudnessSpy = vi.spyOn(audioService.mixer, 'getLoudness');
+
+  const { container } = render(
+    <Scrubber {...{ ...defaultProps, isPlaying: false }} />,
+  );
+
+  const cursor = container.querySelector('.cursor');
+  expect(getLoudnessSpy).not.toHaveBeenCalled();
+  expect(cursor?.getAttribute('style')).toBeNull();
 });

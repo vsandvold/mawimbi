@@ -49,6 +49,7 @@ const Scrubber = (props: ScrubberProps) => {
   };
 
   const timelineScrollRef = useRef<HTMLDivElement>(null);
+  const cursorRef = useRef<HTMLDivElement>(null);
   const isProgrammaticScrollRef = useRef(false);
   const shouldResumeRef = useRef(false);
 
@@ -82,6 +83,12 @@ const Scrubber = (props: ScrubberProps) => {
       setScrollPosition(transportTime);
     }
 
+    function updateLoudness() {
+      // Writes loudness directly to a CSS custom property via ref to avoid React re-renders
+      const loudness = audioService.mixer.getLoudness();
+      cursorRef.current?.style.setProperty('--loudness', String(loudness));
+    }
+
     function stopPlaybackIfEndOfScroll() {
       if (timelineScrollRef.current) {
         const isEndOfScroll =
@@ -95,8 +102,9 @@ const Scrubber = (props: ScrubberProps) => {
     }
 
     updateScrollPosition();
+    updateLoudness();
     stopPlaybackIfEndOfScroll();
-  }, [setScrollPosition]); // audioService, dispatch, and shouldResumeRef never change, and can safely be omitted from dependencies
+  }, [setScrollPosition]); // audioService, dispatch, cursorRef, and shouldResumeRef never change, and can safely be omitted from dependencies
 
   useAnimation(animateScrollCallback, {
     isActive: isPlaying,
@@ -201,7 +209,7 @@ const Scrubber = (props: ScrubberProps) => {
         <div className="shade"></div>
       </div>
       <div className="scrubber__cursor" style={timelineScaleStyle}>
-        <div className={cursorClass}></div>
+        <div ref={cursorRef} className={cursorClass}></div>
       </div>
       <div className={rewindButtonClass} style={rewindButtonTranslateStyle}>
         <Button

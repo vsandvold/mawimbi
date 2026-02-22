@@ -58,13 +58,18 @@
 }
 
 .cursor {
+  --loudness: 0;
   height: 100%;
   width: 1px;
   background-color: rgba(255, 255, 255, 0.65);
-  transition: background-color 0.3s, box-shadow 0.15s;
+  transition:
+    background-color 0.3s,
+    box-shadow 0.05s ease-out;
 }
 
 .cursor--is-playing {
   background-color: rgba(255, 255, 255, 1);
-  box-shadow: -2px 0 4px 1px #fffa;
+  box-shadow: calc(-2px - 4px * var(--loudness)) 0
+    calc(4px + 8px * var(--loudness)) calc(1px + 2px * var(--loudness))
+    rgba(255, 255, 255, calc(0.5 + 0.5 * var(--loudness)));
 }

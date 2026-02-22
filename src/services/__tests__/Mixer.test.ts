@@ -8,6 +8,58 @@ beforeEach(() => {
   mixer = new Mixer();
 });
 
+describe('constructor', () => {
+  it('creates a Tone.Meter with normalRange and smoothing', () => {
+    expect(Tone.Meter).toHaveBeenCalledWith({
+      normalRange: true,
+      smoothing: 0.8,
+    });
+  });
+
+  it('connects Tone.Destination to the meter', () => {
+    const destination = vi.mocked(Tone.getDestination).mock.results[0].value;
+    expect(destination.connect).toHaveBeenCalled();
+  });
+});
+
+describe('getLoudness', () => {
+  it('returns 0 when meter value is 0', () => {
+    const meterInstance = vi.mocked(Tone.Meter).mock.results[0].value;
+    meterInstance.getValue.mockReturnValue(0);
+
+    expect(mixer.getLoudness()).toBe(0);
+  });
+
+  it('returns 1 when meter value is 1', () => {
+    const meterInstance = vi.mocked(Tone.Meter).mock.results[0].value;
+    meterInstance.getValue.mockReturnValue(1);
+
+    expect(mixer.getLoudness()).toBe(1);
+  });
+
+  it('applies power curve to meter value', () => {
+    const meterInstance = vi.mocked(Tone.Meter).mock.results[0].value;
+    meterInstance.getValue.mockReturnValue(0.5);
+
+    const expected = Math.pow(0.5, 0.6);
+    expect(mixer.getLoudness()).toBeCloseTo(expected);
+  });
+
+  it('clamps negative meter values to 0', () => {
+    const meterInstance = vi.mocked(Tone.Meter).mock.results[0].value;
+    meterInstance.getValue.mockReturnValue(-0.5);
+
+    expect(mixer.getLoudness()).toBe(0);
+  });
+
+  it('returns 0 when meter returns an array', () => {
+    const meterInstance = vi.mocked(Tone.Meter).mock.results[0].value;
+    meterInstance.getValue.mockReturnValue([0.5, 0.6] as any);
+
+    expect(mixer.getLoudness()).toBe(0);
+  });
+});
+
 describe('createChannel', () => {
   it('creates a Tone.Player synced to transport', () => {
     const audioBuffer = {} as AudioBuffer;
