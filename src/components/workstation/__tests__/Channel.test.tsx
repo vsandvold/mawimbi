@@ -6,8 +6,6 @@ import { resetAllSignals } from '../../../signals/__tests__/testUtils';
 import { mockTrack } from '../../../testUtils';
 import Channel from '../Channel';
 
-const mockWorkstationDispatch = vi.fn();
-
 vi.mock('../../../hooks/useAudioService', () => ({
   useAudioService: () => ({
     mixer: {
@@ -19,10 +17,6 @@ vi.mock('../../../hooks/useAudioService', () => ({
       }),
     },
   }),
-}));
-
-vi.mock('../useWorkstationDispatch', () => ({
-  default: () => mockWorkstationDispatch,
 }));
 
 beforeEach(() => {

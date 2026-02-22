@@ -1,6 +1,4 @@
 import {
-  SET_TRACK_FOCUS,
-  SET_TRACK_UNFOCUS,
   TOGGLE_MIXER,
   TOGGLE_RECORDING,
   workstationReducer,
@@ -8,7 +6,6 @@ import {
 } from '../workstationReducer';
 
 const defaultState: WorkstationState = {
-  focusedTracks: [],
   isMixerOpen: false,
   isRecording: false,
   pixelsPerSecond: 200,
@@ -43,32 +40,6 @@ describe('TOGGLE_RECORDING', () => {
     const result = workstationReducer(state, [TOGGLE_RECORDING]);
 
     expect(result.isRecording).toBe(false);
-  });
-});
-
-describe('SET_TRACK_FOCUS', () => {
-  it('adds track to focused list', () => {
-    const result = workstationReducer(defaultState, [SET_TRACK_FOCUS, 'a']);
-
-    expect(result.focusedTracks).toEqual(['a']);
-  });
-
-  it('does not duplicate already focused track', () => {
-    const state = { ...defaultState, focusedTracks: ['a'] };
-
-    const result = workstationReducer(state, [SET_TRACK_FOCUS, 'a']);
-
-    expect(result.focusedTracks).toEqual(['a']);
-  });
-});
-
-describe('SET_TRACK_UNFOCUS', () => {
-  it('removes track from focused list', () => {
-    const state = { ...defaultState, focusedTracks: ['a', 'b'] };
-
-    const result = workstationReducer(state, [SET_TRACK_UNFOCUS, 'a']);
-
-    expect(result.focusedTracks).toEqual(['b']);
   });
 });
 
