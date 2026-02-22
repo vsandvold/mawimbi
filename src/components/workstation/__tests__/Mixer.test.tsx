@@ -1,6 +1,8 @@
 import { render } from '@testing-library/react';
 import React from 'react';
 import { vi } from 'vitest';
+import { TrackSignalStore } from '../../../signals/trackSignals';
+import { resetAllSignals } from '../../../signals/__tests__/testUtils';
 import { mockTrack } from '../../../testUtils';
 import Mixer from '../Mixer';
 
@@ -27,11 +29,18 @@ vi.mock('../useWorkstationDispatch', () => ({
   default: () => vi.fn(),
 }));
 
+afterEach(() => {
+  resetAllSignals();
+});
+
 it('renders without crashing with empty tracks', () => {
   render(<Mixer tracks={[]} mutedTracks={[]} />);
 });
 
 it('renders a channel for each track', () => {
+  TrackSignalStore.create('track-1');
+  TrackSignalStore.create('track-2');
+  TrackSignalStore.create('track-3');
   const tracks = [
     mockTrack({ trackId: 'track-1', index: 0 }),
     mockTrack({ trackId: 'track-2', index: 1 }),
@@ -46,6 +55,8 @@ it('renders a channel for each track', () => {
 });
 
 it('passes correct isMuted prop based on mutedTracks', () => {
+  TrackSignalStore.create('track-1');
+  TrackSignalStore.create('track-2');
   const tracks = [
     mockTrack({ trackId: 'track-1', index: 0 }),
     mockTrack({ trackId: 'track-2', index: 1 }),

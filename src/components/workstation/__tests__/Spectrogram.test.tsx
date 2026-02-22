@@ -1,6 +1,8 @@
 import { render } from '@testing-library/react';
 import React from 'react';
 import { vi } from 'vitest';
+import { TrackSignalStore } from '../../../signals/trackSignals';
+import { resetAllSignals } from '../../../signals/__tests__/testUtils';
 import { mockTrack } from '../../../testUtils';
 import Spectrogram from '../Spectrogram';
 
@@ -24,14 +26,21 @@ vi.mock('../../../hooks/useAudioService', () => ({
   }),
 }));
 
+const TRACK_ID = 'track-spectrogram';
+
 const defaultProps = {
   height: 128,
   pixelsPerSecond: 200,
-  track: mockTrack(),
+  track: mockTrack({ trackId: TRACK_ID }),
 };
 
 beforeEach(() => {
   mockRetrieveAudioBuffer.mockReturnValue(undefined);
+  TrackSignalStore.create(TRACK_ID);
+});
+
+afterEach(() => {
+  resetAllSignals();
 });
 
 it('renders without crashing', () => {
@@ -45,25 +54,24 @@ it('renders a canvas element', () => {
   expect(canvas).toBeInTheDocument();
 });
 
-it('renders spectrogram container with correct opacity from volume', () => {
-  const track = mockTrack({ volume: 50 });
-  const { container } = render(<Spectrogram {...{ ...defaultProps, track }} />);
+it('renders spectrogram container with correct opacity from volume signal', () => {
+  TrackSignalStore.get(TRACK_ID)!.volume.value = 50;
+  const { container } = render(<Spectrogram {...defaultProps} />);
 
   const spectrogram = container.querySelector('.spectrogram');
   expect(spectrogram).toHaveStyle({ opacity: '0.50' });
 });
 
 it('renders full opacity at volume 100', () => {
-  const track = mockTrack({ volume: 100 });
-  const { container } = render(<Spectrogram {...{ ...defaultProps, track }} />);
+  const { container } = render(<Spectrogram {...defaultProps} />);
 
   const spectrogram = container.querySelector('.spectrogram');
   expect(spectrogram).toHaveStyle({ opacity: '1.00' });
 });
 
 it('renders zero opacity at volume 0', () => {
-  const track = mockTrack({ volume: 0 });
-  const { container } = render(<Spectrogram {...{ ...defaultProps, track }} />);
+  TrackSignalStore.get(TRACK_ID)!.volume.value = 0;
+  const { container } = render(<Spectrogram {...defaultProps} />);
 
   const spectrogram = container.querySelector('.spectrogram');
   expect(spectrogram).toHaveStyle({ opacity: '0.00' });

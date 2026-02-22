@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAudioService } from '../../hooks/useAudioService';
 import useKeypress from '../../hooks/useKeypress';
+import { TrackSignalStore } from '../../signals/trackSignals';
 import message from '../message';
 import { ADD_TRACK, Track } from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
@@ -97,6 +98,7 @@ export const useMicrophone = (isRecording: boolean) => {
       try {
         const arrayBuffer = await audioService.stopRecording();
         const trackId = await audioService.createTrack(arrayBuffer);
+        TrackSignalStore.create(trackId);
         projectDispatch([ADD_TRACK, { trackId, fileName: 'New Track' }]);
         audioService.microphone.close();
         msg.success('Recording stopped');

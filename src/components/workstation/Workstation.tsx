@@ -1,5 +1,6 @@
 import classNames from 'classnames';
 import React, { useMemo } from 'react';
+import { useAudioBridge } from '../../hooks/useAudioBridge';
 import Dropzone from '../dropzone/Dropzone';
 import { Track } from '../project/projectPageReducer';
 import EmptyTimeline from './EmptyTimeline';
@@ -49,6 +50,8 @@ const Workstation = (props: WorkstationProps) => {
     setDropzoneRootProps,
   } = useDropzoneDragActive();
 
+  const trackIds = useMemo(() => tracks.map((t) => t.trackId), [tracks]);
+  useAudioBridge(trackIds);
   useMutedTracks(tracks, dispatch);
   usePlaybackControl(isPlaying, transportTime);
   useSpacebarPlaybackToggle(dispatch);
@@ -72,7 +75,7 @@ const Workstation = (props: WorkstationProps) => {
         tracks={tracks}
       />
     ),
-    [focusedTracks, mutedTracks, pixelsPerSecond, tracks]
+    [focusedTracks, mutedTracks, pixelsPerSecond, tracks],
   );
 
   const memoizedScrubberTimeline = useMemo(
@@ -94,7 +97,7 @@ const Workstation = (props: WorkstationProps) => {
       memoizedTimeline,
       pixelsPerSecond,
       transportTime,
-    ]
+    ],
   );
 
   return (

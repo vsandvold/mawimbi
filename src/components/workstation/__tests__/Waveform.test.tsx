@@ -1,6 +1,8 @@
 import { render } from '@testing-library/react';
 import React from 'react';
 import WaveSurfer from 'wavesurfer.js';
+import { TrackSignalStore } from '../../../signals/trackSignals';
+import { resetAllSignals } from '../../../signals/__tests__/testUtils';
 import { mockTrack } from '../../../testUtils';
 import Waveform from '../Waveform';
 
@@ -18,11 +20,21 @@ vi.mock('../../../hooks/useAudioService', () => ({
   }),
 }));
 
+const TRACK_ID = 'track-waveform';
+
 const defaultProps = {
   height: 128,
   pixelsPerSecond: 200,
-  track: mockTrack(),
+  track: mockTrack({ trackId: TRACK_ID }),
 };
+
+beforeEach(() => {
+  TrackSignalStore.create(TRACK_ID);
+});
+
+afterEach(() => {
+  resetAllSignals();
+});
 
 it('renders without crashing', () => {
   render(<Waveform {...defaultProps} />);
@@ -32,7 +44,10 @@ it('renders waveform with correct color', () => {
   const color = { r: 234, g: 456, b: 789 };
   render(
     <Waveform
-      {...{ ...defaultProps, track: { ...defaultProps.track, color } }}
+      {...{
+        ...defaultProps,
+        track: { ...defaultProps.track, color },
+      }}
     />,
   );
 
@@ -44,26 +59,37 @@ it('renders waveform with correct color', () => {
   );
 });
 
-it('renders waveforms with correct opacity', () => {
-  function setVolume(props: any, volume: number) {
-    return {
-      ...props,
-      track: { ...defaultProps.track, volume },
-    };
-  }
-
-  const { container, rerender } = render(<Waveform {...defaultProps} />);
+it('renders with default volume opacity', () => {
+  const { container } = render(<Waveform {...defaultProps} />);
 
   const waveform = container.firstChild;
   expect(waveform).toHaveStyle({ opacity: 1 });
+});
 
-  rerender(<Waveform {...setVolume(defaultProps, 50)} />);
+it('renders with reduced opacity when volume signal is lower', () => {
+  TrackSignalStore.get(TRACK_ID)!.volume.value = 50;
+
+  const { container } = render(<Waveform {...defaultProps} />);
+
+  const waveform = container.firstChild;
   expect(waveform).toHaveStyle({ opacity: 0.5 });
+});
 
-  rerender(<Waveform {...setVolume(defaultProps, 1)} />);
+it('renders with near-zero opacity when volume signal is 1', () => {
+  TrackSignalStore.get(TRACK_ID)!.volume.value = 1;
+
+  const { container } = render(<Waveform {...defaultProps} />);
+
+  const waveform = container.firstChild;
   expect(waveform).toHaveStyle({ opacity: 0.01 });
+});
 
-  rerender(<Waveform {...setVolume(defaultProps, 0)} />);
+it('renders with zero opacity when volume signal is 0', () => {
+  TrackSignalStore.get(TRACK_ID)!.volume.value = 0;
+
+  const { container } = render(<Waveform {...defaultProps} />);
+
+  const waveform = container.firstChild;
   expect(waveform).toHaveStyle({ opacity: 0 });
 });
 

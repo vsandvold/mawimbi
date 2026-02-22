@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { useAudioService } from '../../hooks/useAudioService';
+import { TrackSignalStore } from '../../signals/trackSignals';
 import {
   FullScreenHandle,
   useFullScreenHandle,
@@ -20,6 +21,7 @@ export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
       audioService
         .createTrack(arrayBuffer)
         .then((trackId) => {
+          TrackSignalStore.create(trackId);
           dispatch([ADD_TRACK, { trackId, fileName }]);
           msg.success(fileName);
         })
@@ -48,6 +50,6 @@ export const useFullscreen = () => {
 
   return [fullScreenHandle, toggleFullscreen] as [
     FullScreenHandle,
-    (state?: boolean) => void
+    (state?: boolean) => void,
   ];
 };
