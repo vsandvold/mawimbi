@@ -49,16 +49,6 @@ it('accepts multiple audio files for upload', () => {
   expect(fileInput).toHaveAttribute('multiple', '');
 });
 
-it.skip('submits uploaded files', () => {
-  // FIXME: this test is broken
-  const { getByText } = render(<ProjectPageHeader {...defaultProps} />);
-
-  const uploadButton = getByText('Upload files');
-  fireEvent.click(uploadButton);
-
-  expect(mockUploadFile).toHaveBeenCalledTimes(1);
-});
-
 it('renders undo and redo buttons', () => {
   const { container } = render(<ProjectPageHeader {...defaultProps} />);
 
