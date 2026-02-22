@@ -2,16 +2,21 @@ import Fullscreen from '../fullscreen/Fullscreen';
 import { PageContent, PageHeader, PageLayout } from '../layout/PageLayout';
 import Workstation from '../workstation/Workstation';
 import './ProjectPage.css';
-import { useFullscreen, useUploadFile } from './projectPageEffects';
+import {
+  useFullscreen,
+  useTrackSideEffects,
+  useUploadFile,
+} from './projectPageEffects';
 import ProjectPageHeader from './ProjectPageHeader';
 import { ProjectDispatch } from './useProjectDispatch';
 import useProjectReducer from './useProjectReducer';
 
 const ProjectPage = () => {
-  const [state, dispatch] = useProjectReducer();
+  const [state, dispatch, undoControls] = useProjectReducer();
 
   const uploadFile = useUploadFile(dispatch);
   const [fullScreenHandle, toggleFullscreen] = useFullscreen();
+  useTrackSideEffects(state.tracks);
 
   return (
     <ProjectDispatch.Provider value={dispatch}>
@@ -23,6 +28,10 @@ const ProjectPage = () => {
               uploadFile={uploadFile}
               isFullscreen={fullScreenHandle.active}
               toggleFullscreen={toggleFullscreen}
+              undo={undoControls.undo}
+              redo={undoControls.redo}
+              canUndo={undoControls.canUndo}
+              canRedo={undoControls.canRedo}
             />
           </PageHeader>
           <PageContent>
