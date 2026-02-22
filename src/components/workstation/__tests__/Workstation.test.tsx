@@ -2,12 +2,12 @@ import { render } from '@testing-library/react';
 import React from 'react';
 import { vi } from 'vitest';
 import { useAudioBridge } from '../../../hooks/useAudioBridge';
+import { useTransportBridge } from '../../../hooks/useTransportBridge';
 import { mockTrack } from '../../../testUtils';
 import Workstation from '../Workstation';
 import {
   useDropzoneDragActive,
   useMixerHeight,
-  usePlaybackControl,
   useSpacebarPlaybackToggle,
   useTotalTime,
 } from '../workstationEffects';
@@ -25,6 +25,10 @@ vi.mock('../Timeline', () => ({
 
 vi.mock('../../../hooks/useAudioBridge', () => ({
   useAudioBridge: vi.fn(),
+}));
+
+vi.mock('../../../hooks/useTransportBridge', () => ({
+  useTransportBridge: vi.fn(),
 }));
 
 vi.mock('../workstationEffects', () => mockWorkstationEffects());
@@ -72,9 +76,9 @@ it('uses workstation effect hooks', () => {
   render(<Workstation {...defaultProps} />);
 
   expect(useAudioBridge).toHaveBeenCalled();
+  expect(useTransportBridge).toHaveBeenCalled();
   expect(useDropzoneDragActive).toHaveBeenCalled();
   expect(useMixerHeight).toHaveBeenCalled();
-  expect(usePlaybackControl).toHaveBeenCalled();
   expect(useSpacebarPlaybackToggle).toHaveBeenCalled();
   expect(useTotalTime).toHaveBeenCalled();
 });
@@ -91,7 +95,6 @@ function mockWorkstationEffects() {
       drawerContainerRef: { current: null },
       drawerHeight: 0,
     })),
-    usePlaybackControl: vi.fn(),
     useSpacebarPlaybackToggle: vi.fn(),
     useTotalTime: vi.fn(),
     useMicrophone: vi.fn(),

@@ -1,6 +1,7 @@
 import classNames from 'classnames';
 import React, { useMemo } from 'react';
 import { useAudioBridge } from '../../hooks/useAudioBridge';
+import { useTransportBridge } from '../../hooks/useTransportBridge';
 import Dropzone from '../dropzone/Dropzone';
 import { Track } from '../project/projectPageReducer';
 import EmptyTimeline from './EmptyTimeline';
@@ -15,7 +16,6 @@ import {
   useDropzoneDragActive,
   useMicrophone,
   useMixerHeight,
-  usePlaybackControl,
   useSpacebarPlaybackToggle,
   useTotalTime,
 } from './workstationEffects';
@@ -31,14 +31,7 @@ const Workstation = (props: WorkstationProps) => {
   const { tracks, uploadFile } = props;
   const hasTracks = tracks.length > 0;
 
-  const {
-    focusedTracks,
-    isMixerOpen,
-    isPlaying,
-    isRecording,
-    pixelsPerSecond,
-    transportTime,
-  } = state;
+  const { focusedTracks, isMixerOpen, isRecording, pixelsPerSecond } = state;
 
   const { mixerContainerRef, mixerHeight } = useMixerHeight();
   const {
@@ -50,9 +43,9 @@ const Workstation = (props: WorkstationProps) => {
 
   const trackIds = useMemo(() => tracks.map((t) => t.trackId), [tracks]);
   useAudioBridge(trackIds);
-  usePlaybackControl(isPlaying, transportTime);
-  useSpacebarPlaybackToggle(dispatch);
-  useTotalTime(tracks, dispatch);
+  useTransportBridge();
+  useSpacebarPlaybackToggle();
+  useTotalTime(tracks);
   useMicrophone(isRecording);
 
   const editorMixerClass = classNames('editor__mixer', {
@@ -79,21 +72,12 @@ const Workstation = (props: WorkstationProps) => {
       <Scrubber
         drawerHeight={mixerHeight}
         isMixerOpen={isMixerOpen}
-        isPlaying={isPlaying}
         pixelsPerSecond={pixelsPerSecond}
-        transportTime={transportTime}
       >
         {memoizedTimeline}
       </Scrubber>
     ),
-    [
-      mixerHeight,
-      isMixerOpen,
-      isPlaying,
-      memoizedTimeline,
-      pixelsPerSecond,
-      transportTime,
-    ],
+    [mixerHeight, isMixerOpen, memoizedTimeline, pixelsPerSecond],
   );
 
   return (
@@ -122,7 +106,6 @@ const Workstation = (props: WorkstationProps) => {
           <MemoizedToolbar
             isMixerOpen={isMixerOpen}
             isEmpty={!hasTracks}
-            isPlaying={isPlaying}
             isRecording={isRecording}
           />
         </div>

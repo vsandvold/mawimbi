@@ -1,46 +1,30 @@
 import { StepBackwardOutlined } from '@ant-design/icons';
 import { Button } from 'antd';
 import classNames from 'classnames';
-import React, {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react';
-import useAnimation from '../../hooks/useAnimation';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAudioService } from '../../hooks/useAudioService';
 import useDebounced from '../../hooks/useDebounced';
-import './Scrubber.css';
-import useWorkstationDispatch from './useWorkstationDispatch';
 import {
-  SET_TRANSPORT_TIME,
-  START_PLAYBACK,
-  STOP_AND_REWIND_PLAYBACK,
-  STOP_PLAYBACK,
-  TOGGLE_PLAYBACK,
-} from './workstationReducer';
+  isPlaying,
+  loudness as loudnessSignal,
+  stopAndRewindPlayback,
+  togglePlayback,
+  transportTime,
+} from '../../signals/transportSignals';
+import './Scrubber.css';
 
 type ScrubberProps = React.PropsWithChildren<{
   drawerHeight: number;
   isMixerOpen: boolean;
-  isPlaying: boolean;
   pixelsPerSecond: number;
-  transportTime: number;
 }>;
 
 const TIMELINE_MARGIN = 40;
 
 const Scrubber = (props: ScrubberProps) => {
-  const {
-    drawerHeight,
-    isMixerOpen,
-    isPlaying,
-    pixelsPerSecond,
-    transportTime,
-  } = props;
+  const { drawerHeight, isMixerOpen, pixelsPerSecond } = props;
 
-  const dispatch = useWorkstationDispatch();
+  const playing = isPlaying.value;
 
   const [isRewindButtonHidden, setIsRewindButtonHidden] = useState(true);
 
@@ -53,83 +37,86 @@ const Scrubber = (props: ScrubberProps) => {
   const isProgrammaticScrollRef = useRef(false);
   const shouldResumeRef = useRef(false);
 
-  const setScrollPosition = useCallback(
-    (transportTime: number) => {
-      if (timelineScrollRef.current) {
-        const scrollPosition = Math.trunc(transportTime * pixelsPerSecond);
-        if (timelineScrollRef.current.scrollLeft !== scrollPosition) {
-          isProgrammaticScrollRef.current = true;
-          timelineScrollRef.current.scrollLeft = scrollPosition;
-        }
-        toggleRewindButton(scrollPosition);
-      }
-    },
-    [pixelsPerSecond, timelineScrollRef],
-  );
-
-  useEffect(() => {
-    setScrollPosition(transportTime);
-  }, [transportTime, setScrollPosition]);
-
-  const audioService = useAudioService();
-  const animateScrollCallback = useCallback(() => {
-    if (shouldResumeRef.current) {
-      return;
-    }
-
-    function updateScrollPosition() {
-      // Updates scroll position directly from transport time for performance reasons
-      const transportTime = audioService.getTransportTime();
-      setScrollPosition(transportTime);
-    }
-
-    function updateLoudness() {
-      // Writes loudness directly to a CSS custom property via ref to avoid React re-renders
-      const loudness = audioService.mixer.getLoudness();
-      cursorRef.current?.style.setProperty('--loudness', String(loudness));
-    }
-
-    function stopPlaybackIfEndOfScroll() {
-      if (timelineScrollRef.current) {
-        const isEndOfScroll =
-          timelineScrollRef.current.scrollLeft +
-            timelineScrollRef.current.clientWidth >=
-          timelineScrollRef.current.scrollWidth;
-        if (isEndOfScroll) {
-          dispatch([STOP_AND_REWIND_PLAYBACK]);
-        }
-      }
-    }
-
-    updateScrollPosition();
-    updateLoudness();
-    stopPlaybackIfEndOfScroll();
-  }, [setScrollPosition]); // audioService, dispatch, cursorRef, and shouldResumeRef never change, and can safely be omitted from dependencies
-
-  useAnimation(animateScrollCallback, {
-    isActive: isPlaying,
-  });
-
-  const setTransportTime = () => {
+  const setScrollPosition = (time: number) => {
     if (timelineScrollRef.current) {
-      const scrollPosition = timelineScrollRef.current.scrollLeft;
-      const transportTime = scrollPosition / pixelsPerSecond;
-      dispatch([SET_TRANSPORT_TIME, transportTime]);
-    }
-    if (shouldResumeRef.current) {
-      shouldResumeRef.current = false;
-      dispatch([START_PLAYBACK]);
+      const scrollPosition = Math.trunc(time * pixelsPerSecond);
+      if (timelineScrollRef.current.scrollLeft !== scrollPosition) {
+        isProgrammaticScrollRef.current = true;
+        timelineScrollRef.current.scrollLeft = scrollPosition;
+      }
+      toggleRewindButton(scrollPosition);
     }
   };
 
-  const debouncedSetTransportTime = useDebounced(setTransportTime, {
+  const audioService = useAudioService();
+
+  // Animation loop: runs during playback, reads from audio engine, updates DOM directly
+  useEffect(() => {
+    if (!playing) return;
+
+    let rafId = 0;
+
+    const animate = () => {
+      if (!shouldResumeRef.current) {
+        const time = audioService.getTransportTime();
+        transportTime.value = time;
+        setScrollPosition(time);
+
+        const currentLoudness = audioService.mixer.getLoudness();
+        loudnessSignal.value = currentLoudness;
+        cursorRef.current?.style.setProperty(
+          '--loudness',
+          String(currentLoudness),
+        );
+
+        if (timelineScrollRef.current) {
+          const isEndOfScroll =
+            timelineScrollRef.current.scrollLeft +
+              timelineScrollRef.current.clientWidth >=
+            timelineScrollRef.current.scrollWidth;
+          if (isEndOfScroll) {
+            stopAndRewindPlayback();
+            return;
+          }
+        }
+      }
+
+      rafId = requestAnimationFrame(animate);
+    };
+
+    rafId = requestAnimationFrame(animate);
+
+    return () => cancelAnimationFrame(rafId);
+  }, [playing, pixelsPerSecond]); // audioService never changes, and can safely be omitted from dependencies
+
+  // Sync scroll position to transportTime when not playing (e.g. after rewind)
+  useEffect(() => {
+    if (!playing) {
+      setScrollPosition(transportTime.peek());
+    }
+  }, [playing, pixelsPerSecond]);
+
+  const setTransportTimeFromScroll = () => {
+    if (timelineScrollRef.current) {
+      const scrollPosition = timelineScrollRef.current.scrollLeft;
+      const time = scrollPosition / pixelsPerSecond;
+      transportTime.value = time;
+      audioService.setTransportTime(time);
+    }
+    if (shouldResumeRef.current) {
+      shouldResumeRef.current = false;
+      isPlaying.value = true;
+    }
+  };
+
+  const debouncedSetTransportTime = useDebounced(setTransportTimeFromScroll, {
     timeoutMs: 200,
   });
 
   const pauseForUserScroll = () => {
-    if (isPlaying && !shouldResumeRef.current) {
+    if (playing && !shouldResumeRef.current) {
       shouldResumeRef.current = true;
-      dispatch([STOP_PLAYBACK]);
+      isPlaying.value = false;
     }
   };
 
@@ -157,12 +144,12 @@ const Scrubber = (props: ScrubberProps) => {
     debouncedSetTransportTime();
   };
 
-  const togglePlayback = () => {
-    dispatch([TOGGLE_PLAYBACK]);
+  const handleTogglePlayback = () => {
+    togglePlayback();
   };
 
-  const stopAndRewindPlayback = () => {
-    dispatch([STOP_AND_REWIND_PLAYBACK]);
+  const handleStopAndRewind = () => {
+    stopAndRewindPlayback();
   };
 
   const rewindButtonClass = classNames('scrubber__rewind', {
@@ -189,7 +176,7 @@ const Scrubber = (props: ScrubberProps) => {
   );
 
   const cursorClass = classNames('cursor', {
-    'cursor--is-playing': isPlaying,
+    'cursor--is-playing': playing,
   });
 
   return (
@@ -198,7 +185,7 @@ const Scrubber = (props: ScrubberProps) => {
         ref={timelineScrollRef}
         className="scrubber__timeline"
         style={timelineScaleStyle}
-        onClick={togglePlayback}
+        onClick={handleTogglePlayback}
         onScroll={handleScroll}
         onWheel={handleWheel}
         onTouchMove={handleTouchMove}
@@ -218,7 +205,7 @@ const Scrubber = (props: ScrubberProps) => {
           className="button"
           title="Rewind"
           icon={<StepBackwardOutlined />}
-          onClick={stopAndRewindPlayback}
+          onClick={handleStopAndRewind}
         />
       </div>
     </div>

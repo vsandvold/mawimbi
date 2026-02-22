@@ -8,23 +8,23 @@ import { Button } from 'antd';
 import classNames from 'classnames';
 import React from 'react';
 import ControlSvg from '../../icons/control.svg?react';
+import {
+  isPlaying as isPlayingSignal,
+  togglePlayback,
+} from '../../signals/transportSignals';
 import './Toolbar.css';
 import useWorkstationDispatch from './useWorkstationDispatch';
-import {
-  TOGGLE_MIXER,
-  TOGGLE_PLAYBACK,
-  TOGGLE_RECORDING,
-} from './workstationReducer';
+import { TOGGLE_MIXER, TOGGLE_RECORDING } from './workstationReducer';
 
 type ToolbarProps = {
   isMixerOpen: boolean;
   isEmpty: boolean;
-  isPlaying: boolean;
   isRecording: boolean;
 };
 
 const Toolbar = (props: ToolbarProps) => {
-  const { isMixerOpen, isEmpty, isPlaying, isRecording } = props;
+  const { isMixerOpen, isEmpty, isRecording } = props;
+  const isPlaying = isPlayingSignal.value;
   const dispatch = useWorkstationDispatch();
 
   const mixerIconClass = classNames({ 'show-mixer': isMixerOpen });
@@ -49,7 +49,7 @@ const Toolbar = (props: ToolbarProps) => {
       className="button"
       icon={isPlaying ? <PauseOutlined /> : <CaretRightOutlined />}
       title={isPlaying ? 'Pause' : 'Play'}
-      onClick={() => dispatch([TOGGLE_PLAYBACK])}
+      onClick={() => togglePlayback()}
       disabled={isEmpty}
     />
   );
