@@ -1,6 +1,5 @@
 import { isInaccessible } from '@testing-library/dom';
 import { act, fireEvent, render } from '@testing-library/react';
-import React from 'react';
 import AudioService from '../../../services/AudioService';
 import {
   isPlaying,

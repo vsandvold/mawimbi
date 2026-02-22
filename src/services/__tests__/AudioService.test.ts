@@ -11,8 +11,8 @@ if (typeof URL.createObjectURL === 'undefined') {
 let audioService: AudioService;
 
 beforeEach(() => {
-  // Access private static to reset singleton
-  (AudioService as any).instance = undefined;
+  // Reset singleton between tests
+  Object.assign(AudioService, { instance: undefined });
   audioService = AudioService.getInstance();
 });
 
@@ -110,7 +110,7 @@ describe('playback control', () => {
   });
 
   it('toggles from stopped to started', () => {
-    (Tone.Transport as any).state = 'stopped';
+    Object.assign(Tone.Transport, { state: 'stopped' });
 
     audioService.togglePlayback();
 
@@ -118,7 +118,7 @@ describe('playback control', () => {
   });
 
   it('toggles from started to paused', () => {
-    (Tone.Transport as any).state = 'started';
+    Object.assign(Tone.Transport, { state: 'started' });
 
     audioService.togglePlayback();
 
@@ -152,9 +152,9 @@ describe('getTotalTime', () => {
     const mockBuffer3 = { duration: 3.0 };
 
     vi.mocked(Tone.context.decodeAudioData)
-      .mockResolvedValueOnce(mockBuffer1 as any)
-      .mockResolvedValueOnce(mockBuffer2 as any)
-      .mockResolvedValueOnce(mockBuffer3 as any);
+      .mockResolvedValueOnce(mockBuffer1 as unknown as AudioBuffer)
+      .mockResolvedValueOnce(mockBuffer2 as unknown as AudioBuffer)
+      .mockResolvedValueOnce(mockBuffer3 as unknown as AudioBuffer);
 
     await audioService.createTrack(new ArrayBuffer(16));
     await audioService.createTrack(new ArrayBuffer(16));

@@ -1,4 +1,4 @@
-import React, { createContext, useContext } from 'react';
+import { type PropsWithChildren, createContext, useContext } from 'react';
 
 type BrowserSupportContext = {
   touchEvents: boolean;
@@ -6,10 +6,7 @@ type BrowserSupportContext = {
 };
 
 const browserSupport: BrowserSupportContext = {
-  touchEvents:
-    'ontouchstart' in window ||
-    navigator.maxTouchPoints > 0 ||
-    (navigator as any).msMaxTouchPoints > 0,
+  touchEvents: 'ontouchstart' in window || navigator.maxTouchPoints > 0,
   webkitOfflineAudioContext: 'webkitOfflineAudioContext' in window,
 };
 
@@ -20,7 +17,7 @@ export const useBrowserSupport = () => {
   return useContext(BrowserSupport);
 };
 
-type BrowserSupportProviderProps = React.PropsWithChildren;
+type BrowserSupportProviderProps = PropsWithChildren;
 
 export const BrowserSupportProvider = (props: BrowserSupportProviderProps) => {
   return (

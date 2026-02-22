@@ -54,7 +54,7 @@ describe('getLoudness', () => {
 
   it('returns 0 when meter returns an array', () => {
     const meterInstance = vi.mocked(Tone.Meter).mock.results[0].value;
-    meterInstance.getValue.mockReturnValue([0.5, 0.6] as any);
+    meterInstance.getValue.mockReturnValue([0.5, 0.6] as unknown as number);
 
     expect(mixer.getLoudness()).toBe(0);
   });
@@ -176,7 +176,7 @@ describe('getMutedChannels', () => {
 });
 
 describe('AudioChannel', () => {
-  let toneChannel: any;
+  let toneChannel: Tone.Channel;
   let audioChannel: AudioChannel;
 
   beforeEach(() => {
@@ -185,7 +185,7 @@ describe('AudioChannel', () => {
       solo: false,
       volume: { rampTo: vi.fn() },
       dispose: vi.fn(),
-    };
+    } as unknown as Tone.Channel;
     audioChannel = new AudioChannel('ch-1', toneChannel);
   });
 

@@ -26,14 +26,27 @@ const mockBufferSource = {
 };
 
 const mockScriptProcessor = {
-  onaudioprocess: null as ((event: any) => void) | null,
+  onaudioprocess: null as ((event: AudioProcessingEvent) => void) | null,
   connect: vi.fn(),
 };
 
 const mockDestination = {};
 
-function createMockOfflineContext(supportsSuspend: boolean) {
-  const ctx: any = {
+type MockOfflineContext = {
+  destination: typeof mockDestination;
+  currentTime: number;
+  createAnalyser: ReturnType<typeof vi.fn>;
+  createBufferSource: ReturnType<typeof vi.fn>;
+  createScriptProcessor: ReturnType<typeof vi.fn>;
+  startRendering: typeof mockStartRendering;
+  suspend?: typeof mockSuspend;
+  resume?: typeof mockResume;
+};
+
+function createMockOfflineContext(
+  supportsSuspend: boolean,
+): MockOfflineContext {
+  const ctx: MockOfflineContext = {
     destination: mockDestination,
     currentTime: 0,
     createAnalyser: vi.fn().mockReturnValue({ ...mockAnalyser }),
@@ -48,14 +61,21 @@ function createMockOfflineContext(supportsSuspend: boolean) {
   return ctx;
 }
 
-let savedOfflineAudioContext: any;
+let savedOfflineAudioContext: typeof window.OfflineAudioContext;
+
+function stubOfflineAudioContext(ctx: MockOfflineContext) {
+  vi.stubGlobal(
+    'OfflineAudioContext',
+    vi.fn().mockImplementation(() => ctx),
+  );
+}
 
 beforeAll(() => {
-  savedOfflineAudioContext = (window as any).OfflineAudioContext;
+  savedOfflineAudioContext = window.OfflineAudioContext;
 });
 
 afterAll(() => {
-  (window as any).OfflineAudioContext = savedOfflineAudioContext;
+  vi.stubGlobal('OfflineAudioContext', savedOfflineAudioContext);
 });
 
 beforeEach(() => {
@@ -80,12 +100,14 @@ function createAudioBuffer(
   } as unknown as AudioBuffer;
 }
 
+type OfflineAnalyserInternals = {
+  logFrequencyMapping: number[][];
+};
+
 describe('constructor', () => {
   it('creates an OfflineAudioContext with correct parameters', () => {
     const mockCtx = createMockOfflineContext(true);
-    (window as any).OfflineAudioContext = vi
-      .fn()
-      .mockImplementation(() => mockCtx);
+    stubOfflineAudioContext(mockCtx);
 
     const audioBuffer = createAudioBuffer(2.0);
     const analyser = new OfflineAnalyser(audioBuffer);
@@ -100,9 +122,7 @@ describe('constructor', () => {
 
   it('sets time resolution to suspend interval when suspend is supported', () => {
     const mockCtx = createMockOfflineContext(true);
-    (window as any).OfflineAudioContext = vi
-      .fn()
-      .mockImplementation(() => mockCtx);
+    stubOfflineAudioContext(mockCtx);
 
     const analyser = new OfflineAnalyser(createAudioBuffer(1.0));
 
@@ -111,9 +131,7 @@ describe('constructor', () => {
 
   it('sets time resolution based on script processor when suspend is not supported', () => {
     const mockCtx = createMockOfflineContext(false);
-    (window as any).OfflineAudioContext = vi
-      .fn()
-      .mockImplementation(() => mockCtx);
+    stubOfflineAudioContext(mockCtx);
 
     const sampleRate = 44100;
     const analyser = new OfflineAnalyser(createAudioBuffer(1.0, sampleRate));
@@ -125,9 +143,7 @@ describe('constructor', () => {
 describe('getFrequencyData (suspend context)', () => {
   it('suspends at regular intervals and collects frequency data', async () => {
     const mockCtx = createMockOfflineContext(true);
-    (window as any).OfflineAudioContext = vi
-      .fn()
-      .mockImplementation(() => mockCtx);
+    stubOfflineAudioContext(mockCtx);
 
     const audioBuffer = createAudioBuffer(0.1); // 100ms = 4 suspend points at 25ms intervals
     const analyser = new OfflineAnalyser(audioBuffer);
@@ -143,9 +159,7 @@ describe('getFrequencyData (suspend context)', () => {
 
   it('connects buffer source to analyser and destination', async () => {
     const mockCtx = createMockOfflineContext(true);
-    (window as any).OfflineAudioContext = vi
-      .fn()
-      .mockImplementation(() => mockCtx);
+    stubOfflineAudioContext(mockCtx);
 
     const audioBuffer = createAudioBuffer(0.05);
     const analyser = new OfflineAnalyser(audioBuffer);
@@ -162,9 +176,7 @@ describe('getFrequencyData (suspend context)', () => {
 describe('getFrequencyData (script processor fallback)', () => {
   it('creates a script processor when suspend is not supported', async () => {
     const mockCtx = createMockOfflineContext(false);
-    (window as any).OfflineAudioContext = vi
-      .fn()
-      .mockImplementation(() => mockCtx);
+    stubOfflineAudioContext(mockCtx);
 
     const audioBuffer = createAudioBuffer(1.0);
     const analyser = new OfflineAnalyser(audioBuffer);
@@ -181,9 +193,7 @@ describe('getFrequencyData (script processor fallback)', () => {
 
   it('sets up onaudioprocess callback', async () => {
     const mockCtx = createMockOfflineContext(false);
-    (window as any).OfflineAudioContext = vi
-      .fn()
-      .mockImplementation(() => mockCtx);
+    stubOfflineAudioContext(mockCtx);
 
     const audioBuffer = createAudioBuffer(1.0);
     const analyser = new OfflineAnalyser(audioBuffer);
@@ -198,9 +208,7 @@ describe('getFrequencyData (script processor fallback)', () => {
 describe('getLogarithmicFrequencyData', () => {
   it('wraps getFrequencyData with a logarithmic transform', async () => {
     const mockCtx = createMockOfflineContext(true);
-    (window as any).OfflineAudioContext = vi
-      .fn()
-      .mockImplementation(() => mockCtx);
+    stubOfflineAudioContext(mockCtx);
 
     const audioBuffer = createAudioBuffer(0.05);
     const analyser = new OfflineAnalyser(audioBuffer);
@@ -217,9 +225,7 @@ describe('getLogarithmicFrequencyData', () => {
 
   it('calls startRendering', async () => {
     const mockCtx = createMockOfflineContext(true);
-    (window as any).OfflineAudioContext = vi
-      .fn()
-      .mockImplementation(() => mockCtx);
+    stubOfflineAudioContext(mockCtx);
 
     const audioBuffer = createAudioBuffer(0.05);
     const analyser = new OfflineAnalyser(audioBuffer);
@@ -233,14 +239,12 @@ describe('getLogarithmicFrequencyData', () => {
 describe('logarithmic frequency mapping', () => {
   it('produces a mapping array with length equal to frequencyBinCount', () => {
     const mockCtx = createMockOfflineContext(true);
-    (window as any).OfflineAudioContext = vi
-      .fn()
-      .mockImplementation(() => mockCtx);
+    stubOfflineAudioContext(mockCtx);
 
     const analyser = new OfflineAnalyser(createAudioBuffer(1.0));
 
-    // Access private field through type assertion
-    const mapping = (analyser as any).logFrequencyMapping;
+    const mapping = (analyser as unknown as OfflineAnalyserInternals)
+      .logFrequencyMapping;
 
     expect(mapping).toBeDefined();
     expect(mapping.length).toBe(analyser.frequencyBinCount);
@@ -248,12 +252,11 @@ describe('logarithmic frequency mapping', () => {
 
   it('produces mapping entries that are arrays of indices', () => {
     const mockCtx = createMockOfflineContext(true);
-    (window as any).OfflineAudioContext = vi
-      .fn()
-      .mockImplementation(() => mockCtx);
+    stubOfflineAudioContext(mockCtx);
 
     const analyser = new OfflineAnalyser(createAudioBuffer(1.0));
-    const mapping = (analyser as any).logFrequencyMapping;
+    const mapping = (analyser as unknown as OfflineAnalyserInternals)
+      .logFrequencyMapping;
 
     // Each entry should be an array of at least one index
     for (const entry of mapping) {
@@ -264,12 +267,11 @@ describe('logarithmic frequency mapping', () => {
 
   it('has lower bins mapping to more entries (pooling)', () => {
     const mockCtx = createMockOfflineContext(true);
-    (window as any).OfflineAudioContext = vi
-      .fn()
-      .mockImplementation(() => mockCtx);
+    stubOfflineAudioContext(mockCtx);
 
     const analyser = new OfflineAnalyser(createAudioBuffer(1.0));
-    const mapping = (analyser as any).logFrequencyMapping;
+    const mapping = (analyser as unknown as OfflineAnalyserInternals)
+      .logFrequencyMapping;
 
     // Higher frequency bins should map to more linear bins (log compression)
     const lastBinPoolSize = mapping[mapping.length - 1].length;

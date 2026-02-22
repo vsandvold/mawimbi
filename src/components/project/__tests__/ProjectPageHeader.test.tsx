@@ -1,5 +1,4 @@
 import { fireEvent, render } from '@testing-library/react';
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { vi } from 'vitest';
 import ProjectPageHeader from '../ProjectPageHeader';

@@ -1,5 +1,4 @@
 import { Button, Typography } from 'antd';
-import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PageContent, PageLayout } from '../layout/PageLayout';
 import './HomePage.css';

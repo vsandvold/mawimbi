@@ -33,5 +33,5 @@ export function useTransportBridge(): void {
     });
 
     return dispose;
-  }, []);
+  }, [audioService]);
 }
