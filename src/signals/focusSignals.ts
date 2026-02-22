@@ -28,6 +28,14 @@ export function debouncedUnfocusTrack(trackId: TrackId): void {
   unfocusTimers.set(trackId, timerId);
 }
 
+export function cancelDebouncedUnfocusTrack(trackId: TrackId): void {
+  const existing = unfocusTimers.get(trackId);
+  if (existing) {
+    clearTimeout(existing);
+    unfocusTimers.delete(trackId);
+  }
+}
+
 export function resetFocusSignals(): void {
   focusedTracks.value = [];
   unfocusTimers.forEach((timerId) => clearTimeout(timerId));

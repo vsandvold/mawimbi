@@ -20,8 +20,15 @@ const PERCENT_DIVISOR = 100;
 const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
   const { trackId, color } = track;
 
-  const { volume, mute, solo, updateVolume, updateMute, updateSolo } =
-    useChannelControls(trackId);
+  const {
+    volume,
+    mute,
+    solo,
+    updateVolume,
+    commitVolume,
+    updateMute,
+    updateSolo,
+  } = useChannelControls(trackId);
 
   const { r, g, b } = color;
   const channelOpacity = isMuted ? 0 : convertToOpacity(volume);
@@ -67,6 +74,7 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
           min={0}
           max={100}
           onChange={updateVolume}
+          onChangeComplete={commitVolume}
         />
       </div>
       <div className="channel__move" {...dragHandleProps}>

@@ -1,5 +1,6 @@
 import { vi } from 'vitest';
 import {
+  cancelDebouncedUnfocusTrack,
   debouncedUnfocusTrack,
   focusedTracks,
   focusTrack,
@@ -113,6 +114,35 @@ describe('focusSignals', () => {
       vi.advanceTimersByTime(100);
 
       expect(focusedTracks.value).toEqual([]);
+    });
+  });
+
+  describe('cancelDebouncedUnfocusTrack', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('cancels a pending debounced unfocus', () => {
+      focusTrack('track-1');
+      debouncedUnfocusTrack('track-1');
+
+      cancelDebouncedUnfocusTrack('track-1');
+
+      vi.advanceTimersByTime(250);
+
+      expect(focusedTracks.value).toEqual(['track-1']);
+    });
+
+    it('handles canceling when no debounce is pending', () => {
+      focusTrack('track-1');
+
+      cancelDebouncedUnfocusTrack('track-1');
+
+      expect(focusedTracks.value).toEqual(['track-1']);
     });
   });
 
