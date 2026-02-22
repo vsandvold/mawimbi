@@ -31,7 +31,7 @@ const Workstation = (props: WorkstationProps) => {
   const { tracks, uploadFile } = props;
   const hasTracks = tracks.length > 0;
 
-  const { focusedTracks, isMixerOpen, isRecording, pixelsPerSecond } = state;
+  const { isMixerOpen, isRecording, pixelsPerSecond } = state;
 
   const { mixerContainerRef, mixerHeight } = useMixerHeight();
   const {
@@ -57,14 +57,8 @@ const Workstation = (props: WorkstationProps) => {
   });
 
   const memoizedTimeline = useMemo(
-    () => (
-      <Timeline
-        focusedTracks={focusedTracks}
-        pixelsPerSecond={pixelsPerSecond}
-        tracks={tracks}
-      />
-    ),
-    [focusedTracks, pixelsPerSecond, tracks],
+    () => <Timeline pixelsPerSecond={pixelsPerSecond} tracks={tracks} />,
+    [pixelsPerSecond, tracks],
   );
 
   const memoizedScrubberTimeline = useMemo(

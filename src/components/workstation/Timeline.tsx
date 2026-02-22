@@ -1,6 +1,7 @@
 import classNames from 'classnames';
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { useBrowserSupport } from '../../browserSupport';
+import { focusedTracks as focusedTracksSignal } from '../../signals/focusSignals';
 import { mutedTracks as mutedTracksSignal } from '../../signals/trackSignals';
 import { Track, TrackId } from '../project/projectPageReducer';
 import Spectrogram from './Spectrogram';
@@ -8,16 +9,11 @@ import './Timeline.css';
 import Waveform from './Waveform';
 
 type TimelineProps = {
-  focusedTracks: TrackId[];
   pixelsPerSecond: number;
   tracks: Track[];
 };
 
-const Timeline = ({
-  focusedTracks,
-  pixelsPerSecond,
-  tracks,
-}: TimelineProps) => {
+const Timeline = ({ pixelsPerSecond, tracks }: TimelineProps) => {
   const [height, setHeight] = useState(0);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -30,6 +26,7 @@ const Timeline = ({
   }, []); // make sure effect only triggers once, on component mount
 
   const browserSupport = useBrowserSupport();
+  const focusedTracks = focusedTracksSignal.value;
   const mutedTracks = mutedTracksSignal.value;
 
   return (

@@ -6,7 +6,6 @@ import {
 } from './workstationReducer';
 
 const initialState: WorkstationState = {
-  focusedTracks: [],
   isMixerOpen: false,
   isRecording: false,
   pixelsPerSecond: 200,

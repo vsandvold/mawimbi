@@ -6,12 +6,10 @@ import {
 import { Button, Slider } from 'antd';
 import classNames from 'classnames';
 import React from 'react';
-import useDebounced from '../../hooks/useDebounced';
+import { debouncedUnfocusTrack, focusTrack } from '../../signals/focusSignals';
 import { TrackSignalStore } from '../../signals/trackSignals';
 import { Track } from '../project/projectPageReducer';
 import './Channel.css';
-import useWorkstationDispatch from './useWorkstationDispatch';
-import { SET_TRACK_FOCUS, SET_TRACK_UNFOCUS } from './workstationReducer';
 
 type ChannelProps = {
   dragHandleProps?: Record<string, unknown>;
@@ -22,8 +20,6 @@ type ChannelProps = {
 const DEFAULT_VOLUME = 100;
 
 const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
-  const workstationDispatch = useWorkstationDispatch();
-
   const { trackId, color } = track;
 
   const trackSignals = TrackSignalStore.get(trackId);
@@ -35,14 +31,9 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
     if (trackSignals) {
       trackSignals.volume.value = value;
     }
-    workstationDispatch([SET_TRACK_FOCUS, trackId]);
-    debouncedUnfocusTrack();
+    focusTrack(trackId);
+    debouncedUnfocusTrack(trackId);
   };
-
-  const unfocusTrack = () => {
-    workstationDispatch([SET_TRACK_UNFOCUS, trackId]);
-  };
-  const debouncedUnfocusTrack = useDebounced(unfocusTrack, { timeoutMs: 250 });
 
   const updateMute = () => {
     if (trackSignals) {
