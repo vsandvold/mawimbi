@@ -1,44 +1,18 @@
 import { UploadOutlined } from '@ant-design/icons';
 import { Typography } from 'antd';
 import classNames from 'classnames';
-import React, { useEffect } from 'react';
-import { useDropzone } from 'react-dropzone';
+import React from 'react';
 import './Dropzone.css';
 
 type DropzoneProps = {
-  setIsDragActive(isDragActive: boolean): void;
-  setRootProps(rootProps: any): void;
-  uploadFile(file: File): void;
+  isDragActive: boolean;
+  isDragAccept: boolean;
+  isDragReject: boolean;
+  inputProps: React.InputHTMLAttributes<HTMLInputElement>;
 };
 
 const Dropzone = (props: DropzoneProps) => {
-  const { setIsDragActive, setRootProps, uploadFile } = props;
-
-  const {
-    acceptedFiles,
-    getRootProps,
-    getInputProps,
-    isDragActive,
-    isDragAccept,
-    isDragReject,
-  } = useDropzone({
-    accept: { 'audio/*': [] },
-    multiple: true,
-    noClick: true,
-    noKeyboard: true,
-  });
-
-  useEffect(() => {
-    setIsDragActive(isDragActive);
-  }, [setIsDragActive, isDragActive]);
-
-  useEffect(() => {
-    setRootProps(getRootProps());
-  }, [setRootProps, getRootProps]);
-
-  useEffect(() => {
-    acceptedFiles.forEach(uploadFile);
-  }, [acceptedFiles, uploadFile]);
+  const { isDragActive, isDragAccept, isDragReject, inputProps } = props;
 
   const dropzoneClass = classNames('dropzone', {
     'dropzone--active': isDragActive,
@@ -50,7 +24,7 @@ const Dropzone = (props: DropzoneProps) => {
 
   return (
     <div className={dropzoneClass}>
-      <input {...getInputProps()} />
+      <input {...inputProps} />
       <div className="dropzone__content">
         <Text>
           <UploadOutlined className="upload-icon" />

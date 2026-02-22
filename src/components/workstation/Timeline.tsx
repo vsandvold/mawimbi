@@ -1,6 +1,6 @@
 import classNames from 'classnames';
-import { useLayoutEffect, useRef, useState } from 'react';
 import { useBrowserSupport } from '../../browserSupport';
+import { useContainerHeight } from '../../hooks/useContainerHeight';
 import { focusedTracks as focusedTracksSignal } from '../../signals/focusSignals';
 import { mutedTracks as mutedTracksSignal } from '../../signals/trackSignals';
 import { Track, TrackId } from '../project/projectPageReducer';
@@ -14,16 +14,7 @@ type TimelineProps = {
 };
 
 const Timeline = ({ pixelsPerSecond, tracks }: TimelineProps) => {
-  const [height, setHeight] = useState(0);
-
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useLayoutEffect(() => {
-    if (containerRef.current) {
-      const { height } = containerRef.current.getBoundingClientRect();
-      setHeight(height);
-    }
-  }, []); // make sure effect only triggers once, on component mount
+  const { containerRef, height } = useContainerHeight();
 
   const browserSupport = useBrowserSupport();
   const focusedTracks = focusedTracksSignal.value;
