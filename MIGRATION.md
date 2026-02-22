@@ -549,58 +549,318 @@ After Phases 2–5, the remaining consumers of `useThrottled` and `useDebounced`
 
 ---
 
-## Phase 7: Reducer Consolidation
+## Phase 7: Undo/Redo & Reducer Consolidation
 
-**Goal:** After Phases 2–5, the two reducers are significantly smaller. Consolidate the remaining low-frequency state.
+**Goal:** Add undo/redo support for track-level actions (create, delete, move), introduce `DELETE_TRACK`, and consolidate the remaining reducer state. The two reducers stay separate — project state gains undo/redo history while workstation state remains a simple toggle store.
 
-### Remaining ProjectState
+### Current Reducer State After Phases 2–6
+
+**ProjectState** — owns the track list (the only undoable domain):
 
 ```ts
 type ProjectState = {
   nextColorId: number;
   nextIndex: number;
   title: string;
-  tracks: Track[]; // Track no longer has volume, mute, solo fields
+  tracks: Track[];
 };
 ```
 
-Actions: `ADD_TRACK`, `MOVE_TRACK` only.
+Actions: `ADD_TRACK`, `MOVE_TRACK`.
 
-### Remaining WorkstationState
+**WorkstationState** — owns UI toggles (not undoable):
 
 ```ts
 type WorkstationState = {
   isMixerOpen: boolean;
   isRecording: boolean;
-  pixelsPerSecond: number;
-  totalTime: number;
 };
 ```
 
-Actions: `TOGGLE_MIXER`, `TOGGLE_RECORDING`, `SET_TOTAL_TIME`.
+Actions: `TOGGLE_MIXER`, `TOGGLE_RECORDING`.
 
-### 7.1 Evaluate merging reducers
+### Why the Reducers Stay Separate
 
-With both reducers significantly simplified, consider whether they should remain separate or be merged into a single `AppState` reducer. Criteria:
+Undo/redo applies exclusively to project state (track list mutations). Workstation state contains ephemeral UI toggles (mixer open/close, recording on/off) that should never be undone. Merging the reducers would force the undo stack to either wrap the entire combined state — creating nonsensical undo behavior for toggles — or add conditional logic to exclude certain actions. Keeping them separate avoids this entirely: the undo/redo middleware wraps only the project dispatch.
 
-- **Keep separate** if the project/workstation boundary still serves a meaningful domain separation
-- **Merge** if the split adds indirection with little benefit
+### Design: Command-Based Undo Stack
 
-### 7.2 Clean up unused exports
+Each undoable action is recorded as a command with forward and reverse operations. The undo stack sits **outside** the reducer state (so undoing doesn't also undo the undo history). A `useUndoReducer` hook wraps `useReducer` and returns the same `[state, dispatch]` interface plus `undo()` and `redo()` functions.
+
+```
+src/
+├── hooks/
+│   └── useUndoReducer.ts       ← NEW: generic undo/redo wrapper for useReducer
+│
+├── components/project/
+│   ├── projectPageReducer.ts    # Add DELETE_TRACK; keep ADD_TRACK, MOVE_TRACK
+│   ├── projectPageEffects.ts    # Update useUploadFile; add useDeleteTrack
+│   └── useProjectReducer.tsx    # Switch from useReducer to useUndoReducer
+```
+
+### 7.1 Create the `useUndoReducer` hook
+
+**New file:** `src/hooks/useUndoReducer.ts`
+
+A generic hook that wraps `useReducer` with an undo/redo history stack. It is not specific to the project reducer — any reducer can use it.
+
+```ts
+type UndoCommand<A> = {
+  forward: A;   // the action that was applied
+  reverse: A;   // the action that reverses it
+};
+
+type UndoStack<A> = {
+  past: UndoCommand<A>[];
+  future: UndoCommand<A>[];
+};
+```
+
+The hook intercepts dispatched actions. For each action, the caller provides a `reverseAction` function that computes the reverse action from the current state and the forward action. The hook:
+
+1. Computes the reverse action **before** applying the forward action (so it captures pre-mutation state)
+2. Pushes `{ forward, reverse }` onto `past`
+3. Clears `future` (new action invalidates the redo branch)
+4. Delegates to the underlying reducer
+
+`undo()` pops from `past`, dispatches `reverse`, pushes to `future`.
+`redo()` pops from `future`, dispatches `forward`, pushes to `past`.
+
+The stack has a configurable max depth (default: 50) to bound memory usage.
+
+```ts
+function useUndoReducer<S, A>(
+  reducer: (state: S, action: A) => S,
+  initialState: S,
+  reverseAction: (state: S, action: A) => A | null,
+): [S, (action: A) => void, { undo: () => void; redo: () => void; canUndo: boolean; canRedo: boolean }]
+```
+
+If `reverseAction` returns `null`, the action is not recorded in the undo stack (pass-through). This allows mixing undoable and non-undoable actions through the same dispatch.
+
+### 7.2 Add `DELETE_TRACK` to the project reducer
+
+**File:** `src/components/project/projectPageReducer.ts`
+
+Add a `DELETE_TRACK` action:
+
+```ts
+export const DELETE_TRACK = 'DELETE_TRACK';
+
+case DELETE_TRACK:
+  return {
+    ...state,
+    tracks: state.tracks
+      .filter((t) => t.trackId !== payload.trackId)
+      .map((track, i) => ({ ...track, index: i })),
+  };
+```
+
+The reducer remains a pure function — it only removes the track from the array and re-indexes. Side effects (audio channel disposal, signal disposal) happen in the effects layer.
+
+### 7.3 Define reverse actions for the project reducer
+
+**File:** `src/components/project/projectPageReducer.ts`
+
+Export a `reverseProjectAction` function:
+
+```ts
+export function reverseProjectAction(
+  state: ProjectState,
+  [type, payload]: ProjectAction,
+): ProjectAction | null {
+  switch (type) {
+    case ADD_TRACK:
+      return [DELETE_TRACK, { trackId: payload.trackId }];
+
+    case DELETE_TRACK: {
+      const track = state.tracks.find((t) => t.trackId === payload.trackId);
+      if (!track) return null;
+      return [ADD_TRACK, {
+        trackId: track.trackId,
+        fileName: track.fileName,
+        // Carry the full track snapshot so the reducer can restore it exactly
+        restore: track,
+      }];
+    }
+
+    case MOVE_TRACK:
+      return [MOVE_TRACK, {
+        fromIndex: payload.toIndex,
+        toIndex: payload.fromIndex,
+      }];
+
+    default:
+      return null;
+  }
+}
+```
+
+Update `ADD_TRACK` in the reducer to accept an optional `restore` field in the payload. When present, the track is restored as-is (preserving its original color and filename) instead of generating a new color and incrementing `nextIndex`:
+
+```ts
+case ADD_TRACK:
+  if (payload.restore) {
+    return {
+      ...state,
+      tracks: [...state.tracks, payload.restore],
+    };
+  }
+  return {
+    ...state,
+    nextColorId: (state.nextColorId + 1) % COLOR_PALETTE.length,
+    nextIndex: state.nextIndex + 1,
+    tracks: [
+      ...state.tracks,
+      createTrack(state.nextIndex, state.nextColorId, payload),
+    ],
+  };
+```
+
+### 7.4 Coordinate side effects with undo/redo
+
+Track mutations have side effects in two systems outside the reducer:
+- **TrackSignalStore** — per-track volume/mute/solo signals
+- **AudioService** — `Mixer` audio channels and `AudioSourceRepository` entries
+
+These must be created and disposed in sync with the reducer state.
+
+**Key principle:** The `AudioSourceRepository` (which holds decoded `AudioBuffer`s and blob URLs) is **never cleaned up** during undo/redo. Audio decoding is expensive and the buffers are needed to restore deleted tracks. The repository acts as a persistent cache for the lifetime of the session.
+
+| Action | Signal Store | Mixer Channel | AudioSourceRepository |
+|---|---|---|---|
+| `ADD_TRACK` (new upload) | `create(id)` | `createChannel(id, buffer)` | `add(source)` — already done by `AudioService.createTrack()` |
+| `ADD_TRACK` (undo-delete restore) | `create(id)` | `createChannel(id, buffer)` | No-op — entry already exists |
+| `DELETE_TRACK` | `dispose(id)` | `deleteChannel(id)` | No-op — entry preserved |
+| `MOVE_TRACK` / reverse | No-op | No-op | No-op |
+
+**File:** `src/components/project/projectPageEffects.ts`
+
+Add a `useTrackSideEffects` hook that reacts to state changes and syncs side effects:
+
+```ts
+export const useTrackSideEffects = (
+  previousTracks: Track[],
+  currentTracks: Track[],
+) => {
+  const audioService = useAudioService();
+
+  useEffect(() => {
+    const prevIds = new Set(previousTracks.map((t) => t.trackId));
+    const currIds = new Set(currentTracks.map((t) => t.trackId));
+
+    // Tracks added (new or restored via undo)
+    for (const track of currentTracks) {
+      if (!prevIds.has(track.trackId)) {
+        if (!TrackSignalStore.get(track.trackId)) {
+          TrackSignalStore.create(track.trackId);
+        }
+        if (!audioService.mixer.retrieveChannel(track.trackId)) {
+          const buffer = audioService.retrieveAudioBuffer(track.trackId);
+          if (buffer) {
+            audioService.mixer.createChannel(track.trackId, buffer);
+          }
+        }
+      }
+    }
+
+    // Tracks removed (deleted or removed via undo)
+    for (const track of previousTracks) {
+      if (!currIds.has(track.trackId)) {
+        TrackSignalStore.dispose(track.trackId);
+        audioService.mixer.deleteChannel(track.trackId);
+      }
+    }
+  }, [currentTracks]);
+};
+```
+
+This declarative approach means the effects layer doesn't need to know whether a track appeared because of a fresh upload, an undo, or a redo — it just diffs the track list and reconciles.
+
+### 7.5 Wire up `useUndoReducer` in `useProjectReducer`
+
+**File:** `src/components/project/useProjectReducer.tsx`
+
+Replace `useReducer(projectReducer, initialState)` with:
+
+```ts
+const [state, dispatch, { undo, redo, canUndo, canRedo }] = useUndoReducer(
+  projectReducer,
+  initialState,
+  reverseProjectAction,
+);
+```
+
+Expose `undo`, `redo`, `canUndo`, `canRedo` through the existing project context so that `Toolbar` (or a future keyboard shortcut handler) can call them.
+
+### 7.6 Add keyboard shortcuts for undo/redo
+
+**File:** `src/components/workstation/workstationEffects.ts`
+
+Add a `useUndoRedoKeyboard` hook:
+
+```ts
+export const useUndoRedoKeyboard = (
+  undo: () => void,
+  redo: () => void,
+) => {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [undo, redo]);
+};
+```
+
+### 7.7 Add delete track UI
+
+**File:** `src/components/workstation/Channel.tsx`
+
+Add a delete button to each channel strip. On click:
+
+```ts
+projectDispatch([DELETE_TRACK, { trackId }]);
+```
+
+The side effects hook (7.4) handles signal disposal and audio channel cleanup automatically.
+
+### 7.8 Clean up unused exports
 
 Remove unused action constants, helper functions, and type fields across:
-- `projectPageReducer.ts`
-- `workstationReducer.ts`
-- `workstationEffects.ts`
-- `Channel.tsx`, `Mixer.tsx`, `Timeline.tsx`, `Scrubber.tsx`, `Toolbar.tsx`, `Workstation.tsx`
+- `workstationReducer.ts` — verify no dead actions remain after Phases 2–6
+- `workstationEffects.ts` — remove any orphaned helpers
+- Component files — remove stale prop types and imports
 
-### 7.3 Clean up signal disposal
+### 7.9 Update tests
 
-Ensure `TrackSignalStore.dispose(trackId)` is called when tracks are removed (if track deletion is ever implemented). For now, verify no memory leaks occur when navigating away from the project page.
+**Unit tests:**
+- `useUndoReducer`: test undo/redo with a trivial counter reducer; test stack depth limit; test that `null` reverse actions are pass-through; test that new actions clear the redo branch
+- `projectPageReducer`: test `DELETE_TRACK`; test `ADD_TRACK` with `restore` payload; test `reverseProjectAction` for all three action types
+- `useTrackSideEffects`: test that adding a track creates signals + audio channel; test that removing a track disposes signals + deletes channel; test that `AudioSourceRepository` entries survive deletion
+
+**Integration tests:**
+- Upload a track → undo → verify track is removed from the timeline and audio is stopped → redo → verify track reappears with same color and filename
+- Upload two tracks → delete second → undo delete → verify both tracks present → redo delete → verify second track gone
+- Move track → undo → verify original order → redo → verify moved order
+- Verify undo/redo keyboard shortcuts (Ctrl+Z / Ctrl+Shift+Z)
 
 ### Verification
 
 - Full app functionality regression test
+- Undo/redo works for create, delete, and move track actions
+- Audio channels are correctly created/disposed on undo/redo (no orphaned Tone.js nodes, no missing playback)
+- Signal store stays in sync with the track list (volume/mute/solo controls work after undo/redo)
+- `AudioSourceRepository` entries persist across undo/redo cycles (no re-decoding)
+- Undo stack respects max depth
 - `npm test` passes
 - `npm run build` succeeds
 
@@ -646,7 +906,7 @@ Phase 5: Track Focus Signals           (small, mechanical change)
   ↓
 Phase 6: React Compiler Cleanup        (code quality, no behavior change)
   ↓
-Phase 7: Reducer Consolidation         (remove dead code)
+Phase 7: Undo/Redo & Reducer Consolidation (delete track, undo/redo, cleanup)
 ```
 
 Each phase results in a deployable state. Phases 2–5 can be reordered if needed, but the listed order prioritizes by impact (highest first) and builds on the infrastructure from earlier phases.
