@@ -2,37 +2,37 @@ import { isInaccessible } from '@testing-library/dom';
 import { act, fireEvent, render } from '@testing-library/react';
 import React from 'react';
 import AudioService from '../../../services/AudioService';
+import {
+  isPlaying,
+  resetTransportSignals,
+  transportTime,
+} from '../../../signals/transportSignals';
 import Scrubber from '../Scrubber';
-import { WorkstationDispatch } from '../useWorkstationDispatch';
-import { STOP_AND_REWIND_PLAYBACK, STOP_PLAYBACK } from '../workstationReducer';
-
-const mockDispatch = vi.fn();
 
 const defaultProps = {
   drawerHeight: 0,
   isMixerOpen: false,
-  isPlaying: false,
   pixelsPerSecond: 200,
-  transportTime: 0,
 };
 
+afterEach(() => {
+  resetTransportSignals();
+});
+
 it('hides rewind button at start of playback', () => {
-  const { getByTitle } = render(
-    <Scrubber {...{ ...defaultProps, transportTime: 0 }} />,
-  );
+  const { getByTitle } = render(<Scrubber {...defaultProps} />);
 
   const rewindButton = getByTitle('Rewind');
   const rewindButtonParent = rewindButton.parentNode;
 
   expect(rewindButton).toBeInTheDocument();
   expect(rewindButtonParent).toHaveClass('scrubber__rewind--hidden');
-  //expect(isInaccessible(rewindButton)).toEqual(true);
 });
 
 it('shows rewind button when playback has progressed', () => {
-  const { getByTitle } = render(
-    <Scrubber {...{ ...defaultProps, transportTime: 100 }} />,
-  );
+  transportTime.value = 100;
+
+  const { getByTitle } = render(<Scrubber {...defaultProps} />);
 
   const rewindButton = getByTitle('Rewind');
   const rewindButtonParent = rewindButton.parentNode;
@@ -43,43 +43,36 @@ it('shows rewind button when playback has progressed', () => {
 });
 
 it('stops and rewinds playback when rewind button is clicked', () => {
-  const { getByTitle } = render(
-    <WorkstationDispatch.Provider value={mockDispatch}>
-      <Scrubber {...defaultProps} />
-    </WorkstationDispatch.Provider>,
-  );
+  isPlaying.value = true;
+  transportTime.value = 5.0;
+
+  const { getByTitle } = render(<Scrubber {...defaultProps} />);
 
   const rewindButton = getByTitle('Rewind');
   fireEvent.click(rewindButton);
 
-  expect(mockDispatch).toHaveBeenCalledTimes(1);
-  expect(mockDispatch).toHaveBeenCalledWith([STOP_AND_REWIND_PLAYBACK]);
+  expect(isPlaying.value).toBe(false);
+  expect(transportTime.value).toBe(0);
 });
 
 it('pauses playback when timeline is scrolled while playing', () => {
-  const { container } = render(
-    <WorkstationDispatch.Provider value={mockDispatch}>
-      <Scrubber {...{ ...defaultProps, isPlaying: true }} />
-    </WorkstationDispatch.Provider>,
-  );
+  isPlaying.value = true;
+
+  const { container } = render(<Scrubber {...defaultProps} />);
 
   const timeline = container.querySelector('.scrubber__timeline')!;
   fireEvent.scroll(timeline);
 
-  expect(mockDispatch).toHaveBeenCalledWith([STOP_PLAYBACK]);
+  expect(isPlaying.value).toBe(false);
 });
 
 it('does not pause playback when timeline is scrolled while paused', () => {
-  const { container } = render(
-    <WorkstationDispatch.Provider value={mockDispatch}>
-      <Scrubber {...{ ...defaultProps, isPlaying: false }} />
-    </WorkstationDispatch.Provider>,
-  );
+  const { container } = render(<Scrubber {...defaultProps} />);
 
   const timeline = container.querySelector('.scrubber__timeline')!;
   fireEvent.scroll(timeline);
 
-  expect(mockDispatch).not.toHaveBeenCalledWith([STOP_PLAYBACK]);
+  expect(isPlaying.value).toBe(false);
 });
 
 it('transforms timeline vertical scale when drawer is open', () => {
@@ -118,9 +111,9 @@ it('sets --loudness CSS variable on cursor during playback', () => {
     return 1;
   });
 
-  const { container } = render(
-    <Scrubber {...{ ...defaultProps, isPlaying: true }} />,
-  );
+  isPlaying.value = true;
+
+  const { container } = render(<Scrubber {...defaultProps} />);
 
   act(() => {
     rafCallback(0);
@@ -135,9 +128,7 @@ it('does not set --loudness when playback is stopped', () => {
   const audioService = AudioService.getInstance();
   const getLoudnessSpy = vi.spyOn(audioService.mixer, 'getLoudness');
 
-  const { container } = render(
-    <Scrubber {...{ ...defaultProps, isPlaying: false }} />,
-  );
+  const { container } = render(<Scrubber {...defaultProps} />);
 
   const cursor = container.querySelector('.cursor');
   expect(getLoudnessSpy).not.toHaveBeenCalled();

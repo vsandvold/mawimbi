@@ -8,11 +8,8 @@ import {
 const initialState: WorkstationState = {
   focusedTracks: [],
   isMixerOpen: false,
-  isPlaying: false,
   isRecording: false,
   pixelsPerSecond: 200,
-  totalTime: 0,
-  transportTime: 0,
 };
 
 const useWorkstationReducer = (): [

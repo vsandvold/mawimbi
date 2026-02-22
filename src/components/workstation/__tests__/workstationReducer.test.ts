@@ -1,15 +1,8 @@
 import {
-  SET_TOTAL_TIME,
   SET_TRACK_FOCUS,
   SET_TRACK_UNFOCUS,
-  SET_TRANSPORT_TIME,
-  START_PLAYBACK,
-  STOP_AND_REWIND_PLAYBACK,
-  STOP_PLAYBACK,
   TOGGLE_MIXER,
-  TOGGLE_PLAYBACK,
   TOGGLE_RECORDING,
-  WorkstationAction,
   workstationReducer,
   WorkstationState,
 } from '../workstationReducer';
@@ -17,128 +10,9 @@ import {
 const defaultState: WorkstationState = {
   focusedTracks: [],
   isMixerOpen: false,
-  isPlaying: false,
   isRecording: false,
   pixelsPerSecond: 200,
-  totalTime: 0,
-  transportTime: 0,
 };
-
-it('stops and rewinds playback', () => {
-  const action: WorkstationAction = [STOP_AND_REWIND_PLAYBACK];
-
-  const currentState = workstationReducer(defaultState, action);
-
-  expect(currentState.isPlaying).toEqual(false);
-  expect(currentState.transportTime).toEqual(0);
-});
-
-describe('TOGGLE_PLAYBACK', () => {
-  it('starts playback when paused', () => {
-    const state = { ...defaultState, isPlaying: false };
-
-    const result = workstationReducer(state, [TOGGLE_PLAYBACK]);
-
-    expect(result.isPlaying).toBe(true);
-  });
-
-  it('pauses playback when playing', () => {
-    const state = { ...defaultState, isPlaying: true };
-
-    const result = workstationReducer(state, [TOGGLE_PLAYBACK]);
-
-    expect(result.isPlaying).toBe(false);
-  });
-
-  it('restarts from beginning when at end of playback and paused', () => {
-    const state = {
-      ...defaultState,
-      isPlaying: false,
-      transportTime: 10.0,
-      totalTime: 10.0,
-    };
-
-    const result = workstationReducer(state, [TOGGLE_PLAYBACK]);
-
-    expect(result.isPlaying).toBe(true);
-    expect(result.transportTime).toBe(0);
-  });
-
-  it('handles end-of-playback comparison with toFixed(1) rounding', () => {
-    // 10.04.toFixed(1) === "10.0" === 10.0.toFixed(1) → treated as end of playback
-    const state = {
-      ...defaultState,
-      isPlaying: false,
-      transportTime: 10.04,
-      totalTime: 10.0,
-    };
-
-    const result = workstationReducer(state, [TOGGLE_PLAYBACK]);
-
-    expect(result.isPlaying).toBe(true);
-    expect(result.transportTime).toBe(0);
-  });
-
-  it('does not restart when not quite at end of playback', () => {
-    const state = {
-      ...defaultState,
-      isPlaying: false,
-      transportTime: 9.8,
-      totalTime: 10.0,
-    };
-
-    const result = workstationReducer(state, [TOGGLE_PLAYBACK]);
-
-    expect(result.isPlaying).toBe(true);
-    expect(result.transportTime).toBe(9.8);
-  });
-});
-
-describe('START_PLAYBACK', () => {
-  it('starts playback when not playing', () => {
-    const state = { ...defaultState, isPlaying: false };
-
-    const result = workstationReducer(state, [START_PLAYBACK]);
-
-    expect(result.isPlaying).toBe(true);
-  });
-
-  it('returns same state reference when already playing', () => {
-    const state = { ...defaultState, isPlaying: true };
-
-    const result = workstationReducer(state, [START_PLAYBACK]);
-
-    expect(result).toBe(state);
-    expect(result.isPlaying).toBe(true);
-  });
-});
-
-describe('STOP_PLAYBACK', () => {
-  it('stops playback without rewinding', () => {
-    const state = { ...defaultState, isPlaying: true, transportTime: 5.0 };
-
-    const result = workstationReducer(state, [STOP_PLAYBACK]);
-
-    expect(result.isPlaying).toBe(false);
-    expect(result.transportTime).toBe(5.0);
-  });
-});
-
-describe('SET_TRANSPORT_TIME', () => {
-  it('updates transport time', () => {
-    const result = workstationReducer(defaultState, [SET_TRANSPORT_TIME, 3.5]);
-
-    expect(result.transportTime).toBe(3.5);
-  });
-});
-
-describe('SET_TOTAL_TIME', () => {
-  it('updates total time', () => {
-    const result = workstationReducer(defaultState, [SET_TOTAL_TIME, 120]);
-
-    expect(result.totalTime).toBe(120);
-  });
-});
 
 describe('TOGGLE_MIXER', () => {
   it('opens mixer when closed', () => {

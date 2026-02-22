@@ -2,67 +2,25 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useAudioService } from '../../hooks/useAudioService';
 import useKeypress from '../../hooks/useKeypress';
 import { TrackSignalStore } from '../../signals/trackSignals';
+import {
+  togglePlayback,
+  totalTime as totalTimeSignal,
+} from '../../signals/transportSignals';
 import message from '../message';
 import { ADD_TRACK, Track } from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
-import {
-  SET_TOTAL_TIME,
-  TOGGLE_PLAYBACK,
-  WorkstationAction,
-} from './workstationReducer';
 
-export const useSpacebarPlaybackToggle = (
-  dispatch: React.Dispatch<WorkstationAction>,
-) => {
-  useKeypress(() => dispatch([TOGGLE_PLAYBACK]), {
+export const useSpacebarPlaybackToggle = () => {
+  useKeypress(() => togglePlayback(), {
     targetKey: ' ',
   });
 };
 
-export const usePlaybackControl = (
-  isPlaying: boolean,
-  transportTime: number,
-) => {
-  const audioService = useAudioService();
-  // Initialised to null so the first render always counts as a transport time change,
-  // ensuring the audio engine is seeked to the initial position on mount.
-  const prevTransportTimeRef = useRef<number | null>(null);
-
-  useEffect(() => {
-    const transportTimeChanged = prevTransportTimeRef.current !== transportTime;
-    prevTransportTimeRef.current = transportTime;
-
-    if (isPlaying) {
-      // Only seek when transport time was explicitly changed (e.g. by scrolling).
-      // When merely resuming, pass no position so the engine continues from where
-      // it paused rather than jumping back to the stale scroll position.
-      if (transportTimeChanged) {
-        audioService.startPlayback(transportTime);
-      } else {
-        audioService.startPlayback();
-      }
-    } else {
-      // Only seek when transport time was explicitly changed (e.g. scroll while
-      // paused, or rewind). When stopping normally, omit the position so the engine
-      // retains the actual playback position for the next resume.
-      if (transportTimeChanged) {
-        audioService.pausePlayback(transportTime);
-      } else {
-        audioService.pausePlayback();
-      }
-    }
-  }, [isPlaying, transportTime]); // audioService never changes, and can safely be omitted from dependencies
-};
-
-export const useTotalTime = (
-  tracks: Track[],
-  dispatch: React.Dispatch<WorkstationAction>,
-) => {
+export const useTotalTime = (tracks: Track[]) => {
   const audioService = useAudioService();
   useEffect(() => {
-    const totalTime = audioService.getTotalTime();
-    dispatch([SET_TOTAL_TIME, totalTime]);
-  }, [tracks]); // audioService and dispatch never changes, and can safely be omitted from dependencies
+    totalTimeSignal.value = audioService.getTotalTime();
+  }, [tracks]); // audioService never changes, and can safely be omitted from dependencies
 };
 
 export const useMicrophone = (isRecording: boolean) => {

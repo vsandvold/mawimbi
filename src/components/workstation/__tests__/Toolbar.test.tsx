@@ -1,8 +1,12 @@
 import { fireEvent, render } from '@testing-library/react';
 import React from 'react';
 import { vi } from 'vitest';
+import {
+  isPlaying,
+  resetTransportSignals,
+} from '../../../signals/transportSignals';
 import Toolbar from '../Toolbar';
-import { TOGGLE_MIXER, TOGGLE_PLAYBACK } from '../workstationReducer';
+import { TOGGLE_MIXER } from '../workstationReducer';
 
 const mockDispatch = vi.fn();
 
@@ -13,9 +17,12 @@ vi.mock('../useWorkstationDispatch', () => ({
 const defaultProps = {
   isMixerOpen: false,
   isEmpty: false,
-  isPlaying: false,
   isRecording: false,
 };
+
+afterEach(() => {
+  resetTransportSignals();
+});
 
 it('renders all buttons', () => {
   const { getAllByRole } = render(<Toolbar {...defaultProps} />);
@@ -42,9 +49,7 @@ it('enables buttons when tracks are not empty', () => {
 });
 
 it('renders play icon when paused', () => {
-  const { getByTitle } = render(
-    <Toolbar {...{ ...defaultProps, isPlaying: false }} />,
-  );
+  const { getByTitle } = render(<Toolbar {...defaultProps} />);
 
   const playButton = getByTitle('Play');
   const playIcon = playButton.querySelector('[aria-label="caret-right"]');
@@ -54,9 +59,9 @@ it('renders play icon when paused', () => {
 });
 
 it('renders pause icon when playing', () => {
-  const { getByTitle } = render(
-    <Toolbar {...{ ...defaultProps, isPlaying: true }} />,
-  );
+  isPlaying.value = true;
+
+  const { getByTitle } = render(<Toolbar {...defaultProps} />);
 
   const pauseButton = getByTitle('Pause');
   const pauseIcon = pauseButton.querySelector('[aria-label="pause"]');
@@ -66,9 +71,7 @@ it('renders pause icon when playing', () => {
 });
 
 it('renders microphone icon', () => {
-  const { getByTitle } = render(
-    <Toolbar {...{ ...defaultProps, isPlaying: false }} />,
-  );
+  const { getByTitle } = render(<Toolbar {...defaultProps} />);
 
   const recordButton = getByTitle('Record');
   const recordIcon = recordButton.querySelector('[aria-label="audio"]');
@@ -88,15 +91,12 @@ it('applies animation class to mixer icon when mixer is open', () => {
 });
 
 it('toggles playback when play/pause button is clicked', () => {
-  const { getByTitle } = render(
-    <Toolbar {...{ ...defaultProps, isPlaying: true }} />,
-  );
+  const { getByTitle } = render(<Toolbar {...defaultProps} />);
 
-  const playPauseButton = getByTitle('Pause');
-  fireEvent.click(playPauseButton);
+  const playButton = getByTitle('Play');
+  fireEvent.click(playButton);
 
-  expect(mockDispatch).toBeCalledTimes(1);
-  expect(mockDispatch).toHaveBeenCalledWith([TOGGLE_PLAYBACK]);
+  expect(isPlaying.value).toBe(true);
 });
 
 it('toggles mixer when mixer show/hide is clicked', () => {
