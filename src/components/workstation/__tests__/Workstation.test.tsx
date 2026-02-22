@@ -1,6 +1,7 @@
 import { render } from '@testing-library/react';
 import React from 'react';
 import { vi } from 'vitest';
+import { useAudioBridge } from '../../../hooks/useAudioBridge';
 import { mockTrack } from '../../../testUtils';
 import Workstation from '../Workstation';
 import {
@@ -21,6 +22,10 @@ vi.mock('../Scrubber', () => ({
 }));
 vi.mock('../Timeline', () => ({
   default: () => <div data-testid="regular-timeline"></div>,
+}));
+
+vi.mock('../../../hooks/useAudioBridge', () => ({
+  useAudioBridge: vi.fn(),
 }));
 
 vi.mock('../workstationEffects', () => mockWorkstationEffects());
@@ -67,6 +72,7 @@ it('renders dropzone hidden by default', () => {
 it('uses workstation effect hooks', () => {
   render(<Workstation {...defaultProps} />);
 
+  expect(useAudioBridge).toHaveBeenCalled();
   expect(useDropzoneDragActive).toHaveBeenCalled();
   expect(useMixerHeight).toHaveBeenCalled();
   expect(useMutedTracks).toHaveBeenCalled();

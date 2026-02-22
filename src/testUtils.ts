@@ -21,7 +21,6 @@ export function mockTrack(trackProps: any = {}): Track {
     index: 0,
     mute: false,
     solo: false,
-    volume: 100,
     ...trackProps,
   };
 }

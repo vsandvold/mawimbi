@@ -16,7 +16,6 @@ export type Track = {
   index: number;
   mute: boolean;
   solo: boolean;
-  volume: number;
 };
 
 export type TrackColor = {
@@ -37,11 +36,10 @@ export const ADD_TRACK = 'ADD_TRACK';
 export const MOVE_TRACK = 'MOVE_TRACK';
 export const SET_TRACK_MUTE = 'SET_TRACK_MUTE';
 export const SET_TRACK_SOLO = 'SET_TRACK_SOLO';
-export const SET_TRACK_VOLUME = 'SET_TRACK_VOLUME';
 
 export function projectReducer(
   state: ProjectState,
-  [type, payload]: ProjectAction
+  [type, payload]: ProjectAction,
 ): ProjectState {
   switch (type) {
     case ADD_TRACK:
@@ -60,8 +58,6 @@ export function projectReducer(
       return { ...state, tracks: setTrackMute(state.tracks, payload) };
     case SET_TRACK_SOLO:
       return { ...state, tracks: setTrackSolo(state.tracks, payload) };
-    case SET_TRACK_VOLUME:
-      return { ...state, tracks: setTrackVolume(state.tracks, payload) };
     default:
       throw new Error();
   }
@@ -70,7 +66,7 @@ export function projectReducer(
 function createTrack(
   index: number,
   colorIdx: number,
-  { trackId, fileName }: any
+  { trackId, fileName }: any,
 ): Track {
   return {
     color: COLOR_PALETTE[colorIdx],
@@ -79,7 +75,6 @@ function createTrack(
     index,
     mute: false,
     solo: false,
-    volume: 100,
   };
 }
 
@@ -92,18 +87,12 @@ function moveTrack(tracks: Track[], { fromIndex, toIndex }: any): Track[] {
 
 function setTrackMute(tracks: Track[], { id, mute }: any): Track[] {
   return tracks.map((track) =>
-    track.trackId === id ? { ...track, mute } : track
+    track.trackId === id ? { ...track, mute } : track,
   );
 }
 
 function setTrackSolo(tracks: Track[], { id, solo }: any): Track[] {
   return tracks.map((track) =>
-    track.trackId === id ? { ...track, solo } : track
-  );
-}
-
-function setTrackVolume(tracks: Track[], { id, volume }: any): Track[] {
-  return tracks.map((track) =>
-    track.trackId === id ? { ...track, volume } : track
+    track.trackId === id ? { ...track, solo } : track,
   );
 }

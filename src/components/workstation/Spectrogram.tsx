@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useAudioService } from '../../hooks/useAudioService';
 import OfflineAnalyser from '../../services/OfflineAnalyser';
+import { TrackSignalStore } from '../../signals/trackSignals';
 import { Track, TrackColor } from '../project/projectPageReducer';
 import './Spectrogram.css';
 
@@ -14,7 +15,7 @@ const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
   const analyserRef = useRef<OfflineAnalyser | undefined>(undefined);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const { trackId, color, volume } = track;
+  const { trackId, color } = track;
 
   const audioService = useAudioService();
   const audioBuffer = audioService.retrieveAudioBuffer(trackId);
@@ -53,6 +54,9 @@ const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
 
   const containerWidth = canvasWidth * widthFactor;
   const containerHeight = canvasHeight * heightPixelRatio;
+
+  const DEFAULT_VOLUME = 100;
+  const volume = TrackSignalStore.get(trackId)?.volume.value ?? DEFAULT_VOLUME;
 
   const containerStyles = {
     opacity: convertToOpacity(volume),

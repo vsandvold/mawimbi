@@ -1,6 +1,8 @@
 import { fireEvent, render } from '@testing-library/react';
 import React from 'react';
 import { vi } from 'vitest';
+import { TrackSignalStore } from '../../../signals/trackSignals';
+import { resetAllSignals } from '../../../signals/__tests__/testUtils';
 import { mockTrack } from '../../../testUtils';
 import Channel from '../Channel';
 
@@ -29,6 +31,14 @@ vi.mock('../../project/useProjectDispatch', () => ({
 vi.mock('../useWorkstationDispatch', () => ({
   default: () => mockWorkstationDispatch,
 }));
+
+beforeEach(() => {
+  TrackSignalStore.create('track-1');
+});
+
+afterEach(() => {
+  resetAllSignals();
+});
 
 const defaultProps = {
   isMuted: false,
@@ -121,7 +131,7 @@ it('applies inverted style when externally muted (solo on another channel)', () 
 });
 
 it('does not apply inverted style when unmuted at full volume', () => {
-  const track = mockTrack({ trackId: 'track-1', volume: 100, mute: false });
+  const track = mockTrack({ trackId: 'track-1', mute: false });
   const { container } = render(
     <Channel {...{ ...defaultProps, isMuted: false, track }} />,
   );
@@ -134,7 +144,6 @@ it('applies channel background color from track color', () => {
   const track = mockTrack({
     trackId: 'track-1',
     color: { r: 77, g: 238, b: 234 },
-    volume: 100,
   });
   const { container } = render(<Channel {...{ ...defaultProps, track }} />);
 
@@ -148,7 +157,6 @@ it('sets opacity to 0 in background color when externally muted', () => {
   const track = mockTrack({
     trackId: 'track-1',
     color: { r: 77, g: 238, b: 234 },
-    volume: 100,
   });
   const { container } = render(
     <Channel {...{ ...defaultProps, track, isMuted: true }} />,
@@ -158,4 +166,14 @@ it('sets opacity to 0 in background color when externally muted', () => {
   expect(channel).toHaveStyle({
     backgroundColor: 'rgba(77,238,234, 0)',
   });
+});
+
+it('reads volume from signal store', () => {
+  const signals = TrackSignalStore.get('track-1')!;
+  expect(signals.volume.value).toBe(100);
+
+  render(<Channel {...defaultProps} />);
+
+  // Volume is read from signal, not from track props
+  expect(signals.volume.value).toBe(100);
 });
