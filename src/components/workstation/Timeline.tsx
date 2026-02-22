@@ -1,3 +1,4 @@
+import { useSignals } from '@preact/signals-react/runtime';
 import classNames from 'classnames';
 import { useBrowserSupport } from '../../browserSupport';
 import { useContainerHeight } from '../../hooks/useContainerHeight';
@@ -14,6 +15,7 @@ type TimelineProps = {
 };
 
 const Timeline = ({ pixelsPerSecond, tracks }: TimelineProps) => {
+  useSignals();
   const { containerRef, height } = useContainerHeight();
 
   const browserSupport = useBrowserSupport();

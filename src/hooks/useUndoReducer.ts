@@ -1,4 +1,4 @@
-import { useReducer } from 'react';
+import { useCallback, useReducer } from 'react';
 
 const MAX_STACK_DEPTH = 50;
 
@@ -84,9 +84,12 @@ function useUndoReducer<S, A>(
     future: [],
   });
 
-  const dispatch = (action: A) => rawDispatch({ type: 'dispatch', action });
-  const undo = () => rawDispatch({ type: 'undo' });
-  const redo = () => rawDispatch({ type: 'redo' });
+  const dispatch = useCallback(
+    (action: A) => rawDispatch({ type: 'dispatch', action }),
+    [rawDispatch],
+  );
+  const undo = useCallback(() => rawDispatch({ type: 'undo' }), [rawDispatch]);
+  const redo = useCallback(() => rawDispatch({ type: 'redo' }), [rawDispatch]);
 
   return [
     state.appState,

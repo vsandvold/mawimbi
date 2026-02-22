@@ -11,6 +11,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useSignals } from '@preact/signals-react/runtime';
 import { mutedTracks as mutedTracksSignal } from '../../signals/trackSignals';
 import { MOVE_TRACK, Track, TrackId } from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
@@ -22,6 +23,7 @@ type MixerProps = {
 };
 
 const Mixer = ({ tracks }: MixerProps) => {
+  useSignals();
   const projectDispatch = useProjectDispatch();
   const sensors = useSensors(useSensor(PointerSensor));
 

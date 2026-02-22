@@ -74,12 +74,9 @@ const UploadButton = (props: UploadButtonProps) => {
     accept: 'audio/*',
     multiple: true,
     showUploadList: false,
-    beforeUpload: () => false,
-    onChange(info) {
-      const file = info.file.originFileObj;
-      if (file) {
-        uploadFile(file);
-      }
+    beforeUpload: (file) => {
+      uploadFile(file);
+      return false;
     },
   };
 

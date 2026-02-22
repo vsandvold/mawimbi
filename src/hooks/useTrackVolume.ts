@@ -1,3 +1,4 @@
+import { useSignals } from '@preact/signals-react/runtime';
 import { TrackSignalStore } from '../signals/trackSignals';
 import { type TrackId } from '../components/project/projectPageReducer';
 
@@ -5,6 +6,7 @@ const DEFAULT_VOLUME = 100;
 const PERCENT_DIVISOR = 100;
 
 export function useTrackVolume(trackId: TrackId) {
+  useSignals();
   const volume = TrackSignalStore.get(trackId)?.volume.value ?? DEFAULT_VOLUME;
   const opacity = convertToOpacity(volume);
 

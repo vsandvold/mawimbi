@@ -1,3 +1,4 @@
+import { useSignals } from '@preact/signals-react/runtime';
 import classNames from 'classnames';
 import { useState } from 'react';
 import { useAudioBridge } from '../../hooks/useAudioBridge';
@@ -25,6 +26,7 @@ type WorkstationProps = {
 };
 
 const Workstation = (props: WorkstationProps) => {
+  useSignals();
   const [isMixerOpen, setIsMixerOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
 

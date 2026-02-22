@@ -1,4 +1,5 @@
 import { StepBackwardOutlined } from '@ant-design/icons';
+import { useSignals } from '@preact/signals-react/runtime';
 import { Button } from 'antd';
 import classNames from 'classnames';
 import {
@@ -29,6 +30,7 @@ type ScrubberProps = PropsWithChildren<{
 const TIMELINE_MARGIN = 40;
 
 const Scrubber = (props: ScrubberProps) => {
+  useSignals();
   const { drawerHeight, isMixerOpen, pixelsPerSecond } = props;
 
   const playing = isPlaying.value;
@@ -160,6 +162,7 @@ const Scrubber = (props: ScrubberProps) => {
 
   const handleStopAndRewind = () => {
     stopAndRewindPlayback();
+    setScrollPosition(0);
   };
 
   const rewindButtonClass = classNames('scrubber__rewind', {
