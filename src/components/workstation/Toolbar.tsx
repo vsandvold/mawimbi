@@ -13,19 +13,24 @@ import {
   togglePlayback,
 } from '../../signals/transportSignals';
 import './Toolbar.css';
-import useWorkstationDispatch from './useWorkstationDispatch';
-import { TOGGLE_MIXER, TOGGLE_RECORDING } from './workstationReducer';
 
 type ToolbarProps = {
   isMixerOpen: boolean;
   isEmpty: boolean;
   isRecording: boolean;
+  onToggleMixer: () => void;
+  onToggleRecording: () => void;
 };
 
 const Toolbar = (props: ToolbarProps) => {
-  const { isMixerOpen, isEmpty, isRecording } = props;
+  const {
+    isMixerOpen,
+    isEmpty,
+    isRecording,
+    onToggleMixer,
+    onToggleRecording,
+  } = props;
   const isPlaying = isPlayingSignal.value;
-  const dispatch = useWorkstationDispatch();
 
   const mixerIconClass = classNames({ 'show-mixer': isMixerOpen });
   const mixerIcon = <Icon component={ControlSvg} className={mixerIconClass} />;
@@ -37,7 +42,7 @@ const Toolbar = (props: ToolbarProps) => {
       className="button"
       icon={mixerIcon}
       title={isMixerOpen ? 'Hide mixer' : 'Show mixer'}
-      onClick={() => dispatch([TOGGLE_MIXER])}
+      onClick={onToggleMixer}
       disabled={isEmpty}
     />
   );
@@ -61,7 +66,7 @@ const Toolbar = (props: ToolbarProps) => {
       className="button"
       icon={isRecording ? <AudioFilled /> : <AudioOutlined />}
       title="Record"
-      onClick={() => dispatch([TOGGLE_RECORDING])}
+      onClick={onToggleRecording}
     />
   );
   return (
