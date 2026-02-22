@@ -5,6 +5,7 @@ import Icon, {
   PauseOutlined,
 } from '@ant-design/icons';
 import { Button } from 'antd';
+import { useSignals } from '@preact/signals-react/runtime';
 import classNames from 'classnames';
 import ControlSvg from '../../icons/control.svg?react';
 import {
@@ -22,6 +23,7 @@ type ToolbarProps = {
 };
 
 const Toolbar = (props: ToolbarProps) => {
+  useSignals();
   const {
     isMixerOpen,
     isEmpty,
