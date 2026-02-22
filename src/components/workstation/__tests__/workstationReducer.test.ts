@@ -1,5 +1,4 @@
 import {
-  SET_MUTED_TRACKS,
   SET_TOTAL_TIME,
   SET_TRACK_FOCUS,
   SET_TRACK_UNFOCUS,
@@ -20,31 +19,10 @@ const defaultState: WorkstationState = {
   isMixerOpen: false,
   isPlaying: false,
   isRecording: false,
-  mutedTracks: [],
   pixelsPerSecond: 200,
   totalTime: 0,
   transportTime: 0,
 };
-
-it('bails out of dispatch when muted tracks are unchanged', () => {
-  const previousState = { ...defaultState, mutedTracks: [] };
-  const action: WorkstationAction = [SET_MUTED_TRACKS, []];
-
-  const currentState = workstationReducer(previousState, action);
-
-  expect(Object.is(previousState.mutedTracks, currentState.mutedTracks)).toBe(
-    true,
-  );
-});
-
-it('updates muted tracks when they differ', () => {
-  const previousState = { ...defaultState, mutedTracks: ['a'] };
-  const action: WorkstationAction = [SET_MUTED_TRACKS, ['a', 'b']];
-
-  const currentState = workstationReducer(previousState, action);
-
-  expect(currentState.mutedTracks).toEqual(['a', 'b']);
-});
 
 it('stops and rewinds playback', () => {
   const action: WorkstationAction = [STOP_AND_REWIND_PLAYBACK];

@@ -10,7 +10,6 @@ const initialState: WorkstationState = {
   isMixerOpen: false,
   isPlaying: false,
   isRecording: false,
-  mutedTracks: [],
   pixelsPerSecond: 200,
   totalTime: 0,
   transportTime: 0,
@@ -18,7 +17,7 @@ const initialState: WorkstationState = {
 
 const useWorkstationReducer = (): [
   WorkstationState,
-  React.Dispatch<WorkstationAction>
+  React.Dispatch<WorkstationAction>,
 ] => {
   return useReducer(workstationReducer, initialState);
 };

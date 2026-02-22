@@ -6,26 +6,19 @@ import { resetAllSignals } from '../../../signals/__tests__/testUtils';
 import { mockTrack } from '../../../testUtils';
 import Channel from '../Channel';
 
-const mockChannel = {
-  mute: false,
-  solo: false,
-  volume: 100,
-  dispose: vi.fn(),
-};
-
-const mockProjectDispatch = vi.fn();
 const mockWorkstationDispatch = vi.fn();
 
 vi.mock('../../../hooks/useAudioService', () => ({
   useAudioService: () => ({
     mixer: {
-      retrieveChannel: vi.fn().mockReturnValue(mockChannel),
+      retrieveChannel: vi.fn().mockReturnValue({
+        mute: false,
+        solo: false,
+        volume: 100,
+        dispose: vi.fn(),
+      }),
     },
   }),
-}));
-
-vi.mock('../../project/useProjectDispatch', () => ({
-  default: () => mockProjectDispatch,
 }));
 
 vi.mock('../useWorkstationDispatch', () => ({
@@ -67,55 +60,51 @@ it('renders move button', () => {
   expect(getByTitle('Move')).toBeInTheDocument();
 });
 
-it('dispatches SET_TRACK_MUTE when mute button is clicked', () => {
+it('sets mute signal when mute button is clicked', () => {
   const { getByTitle } = render(<Channel {...defaultProps} />);
 
   fireEvent.click(getByTitle('Mute'));
 
-  expect(mockProjectDispatch).toHaveBeenCalledWith([
-    'SET_TRACK_MUTE',
-    { id: 'track-1', mute: true },
-  ]);
+  const signals = TrackSignalStore.get('track-1')!;
+  expect(signals.mute.value).toBe(true);
 });
 
-it('dispatches SET_TRACK_MUTE to unmute when already muted', () => {
-  const track = mockTrack({ trackId: 'track-1', mute: true });
-  const { getByTitle } = render(<Channel {...{ ...defaultProps, track }} />);
+it('unsets mute signal when mute button is clicked while muted', () => {
+  const signals = TrackSignalStore.get('track-1')!;
+  signals.mute.value = true;
+
+  const { getByTitle } = render(<Channel {...defaultProps} />);
 
   fireEvent.click(getByTitle('Mute'));
 
-  expect(mockProjectDispatch).toHaveBeenCalledWith([
-    'SET_TRACK_MUTE',
-    { id: 'track-1', mute: false },
-  ]);
+  expect(signals.mute.value).toBe(false);
 });
 
-it('dispatches SET_TRACK_SOLO when solo button is clicked', () => {
+it('sets solo signal when solo button is clicked', () => {
   const { getByTitle } = render(<Channel {...defaultProps} />);
 
   fireEvent.click(getByTitle('Solo'));
 
-  expect(mockProjectDispatch).toHaveBeenCalledWith([
-    'SET_TRACK_SOLO',
-    { id: 'track-1', solo: true },
-  ]);
+  const signals = TrackSignalStore.get('track-1')!;
+  expect(signals.solo.value).toBe(true);
 });
 
-it('dispatches SET_TRACK_SOLO to unsolo when already solo', () => {
-  const track = mockTrack({ trackId: 'track-1', solo: true });
-  const { getByTitle } = render(<Channel {...{ ...defaultProps, track }} />);
+it('unsets solo signal when solo button is clicked while solo', () => {
+  const signals = TrackSignalStore.get('track-1')!;
+  signals.solo.value = true;
+
+  const { getByTitle } = render(<Channel {...defaultProps} />);
 
   fireEvent.click(getByTitle('Solo'));
 
-  expect(mockProjectDispatch).toHaveBeenCalledWith([
-    'SET_TRACK_SOLO',
-    { id: 'track-1', solo: false },
-  ]);
+  expect(signals.solo.value).toBe(false);
 });
 
-it('applies inverted style when channel is muted', () => {
-  const track = mockTrack({ trackId: 'track-1', mute: true });
-  const { container } = render(<Channel {...{ ...defaultProps, track }} />);
+it('applies inverted style when channel is muted via signal', () => {
+  const signals = TrackSignalStore.get('track-1')!;
+  signals.mute.value = true;
+
+  const { container } = render(<Channel {...defaultProps} />);
 
   const channel = container.querySelector('.channel');
   expect(channel).toHaveClass('channel--inverted');
@@ -131,9 +120,8 @@ it('applies inverted style when externally muted (solo on another channel)', () 
 });
 
 it('does not apply inverted style when unmuted at full volume', () => {
-  const track = mockTrack({ trackId: 'track-1', mute: false });
   const { container } = render(
-    <Channel {...{ ...defaultProps, isMuted: false, track }} />,
+    <Channel {...{ ...defaultProps, isMuted: false }} />,
   );
 
   const channel = container.querySelector('.channel');

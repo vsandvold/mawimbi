@@ -1,6 +1,7 @@
 import classNames from 'classnames';
 import React, { useLayoutEffect, useRef, useState } from 'react';
 import { useBrowserSupport } from '../../browserSupport';
+import { mutedTracks as mutedTracksSignal } from '../../signals/trackSignals';
 import { Track, TrackId } from '../project/projectPageReducer';
 import Spectrogram from './Spectrogram';
 import './Timeline.css';
@@ -8,14 +9,12 @@ import Waveform from './Waveform';
 
 type TimelineProps = {
   focusedTracks: TrackId[];
-  mutedTracks: TrackId[];
   pixelsPerSecond: number;
   tracks: Track[];
 };
 
 const Timeline = ({
   focusedTracks,
-  mutedTracks,
   pixelsPerSecond,
   tracks,
 }: TimelineProps) => {
@@ -31,6 +30,7 @@ const Timeline = ({
   }, []); // make sure effect only triggers once, on component mount
 
   const browserSupport = useBrowserSupport();
+  const mutedTracks = mutedTracksSignal.value;
 
   return (
     <div ref={containerRef} className="timeline">
@@ -39,7 +39,7 @@ const Timeline = ({
           const timelineWaveformClass = getTimelineWaveformClass(
             track,
             mutedTracks,
-            focusedTracks
+            focusedTracks,
           );
           return (
             <div key={track.trackId} className={timelineWaveformClass}>
@@ -69,7 +69,7 @@ const MemoizedWaveform = React.memo(Waveform);
 function getTimelineWaveformClass(
   track: Track,
   mutedTracks: TrackId[],
-  focusedTracks: TrackId[]
+  focusedTracks: TrackId[],
 ) {
   const isMuted = mutedTracks.includes(track.trackId);
   const isForeground = focusedTracks.includes(track.trackId);
