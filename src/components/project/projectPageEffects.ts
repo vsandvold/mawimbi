@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useAudioService } from '../../hooks/useAudioService';
 import { TrackSignalStore } from '../../signals/trackSignals';
 import {
@@ -5,7 +6,7 @@ import {
   useFullScreenHandle,
 } from '../fullscreen/Fullscreen';
 import message from '../message';
-import { ADD_TRACK, ProjectAction } from './projectPageReducer';
+import { ADD_TRACK, ProjectAction, Track } from './projectPageReducer';
 
 export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
   const audioService = useAudioService();
@@ -34,6 +35,42 @@ export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
   };
 
   return uploadFile;
+};
+
+export const useTrackSideEffects = (tracks: Track[]) => {
+  const audioService = useAudioService();
+  const previousTracksRef = useRef<Track[]>([]);
+
+  useEffect(() => {
+    const previousTracks = previousTracksRef.current;
+    const prevIds = new Set(previousTracks.map((t) => t.trackId));
+    const currIds = new Set(tracks.map((t) => t.trackId));
+
+    // Tracks restored via undo/redo — recreate signals and mixer channels
+    for (const track of tracks) {
+      if (!prevIds.has(track.trackId)) {
+        if (!TrackSignalStore.get(track.trackId)) {
+          TrackSignalStore.create(track.trackId);
+        }
+        if (!audioService.mixer.retrieveChannel(track.trackId)) {
+          const buffer = audioService.retrieveAudioBuffer(track.trackId);
+          if (buffer) {
+            audioService.mixer.createChannel(track.trackId, buffer);
+          }
+        }
+      }
+    }
+
+    // Tracks removed via undo/redo — dispose signals and mixer channels
+    for (const track of previousTracks) {
+      if (!currIds.has(track.trackId)) {
+        TrackSignalStore.dispose(track.trackId);
+        audioService.mixer.deleteChannel(track.trackId);
+      }
+    }
+
+    previousTracksRef.current = tracks;
+  }, [tracks]); // audioService is a stable singleton
 };
 
 export const useFullscreen = () => {

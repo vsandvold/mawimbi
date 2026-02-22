@@ -1,8 +1,10 @@
-import React, { useReducer } from 'react';
+import React from 'react';
+import useUndoReducer, { UndoControls } from '../../hooks/useUndoReducer';
 import {
   ProjectAction,
   projectReducer,
   ProjectState,
+  reverseProjectAction,
   COLOR_PALETTE,
 } from './projectPageReducer';
 
@@ -13,8 +15,12 @@ const initialState: ProjectState = {
   tracks: [],
 };
 
-const useProjectReducer = (): [ProjectState, React.Dispatch<ProjectAction>] => {
-  return useReducer(projectReducer, initialState);
+const useProjectReducer = (): [
+  ProjectState,
+  React.Dispatch<ProjectAction>,
+  UndoControls,
+] => {
+  return useUndoReducer(projectReducer, initialState, reverseProjectAction);
 };
 
 export default useProjectReducer;

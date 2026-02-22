@@ -1,6 +1,8 @@
 import {
   ArrowLeftOutlined,
   EllipsisOutlined,
+  RedoOutlined,
+  UndoOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
 import { Button, Dropdown, Typography, Upload } from 'antd';
@@ -14,6 +16,10 @@ type ProjectPageHeaderProps = {
   uploadFile: (file: File) => void;
   isFullscreen: boolean;
   toggleFullscreen: (state?: boolean) => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 };
 
 const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
@@ -32,6 +38,22 @@ const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
         {props.title}
       </Typography.Title>
       <div className="project-page-header__extra">
+        <Button
+          type="link"
+          className="button"
+          icon={<UndoOutlined />}
+          aria-label="Undo"
+          disabled={!props.canUndo}
+          onClick={props.undo}
+        />
+        <Button
+          type="link"
+          className="button"
+          icon={<RedoOutlined />}
+          aria-label="Redo"
+          disabled={!props.canRedo}
+          onClick={props.redo}
+        />
         <UploadButton uploadFile={props.uploadFile} />
         <OverflowMenu
           isFullscreen={props.isFullscreen}
