@@ -96,4 +96,5 @@ test.describe('dark theme properties', () => {
     // Title should be 20px (antd h4 / Typography.Title level={4}), matching antd v4 PageHeader title
     expect(fontSize).toBe('20px');
   });
+
 });
