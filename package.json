@@ -84,6 +84,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0",
+    "@types/throttle-debounce": "^5.0.2",
     "babel-plugin-react-compiler": "^1.0.0"
   }
 }
