@@ -15,6 +15,14 @@ describe('TrackSignalStore', () => {
       expect(signals.solo.value).toBe(false);
     });
 
+    it('creates signals with a custom initial volume', () => {
+      const signals = TrackSignalStore.create('track-1', 75);
+
+      expect(signals.volume.value).toBe(75);
+      expect(signals.mute.value).toBe(false);
+      expect(signals.solo.value).toBe(false);
+    });
+
     it('stores the signals so they can be retrieved', () => {
       TrackSignalStore.create('track-1');
 

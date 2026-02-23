@@ -19,11 +19,17 @@ class Mixer {
     return Math.pow(clamped, POWER_CURVE_EXPONENT);
   }
 
-  createChannel(trackId: string, audioBuffer: AudioBuffer): void {
+  createChannel(
+    trackId: string,
+    audioBuffer: AudioBuffer,
+    normalizationGainDb = 0,
+  ): void {
     const player = new Tone.Player(audioBuffer).sync().start(0);
     const channel = new Tone.Channel().toDestination();
     player.chain(channel);
-    this.audioChannelRepository.add(new AudioChannel(trackId, channel));
+    this.audioChannelRepository.add(
+      new AudioChannel(trackId, channel, normalizationGainDb),
+    );
   }
 
   retrieveChannel(trackId: string): AudioChannel | undefined {
@@ -62,10 +68,12 @@ class Mixer {
 export class AudioChannel {
   id: string;
   private channel: Tone.Channel;
+  private normalizationGainDb: number;
 
-  constructor(id: string, channel: Tone.Channel) {
+  constructor(id: string, channel: Tone.Channel, normalizationGainDb = 0) {
     this.id = id;
     this.channel = channel;
+    this.normalizationGainDb = normalizationGainDb;
   }
 
   dispose(): void {
@@ -89,7 +97,8 @@ export class AudioChannel {
   }
 
   set volume(volume: number) {
-    this.channel.volume.rampTo(this.convertToDecibel(volume), 0.1);
+    const sliderDb = this.convertToDecibel(volume);
+    this.channel.volume.rampTo(sliderDb + this.normalizationGainDb, 0.1);
   }
 
   private convertToDecibel(value: number): number {

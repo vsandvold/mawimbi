@@ -44,8 +44,9 @@ export const useMicrophone = (isRecording: boolean) => {
       }
       try {
         const arrayBuffer = await audioService.stopRecording();
-        const trackId = await audioService.createTrack(arrayBuffer);
-        TrackSignalStore.create(trackId);
+        const { trackId, initialVolume } =
+          await audioService.createTrack(arrayBuffer);
+        TrackSignalStore.create(trackId, initialVolume);
         projectDispatch([ADD_TRACK, { trackId, fileName: 'New Track' }]);
         audioService.microphone.close();
         msg.success('Recording stopped');

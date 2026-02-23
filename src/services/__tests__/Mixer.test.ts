@@ -246,6 +246,40 @@ describe('AudioChannel', () => {
     });
   });
 
+  describe('normalization gain', () => {
+    it('adds normalization gain to slider dB at full volume', () => {
+      const normGainDb = 6;
+      const normalized = new AudioChannel('ch-norm', toneChannel, normGainDb);
+
+      normalized.volume = 100;
+
+      // slider dB at 100 = 0, so total = 0 + 6 = 6
+      expect(toneChannel.volume.rampTo).toHaveBeenCalledWith(normGainDb, 0.1);
+    });
+
+    it('adds normalization gain to slider dB at mid volume', () => {
+      const normGainDb = 12;
+      const normalized = new AudioChannel('ch-norm', toneChannel, normGainDb);
+
+      normalized.volume = 50;
+
+      const sliderDb = 20 * Math.log(51 / 101);
+      expect(toneChannel.volume.rampTo).toHaveBeenCalledWith(
+        sliderDb + normGainDb,
+        0.1,
+      );
+    });
+
+    it('defaults normalization gain to 0 when not provided', () => {
+      const channel = new AudioChannel('ch-default', toneChannel);
+
+      channel.volume = 100;
+
+      // 0 dB slider + 0 dB normalization = 0 dB
+      expect(toneChannel.volume.rampTo).toHaveBeenCalledWith(0, 0.1);
+    });
+  });
+
   describe('dispose', () => {
     it('disposes the underlying Tone.Channel', () => {
       audioChannel.dispose();

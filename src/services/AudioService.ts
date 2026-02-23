@@ -1,5 +1,6 @@
 import * as Tone from 'tone';
 import { v4 as uuidv4 } from 'uuid';
+import { LoudnessNormalizer } from './LoudnessNormalizer';
 import MicrophoneUserMedia from './MicrophoneUserMedia';
 import Mixer from './Mixer';
 
@@ -17,10 +18,17 @@ function startAudioContext(this: AudioContextStarter, event: Event): void {
   window.removeEventListener('click', startAudioContext);
 }
 
+export type TrackCreationResult = {
+  trackId: string;
+  initialVolume: number;
+};
+
 type AudioSource = {
   id: string;
   audioBuffer: AudioBuffer;
   blobUrl: string;
+  normalizationGainDb: number;
+  initialVolume: number;
 };
 
 class AudioService {
@@ -55,18 +63,24 @@ class AudioService {
     });
   }
 
-  async createTrack(arrayBuffer: ArrayBuffer): Promise<string> {
+  async createTrack(arrayBuffer: ArrayBuffer): Promise<TrackCreationResult> {
     const audioBuffer = await Tone.context.decodeAudioData(arrayBuffer);
     const trackId = uuidv4();
     const blob = new Blob([arrayBuffer], { type: 'audio/*' });
     const blobUrl = URL.createObjectURL(blob);
-    this.mixer.createChannel(trackId, audioBuffer);
+    const normalizationGainDb =
+      LoudnessNormalizer.calculateNormalizationGain(audioBuffer);
+    const initialVolume =
+      LoudnessNormalizer.gainToInitialVolume(normalizationGainDb);
+    this.mixer.createChannel(trackId, audioBuffer, normalizationGainDb);
     this.audioSourceRepository.add({
       id: trackId,
       audioBuffer,
       blobUrl,
+      normalizationGainDb,
+      initialVolume,
     });
-    return trackId;
+    return { trackId, initialVolume };
   }
 
   retrieveAudioBuffer(trackId: string): AudioBuffer | undefined {
@@ -75,6 +89,14 @@ class AudioService {
 
   retrieveBlobUrl(trackId: string): string | undefined {
     return this.audioSourceRepository.get(trackId)?.blobUrl;
+  }
+
+  retrieveNormalizationGainDb(trackId: string): number {
+    return this.audioSourceRepository.get(trackId)?.normalizationGainDb ?? 0;
+  }
+
+  retrieveInitialVolume(trackId: string): number | undefined {
+    return this.audioSourceRepository.get(trackId)?.initialVolume;
   }
 
   startPlayback(transportTime?: number): void {

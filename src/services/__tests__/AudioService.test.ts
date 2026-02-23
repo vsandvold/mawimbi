@@ -7,6 +7,18 @@ if (typeof URL.createObjectURL === 'undefined') {
   URL.createObjectURL = vi.fn().mockReturnValue('blob:mock-url');
 }
 
+function mockAudioBuffer(overrides: Partial<AudioBuffer> = {}): AudioBuffer {
+  const channelData = new Float32Array(100).fill(0.2);
+  return {
+    numberOfChannels: 1,
+    length: 100,
+    sampleRate: 44100,
+    duration: 100 / 44100,
+    getChannelData: vi.fn().mockReturnValue(channelData),
+    ...overrides,
+  } as unknown as AudioBuffer;
+}
+
 // Reset singleton between tests
 let audioService: AudioService;
 
@@ -14,6 +26,7 @@ beforeEach(() => {
   // Reset singleton between tests
   Object.assign(AudioService, { instance: undefined });
   audioService = AudioService.getInstance();
+  vi.mocked(Tone.context.decodeAudioData).mockResolvedValue(mockAudioBuffer());
 });
 
 describe('singleton', () => {
@@ -25,29 +38,35 @@ describe('singleton', () => {
 });
 
 describe('createTrack', () => {
-  it('decodes audio data and returns a track ID', async () => {
+  it('decodes audio data and returns a track ID and initial volume', async () => {
     const arrayBuffer = new ArrayBuffer(16);
 
-    const trackId = await audioService.createTrack(arrayBuffer);
+    const { trackId, initialVolume } =
+      await audioService.createTrack(arrayBuffer);
 
     expect(Tone.context.decodeAudioData).toHaveBeenCalledWith(arrayBuffer);
     expect(trackId).toBeDefined();
     expect(typeof trackId).toBe('string');
+    expect(typeof initialVolume).toBe('number');
   });
 
-  it('creates a mixer channel for the track', async () => {
+  it('creates a mixer channel with normalization gain', async () => {
     const createChannelSpy = vi.spyOn(audioService.mixer, 'createChannel');
     const arrayBuffer = new ArrayBuffer(16);
 
-    const trackId = await audioService.createTrack(arrayBuffer);
+    const { trackId } = await audioService.createTrack(arrayBuffer);
 
-    expect(createChannelSpy).toHaveBeenCalledWith(trackId, expect.anything());
+    expect(createChannelSpy).toHaveBeenCalledWith(
+      trackId,
+      expect.anything(),
+      expect.any(Number),
+    );
   });
 
   it('stores the blob URL for the track', async () => {
     const arrayBuffer = new ArrayBuffer(16);
 
-    const trackId = await audioService.createTrack(arrayBuffer);
+    const { trackId } = await audioService.createTrack(arrayBuffer);
     const blobUrl = audioService.retrieveBlobUrl(trackId);
 
     expect(blobUrl).toBeDefined();
@@ -57,15 +76,55 @@ describe('createTrack', () => {
   it('stores the audio buffer for the track', async () => {
     const arrayBuffer = new ArrayBuffer(16);
 
-    const trackId = await audioService.createTrack(arrayBuffer);
+    const { trackId } = await audioService.createTrack(arrayBuffer);
     const audioBuffer = audioService.retrieveAudioBuffer(trackId);
 
     expect(audioBuffer).toBeDefined();
   });
 
+  it('stores normalization data for undo/redo retrieval', async () => {
+    const arrayBuffer = new ArrayBuffer(16);
+
+    const { trackId, initialVolume } =
+      await audioService.createTrack(arrayBuffer);
+
+    expect(audioService.retrieveInitialVolume(trackId)).toBe(initialVolume);
+    expect(typeof audioService.retrieveNormalizationGainDb(trackId)).toBe(
+      'number',
+    );
+  });
+
   it('returns undefined for unknown track IDs', () => {
     expect(audioService.retrieveBlobUrl('nonexistent')).toBeUndefined();
     expect(audioService.retrieveAudioBuffer('nonexistent')).toBeUndefined();
+    expect(audioService.retrieveInitialVolume('nonexistent')).toBeUndefined();
+  });
+
+  it('returns initial volume of 100 for a buffer at target RMS', async () => {
+    const channelData = new Float32Array(100).fill(0.2);
+    vi.mocked(Tone.context.decodeAudioData).mockResolvedValueOnce(
+      mockAudioBuffer({ getChannelData: vi.fn().mockReturnValue(channelData) }),
+    );
+
+    const { initialVolume } = await audioService.createTrack(
+      new ArrayBuffer(16),
+    );
+
+    expect(initialVolume).toBe(100);
+  });
+
+  it('returns initial volume below 100 for a quiet buffer', async () => {
+    const channelData = new Float32Array(100).fill(0.05);
+    vi.mocked(Tone.context.decodeAudioData).mockResolvedValueOnce(
+      mockAudioBuffer({ getChannelData: vi.fn().mockReturnValue(channelData) }),
+    );
+
+    const { initialVolume } = await audioService.createTrack(
+      new ArrayBuffer(16),
+    );
+
+    expect(initialVolume).toBeLessThan(100);
+    expect(initialVolume).toBeGreaterThan(0);
   });
 });
 
@@ -146,15 +205,10 @@ describe('getTotalTime', () => {
   });
 
   it('returns the duration of the longest track', async () => {
-    // decodeAudioData returns {} by default, but we need duration
-    const mockBuffer1 = { duration: 5.0 };
-    const mockBuffer2 = { duration: 10.0 };
-    const mockBuffer3 = { duration: 3.0 };
-
     vi.mocked(Tone.context.decodeAudioData)
-      .mockResolvedValueOnce(mockBuffer1 as unknown as AudioBuffer)
-      .mockResolvedValueOnce(mockBuffer2 as unknown as AudioBuffer)
-      .mockResolvedValueOnce(mockBuffer3 as unknown as AudioBuffer);
+      .mockResolvedValueOnce(mockAudioBuffer({ duration: 5.0 }))
+      .mockResolvedValueOnce(mockAudioBuffer({ duration: 10.0 }))
+      .mockResolvedValueOnce(mockAudioBuffer({ duration: 3.0 }));
 
     await audioService.createTrack(new ArrayBuffer(16));
     await audioService.createTrack(new ArrayBuffer(16));
