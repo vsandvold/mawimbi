@@ -72,4 +72,28 @@ test.describe('dark theme properties', () => {
     // Header padding should be overridden to 0, not antd default 0 50px
     expect(padding).toBe('0px');
   });
+
+  test('project page header inner container has correct padding', async ({
+    page,
+  }) => {
+    await page.goto('/project');
+    const headerInner = page.locator('.project-page-header');
+    await expect(headerInner).toBeVisible();
+    const padding = await headerInner.evaluate(
+      (el) => window.getComputedStyle(el).padding,
+    );
+    // Inner header container should have 16px 24px padding matching antd v4 PageHeader default
+    expect(padding).toBe('16px 24px');
+  });
+
+  test('project page header title has correct font size', async ({ page }) => {
+    await page.goto('/project');
+    const title = page.locator('.project-page-header__title');
+    await expect(title).toBeVisible();
+    const fontSize = await title.evaluate(
+      (el) => window.getComputedStyle(el).fontSize,
+    );
+    // Title should be 20px (antd h4 / Typography.Title level={4}), matching antd v4 PageHeader title
+    expect(fontSize).toBe('20px');
+  });
 });

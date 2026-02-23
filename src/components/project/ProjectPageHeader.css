@@ -4,6 +4,8 @@
   gap: 8px;
   width: 100%;
   height: 100%;
+  /* Matches antd v4 PageHeader default padding, lost during antd v4 → v5 migration */
+  padding: 16px 24px;
 }
 
 .project-page-header__title {

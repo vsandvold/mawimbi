@@ -33,7 +33,7 @@ const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
         aria-label="Back"
         onClick={() => navigate(-1)}
       />
-      <Typography.Title level={5} className="project-page-header__title">
+      <Typography.Title level={4} className="project-page-header__title">
         {props.title}
       </Typography.Title>
       <div className="project-page-header__extra">
