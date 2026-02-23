@@ -16,12 +16,16 @@ export function useChannelControls(trackId: TrackId) {
   const mute = trackSignals?.mute.value ?? false;
   const solo = trackSignals?.solo.value ?? false;
 
+  const startFocus = () => {
+    focusTrack(trackId);
+    cancelDebouncedUnfocusTrack(trackId);
+  };
+
   const updateVolume = (value: number) => {
     if (trackSignals) {
       trackSignals.volume.value = value;
     }
-    focusTrack(trackId);
-    cancelDebouncedUnfocusTrack(trackId);
+    startFocus();
   };
 
   const commitVolume = () => {
@@ -44,6 +48,7 @@ export function useChannelControls(trackId: TrackId) {
     volume,
     mute,
     solo,
+    startFocus,
     updateVolume,
     commitVolume,
     updateMute,

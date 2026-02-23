@@ -1,5 +1,6 @@
 import { fireEvent, render } from '@testing-library/react';
 import { vi } from 'vitest';
+import { focusedTracks } from '../../../signals/focusSignals';
 import { TrackSignalStore } from '../../../signals/trackSignals';
 import { resetAllSignals } from '../../../signals/__tests__/testUtils';
 import { mockTrack } from '../../../testUtils';
@@ -157,4 +158,13 @@ it('reads volume from signal store', () => {
 
   // Volume is read from signal, not from track props
   expect(signals.volume.value).toBe(100);
+});
+
+it('focuses track when volume slider is clicked without moving', () => {
+  const { container } = render(<Channel {...defaultProps} />);
+
+  const volumeSlider = container.querySelector('.channel__volume')!;
+  fireEvent.pointerDown(volumeSlider);
+
+  expect(focusedTracks.value).toContain('track-1');
 });

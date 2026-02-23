@@ -24,6 +24,7 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
     volume,
     mute,
     solo,
+    startFocus,
     updateVolume,
     commitVolume,
     updateMute,
@@ -67,7 +68,7 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
           onClick={updateMute}
         />
       </div>
-      <div className="channel__volume">
+      <div className="channel__volume" onPointerDown={startFocus}>
         <Slider
           className="channel-slider"
           defaultValue={volume}
