@@ -8,11 +8,14 @@ import Spectrogram from '../Spectrogram';
 const mockGetLogarithmicFrequencyData = vi.fn().mockResolvedValue({});
 
 vi.mock('../../../services/OfflineAnalyser', () => ({
-  default: vi.fn().mockImplementation(() => ({
-    frequencyBinCount: 2048,
-    timeResolution: 0.025,
-    getLogarithmicFrequencyData: mockGetLogarithmicFrequencyData,
-  })),
+  // Must be a regular function (not arrow) to support `new` in Vitest v4
+  default: vi.fn().mockImplementation(function () {
+    return {
+      frequencyBinCount: 2048,
+      timeResolution: 0.025,
+      getLogarithmicFrequencyData: mockGetLogarithmicFrequencyData,
+    };
+  }),
 }));
 
 const { mockRetrieveAudioBuffer } = vi.hoisted(() => ({
