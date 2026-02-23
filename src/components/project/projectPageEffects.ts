@@ -22,8 +22,8 @@ export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
         const arrayBuffer = reader.result as ArrayBuffer;
         audioService
           .createTrack(arrayBuffer)
-          .then((trackId) => {
-            TrackSignalStore.create(trackId);
+          .then(({ trackId, initialVolume }) => {
+            TrackSignalStore.create(trackId, initialVolume);
             dispatch([ADD_TRACK, { trackId, fileName }]);
             msg.success(fileName);
           })
@@ -53,12 +53,18 @@ export const useTrackSideEffects = (tracks: Track[]) => {
     for (const track of tracks) {
       if (!prevIds.has(track.trackId)) {
         if (!TrackSignalStore.get(track.trackId)) {
-          TrackSignalStore.create(track.trackId);
+          const initialVolume = audioService.retrieveInitialVolume(
+            track.trackId,
+          );
+          TrackSignalStore.create(track.trackId, initialVolume);
         }
         if (!audioService.mixer.retrieveChannel(track.trackId)) {
           const buffer = audioService.retrieveAudioBuffer(track.trackId);
           if (buffer) {
-            audioService.mixer.createChannel(track.trackId, buffer);
+            const normGainDb = audioService.retrieveNormalizationGainDb(
+              track.trackId,
+            );
+            audioService.mixer.createChannel(track.trackId, buffer, normGainDb);
           }
         }
       }

@@ -15,9 +15,9 @@ const store = new Map<TrackId, TrackSignals>();
 // store's membership (e.g. mutedTracks) know to re-evaluate.
 const storeVersion = signal(0);
 
-function create(trackId: TrackId): TrackSignals {
+function create(trackId: TrackId, initialVolume?: number): TrackSignals {
   const signals: TrackSignals = {
-    volume: signal(DEFAULT_VOLUME),
+    volume: signal(initialVolume ?? DEFAULT_VOLUME),
     mute: signal(false),
     solo: signal(false),
   };
