@@ -64,9 +64,12 @@ function createMockOfflineContext(
 let savedOfflineAudioContext: typeof window.OfflineAudioContext;
 
 function stubOfflineAudioContext(ctx: MockOfflineContext) {
+  // Must be a regular function (not arrow) to support `new` in Vitest v4
   vi.stubGlobal(
     'OfflineAudioContext',
-    vi.fn().mockImplementation(() => ctx),
+    vi.fn().mockImplementation(function () {
+      return ctx;
+    }),
   );
 }
 

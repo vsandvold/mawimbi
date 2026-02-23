@@ -4,30 +4,34 @@ import { vi } from 'vitest';
 window.TONE_SILENCE_LOGGING = true;
 
 vi.mock('tone', () => {
-  const makeNode = () => ({
-    connect: vi.fn().mockReturnThis(),
-    chain: vi.fn().mockReturnThis(),
-    sync: vi.fn().mockReturnThis(),
-    start: vi.fn().mockReturnThis(),
-    toDestination: vi.fn().mockReturnThis(),
-    dispose: vi.fn(),
-    mute: false,
-    solo: false,
-    volume: { rampTo: vi.fn() },
-    state: 'stopped',
-    getValue: vi.fn().mockReturnValue(0),
-    open: vi.fn().mockResolvedValue(undefined),
-    close: vi.fn(),
-    stop: vi.fn().mockResolvedValue(new Blob()),
-  });
+  // Must be a regular function (not arrow) to support `new` in Vitest v4
+  function makeNode() {
+    return {
+      connect: vi.fn().mockReturnThis(),
+      chain: vi.fn().mockReturnThis(),
+      sync: vi.fn().mockReturnThis(),
+      start: vi.fn().mockReturnThis(),
+      toDestination: vi.fn().mockReturnThis(),
+      dispose: vi.fn(),
+      mute: false,
+      solo: false,
+      volume: { rampTo: vi.fn() },
+      state: 'stopped',
+      getValue: vi.fn().mockReturnValue(0),
+      open: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn(),
+      stop: vi.fn().mockResolvedValue(new Blob()),
+    };
+  }
+  function makeRecorderNode() {
+    return { ...makeNode(), state: 'stopped' };
+  }
   return {
     Meter: vi.fn().mockImplementation(makeNode),
     UserMedia: vi.fn().mockImplementation(makeNode),
     Player: vi.fn().mockImplementation(makeNode),
     Channel: vi.fn().mockImplementation(makeNode),
-    Recorder: vi
-      .fn()
-      .mockImplementation(() => ({ ...makeNode(), state: 'stopped' })),
+    Recorder: vi.fn().mockImplementation(makeRecorderNode),
     Transport: {
       start: vi.fn(),
       stop: vi.fn(),

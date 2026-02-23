@@ -42,9 +42,9 @@
     "typescript": "^5.4.5",
     "typescript-eslint": "^8.0.0",
     "uuid": "^9.0.1",
-    "vite": "^5.2.11",
+    "vite": "^7.3.1",
     "vite-plugin-svgr": "^4.2.0",
-    "vitest": "^1.6.0",
+    "vitest": "^4.0.18",
     "wavesurfer.js": "^7.0.0"
   },
   "scripts": {
@@ -85,6 +85,10 @@
   "devDependencies": {
     "@playwright/test": "^1.56.0",
     "@types/throttle-debounce": "^5.0.2",
+    "@vitest/coverage-v8": "^4.0.18",
     "babel-plugin-react-compiler": "^1.0.0"
+  },
+  "overrides": {
+    "ajv": "^6.14.0"
   }
 }
