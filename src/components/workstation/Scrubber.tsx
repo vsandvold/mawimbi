@@ -28,6 +28,7 @@ type ScrubberProps = PropsWithChildren<{
 }>;
 
 const TIMELINE_MARGIN = 40;
+const SCROLL_DEBOUNCE_MS = 200;
 
 const Scrubber = (props: ScrubberProps) => {
   useSignals();
@@ -122,7 +123,7 @@ const Scrubber = (props: ScrubberProps) => {
   };
 
   const debouncedSetTransportTime = useDebounced(setTransportTimeFromScroll, {
-    timeoutMs: 200,
+    timeoutMs: SCROLL_DEBOUNCE_MS,
   });
 
   const pauseForUserScroll = () => {

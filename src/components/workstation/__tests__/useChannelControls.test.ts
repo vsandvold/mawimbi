@@ -57,13 +57,11 @@ describe('useChannelControls', () => {
   });
 
   describe('commitVolume', () => {
-    it('unfocuses track after debounce period', () => {
+    it('unfocuses track immediately when slider is released', () => {
       const { result } = renderHook(() => useChannelControls('track-1'));
 
       result.current.updateVolume(80);
       result.current.commitVolume();
-
-      vi.advanceTimersByTime(250);
 
       expect(focusedTracks.value).not.toContain('track-1');
     });

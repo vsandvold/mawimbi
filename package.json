@@ -37,6 +37,7 @@
     "react-full-screen": "^1.1.0",
     "react-router-dom": "^7.0.0",
     "standardized-audio-context-mock": "^9.7.20",
+    "throttle-debounce": "^5.0.2",
     "tone": "^14.7.77",
     "typescript": "^5.4.5",
     "typescript-eslint": "^8.0.0",
@@ -83,6 +84,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.56.0",
+    "@types/throttle-debounce": "^5.0.2",
     "@vitest/coverage-v8": "^4.0.18",
     "babel-plugin-react-compiler": "^1.0.0"
   },
