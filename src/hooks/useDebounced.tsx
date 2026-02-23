@@ -1,25 +1,24 @@
-import { useCallback, useRef } from 'react';
+import { debounce } from 'throttle-debounce';
+import { useMemo, useRef } from 'react';
 
 type DebouncedOptions = {
-  timeoutMs: number;
+  timeoutMs?: number;
 };
 
-const defaultOptions: DebouncedOptions = { timeoutMs: 100 };
+// Wraps throttle-debounce's debounce in a stable React hook.
+// The ref pattern ensures the latest callback is always called without
+// recreating (and resetting) the debounced function on every render.
+const useDebounced = (
+  callback: () => void,
+  { timeoutMs = 100 }: DebouncedOptions = {},
+) => {
+  const callbackRef = useRef(callback);
+  callbackRef.current = callback;
 
-const useDebounced = (callback: () => void, { timeoutMs } = defaultOptions) => {
-  const timeoutRef = useRef<number | null>(null);
-
-  const debounced = useCallback(() => {
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
-    }
-    timeoutRef.current = window.setTimeout(() => {
-      callback();
-      timeoutRef.current = null;
-    }, timeoutMs);
-  }, [callback, timeoutMs]);
-
-  return debounced;
+  return useMemo(
+    () => debounce(timeoutMs, () => callbackRef.current()),
+    [timeoutMs],
+  );
 };
 
 export default useDebounced;

@@ -1,9 +1,5 @@
 import { useSignals } from '@preact/signals-react/runtime';
-import {
-  cancelDebouncedUnfocusTrack,
-  debouncedUnfocusTrack,
-  focusTrack,
-} from '../../signals/focusSignals';
+import { focusTrack, unfocusTrack } from '../../signals/focusSignals';
 import { TrackSignalStore } from '../../signals/trackSignals';
 import { type TrackId } from '../project/projectPageReducer';
 
@@ -18,7 +14,6 @@ export function useChannelControls(trackId: TrackId) {
 
   const startFocus = () => {
     focusTrack(trackId);
-    cancelDebouncedUnfocusTrack(trackId);
   };
 
   const updateVolume = (value: number) => {
@@ -29,7 +24,7 @@ export function useChannelControls(trackId: TrackId) {
   };
 
   const commitVolume = () => {
-    debouncedUnfocusTrack(trackId);
+    unfocusTrack(trackId);
   };
 
   const updateMute = () => {
