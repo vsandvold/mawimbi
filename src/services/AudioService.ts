@@ -160,17 +160,21 @@ class AudioService {
   }
 
   async stopOverdubRecording(): Promise<TrackCreationResult> {
-    Tone.Transport.pause();
+    // Transport.stop() (not pause) ensures the next Transport.start() is a
+    // fresh start. Synced players created after Transport.pause() don't
+    // trigger on resume because they were never "playing" before the pause.
+    // Transport.stop() resets the timeline so all synced players — including
+    // the one about to be created for this recording — start from their
+    // scheduled positions on the next Transport.start().
+    Tone.Transport.stop();
     const blob = await this.recorder.stop();
     this.microphone.close();
 
     const startTime = this.recordingStartTime ?? 0;
     this.recordingStartTime = null;
 
-    // Rewind transport to the recording start position so the recorded
-    // track can be replayed immediately. Without this, Transport stays
-    // at the position where recording ended — pressing play resumes from
-    // there, which is past the recorded content, producing no audio.
+    // Position transport at the recording start so playback begins from
+    // the start of the recorded content.
     Tone.Transport.seconds = startTime;
 
     const arrayBuffer = await blob.arrayBuffer();

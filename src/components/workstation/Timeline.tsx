@@ -24,7 +24,7 @@ const Timeline = ({ pixelsPerSecond, tracks }: TimelineProps) => {
 
   return (
     <div ref={containerRef} className="timeline">
-      {containerRef.current &&
+      {height > 0 &&
         tracks.map((track) => {
           const timelineWaveformClass = getTimelineWaveformClass(
             track,
