@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { LoudnessNormalizer } from './LoudnessNormalizer';
 import MicrophoneUserMedia from './MicrophoneUserMedia';
 import Mixer from './Mixer';
+import SpectrogramCache from './SpectrogramCache';
 
 // Reduce scheduling lookahead from the default 0.1s to 0.05s for lower
 // recording latency while keeping enough headroom to avoid scheduling glitches
@@ -39,6 +40,7 @@ type AudioSource = {
 class AudioService {
   microphone: MicrophoneUserMedia;
   mixer: Mixer;
+  spectrogramCache: SpectrogramCache;
 
   private static instance: AudioService;
   private audioSourceRepository: AudioSourceRepository;
@@ -59,6 +61,7 @@ class AudioService {
     this.microphone = new MicrophoneUserMedia();
     this.mixer = new Mixer();
     this.recorder = new Tone.Recorder();
+    this.spectrogramCache = new SpectrogramCache();
   }
 
   static getInstance(): AudioService {
