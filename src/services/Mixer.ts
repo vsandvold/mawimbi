@@ -23,8 +23,12 @@ class Mixer {
     trackId: string,
     audioBuffer: AudioBuffer,
     normalizationGainDb = 0,
+    startTime = 0,
+    audioOffset = 0,
   ): void {
-    const player = new Tone.Player(audioBuffer).sync().start(0);
+    const player = new Tone.Player(audioBuffer)
+      .sync()
+      .start(startTime, audioOffset);
     const channel = new Tone.Channel().toDestination();
     player.chain(channel);
     this.audioChannelRepository.add(

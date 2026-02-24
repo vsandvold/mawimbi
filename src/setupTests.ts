@@ -4,6 +4,9 @@ import { vi } from 'vitest';
 window.TONE_SILENCE_LOGGING = true;
 
 vi.mock('tone', () => {
+  function mockBlob() {
+    return { arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(16)) };
+  }
   // Must be a regular function (not arrow) to support `new` in Vitest v4
   function makeNode() {
     return {
@@ -20,7 +23,7 @@ vi.mock('tone', () => {
       getValue: vi.fn().mockReturnValue(0),
       open: vi.fn().mockResolvedValue(undefined),
       close: vi.fn(),
-      stop: vi.fn().mockResolvedValue(new Blob()),
+      stop: vi.fn().mockResolvedValue(mockBlob()),
     };
   }
   function makeRecorderNode() {
@@ -41,7 +44,18 @@ vi.mock('tone', () => {
     },
     start: vi.fn().mockResolvedValue(undefined),
     getDestination: vi.fn().mockReturnValue(makeNode()),
-    context: { decodeAudioData: vi.fn().mockResolvedValue({}) },
+    context: {
+      decodeAudioData: vi.fn().mockResolvedValue({}),
+      lookAhead: 0.05,
+      sampleRate: 44100,
+      rawContext: {
+        outputLatency: 0.01,
+        baseLatency: 0.005,
+        sampleRate: 44100,
+      },
+    },
+    setContext: vi.fn(),
+    Context: vi.fn().mockImplementation(() => ({})),
   };
 });
 

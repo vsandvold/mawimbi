@@ -4,6 +4,8 @@ import { useContainerHeight } from '../../hooks/useContainerHeight';
 import useKeypress from '../../hooks/useKeypress';
 import { TrackSignalStore } from '../../signals/trackSignals';
 import {
+  isPlaying,
+  isRecording as isRecordingSignal,
   togglePlayback,
   totalTime as totalTimeSignal,
 } from '../../signals/transportSignals';
@@ -11,10 +13,19 @@ import message from '../message';
 import { ADD_TRACK, Track } from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
 
+const RECORDING_FILE_NAME = 'Recording';
+
 export const useSpacebarPlaybackToggle = () => {
-  useKeypress(() => togglePlayback(), {
-    targetKey: ' ',
-  });
+  useKeypress(
+    () => {
+      // Prevent spacebar from toggling playback during recording,
+      // because Transport is controlled by the recording lifecycle.
+      if (!isRecordingSignal.value) {
+        togglePlayback();
+      }
+    },
+    { targetKey: ' ' },
+  );
 };
 
 export const useTotalTime = (tracks: Track[]) => {
@@ -29,31 +40,40 @@ export const useMicrophone = (isRecording: boolean) => {
   const projectDispatch = useProjectDispatch();
   useEffect(() => {
     const msg = message({ key: 'microphone' });
+
     const startRecording = async () => {
       try {
-        await audioService.microphone.open();
-        await audioService.startRecording();
+        await audioService.startOverdubRecording();
+        isRecordingSignal.value = true;
+        isPlaying.value = true;
         msg.success('Recording started');
       } catch {
         msg.error('Recording failed');
       }
     };
+
     const stopRecording = async () => {
-      if (!audioService.isRecording()) {
+      if (!audioService.isOverdubRecording()) {
         return;
       }
       try {
-        const arrayBuffer = await audioService.stopRecording();
         const { trackId, initialVolume } =
-          await audioService.createTrack(arrayBuffer);
+          await audioService.stopOverdubRecording();
         TrackSignalStore.create(trackId, initialVolume);
-        projectDispatch([ADD_TRACK, { trackId, fileName: 'New Track' }]);
-        audioService.microphone.close();
+        projectDispatch([
+          ADD_TRACK,
+          { trackId, fileName: RECORDING_FILE_NAME },
+        ]);
+        isRecordingSignal.value = false;
+        isPlaying.value = false;
         msg.success('Recording stopped');
       } catch {
+        isRecordingSignal.value = false;
+        isPlaying.value = false;
         msg.error('Recording failed');
       }
     };
+
     if (isRecording) {
       startRecording();
     } else {

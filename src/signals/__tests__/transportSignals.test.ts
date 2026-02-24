@@ -1,6 +1,7 @@
 import {
   consumePendingSeek,
   isPlaying,
+  isRecording,
   loudness,
   resetTransportSignals,
   stopAndRewindPlayback,
@@ -23,6 +24,10 @@ describe('transportSignals', () => {
       expect(isPlaying.value).toBe(false);
     });
 
+    it('has isRecording as false', () => {
+      expect(isRecording.value).toBe(false);
+    });
+
     it('has loudness at 0', () => {
       expect(loudness.value).toBe(0);
     });
@@ -43,6 +48,12 @@ describe('transportSignals', () => {
       isPlaying.value = true;
 
       expect(isPlaying.value).toBe(true);
+    });
+
+    it('allows toggling isRecording', () => {
+      isRecording.value = true;
+
+      expect(isRecording.value).toBe(true);
     });
 
     it('allows updating loudness', () => {
@@ -161,6 +172,7 @@ describe('transportSignals', () => {
     it('resets all transport signals to defaults', () => {
       transportTime.value = 99;
       isPlaying.value = true;
+      isRecording.value = true;
       loudness.value = -6;
       totalTime.value = 120;
 
@@ -168,6 +180,7 @@ describe('transportSignals', () => {
 
       expect(transportTime.value).toBe(0);
       expect(isPlaying.value).toBe(false);
+      expect(isRecording.value).toBe(false);
       expect(loudness.value).toBe(0);
       expect(totalTime.value).toBe(0);
     });

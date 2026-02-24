@@ -56,7 +56,7 @@ const Toolbar = (props: ToolbarProps) => {
       icon={isPlaying ? <PauseOutlined /> : <CaretRightOutlined />}
       title={isPlaying ? 'Pause' : 'Play'}
       onClick={() => togglePlayback()}
-      disabled={isEmpty}
+      disabled={isEmpty || isRecording}
     />
   );
 

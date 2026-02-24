@@ -106,3 +106,13 @@ it('toggles mixer when mixer show/hide is clicked', () => {
 
   expect(mockToggleMixer).toHaveBeenCalledTimes(1);
 });
+
+it('disables play/pause button while recording', () => {
+  isPlaying.value = true;
+
+  const { getByTitle } = render(
+    <Toolbar {...{ ...defaultProps, isRecording: true }} />,
+  );
+
+  expect(getByTitle('Pause')).toBeDisabled();
+});
