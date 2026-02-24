@@ -8,6 +8,7 @@ import {
   isRecording as isRecordingSignal,
   togglePlayback,
   totalTime as totalTimeSignal,
+  transportTime,
 } from '../../signals/transportSignals';
 import message from '../message';
 import { ADD_TRACK, Track } from '../project/projectPageReducer';
@@ -66,10 +67,12 @@ export const useMicrophone = (isRecording: boolean) => {
         ]);
         isRecordingSignal.value = false;
         isPlaying.value = false;
+        transportTime.value = audioService.getTransportTime();
         msg.success('Recording stopped');
       } catch {
         isRecordingSignal.value = false;
         isPlaying.value = false;
+        transportTime.value = audioService.getTransportTime();
         msg.error('Recording failed');
       }
     };

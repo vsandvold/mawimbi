@@ -160,17 +160,23 @@ class AudioService {
   }
 
   async stopOverdubRecording(): Promise<TrackCreationResult> {
-    // Capture stop timestamp before stopping to avoid encoding-delay skew
     Tone.Transport.pause();
     const blob = await this.recorder.stop();
     this.microphone.close();
+
+    const startTime = this.recordingStartTime ?? 0;
+    this.recordingStartTime = null;
+
+    // Rewind transport to the recording start position so the recorded
+    // track can be replayed immediately. Without this, Transport stays
+    // at the position where recording ended — pressing play resumes from
+    // there, which is past the recorded content, producing no audio.
+    Tone.Transport.seconds = startTime;
 
     const arrayBuffer = await blob.arrayBuffer();
     const audioBuffer = await Tone.context.decodeAudioData(arrayBuffer);
 
     const latencyCompensation = this.estimateRoundTripLatency();
-    const startTime = this.recordingStartTime ?? 0;
-    this.recordingStartTime = null;
 
     return this.createRecordedTrack(
       audioBuffer,
