@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import OfflineAnalyser from '../OfflineAnalyser';
+import OfflineAnalyser, { type SpectrogramData } from '../OfflineAnalyser';
 
 // OfflineAudioContext is not available in jsdom, so we need a thorough mock
 const mockGetByteFrequencyData = vi.fn();
@@ -282,5 +282,168 @@ describe('logarithmic frequency mapping', () => {
 
     // The last bins should generally pool more frequencies than the first
     expect(lastBinPoolSize).toBeGreaterThanOrEqual(firstBinPoolSize);
+  });
+});
+
+describe('analyseToFrames (suspend context)', () => {
+  it('returns SpectrogramData with correct metadata', async () => {
+    const mockCtx = createMockOfflineContext(true);
+    stubOfflineAudioContext(mockCtx);
+
+    const sampleRate = 44100;
+    const duration = 0.1;
+    const audioBuffer = createAudioBuffer(duration, sampleRate);
+    const analyser = new OfflineAnalyser(audioBuffer);
+
+    const result: SpectrogramData = await analyser.analyseToFrames();
+
+    expect(result.sampleRate).toBe(sampleRate);
+    expect(result.duration).toBe(duration);
+    expect(result.frequencyBinCount).toBe(2048);
+    expect(result.timeResolution).toBe(0.025);
+    expect(result.frequencyFrames).toBeInstanceOf(Array);
+  });
+
+  it('creates a fresh OfflineAudioContext separate from the constructor', async () => {
+    const mockCtx = createMockOfflineContext(true);
+    stubOfflineAudioContext(mockCtx);
+
+    const audioBuffer = createAudioBuffer(0.1);
+    const analyser = new OfflineAnalyser(audioBuffer);
+
+    // Constructor created one OfflineAudioContext
+    expect(window.OfflineAudioContext).toHaveBeenCalledTimes(1);
+
+    await analyser.analyseToFrames();
+
+    // analyseToFrames created a second, fresh OfflineAudioContext
+    expect(window.OfflineAudioContext).toHaveBeenCalledTimes(2);
+  });
+
+  it('collects one frequency frame per suspend point', async () => {
+    const mockCtx = createMockOfflineContext(true);
+    stubOfflineAudioContext(mockCtx);
+
+    // 100ms duration with 25ms step → suspend at 25ms, 50ms, 75ms → 3 frames
+    const audioBuffer = createAudioBuffer(0.1);
+    const analyser = new OfflineAnalyser(audioBuffer);
+
+    const result = await analyser.analyseToFrames();
+
+    expect(result.frequencyFrames.length).toBe(3);
+  });
+
+  it('stores each frame as an independent Uint8Array copy', async () => {
+    const mockCtx = createMockOfflineContext(true);
+    stubOfflineAudioContext(mockCtx);
+
+    const audioBuffer = createAudioBuffer(0.1);
+    const analyser = new OfflineAnalyser(audioBuffer);
+
+    const result = await analyser.analyseToFrames();
+
+    for (const frame of result.frequencyFrames) {
+      expect(frame).toBeInstanceOf(Uint8Array);
+      expect(frame.length).toBe(2048);
+    }
+    // Frames are distinct objects, not references to the same buffer
+    if (result.frequencyFrames.length >= 2) {
+      expect(result.frequencyFrames[0]).not.toBe(result.frequencyFrames[1]);
+    }
+  });
+
+  it('can be called multiple times since it creates a fresh context each time', async () => {
+    const mockCtx = createMockOfflineContext(true);
+    stubOfflineAudioContext(mockCtx);
+
+    const audioBuffer = createAudioBuffer(0.1);
+    const analyser = new OfflineAnalyser(audioBuffer);
+
+    const result1 = await analyser.analyseToFrames();
+    const result2 = await analyser.analyseToFrames();
+
+    // 1 constructor + 2 analyseToFrames calls = 3 contexts created
+    expect(window.OfflineAudioContext).toHaveBeenCalledTimes(3);
+    expect(result1.frequencyFrames).toBeDefined();
+    expect(result2.frequencyFrames).toBeDefined();
+  });
+
+  it('connects buffer source to analyser and destination', async () => {
+    const mockCtx = createMockOfflineContext(true);
+    stubOfflineAudioContext(mockCtx);
+
+    const audioBuffer = createAudioBuffer(0.1);
+    const analyser = new OfflineAnalyser(audioBuffer);
+
+    await analyser.analyseToFrames();
+
+    // analyseToFrames uses the second buffer source (constructor used the first createAnalyser but not createBufferSource)
+    const bufferSource = mockCtx.createBufferSource.mock.results[0].value;
+    expect(bufferSource.connect).toHaveBeenCalled();
+    expect(bufferSource.start).toHaveBeenCalledWith(0);
+    expect(bufferSource.buffer).toBe(audioBuffer);
+  });
+});
+
+describe('analyseToFrames (script processor fallback)', () => {
+  it('returns SpectrogramData with correct metadata', async () => {
+    const mockCtx = createMockOfflineContext(false);
+    stubOfflineAudioContext(mockCtx);
+
+    const sampleRate = 44100;
+    const duration = 1.0;
+    const audioBuffer = createAudioBuffer(duration, sampleRate);
+    const analyser = new OfflineAnalyser(audioBuffer);
+
+    const result = await analyser.analyseToFrames();
+
+    expect(result.sampleRate).toBe(sampleRate);
+    expect(result.duration).toBe(duration);
+    expect(result.frequencyBinCount).toBe(2048);
+    expect(result.timeResolution).toBeCloseTo(1024 / sampleRate, 5);
+    expect(result.frequencyFrames).toBeInstanceOf(Array);
+  });
+
+  it('creates a script processor and sets onaudioprocess', async () => {
+    const mockCtx = createMockOfflineContext(false);
+    stubOfflineAudioContext(mockCtx);
+
+    const audioBuffer = createAudioBuffer(1.0);
+    const analyser = new OfflineAnalyser(audioBuffer);
+
+    await analyser.analyseToFrames();
+
+    expect(mockCtx.createScriptProcessor).toHaveBeenCalledWith(
+      1024,
+      expect.any(Number),
+      expect.any(Number),
+    );
+    const scriptProcessor = mockCtx.createScriptProcessor.mock.results[0].value;
+    expect(scriptProcessor.onaudioprocess).toBeTypeOf('function');
+  });
+
+  it('collects frames when onaudioprocess fires during rendering', async () => {
+    const mockCtx = createMockOfflineContext(false);
+    // Override startRendering to simulate audio processing events
+    mockCtx.startRendering = vi.fn().mockImplementation(async () => {
+      const sp = mockCtx.createScriptProcessor.mock.results[0].value;
+      if (sp.onaudioprocess) {
+        sp.onaudioprocess();
+        sp.onaudioprocess();
+      }
+      return {} as AudioBuffer;
+    });
+    stubOfflineAudioContext(mockCtx);
+
+    const audioBuffer = createAudioBuffer(1.0);
+    const analyser = new OfflineAnalyser(audioBuffer);
+
+    const result = await analyser.analyseToFrames();
+
+    expect(result.frequencyFrames.length).toBe(2);
+    for (const frame of result.frequencyFrames) {
+      expect(frame).toBeInstanceOf(Uint8Array);
+      expect(frame.length).toBe(2048);
+    }
   });
 });

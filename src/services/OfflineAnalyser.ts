@@ -1,3 +1,11 @@
+export type SpectrogramData = {
+  frequencyFrames: Uint8Array[];
+  timeResolution: number;
+  frequencyBinCount: number;
+  sampleRate: number;
+  duration: number;
+};
+
 class OfflineAnalyser {
   readonly frequencyBinCount: number;
   readonly timeResolution: number;
@@ -19,12 +27,11 @@ class OfflineAnalyser {
     const offlineContext = new window.OfflineAudioContext(
       numChannels,
       bufferLength,
-      sampleRate
+      sampleRate,
     );
     const analyser = this.createAnalyser(offlineContext);
-    const isContextSuspendSupported = this.detectContextSuspendSupported(
-      offlineContext
-    );
+    const isContextSuspendSupported =
+      this.detectContextSuspendSupported(offlineContext);
 
     this.audioBuffer = audioBuffer;
     this.analyser = analyser;
@@ -52,7 +59,7 @@ class OfflineAnalyser {
   }
 
   getFrequencyData(
-    callback: (frequencyData: Uint8Array, currentTime: number) => void
+    callback: (frequencyData: Uint8Array, currentTime: number) => void,
   ): Promise<AudioBuffer> {
     if (this.isContextSuspendSupported) {
       return this.getFrequencyDataSuspendContext(callback);
@@ -62,20 +69,109 @@ class OfflineAnalyser {
   }
 
   getLogarithmicFrequencyData(
-    callback: (frequencyData: Uint8Array, currentTime: number) => void
+    callback: (frequencyData: Uint8Array, currentTime: number) => void,
   ): Promise<AudioBuffer> {
     return this.getFrequencyData(
       (frequencyData: Uint8Array, currentTime: number) => {
         callback(
           this.transformFrequencies(frequencyData, this.logFrequencyMapping),
-          currentTime
+          currentTime,
         );
-      }
+      },
     );
   }
 
+  async analyseToFrames(): Promise<SpectrogramData> {
+    const { audioBuffer } = this;
+    const sampleRate = audioBuffer.sampleRate;
+    const binCount = this.frequencyBinCount;
+
+    // Fresh context — OfflineAudioContext.startRendering() is single-use
+    const offlineContext = new window.OfflineAudioContext(
+      audioBuffer.numberOfChannels,
+      audioBuffer.length,
+      sampleRate,
+    );
+    const analyser = this.createAnalyser(offlineContext);
+    const supportsSuspend = this.detectContextSuspendSupported(offlineContext);
+
+    const timeResolution = supportsSuspend
+      ? this.offlineContextSuspendTime
+      : this.scriptProcessorBufferLength / sampleRate;
+
+    const frequencyFrames: Uint8Array[] = [];
+    const frequencyData = new Uint8Array(binCount);
+    const tempBuffer = new Uint8Array(binCount);
+
+    const collectFrame = () => {
+      analyser.getByteFrequencyData(frequencyData);
+      // Apply log-frequency mapping with a local temp buffer
+      // to avoid sharing the instance-level frequencyDataCopy
+      for (let i = 0; i < binCount; i++) {
+        tempBuffer[i] = frequencyData[i];
+      }
+      for (let i = 0; i < binCount; i++) {
+        frequencyData[i] = 0;
+        const pool = this.logFrequencyMapping[i];
+        for (let j = 0; j < pool.length; j++) {
+          frequencyData[i] += tempBuffer[pool[j]];
+        }
+      }
+      frequencyFrames.push(new Uint8Array(frequencyData));
+    };
+
+    const bufferSource = offlineContext.createBufferSource();
+    bufferSource.buffer = audioBuffer;
+
+    if (supportsSuspend) {
+      bufferSource.connect(analyser);
+      analyser.connect(offlineContext.destination);
+
+      const step = timeResolution;
+      let suspendTime = step;
+      while (suspendTime < audioBuffer.duration) {
+        offlineContext
+          .suspend(suspendTime)
+          .then(() => {
+            collectFrame();
+            offlineContext.resume();
+          })
+          .catch((error) => console.log(error));
+        suspendTime += step;
+      }
+
+      bufferSource.start(0);
+      await offlineContext.startRendering();
+    } else {
+      const scriptProcessor = offlineContext.createScriptProcessor(
+        this.scriptProcessorBufferLength,
+        analyser.numberOfOutputs,
+        analyser.numberOfOutputs,
+      );
+
+      bufferSource.connect(analyser);
+      analyser.connect(scriptProcessor);
+      scriptProcessor.connect(offlineContext.destination);
+
+      scriptProcessor.onaudioprocess = () => {
+        collectFrame();
+      };
+
+      bufferSource.start(0);
+      await offlineContext.startRendering();
+    }
+
+    return {
+      frequencyFrames,
+      timeResolution,
+      frequencyBinCount: binCount,
+      sampleRate,
+      duration: audioBuffer.duration,
+    };
+  }
+
   private getFrequencyDataSuspendContext(
-    callback: (frequencyData: Uint8Array, currentTime: number) => void
+    callback: (frequencyData: Uint8Array, currentTime: number) => void,
   ): Promise<AudioBuffer> {
     const bufferSource = this.offlineContext.createBufferSource();
 
@@ -107,14 +203,14 @@ class OfflineAnalyser {
   }
 
   private getFrequencyDataScriptProcessor(
-    callback: (frequencyData: Uint8Array, currentTime: number) => void
+    callback: (frequencyData: Uint8Array, currentTime: number) => void,
   ): Promise<AudioBuffer> {
     const bufferSource = this.offlineContext.createBufferSource();
 
     const scriptProcessor = this.offlineContext.createScriptProcessor(
       this.scriptProcessorBufferLength,
       this.analyser.numberOfOutputs,
-      this.analyser.numberOfOutputs
+      this.analyser.numberOfOutputs,
     );
 
     bufferSource.connect(this.analyser);
@@ -162,7 +258,7 @@ class OfflineAnalyser {
 
   private transformFrequencies(
     frequencyData: Uint8Array,
-    frequencyMapping: number[][]
+    frequencyMapping: number[][],
   ) {
     for (let i = 0, binCount = this.frequencyBinCount; i < binCount; i++) {
       this.frequencyDataCopy[i] = frequencyData[i];
