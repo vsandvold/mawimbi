@@ -38,12 +38,12 @@ class AudioService {
   private static instance: AudioService;
   private audioSourceRepository: AudioSourceRepository;
   private recorder: Tone.Recorder;
+  private recordingStartTime: number | null = null;
 
   private constructor() {
     this.audioSourceRepository = new AudioSourceRepository();
     this.microphone = new MicrophoneUserMedia();
     this.mixer = new Mixer();
-    // TODO: Create class
     this.recorder = new Tone.Recorder();
   }
 
@@ -143,11 +143,64 @@ class AudioService {
       .reduce((prev, curr) => (prev >= curr ? prev : curr), 0);
   }
 
+  // --- Overdub recording (Phase 1: MediaRecorder + timestamp bookkeeping) ---
+
+  async startOverdubRecording(): Promise<void> {
+    if (this.microphone.microphone.state !== 'started') {
+      await this.microphone.open();
+    }
+    this.microphone.microphone.connect(this.recorder);
+
+    // Capture transport position before starting
+    this.recordingStartTime = Tone.Transport.seconds;
+
+    // Start recorder first (has startup delay), then Transport
+    await this.recorder.start();
+    Tone.Transport.start();
+  }
+
+  async stopOverdubRecording(): Promise<TrackCreationResult> {
+    // Capture stop timestamp before stopping to avoid encoding-delay skew
+    Tone.Transport.pause();
+    const blob = await this.recorder.stop();
+    this.microphone.close();
+
+    const arrayBuffer = await blob.arrayBuffer();
+    const audioBuffer = await Tone.context.decodeAudioData(arrayBuffer);
+
+    const latencyCompensation = this.estimateRoundTripLatency();
+    const startTime = this.recordingStartTime ?? 0;
+    this.recordingStartTime = null;
+
+    return this.createRecordedTrack(
+      audioBuffer,
+      arrayBuffer,
+      startTime,
+      latencyCompensation,
+    );
+  }
+
+  isOverdubRecording(): boolean {
+    return this.recorder.state === 'started';
+  }
+
+  estimateRoundTripLatency(): number {
+    const ctx = Tone.context.rawContext as AudioContext;
+    const outputLatency = ctx.outputLatency ?? 0;
+    const baseLatency = ctx.baseLatency ?? 0;
+    const lookAhead = Tone.context.lookAhead;
+    // One render quantum (~2.9ms at 44.1kHz) as a conservative input latency
+    // estimate, per research on Web Audio API latency characteristics
+    const estimatedInputLatency = 128 / ctx.sampleRate;
+    return outputLatency + baseLatency + lookAhead + estimatedInputLatency;
+  }
+
+  // --- Legacy recording methods (independent of transport) ---
+
   async startRecording(): Promise<unknown> {
     if (this.microphone.microphone.state !== 'started') {
       return Promise.reject();
     }
-    // TODO: find better way to connect source
     this.microphone.microphone.connect(this.recorder);
     return await this.recorder.start();
   }
@@ -162,6 +215,39 @@ class AudioService {
 
   isRecording(): boolean {
     return this.recorder.state === 'started';
+  }
+
+  private createRecordedTrack(
+    audioBuffer: AudioBuffer,
+    arrayBuffer: ArrayBuffer,
+    startTime: number,
+    latencyCompensation: number,
+  ): TrackCreationResult {
+    const trackId = uuidv4();
+    const blob = new Blob([arrayBuffer], { type: 'audio/*' });
+    const blobUrl = URL.createObjectURL(blob);
+    const normalizationGainDb =
+      LoudnessNormalizer.calculateNormalizationGain(audioBuffer);
+    const initialVolume =
+      LoudnessNormalizer.gainToInitialVolume(normalizationGainDb);
+
+    // The audioOffset trims latency from the beginning of the recording.
+    // The startTime positions the track at the correct transport position.
+    this.mixer.createChannel(
+      trackId,
+      audioBuffer,
+      normalizationGainDb,
+      startTime,
+      latencyCompensation,
+    );
+    this.audioSourceRepository.add({
+      id: trackId,
+      audioBuffer,
+      blobUrl,
+      normalizationGainDb,
+      initialVolume,
+    });
+    return { trackId, initialVolume };
   }
 }
 

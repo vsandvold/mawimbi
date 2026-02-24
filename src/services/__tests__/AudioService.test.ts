@@ -234,6 +234,105 @@ describe('recording', () => {
   });
 });
 
+describe('overdub recording', () => {
+  it('opens microphone and starts transport on startOverdubRecording', async () => {
+    await audioService.startOverdubRecording();
+
+    expect(audioService.microphone.microphone.open).toHaveBeenCalled();
+    expect(Tone.Transport.start).toHaveBeenCalled();
+  });
+
+  it('connects microphone to recorder on startOverdubRecording', async () => {
+    await audioService.startOverdubRecording();
+
+    expect(audioService.microphone.microphone.connect).toHaveBeenCalled();
+  });
+
+  it('captures transport position before starting', async () => {
+    Tone.Transport.seconds = 5.0;
+
+    await audioService.startOverdubRecording();
+
+    // The start time is captured internally; verify via stopOverdubRecording
+    // which uses it for track positioning
+    const createChannelSpy = vi.spyOn(audioService.mixer, 'createChannel');
+
+    // Make recorder think it's recording
+    const recorderInstance = vi.mocked(Tone.Recorder).mock.results[0].value;
+    Object.assign(recorderInstance, { state: 'started' });
+
+    await audioService.stopOverdubRecording();
+
+    expect(createChannelSpy).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.anything(),
+      expect.any(Number),
+      5.0,
+      expect.any(Number),
+    );
+  });
+
+  it('pauses transport and stops recorder on stopOverdubRecording', async () => {
+    await audioService.startOverdubRecording();
+
+    const recorderInstance = vi.mocked(Tone.Recorder).mock.results[0].value;
+    Object.assign(recorderInstance, { state: 'started' });
+
+    await audioService.stopOverdubRecording();
+
+    expect(Tone.Transport.pause).toHaveBeenCalled();
+    expect(recorderInstance.stop).toHaveBeenCalled();
+  });
+
+  it('creates a track with latency compensation on stop', async () => {
+    const createChannelSpy = vi.spyOn(audioService.mixer, 'createChannel');
+
+    await audioService.startOverdubRecording();
+
+    const recorderInstance = vi.mocked(Tone.Recorder).mock.results[0].value;
+    Object.assign(recorderInstance, { state: 'started' });
+
+    const { trackId, initialVolume } =
+      await audioService.stopOverdubRecording();
+
+    expect(trackId).toBeDefined();
+    expect(typeof initialVolume).toBe('number');
+    expect(createChannelSpy).toHaveBeenCalledWith(
+      trackId,
+      expect.anything(),
+      expect.any(Number),
+      expect.any(Number),
+      expect.any(Number),
+    );
+  });
+
+  it('closes microphone on stopOverdubRecording', async () => {
+    await audioService.startOverdubRecording();
+
+    const recorderInstance = vi.mocked(Tone.Recorder).mock.results[0].value;
+    Object.assign(recorderInstance, { state: 'started' });
+
+    await audioService.stopOverdubRecording();
+
+    expect(audioService.microphone.microphone.close).toHaveBeenCalled();
+  });
+
+  it('reports overdub recording state', () => {
+    expect(audioService.isOverdubRecording()).toBe(false);
+  });
+});
+
+describe('estimateRoundTripLatency', () => {
+  it('returns sum of output, base, lookAhead, and estimated input latency', () => {
+    const latency = audioService.estimateRoundTripLatency();
+
+    // outputLatency (0.01) + baseLatency (0.005) + lookAhead (0.05) +
+    // one render quantum (128/44100 ≈ 0.0029)
+    const expected = 0.01 + 0.005 + 0.05 + 128 / 44100;
+    expect(latency).toBeCloseTo(expected);
+  });
+});
+
 describe('startAudio', () => {
   it('resolves when a click event fires on the element', async () => {
     const promise = AudioService.startAudio(window);

@@ -4,6 +4,7 @@ import { vi } from 'vitest';
 import {
   resetTransportSignals,
   isPlaying,
+  isRecording,
 } from '../../../signals/transportSignals';
 import { useSpacebarPlaybackToggle } from '../workstationEffects';
 
@@ -30,4 +31,14 @@ it('toggles playback with spacebar', () => {
   fireEvent.keyUp(window, { key: ' ', code: 'Space' });
 
   expect(isPlaying.value).toBe(true);
+});
+
+it('does not toggle playback with spacebar while recording', () => {
+  isRecording.value = true;
+
+  renderHook(() => useSpacebarPlaybackToggle());
+
+  fireEvent.keyUp(window, { key: ' ', code: 'Space' });
+
+  expect(isPlaying.value).toBe(false);
 });

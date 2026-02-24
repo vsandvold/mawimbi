@@ -5,7 +5,6 @@ class MicrophoneUserMedia {
   microphone: Tone.UserMedia;
 
   private meter: Tone.Meter;
-  private meterIntervalHandle?: number;
 
   constructor() {
     this.meter = new Tone.Meter();
@@ -14,22 +13,22 @@ class MicrophoneUserMedia {
 
   async open(): Promise<void> {
     await this.microphone.open();
-    this.meterIntervalHandle = window.setInterval(
-      () => console.log(this.meter.getValue()),
-      100
-    );
   }
 
-  close() {
-    clearInterval(this.meterIntervalHandle);
+  close(): void {
     this.microphone.close();
   }
 
-  mute() {
+  getLoudness(): number {
+    const value = this.meter.getValue();
+    return typeof value === 'number' ? Math.max(0, value) : 0;
+  }
+
+  mute(): void {
     this.microphone.mute = true;
   }
 
-  unmute() {
+  unmute(): void {
     this.microphone.mute = false;
   }
 }

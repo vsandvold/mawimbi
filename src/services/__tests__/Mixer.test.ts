@@ -70,7 +70,7 @@ describe('createChannel', () => {
     // Player().sync().start(0)
     const playerInstance = vi.mocked(Tone.Player).mock.results[0].value;
     expect(playerInstance.sync).toHaveBeenCalled();
-    expect(playerInstance.start).toHaveBeenCalledWith(0);
+    expect(playerInstance.start).toHaveBeenCalledWith(0, 0);
   });
 
   it('creates a Tone.Channel routed to destination', () => {
@@ -87,6 +87,20 @@ describe('createChannel', () => {
     const playerInstance = vi.mocked(Tone.Player).mock.results[0].value;
     const channelInstance = vi.mocked(Tone.Channel).mock.results[0].value;
     expect(playerInstance.chain).toHaveBeenCalledWith(channelInstance);
+  });
+
+  it('starts player at given transport time and audio offset', () => {
+    mixer.createChannel('track-1', {} as AudioBuffer, 0, 5.0, 0.03);
+
+    const playerInstance = vi.mocked(Tone.Player).mock.results[0].value;
+    expect(playerInstance.start).toHaveBeenCalledWith(5.0, 0.03);
+  });
+
+  it('defaults startTime and audioOffset to 0', () => {
+    mixer.createChannel('track-1', {} as AudioBuffer, 0);
+
+    const playerInstance = vi.mocked(Tone.Player).mock.results[0].value;
+    expect(playerInstance.start).toHaveBeenCalledWith(0, 0);
   });
 });
 
