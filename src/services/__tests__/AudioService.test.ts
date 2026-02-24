@@ -320,6 +320,82 @@ describe('overdub recording', () => {
   it('reports overdub recording state', () => {
     expect(audioService.isOverdubRecording()).toBe(false);
   });
+
+  it('rewinds transport to recording start time after stopping', async () => {
+    // Recording starts at transport position 0
+    Tone.Transport.seconds = 0;
+    await audioService.startOverdubRecording();
+
+    const recorderInstance = vi.mocked(Tone.Recorder).mock.results[0].value;
+    Object.assign(recorderInstance, { state: 'started' });
+
+    // Transport advances during recording (simulating real playback)
+    Tone.Transport.seconds = 5.0;
+
+    await audioService.stopOverdubRecording();
+
+    // Transport should be rewound to the recording start time (0) so the
+    // recorded track can be replayed. Without this, pressing play resumes
+    // from 5.0 — past the end of the 5-second recording — producing no audio.
+    expect(Tone.Transport.seconds).toBe(0);
+  });
+
+  it('rewinds transport to mid-session recording start time after stopping', async () => {
+    // User played to position 3, paused, then started recording
+    Tone.Transport.seconds = 3.0;
+    await audioService.startOverdubRecording();
+
+    const recorderInstance = vi.mocked(Tone.Recorder).mock.results[0].value;
+    Object.assign(recorderInstance, { state: 'started' });
+
+    // Transport advances during recording
+    Tone.Transport.seconds = 8.0;
+
+    await audioService.stopOverdubRecording();
+
+    // Transport should rewind to 3.0 (recording start), not stay at 8.0
+    expect(Tone.Transport.seconds).toBe(3.0);
+  });
+
+  it('stores a retrievable blobUrl for the recorded track', async () => {
+    await audioService.startOverdubRecording();
+
+    const recorderInstance = vi.mocked(Tone.Recorder).mock.results[0].value;
+    Object.assign(recorderInstance, { state: 'started' });
+
+    const { trackId } = await audioService.stopOverdubRecording();
+    const blobUrl = audioService.retrieveBlobUrl(trackId);
+
+    expect(blobUrl).toBeDefined();
+    expect(blobUrl).toContain('blob:');
+  });
+
+  it('stores a retrievable audioBuffer for the recorded track', async () => {
+    await audioService.startOverdubRecording();
+
+    const recorderInstance = vi.mocked(Tone.Recorder).mock.results[0].value;
+    Object.assign(recorderInstance, { state: 'started' });
+
+    const { trackId } = await audioService.stopOverdubRecording();
+    const audioBuffer = audioService.retrieveAudioBuffer(trackId);
+
+    expect(audioBuffer).toBeDefined();
+  });
+
+  it('includes recorded track duration in total time', async () => {
+    vi.mocked(Tone.context.decodeAudioData).mockResolvedValueOnce(
+      mockAudioBuffer({ duration: 5.0 }),
+    );
+
+    await audioService.startOverdubRecording();
+
+    const recorderInstance = vi.mocked(Tone.Recorder).mock.results[0].value;
+    Object.assign(recorderInstance, { state: 'started' });
+
+    await audioService.stopOverdubRecording();
+
+    expect(audioService.getTotalTime()).toBe(5.0);
+  });
 });
 
 describe('estimateRoundTripLatency', () => {
