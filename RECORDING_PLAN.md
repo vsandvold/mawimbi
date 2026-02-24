@@ -452,11 +452,9 @@ Option 2 is more consistent with Mawimbi's existing signal-driven architecture. 
 
 ### 6.6 Preventing Feedback
 
-When the user records while playing back, the mic will pick up audio from the speakers and create a feedback loop. Strategies:
+When the user records while playing back, the mic will pick up audio from the speakers and create a feedback loop. The current code does NOT route `Tone.UserMedia` to `Tone.Destination` (only to the Recorder/Meter), so there is no software feedback loop by default. This is correct.
 
-1. **Headphones required** — the simplest approach. Display a prompt suggesting headphones before recording.
-2. **Don't route mic to destination** — the current code does NOT route `Tone.UserMedia` to `Tone.Destination` (only to the Recorder/Meter), so there is no software feedback loop. This is correct and should be preserved.
-3. **No input monitoring** — the user will not hear themselves through the app while recording. This is a tradeoff: input monitoring requires routing mic → destination, which adds latency and feedback risk. For Phase 1, no input monitoring is acceptable.
+Input monitoring (letting the user hear themselves) intentionally adds a mic → destination path, which introduces feedback risk. See **Section 9 (Input Monitoring)** for the full design, including latency detection and feedback prevention strategies.
 
 ### 6.7 Waveform Display for Recorded Tracks
 
@@ -507,10 +505,132 @@ The overdub recording feature fits well into Mawimbi's existing architecture:
 
 ---
 
-## 9. Future Enhancements (Beyond Phase 1)
+## 9. Input Monitoring (Phase 1.5)
+
+With overdub recording in place, the next step is letting the user hear themselves through the app while recording. This is critical for vocalists needing reverb or pitch reference, and for instrumentalists using browser-based effects.
+
+### 9.1 How It Works
+
+Input monitoring is a direct graph connection — no scheduling involved, so `Tone.Transport` timing and `lookAhead` are irrelevant. Samples flow straight through the Web Audio graph at render-quantum speed.
+
+```
+Mic → Tone.UserMedia ─┬→ Tone.Recorder  (capture, existing)
+                       ├→ Tone.Meter     (level display, existing)
+                       └→ Tone.Gain      (monitor) → Tone.Destination
+```
+
+The monitor `Tone.Gain` node is the only addition. It controls monitor volume independently from the mixer output, and can be set to 0 (muted) to disable monitoring without disconnecting the graph.
+
+### 9.2 Latency Expectations
+
+The monitoring path adds exactly one render quantum (~2.9ms at 44.1kHz) of processing latency. The total round-trip the user perceives is:
+
+| Setup | Approx. round-trip | Usable? |
+|---|---|---|
+| Desktop, wired headphones, `"interactive"` | 10–20ms | Yes — comparable to standing ~5m from an amp |
+| Desktop, wired headphones, `"playback"` | 20–40ms | Tolerable for vocals, uncomfortable for fast playing |
+| Mobile (iOS Safari) | 40–80ms | Marginal — noticeable slapback |
+| Bluetooth headphones (any platform) | 150–300ms | No — unusable for monitoring |
+
+### 9.3 Implementation in MicrophoneUserMedia
+
+The monitor gain node belongs in `MicrophoneUserMedia` since it's part of the microphone signal chain:
+
+```typescript
+// In MicrophoneUserMedia.ts
+
+class MicrophoneUserMedia {
+  microphone: Tone.UserMedia;
+  private meter: Tone.Meter;
+  private monitorGain: Tone.Gain;
+  private isMonitoringEnabled: boolean;
+
+  constructor() {
+    this.meter = new Tone.Meter();
+    this.monitorGain = new Tone.Gain(0).toDestination(); // start muted
+    this.microphone = new Tone.UserMedia()
+      .connect(this.meter)
+      .connect(this.monitorGain);
+    this.isMonitoringEnabled = false;
+  }
+
+  async open(): Promise<void> {
+    await this.microphone.open();
+  }
+
+  close(): void {
+    this.disableMonitoring();
+    this.microphone.close();
+  }
+
+  enableMonitoring(): void {
+    this.monitorGain.gain.rampTo(1, 0.05); // short ramp avoids click
+    this.isMonitoringEnabled = true;
+  }
+
+  disableMonitoring(): void {
+    this.monitorGain.gain.rampTo(0, 0.05);
+    this.isMonitoringEnabled = false;
+  }
+
+  setMonitorVolume(level: number): void {
+    // level: 0–1 range
+    if (this.isMonitoringEnabled) {
+      this.monitorGain.gain.rampTo(level, 0.05);
+    }
+  }
+}
+```
+
+### 9.4 Auto-Detecting Unusable Latency
+
+Before enabling monitoring, check whether output latency is too high for it to be useful:
+
+```typescript
+// In AudioService.ts or MicrophoneUserMedia.ts
+
+const HIGH_LATENCY_THRESHOLD = 0.050; // 50ms — above this, monitoring causes distracting delay
+
+function shouldEnableMonitoring(): boolean {
+  const ctx = Tone.context.rawContext as AudioContext;
+  const outputLatency = ctx.outputLatency ?? 0;
+  return outputLatency < HIGH_LATENCY_THRESHOLD;
+}
+```
+
+When output latency exceeds the threshold (Bluetooth, some mobile browsers), the UI should either auto-disable monitoring with a message ("Monitoring disabled — high audio latency detected. Use wired headphones for real-time monitoring.") or let the user force it on if they want.
+
+### 9.5 Feedback Prevention
+
+Monitoring routes mic audio to speakers, which creates a feedback loop if the user is not wearing headphones. There is no reliable browser API to detect whether headphones are connected. Strategies:
+
+1. **Default to monitoring off** — user explicitly enables it via a toggle. This is the safest default.
+2. **Show a prompt** — when the user enables monitoring, display a one-time reminder to use headphones.
+3. **Gain limit** — cap monitor volume below unity (e.g., 0.8) to reduce feedback risk, though this doesn't eliminate it.
+
+### 9.6 UI Surface
+
+Add a monitoring toggle to the Toolbar (or a recording settings panel). This could be a headphone icon that lights up when monitoring is active, with a small volume slider. The toggle state should be a signal in `workstationSignals.ts` or a local state in `Workstation.tsx`, depending on whether it needs to persist across recording sessions.
+
+### 9.7 Effect on Latency Compensation
+
+Monitoring does not change the latency compensation math for aligning recorded tracks. The compensation is about when the *recorded samples* arrive relative to the Transport timeline — the monitor path is a separate branch of the audio graph that doesn't touch the Recorder. Whether monitoring is on or off, the same offset formula applies.
+
+### 9.8 Changes Summary
+
+| File | Change |
+|---|---|
+| `MicrophoneUserMedia.ts` | Add `Tone.Gain` monitor node, `enableMonitoring()` / `disableMonitoring()` / `setMonitorVolume()` methods |
+| `AudioService.ts` | Add `shouldEnableMonitoring()` latency check |
+| `workstationEffects.ts` or `Workstation.tsx` | Wire monitoring toggle to `MicrophoneUserMedia` methods |
+| `Toolbar.tsx` | Add monitoring toggle button (headphone icon) |
+| `workstationSignals.ts` (optional) | Add `isMonitoringEnabled` signal if state needs to be shared |
+
+---
+
+## 10. Future Enhancements
 
 - **Manual latency calibration** — Let the user play a click track, record the speakers with the mic, and auto-detect the round-trip latency by cross-correlating the signals.
-- **Input monitoring** — Route mic audio to destination with minimal processing for real-time feedback. Requires low lookAhead and interactive latency hint.
 - **Punch-in/punch-out** — Record only over a specific time range, replacing part of an existing track.
 - **Multi-take recording** — Record multiple takes and comp the best parts.
 - **Dynamic latency hint** — Switch to `"interactive"` during recording and `"playback"` otherwise (requires careful AudioContext management).
