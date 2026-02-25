@@ -272,7 +272,7 @@ describe('overdub recording', () => {
     );
   });
 
-  it('pauses transport and stops recorder on stopOverdubRecording', async () => {
+  it('stops transport and stops recorder on stopOverdubRecording', async () => {
     await audioService.startOverdubRecording();
 
     const recorderInstance = vi.mocked(Tone.Recorder).mock.results[0].value;
@@ -280,7 +280,12 @@ describe('overdub recording', () => {
 
     await audioService.stopOverdubRecording();
 
-    expect(Tone.Transport.pause).toHaveBeenCalled();
+    // Transport.stop() (not pause) ensures the next Transport.start() is a
+    // fresh start rather than a resume. Synced players created after
+    // Transport.pause() may not trigger on resume, because they were never
+    // "playing" before the pause. Transport.stop() resets the timeline so
+    // all synced players start from their scheduled positions.
+    expect(Tone.Transport.stop).toHaveBeenCalled();
     expect(recorderInstance.stop).toHaveBeenCalled();
   });
 
