@@ -103,37 +103,37 @@ class AudioService {
     if (transportTime !== undefined) {
       this.setTransportTime(transportTime);
     }
-    Tone.Transport.start();
+    Tone.getTransport().start();
   }
 
   pausePlayback(transportTime?: number): void {
-    Tone.Transport.pause();
+    Tone.getTransport().pause();
     if (transportTime !== undefined) {
       this.setTransportTime(transportTime);
     }
   }
 
   stopPlayback(transportTime?: number): void {
-    Tone.Transport.stop();
+    Tone.getTransport().stop();
     if (transportTime !== undefined) {
       this.setTransportTime(transportTime);
     }
   }
 
   togglePlayback(): void {
-    if (Tone.Transport.state === 'started') {
-      Tone.Transport.pause();
+    if (Tone.getTransport().state === 'started') {
+      Tone.getTransport().pause();
     } else {
-      Tone.Transport.start();
+      Tone.getTransport().start();
     }
   }
 
   getTransportTime(): number {
-    return Tone.Transport.seconds;
+    return Tone.getTransport().seconds;
   }
 
   setTransportTime(transportTime: number): void {
-    Tone.Transport.seconds = transportTime;
+    Tone.getTransport().seconds = transportTime;
   }
 
   getTotalTime(): number {
@@ -152,11 +152,11 @@ class AudioService {
     this.microphone.microphone.connect(this.recorder);
 
     // Capture transport position before starting
-    this.recordingStartTime = Tone.Transport.seconds;
+    this.recordingStartTime = Tone.getTransport().seconds;
 
     // Start recorder first (has startup delay), then Transport
     await this.recorder.start();
-    Tone.Transport.start();
+    Tone.getTransport().start();
   }
 
   async stopOverdubRecording(): Promise<TrackCreationResult> {
@@ -166,7 +166,7 @@ class AudioService {
     // Transport.stop() resets the timeline so all synced players — including
     // the one about to be created for this recording — start from their
     // scheduled positions on the next Transport.start().
-    Tone.Transport.stop();
+    Tone.getTransport().stop();
     const blob = await this.recorder.stop();
     this.microphone.close();
 
@@ -175,7 +175,7 @@ class AudioService {
 
     // Position transport at the recording start so playback begins from
     // the start of the recorded content.
-    Tone.Transport.seconds = startTime;
+    Tone.getTransport().seconds = startTime;
 
     const arrayBuffer = await blob.arrayBuffer();
     const audioBuffer = await Tone.context.decodeAudioData(arrayBuffer);

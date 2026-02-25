@@ -129,73 +129,73 @@ describe('createTrack', () => {
 });
 
 describe('playback control', () => {
-  it('starts playback via Tone.Transport', () => {
+  it('starts playback via Tone.getTransport()', () => {
     audioService.startPlayback();
 
-    expect(Tone.Transport.start).toHaveBeenCalledTimes(1);
+    expect(Tone.getTransport().start).toHaveBeenCalledTimes(1);
   });
 
   it('starts playback at a given transport time', () => {
     audioService.startPlayback(5.0);
 
-    expect(Tone.Transport.seconds).toBe(5.0);
-    expect(Tone.Transport.start).toHaveBeenCalled();
+    expect(Tone.getTransport().seconds).toBe(5.0);
+    expect(Tone.getTransport().start).toHaveBeenCalled();
   });
 
-  it('pauses playback via Tone.Transport', () => {
+  it('pauses playback via Tone.getTransport()', () => {
     audioService.pausePlayback();
 
-    expect(Tone.Transport.pause).toHaveBeenCalledTimes(1);
+    expect(Tone.getTransport().pause).toHaveBeenCalledTimes(1);
   });
 
   it('pauses playback and sets transport time', () => {
     audioService.pausePlayback(3.0);
 
-    expect(Tone.Transport.pause).toHaveBeenCalled();
-    expect(Tone.Transport.seconds).toBe(3.0);
+    expect(Tone.getTransport().pause).toHaveBeenCalled();
+    expect(Tone.getTransport().seconds).toBe(3.0);
   });
 
-  it('stops playback via Tone.Transport', () => {
+  it('stops playback via Tone.getTransport()', () => {
     audioService.stopPlayback();
 
-    expect(Tone.Transport.stop).toHaveBeenCalledTimes(1);
+    expect(Tone.getTransport().stop).toHaveBeenCalledTimes(1);
   });
 
   it('stops playback and sets transport time', () => {
     audioService.stopPlayback(0);
 
-    expect(Tone.Transport.stop).toHaveBeenCalled();
-    expect(Tone.Transport.seconds).toBe(0);
+    expect(Tone.getTransport().stop).toHaveBeenCalled();
+    expect(Tone.getTransport().seconds).toBe(0);
   });
 
   it('toggles from stopped to started', () => {
-    Object.assign(Tone.Transport, { state: 'stopped' });
+    Object.assign(Tone.getTransport(), { state: 'stopped' });
 
     audioService.togglePlayback();
 
-    expect(Tone.Transport.start).toHaveBeenCalled();
+    expect(Tone.getTransport().start).toHaveBeenCalled();
   });
 
   it('toggles from started to paused', () => {
-    Object.assign(Tone.Transport, { state: 'started' });
+    Object.assign(Tone.getTransport(), { state: 'started' });
 
     audioService.togglePlayback();
 
-    expect(Tone.Transport.pause).toHaveBeenCalled();
+    expect(Tone.getTransport().pause).toHaveBeenCalled();
   });
 });
 
 describe('transport time', () => {
-  it('gets transport time from Tone.Transport', () => {
-    Tone.Transport.seconds = 42;
+  it('gets transport time from Tone.getTransport()', () => {
+    Tone.getTransport().seconds = 42;
 
     expect(audioService.getTransportTime()).toBe(42);
   });
 
-  it('sets transport time on Tone.Transport', () => {
+  it('sets transport time on Tone.getTransport()', () => {
     audioService.setTransportTime(10);
 
-    expect(Tone.Transport.seconds).toBe(10);
+    expect(Tone.getTransport().seconds).toBe(10);
   });
 });
 
@@ -239,7 +239,7 @@ describe('overdub recording', () => {
     await audioService.startOverdubRecording();
 
     expect(audioService.microphone.microphone.open).toHaveBeenCalled();
-    expect(Tone.Transport.start).toHaveBeenCalled();
+    expect(Tone.getTransport().start).toHaveBeenCalled();
   });
 
   it('connects microphone to recorder on startOverdubRecording', async () => {
@@ -249,7 +249,7 @@ describe('overdub recording', () => {
   });
 
   it('captures transport position before starting', async () => {
-    Tone.Transport.seconds = 5.0;
+    Tone.getTransport().seconds = 5.0;
 
     await audioService.startOverdubRecording();
 
@@ -285,7 +285,7 @@ describe('overdub recording', () => {
     // Transport.pause() may not trigger on resume, because they were never
     // "playing" before the pause. Transport.stop() resets the timeline so
     // all synced players start from their scheduled positions.
-    expect(Tone.Transport.stop).toHaveBeenCalled();
+    expect(Tone.getTransport().stop).toHaveBeenCalled();
     expect(recorderInstance.stop).toHaveBeenCalled();
   });
 
@@ -328,38 +328,38 @@ describe('overdub recording', () => {
 
   it('rewinds transport to recording start time after stopping', async () => {
     // Recording starts at transport position 0
-    Tone.Transport.seconds = 0;
+    Tone.getTransport().seconds = 0;
     await audioService.startOverdubRecording();
 
     const recorderInstance = vi.mocked(Tone.Recorder).mock.results[0].value;
     Object.assign(recorderInstance, { state: 'started' });
 
     // Transport advances during recording (simulating real playback)
-    Tone.Transport.seconds = 5.0;
+    Tone.getTransport().seconds = 5.0;
 
     await audioService.stopOverdubRecording();
 
     // Transport should be rewound to the recording start time (0) so the
     // recorded track can be replayed. Without this, pressing play resumes
     // from 5.0 — past the end of the 5-second recording — producing no audio.
-    expect(Tone.Transport.seconds).toBe(0);
+    expect(Tone.getTransport().seconds).toBe(0);
   });
 
   it('rewinds transport to mid-session recording start time after stopping', async () => {
     // User played to position 3, paused, then started recording
-    Tone.Transport.seconds = 3.0;
+    Tone.getTransport().seconds = 3.0;
     await audioService.startOverdubRecording();
 
     const recorderInstance = vi.mocked(Tone.Recorder).mock.results[0].value;
     Object.assign(recorderInstance, { state: 'started' });
 
     // Transport advances during recording
-    Tone.Transport.seconds = 8.0;
+    Tone.getTransport().seconds = 8.0;
 
     await audioService.stopOverdubRecording();
 
     // Transport should rewind to 3.0 (recording start), not stay at 8.0
-    expect(Tone.Transport.seconds).toBe(3.0);
+    expect(Tone.getTransport().seconds).toBe(3.0);
   });
 
   it('stores a retrievable blobUrl for the recorded track', async () => {

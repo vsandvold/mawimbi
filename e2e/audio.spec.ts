@@ -91,6 +91,70 @@ test.describe('Playback controls', () => {
     await expect(page.getByTitle('Play')).toBeVisible();
   });
 
+  test('synced Players produce audio when Transport starts', async ({ page }) => {
+    // Intercept AudioNode.connect to track whether the Tone.js Player
+    // actually creates an AudioBufferSourceNode during playback. If the
+    // Transport is bound to the wrong AudioContext (stale Tone.Transport
+    // reference after Tone.setContext), the synced Player never fires.
+    await page.addInitScript(() => {
+      const connections: Array<{ src: string; dst: string }> = [];
+      const origConnect = AudioNode.prototype.connect;
+      AudioNode.prototype.connect = function (
+        ...args: Parameters<typeof origConnect>
+      ) {
+        const dst = args[0];
+        connections.push({
+          src: this.constructor.name,
+          dst: dst instanceof AudioNode ? dst.constructor.name : 'AudioParam',
+        });
+        return origConnect.apply(
+          this,
+          args as unknown as Parameters<typeof origConnect>,
+        );
+      } as typeof origConnect;
+
+      (window as unknown as Record<string, unknown>).__audioConnections =
+        connections;
+    });
+
+    // Re-navigate so the init script takes effect
+    await page.goto('/project');
+    await uploadAudioFile(page, SHORT_AUDIO);
+    await expect(page.locator('.timeline__waveform')).toBeVisible();
+
+    const prePlaybackCount = await page.evaluate(() => {
+      const connections = (
+        window as unknown as Record<
+          string,
+          Array<{ src: string; dst: string }>
+        >
+      ).__audioConnections;
+      return connections.filter(
+        (c) => c.src === 'AudioBufferSourceNode' && c.dst === 'GainNode',
+      ).length;
+    });
+
+    await page.getByTitle('Play').click();
+    await expect(page.getByTitle('Pause')).toBeVisible();
+    await page.waitForTimeout(500);
+
+    const postPlaybackCount = await page.evaluate(() => {
+      const connections = (
+        window as unknown as Record<
+          string,
+          Array<{ src: string; dst: string }>
+        >
+      ).__audioConnections;
+      return connections.filter(
+        (c) => c.src === 'AudioBufferSourceNode' && c.dst === 'GainNode',
+      ).length;
+    });
+
+    // At least one AudioBufferSourceNode → GainNode connection must appear
+    // during playback, proving the Player started producing audio.
+    expect(postPlaybackCount - prePlaybackCount).toBeGreaterThan(0);
+  });
+
   test('shows a playback cursor while playing', async ({ page }) => {
     const cursor = page.locator('.cursor');
     await expect(cursor).toBeVisible();
