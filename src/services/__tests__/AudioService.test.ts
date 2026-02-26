@@ -476,7 +476,9 @@ describe('startAudio', () => {
     // (startAudioContext.bind() creates a new reference, so
     // removeEventListener with the original reference is a no-op).
     const el = document.createElement('div');
-    const promise = AudioService.startAudio(el as unknown as Window);
+    const promise = AudioService.startAudio(
+      el as unknown as Window & typeof globalThis,
+    );
     el.dispatchEvent(new Event('click'));
 
     await expect(promise).rejects.toBeUndefined();
