@@ -5,7 +5,7 @@ import { expect, test } from '@playwright/test';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const LONG_AUDIO = path.join(__dirname, 'fixtures', 'test-tone-10s.wav');
+const LONG_AUDIO = path.join(__dirname, 'fixtures', 'test-chirp-10s.wav');
 
 /**
  * Uploads an audio file via the hidden file input inside the Ant Design Upload component.
@@ -137,57 +137,63 @@ test.describe('Spectrogram timeline visualization during scroll', () => {
     }).toPass({ timeout: 15000 });
   });
 
-  test('spectrogram content updates when scrolling through the early range', async ({
+  test('spectrogram content updates when scrolling into content range', async ({
     page,
   }) => {
     const timeline = page.locator('.scrubber__timeline');
     const spectrogramCanvas = page.locator('.spectrogram__canvas');
 
-    // Capture a pixel fingerprint of the visible canvas at scrollLeft=0
-    const getVisiblePixelHash = async () => {
+    // Compute the scroll position where the spectrogram container's left
+    // edge aligns with the scroll parent's left edge. Beyond this point,
+    // contentOffset increases and the canvas draws different audio content.
+    const paddingLeft = await timeline.evaluate((el) =>
+      parseFloat(getComputedStyle(el).paddingLeft),
+    );
+
+    // Hash the full canvas pixel buffer (not just the visible strip),
+    // since the canvas is sticky and may be partially off-screen before
+    // the content range.
+    const getCanvasPixelHash = async () => {
       return spectrogramCanvas.evaluate((canvas: HTMLCanvasElement) => {
         const ctx = canvas.getContext('2d');
         if (!ctx || canvas.width === 0 || canvas.height === 0) return '';
-        const canvasRect = canvas.getBoundingClientRect();
-        const viewportWidth = window.innerWidth;
-        const visibleLeft = Math.max(0, Math.floor(-canvasRect.left));
-        const visibleRight = Math.min(
-          canvas.width,
-          Math.floor(viewportWidth - canvasRect.left),
-        );
-        if (visibleRight <= visibleLeft) return '';
-        const visibleWidth = visibleRight - visibleLeft;
-        // Sample a thin horizontal strip from the middle of the canvas
         const midRow = Math.floor(canvas.height / 2);
-        const strip = ctx.getImageData(visibleLeft, midRow, visibleWidth, 1);
-        // Simple hash: sum of all pixel values
+        const strip = ctx.getImageData(0, midRow, canvas.width, 1);
         let hash = 0;
         for (let i = 0; i < strip.data.length; i++) {
           hash = (hash * 31 + strip.data[i]) | 0;
         }
-        return `${visibleWidth}:${hash}`;
+        return `${canvas.width}:${hash}`;
       });
     };
 
-    const hashAtStart = await getVisiblePixelHash();
-
-    // Scroll by 400px — still in the early range (before the container's
-    // left edge reaches viewport left). With the old bug, contentOffset
-    // stayed at 0 and the spectrogram was frozen.
-    await timeline.evaluate((el) => {
-      el.scrollLeft = 400;
-    });
+    // Scroll just past the padding so the spectrogram enters the content
+    // range where contentOffset starts increasing.
+    const scrollA = Math.floor(paddingLeft + 100);
+    await timeline.evaluate((el, pos) => {
+      el.scrollLeft = pos;
+    }, scrollA);
     await page.waitForTimeout(200);
 
-    const hashAfterScroll = await getVisiblePixelHash();
+    const hashA = await getCanvasPixelHash();
 
-    // The pixel content must have changed — proving the spectrogram
-    // redraws with different audio content as the user scrolls.
+    // Scroll further into the content range
+    const scrollB = scrollA + 400;
+    await timeline.evaluate((el, pos) => {
+      el.scrollLeft = pos;
+    }, scrollB);
+    await page.waitForTimeout(200);
+
+    const hashB = await getCanvasPixelHash();
+
+    // The pixel content must differ — proving the spectrogram redraws
+    // with different audio content as the user scrolls. With the original
+    // bug (contentOffset stuck at 0), both positions produced identical pixels.
     expect(
-      hashAfterScroll,
-      'Spectrogram content did not change after scrolling 400px — ' +
+      hashB,
+      `Spectrogram content did not change after scrolling from ${scrollA} to ${scrollB} — ` +
         'the spectrogram appears frozen',
-    ).not.toBe(hashAtStart);
+    ).not.toBe(hashA);
   });
 
   test('spectrogram fills the visible canvas when scrolled into content', async ({
