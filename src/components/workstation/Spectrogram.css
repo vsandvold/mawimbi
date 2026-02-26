@@ -3,5 +3,7 @@
 }
 
 .spectrogram__canvas {
-  position: absolute;
+  position: sticky;
+  left: 0;
+  display: block;
 }
