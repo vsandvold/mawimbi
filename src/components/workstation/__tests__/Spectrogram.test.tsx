@@ -310,3 +310,91 @@ it('caps content offset at container edge past the sticky boundary', () => {
     expect.any(Number),
   );
 });
+
+it('redraws with updated offset when scroll position changes between frames', () => {
+  let animationCallback: (() => void) | undefined;
+  vi.mocked(useAnimationFrame).mockImplementation((cb: () => void) => {
+    animationCallback = cb;
+  });
+
+  const mockTile = {} as ImageBitmap;
+  const cachedEntry = {
+    data: {
+      frequencyFrames: new Array(200).fill(new Uint8Array(2048)),
+      timeResolution: 0.025,
+      frequencyBinCount: 2048,
+      sampleRate: 44100,
+      duration: 5.0,
+    },
+    tiles: [mockTile],
+  };
+  const audioBuffer = { duration: 5.0 } as AudioBuffer;
+  mockRetrieveAudioBuffer.mockReturnValue(audioBuffer);
+  mockGetEntry.mockReturnValue(cachedEntry);
+
+  const { container } = render(
+    <div className="scrubber__timeline">
+      <Spectrogram {...defaultProps} />
+    </div>,
+  );
+
+  const canvas = container.querySelector('canvas')!;
+  const spectrogramDiv = container.querySelector('.spectrogram')!;
+  const scrollParent = container.querySelector('.scrubber__timeline')!;
+
+  const mockCtx = { clearRect: vi.fn(), drawImage: vi.fn() };
+  vi.spyOn(canvas, 'getContext').mockReturnValue(
+    mockCtx as unknown as CanvasRenderingContext2D,
+  );
+
+  const viewportWidth = 400;
+  Object.defineProperty(scrollParent, 'clientWidth', {
+    value: viewportWidth,
+    configurable: true,
+  });
+
+  const scrollParentRectSpy = vi.spyOn(scrollParent, 'getBoundingClientRect');
+  const spectrogramRectSpy = vi.spyOn(spectrogramDiv, 'getBoundingClientRect');
+  const canvasRectSpy = vi.spyOn(canvas, 'getBoundingClientRect');
+
+  // Frame 1: scrolled 100px
+  scrollParentRectSpy.mockReturnValue(
+    createDOMRect({ left: 0, width: viewportWidth }),
+  );
+  spectrogramRectSpy.mockReturnValue(
+    createDOMRect({ left: -100, width: 1000 }),
+  );
+  canvasRectSpy.mockReturnValue(
+    createDOMRect({ left: -100, width: viewportWidth }),
+  );
+
+  animationCallback!();
+
+  expect(mockCtx.drawImage).toHaveBeenLastCalledWith(
+    mockTile,
+    -100,
+    0,
+    expect.any(Number),
+    expect.any(Number),
+  );
+
+  // Frame 2: user scrolls further to 400px — the spectrogram must redraw
+  // at the new offset. With the original bug (contentOffset always 0),
+  // the early-return optimization would skip this redraw entirely.
+  spectrogramRectSpy.mockReturnValue(
+    createDOMRect({ left: -400, width: 1000 }),
+  );
+  canvasRectSpy.mockReturnValue(
+    createDOMRect({ left: -400, width: viewportWidth }),
+  );
+
+  animationCallback!();
+
+  expect(mockCtx.drawImage).toHaveBeenLastCalledWith(
+    mockTile,
+    -400,
+    0,
+    expect.any(Number),
+    expect.any(Number),
+  );
+});
