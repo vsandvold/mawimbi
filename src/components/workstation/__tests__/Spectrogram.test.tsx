@@ -1,5 +1,6 @@
 import { render, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
+import { useAnimationFrame } from '../../../hooks/useAnimationFrame';
 import { TrackSignalStore } from '../../../signals/trackSignals';
 import { resetAllSignals } from '../../../signals/__tests__/testUtils';
 import { mockTrack } from '../../../testUtils';
@@ -141,4 +142,95 @@ it('sets container width to zero when no audio buffer', () => {
 
   const spectrogram = container.querySelector('.spectrogram');
   expect(spectrogram).toHaveStyle({ width: '0px' });
+});
+
+function createDOMRect(overrides: Partial<DOMRect>): DOMRect {
+  return {
+    x: 0,
+    y: 0,
+    width: 0,
+    height: 0,
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    toJSON: () => {},
+    ...overrides,
+  } as DOMRect;
+}
+
+it('draws tiles at correct offset when scroll parent is scrolled', () => {
+  // Capture the animation frame callback
+  let animationCallback: (() => void) | undefined;
+  vi.mocked(useAnimationFrame).mockImplementation((cb: () => void) => {
+    animationCallback = cb;
+  });
+
+  // Set up cached entry with one tile
+  const mockTile = {} as ImageBitmap;
+  const totalFrames = 200;
+  const cachedEntry = {
+    data: {
+      frequencyFrames: new Array(totalFrames).fill(new Uint8Array(2048)),
+      timeResolution: 0.025,
+      frequencyBinCount: 2048,
+      sampleRate: 44100,
+      duration: 5.0,
+    },
+    tiles: [mockTile],
+  };
+  const audioBuffer = { duration: 5.0 } as AudioBuffer;
+  mockRetrieveAudioBuffer.mockReturnValue(audioBuffer);
+  mockGetEntry.mockReturnValue(cachedEntry);
+
+  // Render inside a scroll container (matches SCROLL_CONTAINER_CLASS)
+  const { container } = render(
+    <div className="scrubber__timeline">
+      <Spectrogram {...defaultProps} />
+    </div>,
+  );
+
+  const canvas = container.querySelector('canvas')!;
+  const spectrogramDiv = container.querySelector('.spectrogram')!;
+  const scrollParent = container.querySelector('.scrubber__timeline')!;
+
+  // Mock canvas 2D context
+  const mockCtx = { clearRect: vi.fn(), drawImage: vi.fn() };
+  vi.spyOn(canvas, 'getContext').mockReturnValue(
+    mockCtx as unknown as CanvasRenderingContext2D,
+  );
+
+  // Simulate scrolled state:
+  // - Scroll parent stays at viewport left edge (left: 0)
+  // - Container has scrolled 300px to the left (left: -300)
+  // - Canvas (sticky) reports same position as container on mobile (left: -300)
+  //   because mobile compositors handle sticky independently from layout
+  const scrollOffset = 300;
+
+  vi.spyOn(scrollParent, 'getBoundingClientRect').mockReturnValue(
+    createDOMRect({ left: 0, width: 400 }),
+  );
+  vi.spyOn(spectrogramDiv, 'getBoundingClientRect').mockReturnValue(
+    createDOMRect({ left: -scrollOffset, width: 1000 }),
+  );
+  vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue(
+    createDOMRect({ left: -scrollOffset, width: 400 }),
+  );
+  Object.defineProperty(scrollParent, 'clientWidth', {
+    value: 400,
+    configurable: true,
+  });
+
+  // Invoke the animation callback
+  expect(animationCallback).toBeDefined();
+  animationCallback!();
+
+  // drawX = tileLeftPx - contentOffset = 0 - 300 = -300
+  expect(mockCtx.drawImage).toHaveBeenCalledWith(
+    mockTile,
+    -scrollOffset,
+    0,
+    expect.any(Number),
+    expect.any(Number),
+  );
 });

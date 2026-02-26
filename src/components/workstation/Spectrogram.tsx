@@ -65,12 +65,15 @@ const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
     const container = containerRef.current;
     if (!canvas || !container || tiles.length === 0) return;
 
-    const containerRect = container.getBoundingClientRect();
-    const canvasRect = canvas.getBoundingClientRect();
-    const contentOffset = Math.max(0, canvasRect.left - containerRect.left);
-
     const scrollParent = container.closest(SCROLL_CONTAINER_CLASS);
     const viewportWidth = scrollParent?.clientWidth ?? window.innerWidth;
+
+    // Derive scroll offset from the scroll parent's rect, not the sticky
+    // canvas rect. Mobile compositors handle sticky positioning off the main
+    // thread, so canvas.getBoundingClientRect() can return stale values.
+    const scrollParentLeft = scrollParent?.getBoundingClientRect().left ?? 0;
+    const containerLeft = container.getBoundingClientRect().left;
+    const contentOffset = Math.max(0, scrollParentLeft - containerLeft);
 
     const needsResize =
       canvas.width !== viewportWidth || canvas.height !== height;
