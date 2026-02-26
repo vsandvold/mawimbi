@@ -36,6 +36,13 @@ describe('singleton', () => {
     expect(a).toBe(b);
   });
 
+  it('configures Tone.Context with interactive latency and reduced lookAhead', () => {
+    expect(Tone.Context).toHaveBeenCalledWith({
+      latencyHint: 'interactive',
+      lookAhead: 0.05,
+    });
+  });
+
   it('configures Tone.js context before creating audio nodes', () => {
     // AudioService must call Tone.setContext() before constructing Tone.js
     // nodes (Recorder, UserMedia, Meter, etc.) so they all share the same
@@ -251,16 +258,20 @@ describe('recording', () => {
 
 describe('overdub recording', () => {
   it('opens microphone and starts transport on startOverdubRecording', async () => {
+    const openSpy = vi.spyOn(audioService.microphone, 'open');
+
     await audioService.startOverdubRecording();
 
-    expect(audioService.microphone.microphone.open).toHaveBeenCalled();
+    expect(openSpy).toHaveBeenCalled();
     expect(Tone.getTransport().start).toHaveBeenCalled();
   });
 
   it('connects microphone to recorder on startOverdubRecording', async () => {
+    const connectSpy = vi.spyOn(audioService.microphone, 'connect');
+
     await audioService.startOverdubRecording();
 
-    expect(audioService.microphone.microphone.connect).toHaveBeenCalled();
+    expect(connectSpy).toHaveBeenCalled();
   });
 
   it('captures transport position before starting', async () => {
@@ -327,6 +338,8 @@ describe('overdub recording', () => {
   });
 
   it('closes microphone on stopOverdubRecording', async () => {
+    const closeSpy = vi.spyOn(audioService.microphone, 'close');
+
     await audioService.startOverdubRecording();
 
     const recorderInstance = vi.mocked(Tone.Recorder).mock.results[0].value;
@@ -334,7 +347,7 @@ describe('overdub recording', () => {
 
     await audioService.stopOverdubRecording();
 
-    expect(audioService.microphone.microphone.close).toHaveBeenCalled();
+    expect(closeSpy).toHaveBeenCalled();
   });
 
   it('reports overdub recording state', () => {
@@ -430,11 +443,44 @@ describe('estimateRoundTripLatency', () => {
 });
 
 describe('startAudio', () => {
+  beforeEach(() => {
+    // Reset context state to 'suspended' before each startAudio test,
+    // mirroring a freshly created AudioContext that hasn't been resumed yet.
+    Object.assign(Tone.context, { state: 'suspended' });
+  });
+
   it('resolves when a click event fires on the element', async () => {
     const promise = AudioService.startAudio(window);
     window.dispatchEvent(new Event('click'));
 
     await expect(promise).resolves.toBeUndefined();
     expect(Tone.start).toHaveBeenCalled();
+  });
+
+  it('transitions context from suspended to running', async () => {
+    expect(Tone.context.state).toBe('suspended');
+
+    const promise = AudioService.startAudio(window);
+    window.dispatchEvent(new Event('click'));
+    await promise;
+
+    expect(Tone.context.state).toBe('running');
+  });
+
+  it('rejects when Tone.start() fails', async () => {
+    vi.mocked(Tone.start).mockImplementationOnce(() =>
+      Promise.reject(new Error('not allowed')),
+    );
+
+    // Use a fresh element to avoid stale listeners from earlier tests
+    // (startAudioContext.bind() creates a new reference, so
+    // removeEventListener with the original reference is a no-op).
+    const el = document.createElement('div');
+    const promise = AudioService.startAudio(
+      el as unknown as Window & typeof globalThis,
+    );
+    el.dispatchEvent(new Event('click'));
+
+    await expect(promise).rejects.toBeUndefined();
   });
 });

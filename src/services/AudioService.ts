@@ -45,6 +45,15 @@ class AudioService {
   private recorder: Tone.Recorder;
   private recordingStartTime: number | null = null;
 
+  // Cache Tone.js singletons at construction time so every method uses the
+  // same transport/context that was configured in getInstance(). Repeated
+  // Tone.getTransport() / Tone.context lookups are fragile because Tone.js
+  // resolves them from mutable global state — if the context is swapped or
+  // re-created the cached references stay consistent while fresh lookups
+  // could silently resolve to a different object.
+  private readonly transport = Tone.getTransport();
+  private readonly context = Tone.context;
+
   private constructor() {
     this.audioSourceRepository = new AudioSourceRepository();
     this.microphone = new MicrophoneUserMedia();
@@ -81,7 +90,7 @@ class AudioService {
   }
 
   async createTrack(arrayBuffer: ArrayBuffer): Promise<TrackCreationResult> {
-    const audioBuffer = await Tone.context.decodeAudioData(arrayBuffer);
+    const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
     const trackId = uuidv4();
     const blob = new Blob([arrayBuffer], { type: 'audio/*' });
     const blobUrl = URL.createObjectURL(blob);
@@ -120,37 +129,37 @@ class AudioService {
     if (transportTime !== undefined) {
       this.setTransportTime(transportTime);
     }
-    Tone.getTransport().start();
+    this.transport.start();
   }
 
   pausePlayback(transportTime?: number): void {
-    Tone.getTransport().pause();
+    this.transport.pause();
     if (transportTime !== undefined) {
       this.setTransportTime(transportTime);
     }
   }
 
   stopPlayback(transportTime?: number): void {
-    Tone.getTransport().stop();
+    this.transport.stop();
     if (transportTime !== undefined) {
       this.setTransportTime(transportTime);
     }
   }
 
   togglePlayback(): void {
-    if (Tone.getTransport().state === 'started') {
-      Tone.getTransport().pause();
+    if (this.transport.state === 'started') {
+      this.transport.pause();
     } else {
-      Tone.getTransport().start();
+      this.transport.start();
     }
   }
 
   getTransportTime(): number {
-    return Tone.getTransport().seconds;
+    return this.transport.seconds;
   }
 
   setTransportTime(transportTime: number): void {
-    Tone.getTransport().seconds = transportTime;
+    this.transport.seconds = transportTime;
   }
 
   getTotalTime(): number {
@@ -163,17 +172,17 @@ class AudioService {
   // --- Overdub recording (Phase 1: MediaRecorder + timestamp bookkeeping) ---
 
   async startOverdubRecording(): Promise<void> {
-    if (this.microphone.microphone.state !== 'started') {
+    if (!this.microphone.isOpen) {
       await this.microphone.open();
     }
-    this.microphone.microphone.connect(this.recorder);
+    this.microphone.connect(this.recorder);
 
     // Capture transport position before starting
-    this.recordingStartTime = Tone.getTransport().seconds;
+    this.recordingStartTime = this.transport.seconds;
 
     // Start recorder first (has startup delay), then Transport
     await this.recorder.start();
-    Tone.getTransport().start();
+    this.transport.start();
   }
 
   async stopOverdubRecording(): Promise<TrackCreationResult> {
@@ -183,7 +192,7 @@ class AudioService {
     // Transport.stop() resets the timeline so all synced players — including
     // the one about to be created for this recording — start from their
     // scheduled positions on the next Transport.start().
-    Tone.getTransport().stop();
+    this.transport.stop();
     const blob = await this.recorder.stop();
     this.microphone.close();
 
@@ -192,10 +201,10 @@ class AudioService {
 
     // Position transport at the recording start so playback begins from
     // the start of the recorded content.
-    Tone.getTransport().seconds = startTime;
+    this.transport.seconds = startTime;
 
     const arrayBuffer = await blob.arrayBuffer();
-    const audioBuffer = await Tone.context.decodeAudioData(arrayBuffer);
+    const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
 
     const latencyCompensation = this.estimateRoundTripLatency();
 
@@ -212,10 +221,10 @@ class AudioService {
   }
 
   estimateRoundTripLatency(): number {
-    const ctx = Tone.context.rawContext as AudioContext;
+    const ctx = this.context.rawContext as AudioContext;
     const outputLatency = ctx.outputLatency ?? 0;
     const baseLatency = ctx.baseLatency ?? 0;
-    const lookAhead = Tone.context.lookAhead;
+    const lookAhead = this.context.lookAhead;
     // One render quantum (~2.9ms at 44.1kHz) as a conservative input latency
     // estimate, per research on Web Audio API latency characteristics
     const estimatedInputLatency = 128 / ctx.sampleRate;
@@ -225,10 +234,10 @@ class AudioService {
   // --- Legacy recording methods (independent of transport) ---
 
   async startRecording(): Promise<unknown> {
-    if (this.microphone.microphone.state !== 'started') {
+    if (!this.microphone.isOpen) {
       return Promise.reject();
     }
-    this.microphone.microphone.connect(this.recorder);
+    this.microphone.connect(this.recorder);
     return await this.recorder.start();
   }
 

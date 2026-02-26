@@ -1,14 +1,16 @@
 import * as Tone from 'tone';
 
 class MicrophoneUserMedia {
-  // TODO: make private again
-  microphone: Tone.UserMedia;
-
+  private microphone: Tone.UserMedia;
   private meter: Tone.Meter;
 
   constructor() {
     this.meter = new Tone.Meter();
     this.microphone = new Tone.UserMedia().connect(this.meter);
+  }
+
+  get isOpen(): boolean {
+    return this.microphone.state === 'started';
   }
 
   async open(): Promise<void> {
@@ -17,6 +19,10 @@ class MicrophoneUserMedia {
 
   close(): void {
     this.microphone.close();
+  }
+
+  connect(destination: Tone.ToneAudioNode): void {
+    this.microphone.connect(destination);
   }
 
   getLoudness(): number {

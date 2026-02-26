@@ -25,17 +25,61 @@ test.use({
 });
 
 /**
+ * Intercepts AudioContext construction so ensureAudioContextRunning() can
+ * verify the context state after Tone.start(). Must be called before
+ * page.goto() so the init script runs before the application creates its
+ * AudioContext.
+ */
+async function installAudioContextSpy(
+  page: import('@playwright/test').Page,
+) {
+  await page.addInitScript(() => {
+    const captured: AudioContext[] = [];
+    Object.defineProperty(window, '__audioContexts', { value: captured });
+    const NativeAudioContext = window.AudioContext;
+    window.AudioContext = class extends NativeAudioContext {
+      constructor(options?: AudioContextOptions) {
+        super(options);
+        captured.push(this);
+      }
+    } as typeof AudioContext;
+  });
+}
+
+/**
  * Ensures the Tone.js AudioContext is running before performing audio operations.
  *
  * AudioService.startAudio() installs a click handler on window that calls
  * Tone.start(). Clicking the toolbar area triggers this handler without
  * interfering with the dropzone file dialog on the editor area.
+ *
+ * After clicking, we poll the captured AudioContext state to confirm it
+ * reached 'running'. This replaces a blind waitForTimeout(500) that could
+ * mask a regression where the context stays 'suspended' (e.g. Tone.start()
+ * removed, or the click listener never fires).
+ *
+ * Note: --autoplay-policy=no-user-gesture-required means Chrome may start
+ * contexts in 'running' state automatically. The check still guards against
+ * context creation failures or unexpected 'closed' / 'suspended' states.
  */
 async function ensureAudioContextRunning(
   page: import('@playwright/test').Page,
 ) {
   await page.locator('.workstation__toolbar').click();
-  await page.waitForTimeout(500);
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const ctxs = (
+            window as unknown as { __audioContexts: AudioContext[] }
+          ).__audioContexts;
+          if (!ctxs || ctxs.length === 0) return null;
+          return ctxs[ctxs.length - 1].state;
+        }),
+      { message: 'AudioContext did not reach running state', timeout: 3000 },
+    )
+    .toBe('running');
 }
 
 /**
@@ -58,6 +102,7 @@ async function recordAudio(
 
 test.describe('Recording', () => {
   test.beforeEach(async ({ page }) => {
+    await installAudioContextSpy(page);
     await page.goto('/project');
     await ensureAudioContextRunning(page);
   });
@@ -135,6 +180,7 @@ test.describe('Recording', () => {
 
 test.describe('Recording with existing tracks', () => {
   test.beforeEach(async ({ page }) => {
+    await installAudioContextSpy(page);
     await page.goto('/project');
     await ensureAudioContextRunning(page);
 
