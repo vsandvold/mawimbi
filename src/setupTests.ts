@@ -29,19 +29,21 @@ vi.mock('tone', () => {
   function makeRecorderNode() {
     return { ...makeNode(), state: 'stopped' };
   }
+  const transportMock = {
+    start: vi.fn(),
+    stop: vi.fn(),
+    pause: vi.fn(),
+    seconds: 0,
+    state: 'stopped',
+  };
   return {
     Meter: vi.fn().mockImplementation(makeNode),
     UserMedia: vi.fn().mockImplementation(makeNode),
     Player: vi.fn().mockImplementation(makeNode),
     Channel: vi.fn().mockImplementation(makeNode),
     Recorder: vi.fn().mockImplementation(makeRecorderNode),
-    Transport: {
-      start: vi.fn(),
-      stop: vi.fn(),
-      pause: vi.fn(),
-      seconds: 0,
-      state: 'stopped',
-    },
+    Transport: transportMock,
+    getTransport: vi.fn().mockReturnValue(transportMock),
     start: vi.fn().mockResolvedValue(undefined),
     getDestination: vi.fn().mockReturnValue(makeNode()),
     context: {
