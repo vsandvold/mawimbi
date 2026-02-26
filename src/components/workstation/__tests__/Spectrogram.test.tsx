@@ -234,3 +234,79 @@ it('draws tiles at correct offset when scroll parent is scrolled', () => {
     expect.any(Number),
   );
 });
+
+it('caps content offset at container edge past the sticky boundary', () => {
+  // Capture the animation frame callback
+  let animationCallback: (() => void) | undefined;
+  vi.mocked(useAnimationFrame).mockImplementation((cb: () => void) => {
+    animationCallback = cb;
+  });
+
+  // Set up cached entry with one tile
+  const mockTile = {} as ImageBitmap;
+  const totalFrames = 200;
+  const cachedEntry = {
+    data: {
+      frequencyFrames: new Array(totalFrames).fill(new Uint8Array(2048)),
+      timeResolution: 0.025,
+      frequencyBinCount: 2048,
+      sampleRate: 44100,
+      duration: 5.0,
+    },
+    tiles: [mockTile],
+  };
+  const audioBuffer = { duration: 5.0 } as AudioBuffer;
+  mockRetrieveAudioBuffer.mockReturnValue(audioBuffer);
+  mockGetEntry.mockReturnValue(cachedEntry);
+
+  const { container } = render(
+    <div className="scrubber__timeline">
+      <Spectrogram {...defaultProps} />
+    </div>,
+  );
+
+  const canvas = container.querySelector('canvas')!;
+  const spectrogramDiv = container.querySelector('.spectrogram')!;
+  const scrollParent = container.querySelector('.scrubber__timeline')!;
+
+  const mockCtx = { clearRect: vi.fn(), drawImage: vi.fn() };
+  vi.spyOn(canvas, 'getContext').mockReturnValue(
+    mockCtx as unknown as CanvasRenderingContext2D,
+  );
+
+  // containerWidth = 5.0 * 200 = 1000, viewportWidth = 400
+  // maxContentOffset = 1000 - 400 = 600
+  // Simulate scrolling 800px past the container — well past the sticky
+  // boundary. Without the cap, contentOffset would be 800 and tiles would
+  // be drawn beyond the spectrogram content, leaving blank regions.
+  const viewportWidth = 400;
+  const overshoot = 800;
+
+  vi.spyOn(scrollParent, 'getBoundingClientRect').mockReturnValue(
+    createDOMRect({ left: 0, width: viewportWidth }),
+  );
+  vi.spyOn(spectrogramDiv, 'getBoundingClientRect').mockReturnValue(
+    createDOMRect({ left: -overshoot, width: 1000 }),
+  );
+  vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue(
+    createDOMRect({ left: -overshoot, width: viewportWidth }),
+  );
+  Object.defineProperty(scrollParent, 'clientWidth', {
+    value: viewportWidth,
+    configurable: true,
+  });
+
+  expect(animationCallback).toBeDefined();
+  animationCallback!();
+
+  // contentOffset should be capped at 600 (containerWidth - viewportWidth),
+  // not the raw 800. drawX = 0 - 600 = -600.
+  const cappedOffset = 1000 - viewportWidth;
+  expect(mockCtx.drawImage).toHaveBeenCalledWith(
+    mockTile,
+    -cappedOffset,
+    0,
+    expect.any(Number),
+    expect.any(Number),
+  );
+});
