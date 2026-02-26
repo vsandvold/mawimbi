@@ -1,22 +1,16 @@
-import { render } from '@testing-library/react';
+import { render, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import { TrackSignalStore } from '../../../signals/trackSignals';
 import { resetAllSignals } from '../../../signals/__tests__/testUtils';
 import { mockTrack } from '../../../testUtils';
 import Spectrogram from '../Spectrogram';
 
-const mockGetLogarithmicFrequencyData = vi.fn().mockResolvedValue({});
-
-vi.mock('../../../services/OfflineAnalyser', () => ({
-  // Must be a regular function (not arrow) to support `new` in Vitest v4
-  default: vi.fn().mockImplementation(function () {
-    return {
-      frequencyBinCount: 2048,
-      timeResolution: 0.025,
-      getLogarithmicFrequencyData: mockGetLogarithmicFrequencyData,
-    };
-  }),
+vi.mock('../../../hooks/useAnimationFrame', () => ({
+  useAnimationFrame: vi.fn(),
 }));
+
+const mockAnalyse = vi.fn().mockResolvedValue(undefined);
+const mockGetEntry = vi.fn().mockReturnValue(undefined);
 
 const { mockRetrieveAudioBuffer } = vi.hoisted(() => ({
   mockRetrieveAudioBuffer: vi.fn(),
@@ -25,6 +19,10 @@ const { mockRetrieveAudioBuffer } = vi.hoisted(() => ({
 vi.mock('../../../hooks/useAudioService', () => ({
   useAudioService: () => ({
     retrieveAudioBuffer: mockRetrieveAudioBuffer,
+    spectrogramCache: {
+      analyse: mockAnalyse,
+      getEntry: mockGetEntry,
+    },
   }),
 }));
 
@@ -38,6 +36,8 @@ const defaultProps = {
 
 beforeEach(() => {
   mockRetrieveAudioBuffer.mockReturnValue(undefined);
+  mockAnalyse.mockClear();
+  mockGetEntry.mockReturnValue(undefined);
   TrackSignalStore.create(TRACK_ID);
 });
 
@@ -79,34 +79,66 @@ it('renders zero opacity at volume 0', () => {
   expect(spectrogram).toHaveStyle({ opacity: '0.00' });
 });
 
-it('creates OfflineAnalyser and calls getLogarithmicFrequencyData when audio buffer exists', async () => {
+it('triggers spectrogramCache.analyse when audio buffer exists and not cached', async () => {
   const audioBuffer = { duration: 5.0 } as AudioBuffer;
   mockRetrieveAudioBuffer.mockReturnValue(audioBuffer);
 
   render(<Spectrogram {...defaultProps} />);
 
-  expect(mockGetLogarithmicFrequencyData).toHaveBeenCalledWith(
-    expect.any(Function),
-  );
+  await waitFor(() => {
+    expect(mockAnalyse).toHaveBeenCalledWith(
+      TRACK_ID,
+      audioBuffer,
+      defaultProps.track.color,
+    );
+  });
 });
 
-it('does not call getLogarithmicFrequencyData when no audio buffer', () => {
-  mockRetrieveAudioBuffer.mockReturnValue(undefined);
-  mockGetLogarithmicFrequencyData.mockClear();
+it('uses cached entry without re-analysis', () => {
+  const audioBuffer = { duration: 5.0 } as AudioBuffer;
+  mockRetrieveAudioBuffer.mockReturnValue(audioBuffer);
+  const cachedEntry = {
+    data: {
+      frequencyFrames: [],
+      timeResolution: 0.025,
+      frequencyBinCount: 2048,
+      sampleRate: 44100,
+      duration: 5.0,
+    },
+    tiles: [],
+  };
+  mockGetEntry.mockReturnValue(cachedEntry);
 
   render(<Spectrogram {...defaultProps} />);
 
-  expect(mockGetLogarithmicFrequencyData).not.toHaveBeenCalled();
+  expect(mockAnalyse).not.toHaveBeenCalled();
 });
 
-it('computes canvas dimensions from duration and time resolution', () => {
-  const duration = 2.0;
+it('does not trigger analysis without audio buffer', () => {
+  mockRetrieveAudioBuffer.mockReturnValue(undefined);
+
+  render(<Spectrogram {...defaultProps} />);
+
+  expect(mockAnalyse).not.toHaveBeenCalled();
+});
+
+it('sets container width from duration and pixelsPerSecond', () => {
+  const duration = 2.5;
   const audioBuffer = { duration } as AudioBuffer;
   mockRetrieveAudioBuffer.mockReturnValue(audioBuffer);
 
   const { container } = render(<Spectrogram {...defaultProps} />);
 
-  const canvas = container.querySelector('canvas');
-  // canvasWidth = Math.trunc(duration / timeResolution) = Math.trunc(2.0 / 0.025) = 80
-  expect(canvas?.getAttribute('width')).toBe('80');
+  const spectrogram = container.querySelector('.spectrogram');
+  // containerWidth = duration * pixelsPerSecond = 2.5 * 200 = 500
+  expect(spectrogram).toHaveStyle({ width: '500px' });
+});
+
+it('sets container width to zero when no audio buffer', () => {
+  mockRetrieveAudioBuffer.mockReturnValue(undefined);
+
+  const { container } = render(<Spectrogram {...defaultProps} />);
+
+  const spectrogram = container.querySelector('.spectrogram');
+  expect(spectrogram).toHaveStyle({ width: '0px' });
 });
