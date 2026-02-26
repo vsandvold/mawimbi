@@ -251,16 +251,20 @@ describe('recording', () => {
 
 describe('overdub recording', () => {
   it('opens microphone and starts transport on startOverdubRecording', async () => {
+    const openSpy = vi.spyOn(audioService.microphone, 'open');
+
     await audioService.startOverdubRecording();
 
-    expect(audioService.microphone.microphone.open).toHaveBeenCalled();
+    expect(openSpy).toHaveBeenCalled();
     expect(Tone.getTransport().start).toHaveBeenCalled();
   });
 
   it('connects microphone to recorder on startOverdubRecording', async () => {
+    const connectSpy = vi.spyOn(audioService.microphone, 'connect');
+
     await audioService.startOverdubRecording();
 
-    expect(audioService.microphone.microphone.connect).toHaveBeenCalled();
+    expect(connectSpy).toHaveBeenCalled();
   });
 
   it('captures transport position before starting', async () => {
@@ -327,6 +331,8 @@ describe('overdub recording', () => {
   });
 
   it('closes microphone on stopOverdubRecording', async () => {
+    const closeSpy = vi.spyOn(audioService.microphone, 'close');
+
     await audioService.startOverdubRecording();
 
     const recorderInstance = vi.mocked(Tone.Recorder).mock.results[0].value;
@@ -334,7 +340,7 @@ describe('overdub recording', () => {
 
     await audioService.stopOverdubRecording();
 
-    expect(audioService.microphone.microphone.close).toHaveBeenCalled();
+    expect(closeSpy).toHaveBeenCalled();
   });
 
   it('reports overdub recording state', () => {
