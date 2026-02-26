@@ -35,6 +35,7 @@ type AudioSource = {
   blobUrl: string;
   normalizationGainDb: number;
   initialVolume: number;
+  startTime: number;
 };
 
 class AudioService {
@@ -108,6 +109,7 @@ class AudioService {
       blobUrl,
       normalizationGainDb,
       initialVolume,
+      startTime: 0,
     });
     return { trackId, initialVolume };
   }
@@ -168,7 +170,7 @@ class AudioService {
   getTotalTime(): number {
     return this.audioSourceRepository
       .getAll()
-      .map((source) => source.audioBuffer.duration)
+      .map((source) => source.startTime + source.audioBuffer.duration)
       .reduce((prev, curr) => (prev >= curr ? prev : curr), 0);
   }
 
@@ -196,15 +198,19 @@ class AudioService {
     // the one about to be created for this recording — start from their
     // scheduled positions on the next Transport.start().
     this.transport.stop();
-    const blob = await this.recorder.stop();
-    this.microphone.close();
 
     const startTime = this.recordingStartTime ?? 0;
     this.recordingStartTime = null;
 
-    // Position transport at the recording start so playback begins from
-    // the start of the recorded content.
+    // Position transport at the recording start immediately after stop,
+    // before any async operations. The Scrubber's animate loop reads
+    // transport.seconds on every frame — without this, it would briefly
+    // see seconds=0 (the post-stop default) and jump the scroll position
+    // to the beginning during the async gap.
     this.transport.seconds = startTime;
+
+    const blob = await this.recorder.stop();
+    this.microphone.close();
 
     const arrayBuffer = await blob.arrayBuffer();
     const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
@@ -285,6 +291,7 @@ class AudioService {
       blobUrl,
       normalizationGainDb,
       initialVolume,
+      startTime,
     });
     return { trackId, initialVolume };
   }
