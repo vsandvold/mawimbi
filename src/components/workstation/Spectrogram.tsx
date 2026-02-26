@@ -68,16 +68,17 @@ const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
     const scrollParent = container.closest(SCROLL_CONTAINER_CLASS);
     const viewportWidth = scrollParent?.clientWidth ?? window.innerWidth;
 
-    // Derive scroll offset from the scroll parent's rect, not the sticky
-    // canvas rect. Mobile compositors handle sticky positioning off the main
-    // thread, so canvas.getBoundingClientRect() can return stale values.
-    // Cap at containerWidth - viewportWidth so we never exceed the spectrogram
-    // content bounds past the sticky boundary (where the canvas slides out).
-    const scrollParentLeft = scrollParent?.getBoundingClientRect().left ?? 0;
-    const containerLeft = container.getBoundingClientRect().left;
+    // Derive content offset from the scroll parent's scrollLeft property
+    // rather than getBoundingClientRect(). This avoids browser differences
+    // in how position:sticky elements report their rect (desktop vs. mobile
+    // compositors) and is cheaper than triggering layout queries each frame.
+    const scrollLeft = scrollParent?.scrollLeft ?? 0;
+    const paddingLeft = scrollParent
+      ? parseFloat(getComputedStyle(scrollParent).paddingLeft) || 0
+      : 0;
     const maxContentOffset = Math.max(0, containerWidth - viewportWidth);
     const contentOffset = Math.min(
-      Math.max(0, scrollParentLeft - containerLeft),
+      Math.max(0, scrollLeft - paddingLeft),
       maxContentOffset,
     );
 

@@ -13,26 +13,27 @@
 .scrubber__timeline {
   display: flex;
   min-width: 100vw;
-  padding: 40px 0 40px calc(0.75 * 100vw);
+  padding: var(--timeline-margin) 0 var(--timeline-margin)
+    calc(var(--cursor-position) * 100vw);
   overflow-x: scroll;
 }
 
 .scrubber__shade {
   position: absolute;
   top: 0;
-  bottom: 40px;
+  bottom: var(--timeline-margin);
   left: 0;
   right: 0;
-  padding-top: 40px;
+  padding-top: var(--timeline-margin);
   pointer-events: none;
 }
 
 .scrubber__cursor {
   position: absolute;
   top: 0;
-  left: calc(0.75 * 100vw);
-  bottom: 40px;
-  padding-top: 40px;
+  left: calc(var(--cursor-position) * 100vw);
+  bottom: var(--timeline-margin);
+  padding-top: var(--timeline-margin);
 }
 
 .scrubber__rewind {

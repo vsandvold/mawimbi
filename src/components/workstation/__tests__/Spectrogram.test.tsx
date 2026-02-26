@@ -144,19 +144,25 @@ it('sets container width to zero when no audio buffer', () => {
   expect(spectrogram).toHaveStyle({ width: '0px' });
 });
 
-function createDOMRect(overrides: Partial<DOMRect>): DOMRect {
-  return {
-    x: 0,
-    y: 0,
-    width: 0,
-    height: 0,
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    toJSON: () => {},
-    ...overrides,
-  } as DOMRect;
+/**
+ * Sets up scroll state on the scroll parent element for animation frame tests.
+ * Uses scrollLeft + paddingLeft instead of getBoundingClientRect(), matching
+ * the production code which avoids layout queries for sticky-positioning safety.
+ */
+function mockScrollState(
+  scrollParent: Element,
+  options: { scrollLeft: number; clientWidth: number; paddingLeft: number },
+) {
+  Object.defineProperty(scrollParent, 'scrollLeft', {
+    value: options.scrollLeft,
+    configurable: true,
+    writable: true,
+  });
+  Object.defineProperty(scrollParent, 'clientWidth', {
+    value: options.clientWidth,
+    configurable: true,
+  });
+  (scrollParent as HTMLElement).style.paddingLeft = `${options.paddingLeft}px`;
 }
 
 it('draws tiles at correct offset when scroll parent is scrolled', () => {
@@ -191,7 +197,6 @@ it('draws tiles at correct offset when scroll parent is scrolled', () => {
   );
 
   const canvas = container.querySelector('canvas')!;
-  const spectrogramDiv = container.querySelector('.spectrogram')!;
   const scrollParent = container.querySelector('.scrubber__timeline')!;
 
   // Mock canvas 2D context
@@ -200,25 +205,15 @@ it('draws tiles at correct offset when scroll parent is scrolled', () => {
     mockCtx as unknown as CanvasRenderingContext2D,
   );
 
-  // Simulate scrolled state:
-  // - Scroll parent stays at viewport left edge (left: 0)
-  // - Container has scrolled 300px to the left (left: -300)
-  // - Canvas (sticky) reports same position as container on mobile (left: -300)
-  //   because mobile compositors handle sticky independently from layout
+  // Simulate scrolled state: paddingLeft = 200, scrollLeft = 500,
+  // so contentOffset = 500 - 200 = 300
+  const paddingLeft = 200;
   const scrollOffset = 300;
 
-  vi.spyOn(scrollParent, 'getBoundingClientRect').mockReturnValue(
-    createDOMRect({ left: 0, width: 400 }),
-  );
-  vi.spyOn(spectrogramDiv, 'getBoundingClientRect').mockReturnValue(
-    createDOMRect({ left: -scrollOffset, width: 1000 }),
-  );
-  vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue(
-    createDOMRect({ left: -scrollOffset, width: 400 }),
-  );
-  Object.defineProperty(scrollParent, 'clientWidth', {
-    value: 400,
-    configurable: true,
+  mockScrollState(scrollParent, {
+    scrollLeft: paddingLeft + scrollOffset,
+    clientWidth: 400,
+    paddingLeft,
   });
 
   // Invoke the animation callback
@@ -266,7 +261,6 @@ it('caps content offset at container edge past the sticky boundary', () => {
   );
 
   const canvas = container.querySelector('canvas')!;
-  const spectrogramDiv = container.querySelector('.spectrogram')!;
   const scrollParent = container.querySelector('.scrubber__timeline')!;
 
   const mockCtx = { clearRect: vi.fn(), drawImage: vi.fn() };
@@ -276,24 +270,17 @@ it('caps content offset at container edge past the sticky boundary', () => {
 
   // containerWidth = 5.0 * 200 = 1000, viewportWidth = 400
   // maxContentOffset = 1000 - 400 = 600
-  // Simulate scrolling 800px past the container — well past the sticky
-  // boundary. Without the cap, contentOffset would be 800 and tiles would
-  // be drawn beyond the spectrogram content, leaving blank regions.
+  // scrollLeft - paddingLeft = 1000 - 200 = 800, which exceeds the max.
+  // Without the cap, contentOffset would be 800 and tiles would be drawn
+  // beyond the spectrogram content, leaving blank regions.
   const viewportWidth = 400;
-  const overshoot = 800;
+  const paddingLeft = 200;
+  const rawOffset = 800;
 
-  vi.spyOn(scrollParent, 'getBoundingClientRect').mockReturnValue(
-    createDOMRect({ left: 0, width: viewportWidth }),
-  );
-  vi.spyOn(spectrogramDiv, 'getBoundingClientRect').mockReturnValue(
-    createDOMRect({ left: -overshoot, width: 1000 }),
-  );
-  vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue(
-    createDOMRect({ left: -overshoot, width: viewportWidth }),
-  );
-  Object.defineProperty(scrollParent, 'clientWidth', {
-    value: viewportWidth,
-    configurable: true,
+  mockScrollState(scrollParent, {
+    scrollLeft: paddingLeft + rawOffset,
+    clientWidth: viewportWidth,
+    paddingLeft,
   });
 
   expect(animationCallback).toBeDefined();
@@ -339,7 +326,6 @@ it('redraws with updated offset when scroll position changes between frames', ()
   );
 
   const canvas = container.querySelector('canvas')!;
-  const spectrogramDiv = container.querySelector('.spectrogram')!;
   const scrollParent = container.querySelector('.scrubber__timeline')!;
 
   const mockCtx = { clearRect: vi.fn(), drawImage: vi.fn() };
@@ -348,25 +334,14 @@ it('redraws with updated offset when scroll position changes between frames', ()
   );
 
   const viewportWidth = 400;
-  Object.defineProperty(scrollParent, 'clientWidth', {
-    value: viewportWidth,
-    configurable: true,
+  const paddingLeft = 200;
+
+  // Frame 1: scrolled 100px into content
+  mockScrollState(scrollParent, {
+    scrollLeft: paddingLeft + 100,
+    clientWidth: viewportWidth,
+    paddingLeft,
   });
-
-  const scrollParentRectSpy = vi.spyOn(scrollParent, 'getBoundingClientRect');
-  const spectrogramRectSpy = vi.spyOn(spectrogramDiv, 'getBoundingClientRect');
-  const canvasRectSpy = vi.spyOn(canvas, 'getBoundingClientRect');
-
-  // Frame 1: scrolled 100px
-  scrollParentRectSpy.mockReturnValue(
-    createDOMRect({ left: 0, width: viewportWidth }),
-  );
-  spectrogramRectSpy.mockReturnValue(
-    createDOMRect({ left: -100, width: 1000 }),
-  );
-  canvasRectSpy.mockReturnValue(
-    createDOMRect({ left: -100, width: viewportWidth }),
-  );
 
   animationCallback!();
 
@@ -379,14 +354,12 @@ it('redraws with updated offset when scroll position changes between frames', ()
   );
 
   // Frame 2: user scrolls further to 400px — the spectrogram must redraw
-  // at the new offset. With the original bug (contentOffset always 0),
-  // the early-return optimization would skip this redraw entirely.
-  spectrogramRectSpy.mockReturnValue(
-    createDOMRect({ left: -400, width: 1000 }),
-  );
-  canvasRectSpy.mockReturnValue(
-    createDOMRect({ left: -400, width: viewportWidth }),
-  );
+  // at the new offset
+  Object.defineProperty(scrollParent, 'scrollLeft', {
+    value: paddingLeft + 400,
+    configurable: true,
+    writable: true,
+  });
 
   animationCallback!();
 

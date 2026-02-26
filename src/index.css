@@ -25,6 +25,10 @@ html {
   --border-color: #434343;
   --success-color: #52c41a;
   --error-color: #ff4d4f;
+
+  /* Timeline layout: the cursor sits at 75% of viewport width */
+  --cursor-position: 0.75;
+  --timeline-margin: 40px;
 }
 
 @media (hover: hover) and (pointer: fine) {

@@ -27,6 +27,7 @@ type ScrubberProps = PropsWithChildren<{
   pixelsPerSecond: number;
 }>;
 
+// Keep in sync with --timeline-margin in index.css
 const TIMELINE_MARGIN = 40;
 const SCROLL_DEBOUNCE_MS = 200;
 
