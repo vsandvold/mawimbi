@@ -121,6 +121,57 @@ function forceSpectrogramRendering(page: import('@playwright/test').Page) {
   });
 }
 
+test.describe('Spectrogram canvas sticky positioning on mobile', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test.beforeEach(async ({ page }) => {
+    await forceSpectrogramRendering(page);
+    await page.goto('/project');
+    await uploadAudioFile(page, LONG_AUDIO);
+
+    const spectrogramCanvas = page.locator('.spectrogram__canvas');
+    await expect(spectrogramCanvas).toBeVisible({ timeout: 15000 });
+
+    await expect(async () => {
+      const hasContent = await canvasHasContent(spectrogramCanvas);
+      expect(hasContent).toBe(true);
+    }).toPass({ timeout: 15000 });
+  });
+
+  test('canvas sticks at the viewport edge, not the content edge', async ({
+    page,
+  }) => {
+    const timeline = page.locator('.scrubber__timeline');
+    const spectrogramCanvas = page.locator('.spectrogram__canvas');
+
+    const paddingLeft = await timeline.evaluate((el) =>
+      parseFloat(getComputedStyle(el).paddingLeft),
+    );
+
+    // Scroll well past the padding so sticky positioning is active
+    const scrollPos = Math.floor(paddingLeft + 300);
+    await timeline.evaluate((el, pos) => {
+      el.scrollLeft = pos;
+    }, scrollPos);
+    await page.waitForTimeout(200);
+
+    const canvasLeft = await spectrogramCanvas.evaluate(
+      (canvas: HTMLCanvasElement) => canvas.getBoundingClientRect().left,
+    );
+
+    // The canvas should be at the viewport edge (left: 0), not offset
+    // by the scroll container's padding-left. On a 390px mobile viewport
+    // with 75% cursor position, the padding is ~292px — if the canvas is
+    // at the padding edge, only ~25% of the viewport shows spectrogram.
+    expect(
+      canvasLeft,
+      `Canvas left edge is at ${canvasLeft}px instead of 0px — ` +
+        `it is stuck at the scroll container content edge (paddingLeft=${paddingLeft}) ` +
+        'instead of the viewport edge',
+    ).toBeCloseTo(0, 0);
+  });
+});
+
 test.describe('Spectrogram timeline visualization during scroll', () => {
   test.beforeEach(async ({ page }) => {
     await forceSpectrogramRendering(page);

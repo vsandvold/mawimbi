@@ -4,6 +4,9 @@
 
 .spectrogram__canvas {
   position: sticky;
-  left: 0;
+  /* Sticky left is relative to the scroll container's content edge (after
+     padding), not the scrollport edge.  Offset by the negative of the scroll
+     container's padding-left so the canvas sticks at the viewport edge. */
+  left: calc(var(--cursor-position) * -100vw);
   display: block;
 }
