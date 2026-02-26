@@ -4,6 +4,11 @@ import { LoudnessNormalizer } from './LoudnessNormalizer';
 import MicrophoneUserMedia from './MicrophoneUserMedia';
 import Mixer from './Mixer';
 
+// Reduce scheduling lookahead from the default 0.1s to 0.05s for lower
+// recording latency while keeping enough headroom to avoid scheduling glitches
+// with many concurrent players (Tone.js issue #711).
+const RECORDING_LOOK_AHEAD = 0.05;
+
 type AudioContextStarter = {
   resolve: () => void;
   reject: () => void;
@@ -49,6 +54,18 @@ class AudioService {
 
   static getInstance(): AudioService {
     if (!AudioService.instance) {
+      // Configure the Tone.js context before creating any audio nodes so
+      // they share the same context as Tone.getTransport(). Without this,
+      // nodes end up on the default context while getTransport() resolves
+      // to the custom context. Transport.start() only resumes its own
+      // context, so the default context stays suspended and the Recorder's
+      // MediaStreamDestination produces no audio data.
+      Tone.setContext(
+        new Tone.Context({
+          latencyHint: 'interactive',
+          lookAhead: RECORDING_LOOK_AHEAD,
+        }),
+      );
       AudioService.instance = new AudioService();
     }
     return AudioService.instance;
