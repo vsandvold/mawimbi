@@ -66,7 +66,8 @@ const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
     if (!canvas || !container || tiles.length === 0) return;
 
     const containerRect = container.getBoundingClientRect();
-    const contentOffset = Math.max(0, -containerRect.left);
+    const canvasRect = canvas.getBoundingClientRect();
+    const contentOffset = Math.max(0, canvasRect.left - containerRect.left);
 
     const scrollParent = container.closest(SCROLL_CONTAINER_CLASS);
     const viewportWidth = scrollParent?.clientWidth ?? window.innerWidth;
