@@ -465,9 +465,11 @@ describe('overdub recording', () => {
     Object.assign(recorderInstance, { state: 'started' });
 
     // Simulate real transport.stop() resetting seconds to 0
-    vi.mocked(Tone.getTransport().stop).mockImplementation(() => {
-      Tone.getTransport().seconds = 0;
-    });
+    const transport = Tone.getTransport();
+    vi.mocked(transport.stop).mockImplementation((() => {
+      transport.seconds = 0;
+      return transport;
+    }) as typeof transport.stop);
 
     // Capture transport.seconds at the moment recorder.stop() is called.
     // In the Scrubber animate loop, this is the value that would be read
