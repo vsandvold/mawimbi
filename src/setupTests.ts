@@ -36,6 +36,17 @@ vi.mock('tone', () => {
     seconds: 0,
     state: 'stopped',
   };
+  const contextMock = {
+    state: 'suspended',
+    decodeAudioData: vi.fn().mockResolvedValue({}),
+    lookAhead: 0.05,
+    sampleRate: 44100,
+    rawContext: {
+      outputLatency: 0.01,
+      baseLatency: 0.005,
+      sampleRate: 44100,
+    },
+  };
   return {
     Meter: vi.fn().mockImplementation(makeNode),
     UserMedia: vi.fn().mockImplementation(makeNode),
@@ -44,18 +55,14 @@ vi.mock('tone', () => {
     Recorder: vi.fn().mockImplementation(makeRecorderNode),
     Transport: transportMock,
     getTransport: vi.fn().mockReturnValue(transportMock),
-    start: vi.fn().mockResolvedValue(undefined),
+    start: vi.fn().mockImplementation(() => {
+      // Simulate the real Tone.start() behaviour: the AudioContext transitions
+      // from 'suspended' to 'running' when the promise resolves.
+      contextMock.state = 'running';
+      return Promise.resolve();
+    }),
     getDestination: vi.fn().mockReturnValue(makeNode()),
-    context: {
-      decodeAudioData: vi.fn().mockResolvedValue({}),
-      lookAhead: 0.05,
-      sampleRate: 44100,
-      rawContext: {
-        outputLatency: 0.01,
-        baseLatency: 0.005,
-        sampleRate: 44100,
-      },
-    },
+    context: contextMock,
     setContext: vi.fn(),
     // Must be a regular function (not arrow) to support `new`
     Context: vi.fn().mockImplementation(function () {}),
