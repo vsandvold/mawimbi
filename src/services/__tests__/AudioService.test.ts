@@ -238,6 +238,31 @@ describe('getTotalTime', () => {
 
     expect(audioService.getTotalTime()).toBe(10.0);
   });
+
+  it('accounts for recording start offset in total time', async () => {
+    // Upload a 10s track starting at transport position 0
+    vi.mocked(Tone.context.decodeAudioData).mockResolvedValueOnce(
+      mockAudioBuffer({ duration: 10.0 }),
+    );
+    await audioService.createTrack(new ArrayBuffer(16));
+
+    // Start recording at transport position 8
+    Tone.getTransport().seconds = 8.0;
+    await audioService.startOverdubRecording();
+
+    const recorderInstance = vi.mocked(Tone.Recorder).mock.results[0].value;
+    Object.assign(recorderInstance, { state: 'started' });
+
+    // Recording produces a 5s buffer (transport 8–13)
+    vi.mocked(Tone.context.decodeAudioData).mockResolvedValueOnce(
+      mockAudioBuffer({ duration: 5.0 }),
+    );
+
+    await audioService.stopOverdubRecording();
+
+    // Total time should be 13 (startTime 8 + duration 5), not 10
+    expect(audioService.getTotalTime()).toBe(13.0);
+  });
 });
 
 describe('recording', () => {
@@ -420,6 +445,7 @@ describe('overdub recording', () => {
       mockAudioBuffer({ duration: 5.0 }),
     );
 
+    Tone.getTransport().seconds = 0;
     await audioService.startOverdubRecording();
 
     const recorderInstance = vi.mocked(Tone.Recorder).mock.results[0].value;
@@ -428,6 +454,40 @@ describe('overdub recording', () => {
     await audioService.stopOverdubRecording();
 
     expect(audioService.getTotalTime()).toBe(5.0);
+  });
+
+  it('restores transport position before async processing begins', async () => {
+    // Recording starts at transport position 5
+    Tone.getTransport().seconds = 5.0;
+    await audioService.startOverdubRecording();
+
+    const recorderInstance = vi.mocked(Tone.Recorder).mock.results[0].value;
+    Object.assign(recorderInstance, { state: 'started' });
+
+    // Simulate real transport.stop() resetting seconds to 0
+    const transport = Tone.getTransport();
+    vi.mocked(transport.stop).mockImplementation((() => {
+      transport.seconds = 0;
+      return transport;
+    }) as typeof transport.stop);
+
+    // Capture transport.seconds at the moment recorder.stop() is called.
+    // In the Scrubber animate loop, this is the value that would be read
+    // between transport.stop() and the async processing completing.
+    let secondsAtRecorderStop: number | undefined;
+    recorderInstance.stop.mockImplementation(() => {
+      secondsAtRecorderStop = Tone.getTransport().seconds;
+      return Promise.resolve({
+        arrayBuffer: () => Promise.resolve(new ArrayBuffer(16)),
+      });
+    });
+
+    await audioService.stopOverdubRecording();
+
+    // Transport should already be repositioned to the recording start time
+    // before the first async operation, preventing the Scrubber animate loop
+    // from briefly reading seconds=0 and jumping the scroll to the beginning.
+    expect(secondsAtRecorderStop).toBe(5.0);
   });
 });
 
