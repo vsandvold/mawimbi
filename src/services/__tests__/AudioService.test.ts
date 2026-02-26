@@ -35,6 +35,21 @@ describe('singleton', () => {
     const b = AudioService.getInstance();
     expect(a).toBe(b);
   });
+
+  it('configures Tone.js context before creating audio nodes', () => {
+    // AudioService must call Tone.setContext() before constructing Tone.js
+    // nodes (Recorder, UserMedia, Meter, etc.) so they all share the same
+    // context as Tone.getTransport(). Without this, nodes are created on
+    // the default context while getTransport() resolves to the custom
+    // context. The default context is never resumed (only the custom
+    // context is), so the Recorder's MediaStreamDestination produces no
+    // audio data and recordings silently fail.
+    const setContextOrder = vi.mocked(Tone.setContext).mock
+      .invocationCallOrder[0];
+    const recorderOrder = vi.mocked(Tone.Recorder).mock.invocationCallOrder[0];
+    expect(setContextOrder).toBeDefined();
+    expect(setContextOrder).toBeLessThan(recorderOrder);
+  });
 });
 
 describe('createTrack', () => {

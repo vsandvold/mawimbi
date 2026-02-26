@@ -57,7 +57,8 @@ vi.mock('tone', () => {
       },
     },
     setContext: vi.fn(),
-    Context: vi.fn().mockImplementation(() => ({})),
+    // Must be a regular function (not arrow) to support `new`
+    Context: vi.fn().mockImplementation(function () {}),
   };
 });
 
