@@ -3,7 +3,8 @@ import { useAnimationFrame } from '../../hooks/useAnimationFrame';
 import { useAudioService } from '../../hooks/useAudioService';
 import { useTrackVolume } from '../../hooks/useTrackVolume';
 import { TrackSpectrogramEntry } from '../../services/SpectrogramCache';
-import { Track } from '../project/projectPageReducer';
+import { isPlaying, transportTime } from '../../signals/transportSignals';
+import { Track, TrackColor } from '../project/projectPageReducer';
 import './Spectrogram.css';
 
 type SpectrogramProps = {
@@ -14,6 +15,12 @@ type SpectrogramProps = {
 
 const TILE_WIDTH = 4096;
 const SCROLL_CONTAINER_CLASS = '.scrubber__timeline';
+const LIVE_COLUMN_WIDTH = 2;
+
+// Match the OfflineAnalyser's AnalyserNode dB range for visual consistency
+const MIN_DB = -80;
+const MAX_DB = -30;
+const DB_RANGE = MAX_DB - MIN_DB;
 
 const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -83,12 +90,16 @@ const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
       maxContentOffset,
     );
 
+    const playing = isPlaying.value;
+
     const needsResize =
       canvas.width !== viewportWidth || canvas.height !== height;
 
     const last = lastDrawnRef.current;
+    // Always redraw during playback so the live overlay tracks the playhead
     if (
       !needsResize &&
+      !playing &&
       contentOffset === last.offset &&
       pixelsPerSecond === last.pps &&
       tiles.length === last.tileCount
@@ -125,6 +136,15 @@ const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
 
       ctx.drawImage(tiles[t], drawX, 0, drawWidth, height);
     }
+
+    // Live playback overlay: draw a bright column at the playhead
+    if (playing) {
+      const frequencyData = audioService.mixer.getFrequencyData(trackId);
+      if (frequencyData) {
+        const playheadX = transportTime.value * pixelsPerSecond - contentOffset;
+        drawLiveColumn(ctx, frequencyData, playheadX, height, color);
+      }
+    }
   });
 
   const { opacity } = useTrackVolume(trackId);
@@ -139,5 +159,56 @@ const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
     </div>
   );
 };
+
+/**
+ * Draws a single bright column on the canvas at the playhead position,
+ * reflecting live post-effects frequency content during playback.
+ *
+ * Frequency bins are grouped into pixel rows (max intensity per row)
+ * and rendered with additive compositing so the overlay appears brighter
+ * than the static spectrogram tiles underneath.
+ */
+function drawLiveColumn(
+  ctx: CanvasRenderingContext2D,
+  frequencyData: Float32Array,
+  playheadX: number,
+  height: number,
+  color: TrackColor,
+): void {
+  if (playheadX < -LIVE_COLUMN_WIDTH || playheadX > ctx.canvas.width) return;
+
+  const bins = frequencyData.length;
+  const binsPerRow = bins / height;
+  const { r, g, b } = color;
+  const x = Math.round(playheadX);
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+
+  for (let row = 0; row < height; row++) {
+    const startBin = Math.floor(row * binsPerRow);
+    const endBin = Math.floor((row + 1) * binsPerRow);
+    let maxIntensity = 0;
+    for (let bin = startBin; bin < endBin; bin++) {
+      const intensity = dbToByte(frequencyData[bin]);
+      if (intensity > maxIntensity) maxIntensity = intensity;
+    }
+    if (maxIntensity === 0) continue;
+
+    const alpha = maxIntensity / 255;
+    // bin 0 → bottom row, last bin → top row
+    const y = height - row - 1;
+    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    ctx.fillRect(x, y, LIVE_COLUMN_WIDTH, 1);
+  }
+
+  ctx.restore();
+}
+
+function dbToByte(db: number): number {
+  if (db <= MIN_DB) return 0;
+  if (db >= MAX_DB) return 255;
+  return Math.round(((db - MIN_DB) / DB_RANGE) * 255);
+}
 
 export default Spectrogram;
