@@ -3,6 +3,7 @@ import { act, fireEvent, render } from '@testing-library/react';
 import AudioService from '../../../../services/AudioService';
 import {
   isPlaying,
+  isRecording,
   resetTransportSignals,
   transportTime,
 } from '../../../../signals/transportSignals';
@@ -121,6 +122,33 @@ it('sets --loudness CSS variable on cursor during playback', () => {
   const cursor = container.querySelector('.cursor');
   expect(getLoudnessSpy).toHaveBeenCalled();
   expect(cursor?.getAttribute('style')).toContain('--loudness: 0.75');
+});
+
+it('does not stop playback at end of scroll during recording', () => {
+  const audioService = AudioService.getInstance();
+  vi.spyOn(audioService, 'getTransportTime').mockReturnValue(1.5);
+  vi.spyOn(audioService.mixer, 'getLoudness').mockReturnValue(0);
+
+  let rafCallback: FrameRequestCallback = () => {};
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+    rafCallback = cb;
+    return 1;
+  });
+
+  isPlaying.value = true;
+  isRecording.value = true;
+
+  render(<Scrubber {...defaultProps} />);
+
+  // In jsdom, scrollWidth equals clientWidth (no overflow), so the
+  // end-of-scroll condition is satisfied. During recording this must NOT
+  // trigger stopAndRewindPlayback.
+  act(() => {
+    rafCallback(0);
+  });
+
+  expect(isPlaying.value).toBe(true);
+  expect(transportTime.value).toBe(1.5);
 });
 
 it('does not set --loudness when playback is stopped', () => {

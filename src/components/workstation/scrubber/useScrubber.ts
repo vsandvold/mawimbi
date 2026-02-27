@@ -9,6 +9,7 @@ import { useAudioService } from '../../../hooks/useAudioService';
 import useDebounced from '../../../hooks/useDebounced';
 import {
   isPlaying,
+  isRecording,
   loudness as loudnessSignal,
   stopAndRewindPlayback,
   transportTime,
@@ -77,7 +78,12 @@ export function useScrubber({
           String(currentLoudness),
         );
 
-        if (timelineScrollRef.current) {
+        // Skip end-of-scroll detection while recording — the recording
+        // spectrogram grows its container width progressively, so scrollWidth
+        // can momentarily equal clientWidth before new content is laid out.
+        // Stopping playback here would freeze transportTime updates and halt
+        // the live spectrogram scroll.
+        if (timelineScrollRef.current && !isRecording.value) {
           const isEndOfScroll =
             timelineScrollRef.current.scrollLeft +
               timelineScrollRef.current.clientWidth >=
