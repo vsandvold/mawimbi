@@ -225,50 +225,143 @@ L/R panning via `Tone.Panner` as a first step.
 
 ### 4. Recording & Overdubbing
 
-Basic recording works. These items improve latency, precision, and workflow.
+Basic recording works (MediaRecorder via `Tone.Recorder`). These items improve
+latency, precision, and workflow.
 
-#### 4a. AudioWorklet-based recording
+**Recommended evolution path:** Start with the current MediaRecorder approach
+(already shipped), then add a hybrid timing worklet (4a-i) for precise
+timestamps, and finally move to full AudioWorklet recording (4a-ii) when
+sample-accurate capture is needed.
+
+#### 4a. Recording precision
+
+Two incremental approaches, from least to most disruptive:
+
+**4a-i. Hybrid timing worklet (intermediate step)**
+
+Keep MediaRecorder for audio capture but add a lightweight AudioWorklet that
+only counts sample frames. This gives sample-accurate start/stop timestamps
+without replacing the entire recording pipeline.
+
+**4a-ii. Full AudioWorklet-based recording**
 
 Replace `Tone.Recorder` (MediaRecorder) with a custom `AudioWorkletProcessor`
 for sample-accurate recording. Eliminates MediaRecorder's encoding delay and
 variable chunk timing.
 
-**Architecture** (from docs/research/low-latency-overdubbing.md):
+**Architecture:**
 
-1. Create `RecordingProcessor.ts` (AudioWorkletProcessor) that captures raw
-   PCM samples in a ring buffer and posts chunks to the main thread.
-2. Create `WorkletRecorder.ts` (main-thread wrapper) that manages the
-   AudioWorkletNode lifecycle and accumulates chunks into a final AudioBuffer.
-3. Update `AudioService.startRecording()` / `stopRecording()` to use the new
-   recorder.
+```
+RecordingProcessor.ts (AudioWorkletProcessor)
+├── Ring buffer capturing raw PCM Float32Array chunks
+├── Posts chunks to main thread via port.postMessage()
+└── Runs on the audio thread — immune to main-thread jank
+
+WorkletRecorder.ts (main-thread wrapper)
+├── Loads worklet via audioContext.audioWorklet.addModule()
+├── Creates AudioWorkletNode connected to mic source
+├── Accumulates chunks into final AudioBuffer
+└── Handles start/stop lifecycle
+```
+
+**`getUserMedia` constraints for low latency:**
+
+```ts
+{
+  echoCancellation: false,
+  noiseSuppression: false,
+  autoGainControl: false,
+  latency: 0,
+  channelCount: 1,
+}
+```
+
+Disabling browser audio processing eliminates ~10–20 ms of pipeline latency.
+
+**Tone.js tuning:** Set `Tone.context.lookAhead = 0.05` (not 0 — setting to 0
+causes scheduling errors; see Tone.js issue #711). The default `0.1` adds
+unnecessary latency during recording.
 
 #### 4b. Latency compensation
 
 Measure round-trip latency (`outputLatency + baseLatency` from the AudioContext)
-and trim the recorded buffer accordingly. Formula:
+and trim the recorded buffer accordingly.
+
+**`LatencyCompensation` service design:**
+
+```ts
+// src/services/LatencyCompensation.ts
+getOutputLatency(): number     // context.outputLatency
+getInputLatency(): number      // estimated from getUserMedia constraints
+getTotalCompensation(): number // output + input latency in seconds
+trimBuffer(buffer, samples): AudioBuffer  // trim leading latency samples
+```
+
+**Formula:**
 
 ```
 compensatedStartTime = transportTime - outputLatency - baseLatency
 recordedBuffer = trimStart(rawBuffer, compensatedLatencySamples)
 ```
 
+**Manual calibration tool:** Play a click track, record it back via speakers +
+mic, cross-correlate signals to measure actual round-trip latency. Both Audacity
+and Soundtrap use this pattern.
+
 #### 4c. Input monitoring
 
-Route microphone audio directly to speakers for zero-latency monitoring.
-Auto-detect unusable latency (>30 ms) and warn the user. Prevent feedback loops
-when using laptop speakers.
+Route microphone audio directly to speakers for zero-latency monitoring using a
+`Tone.Gain` node:
 
-#### 4d. Punch-in / punch-out
+```
+UserMedia → monitorGain → Destination
+         ↘ Recorder (for capture)
+```
+
+- Auto-detect unusable latency (>50 ms) and warn the user.
+- Prevent feedback: the current code does NOT route `Tone.UserMedia` to
+  `Tone.Destination`, so there is no software feedback loop. Enabling monitoring
+  adds one — warn when using laptop speakers (no headphones detected).
+- UI: headphone icon toggle + monitor volume slider.
+
+#### 4d. Recording state machine
+
+Extend `isRecording` from a boolean to a three-state enum:
+
+```ts
+type RecordingState = 'idle' | 'armed' | 'recording';
+```
+
+- **armed:** Ready to record; starts capturing on next transport play.
+- **recording:** Actively capturing audio.
+
+Coordinate `isPlaying` and `isRecording` signals in the same synchronous code
+path to avoid race conditions between Transport start and Recorder start.
+
+#### 4e. Count-in metronome
+
+Play a 1–2 bar click before recording starts so the musician can find the tempo.
+Requires beat grid from §3b for tempo-aware count-in length.
+
+#### 4f. Punch-in / punch-out
 
 Allow recording over a specific time range of an existing track. Requires:
 - UI for setting in/out points (markers on the timeline).
 - Transport-aware recording start/stop.
 - Buffer splicing to merge the new recording into the existing track.
 
-#### 4e. Multi-take recording
+#### 4g. Multi-take recording
 
 Record multiple takes on the same track region and let the user choose between
 them. Requires a take stack data structure per region.
+
+#### Recording references
+
+- [W3C Web Audio Workshop: Low-latency recording](https://www.w3.org/2011/audio/)
+- [Jeff TK: Web Audio latency benchmarks](https://www.jefftk.com/p/web-audio-latency)
+- [Tone.js scheduling issues: #524, #644, #711](https://github.com/Tonejs/Tone.js/issues/711)
+- [Audacity: Latency compensation guide](https://manual.audacityteam.org/man/latency_compensation.html)
+- [Mozilla Hacks: AudioWorklet examples](https://hacks.mozilla.org/2020/02/audio-worklets-in-firefox/)
 
 ---
 
