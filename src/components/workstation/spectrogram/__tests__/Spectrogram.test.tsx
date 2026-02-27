@@ -46,13 +46,15 @@ const mockGetFrequencyData = vi.fn();
 const mockMicGetFrequencyData = vi.fn();
 const mockGetRecordingStartTime = vi.fn().mockReturnValue(0);
 
-const { mockRetrieveAudioBuffer } = vi.hoisted(() => ({
+const { mockRetrieveAudioBuffer, mockRetrieveStartTime } = vi.hoisted(() => ({
   mockRetrieveAudioBuffer: vi.fn(),
+  mockRetrieveStartTime: vi.fn().mockReturnValue(0),
 }));
 
 vi.mock('../../../../hooks/useAudioService', () => ({
   useAudioService: () => ({
     retrieveAudioBuffer: mockRetrieveAudioBuffer,
+    retrieveStartTime: mockRetrieveStartTime,
     spectrogramCache: {
       analyse: mockAnalyse,
       getEntry: mockGetEntry,
@@ -77,6 +79,7 @@ const defaultProps = {
 
 beforeEach(() => {
   mockRetrieveAudioBuffer.mockReturnValue(undefined);
+  mockRetrieveStartTime.mockReturnValue(0);
   mockAnalyse.mockClear();
   mockGetEntry.mockReturnValue(undefined);
   mockGetFrequencyData.mockReset();
@@ -176,6 +179,32 @@ it('sets container width from duration and pixelsPerSecond', () => {
   const spectrogram = container.querySelector('.spectrogram');
   // containerWidth = duration * pixelsPerSecond = 2.5 * 200 = 500
   expect(spectrogram).toHaveStyle({ width: '500px' });
+});
+
+it('offsets container by startTime for tracks recorded at non-zero position', () => {
+  const duration = 2.5;
+  const startTime = 3.0;
+  const audioBuffer = { duration } as AudioBuffer;
+  mockRetrieveAudioBuffer.mockReturnValue(audioBuffer);
+  mockRetrieveStartTime.mockReturnValue(startTime);
+
+  const { container } = render(<Spectrogram {...defaultProps} />);
+
+  const spectrogram = container.querySelector('.spectrogram');
+  // marginLeft = startTime * pixelsPerSecond = 3.0 * 200 = 600
+  expect(spectrogram).toHaveStyle({ marginLeft: '600px' });
+});
+
+it('has no margin offset for tracks starting at position zero', () => {
+  const duration = 2.5;
+  const audioBuffer = { duration } as AudioBuffer;
+  mockRetrieveAudioBuffer.mockReturnValue(audioBuffer);
+  mockRetrieveStartTime.mockReturnValue(0);
+
+  const { container } = render(<Spectrogram {...defaultProps} />);
+
+  const spectrogram = container.querySelector('.spectrogram');
+  expect(spectrogram).toHaveStyle({ marginLeft: '0px' });
 });
 
 it('sets container width to zero when no audio buffer', () => {
@@ -405,6 +434,39 @@ describe('recording mode', () => {
     callback?.();
 
     expect(mockGetFrequencyData).not.toHaveBeenCalled();
+
+    vi.restoreAllMocks();
+  });
+
+  it('offsets container by recording start time during overdub', () => {
+    isRecording.value = true;
+    transportTime.value = 5.0;
+    mockGetRecordingStartTime.mockReturnValue(3.0);
+    mockMicGetFrequencyData.mockReturnValue(new Float32Array(1024).fill(-50));
+
+    const mockCtx = {
+      clearRect: vi.fn(),
+      drawImage: vi.fn(),
+      fillRect: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      globalCompositeOperation: 'source-over' as string,
+      fillStyle: '' as string,
+      canvas: { width: 800, height: 128 },
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+      mockCtx as unknown as CanvasRenderingContext2D,
+    );
+
+    const { container } = render(<Spectrogram {...recordingProps} />);
+
+    const calls = vi.mocked(useAnimationFrame).mock.calls;
+    const callback = calls[calls.length - 1]?.[0];
+    callback?.();
+
+    const spectrogram = container.querySelector('.spectrogram');
+    // marginLeft = recordingStartTime * pixelsPerSecond = 3.0 * 200 = 600
+    expect(spectrogram).toHaveStyle({ marginLeft: '600px' });
 
     vi.restoreAllMocks();
   });

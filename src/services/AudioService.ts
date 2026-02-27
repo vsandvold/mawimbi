@@ -130,6 +130,10 @@ class AudioService {
     return this.audioSourceRepository.get(trackId)?.initialVolume;
   }
 
+  retrieveStartTime(trackId: string): number | undefined {
+    return this.audioSourceRepository.get(trackId)?.startTime;
+  }
+
   startPlayback(transportTime?: number): void {
     if (transportTime !== undefined) {
       this.setTransportTime(transportTime);

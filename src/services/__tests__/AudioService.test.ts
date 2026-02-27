@@ -116,10 +116,19 @@ describe('createTrack', () => {
     );
   });
 
+  it('stores start time of zero for uploaded tracks', async () => {
+    const arrayBuffer = new ArrayBuffer(16);
+
+    const { trackId } = await audioService.createTrack(arrayBuffer);
+
+    expect(audioService.retrieveStartTime(trackId)).toBe(0);
+  });
+
   it('returns undefined for unknown track IDs', () => {
     expect(audioService.retrieveBlobUrl('nonexistent')).toBeUndefined();
     expect(audioService.retrieveAudioBuffer('nonexistent')).toBeUndefined();
     expect(audioService.retrieveInitialVolume('nonexistent')).toBeUndefined();
+    expect(audioService.retrieveStartTime('nonexistent')).toBeUndefined();
   });
 
   it('returns initial volume of 100 for a buffer at target RMS', async () => {
@@ -426,6 +435,18 @@ describe('overdub recording', () => {
 
     expect(blobUrl).toBeDefined();
     expect(blobUrl).toContain('blob:');
+  });
+
+  it('stores recording start time retrievable after stop', async () => {
+    Tone.getTransport().seconds = 5.0;
+    await audioService.startOverdubRecording();
+
+    const recorderInstance = vi.mocked(Tone.Recorder).mock.results[0].value;
+    Object.assign(recorderInstance, { state: 'started' });
+
+    const { trackId } = await audioService.stopOverdubRecording();
+
+    expect(audioService.retrieveStartTime(trackId)).toBe(5.0);
   });
 
   it('stores a retrievable audioBuffer for the recorded track', async () => {
