@@ -99,11 +99,21 @@ it('transforms timeline vertical scale when drawer is open', () => {
   );
 });
 
-it('sets --loudness CSS variable on cursor during playback', () => {
+it('renders plasma playhead canvas in the cursor container', () => {
+  const { container } = render(<Scrubber {...defaultProps} />);
+
+  const canvas = container.querySelector('.plasma-playhead');
+
+  expect(canvas).toBeInTheDocument();
+  expect(canvas?.tagName).toBe('CANVAS');
+});
+
+it('feeds plasma renderer with loudness during playback', () => {
   const audioService = AudioService.getInstance();
-  const getLoudnessSpy = vi
-    .spyOn(audioService.mixer, 'getLoudness')
-    .mockReturnValue(0.75);
+  vi.spyOn(audioService.mixer, 'getLoudness').mockReturnValue(0.75);
+  vi.spyOn(audioService.mixer, 'getCombinedFrequencyData').mockReturnValue(
+    null,
+  );
 
   let rafCallback: FrameRequestCallback = () => {};
   vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
@@ -113,21 +123,23 @@ it('sets --loudness CSS variable on cursor during playback', () => {
 
   isPlaying.value = true;
 
-  const { container } = render(<Scrubber {...defaultProps} />);
+  render(<Scrubber {...defaultProps} />);
 
   act(() => {
     rafCallback(0);
   });
 
-  const cursor = container.querySelector('.cursor');
-  expect(getLoudnessSpy).toHaveBeenCalled();
-  expect(cursor?.getAttribute('style')).toContain('--loudness: 0.75');
+  expect(audioService.mixer.getLoudness).toHaveBeenCalled();
+  expect(audioService.mixer.getCombinedFrequencyData).toHaveBeenCalled();
 });
 
 it('does not stop playback at end of scroll during recording', () => {
   const audioService = AudioService.getInstance();
   vi.spyOn(audioService, 'getTransportTime').mockReturnValue(1.5);
   vi.spyOn(audioService.mixer, 'getLoudness').mockReturnValue(0);
+  vi.spyOn(audioService.mixer, 'getCombinedFrequencyData').mockReturnValue(
+    null,
+  );
 
   let rafCallback: FrameRequestCallback = () => {};
   vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
@@ -151,13 +163,11 @@ it('does not stop playback at end of scroll during recording', () => {
   expect(transportTime.value).toBe(1.5);
 });
 
-it('does not set --loudness when playback is stopped', () => {
+it('does not call getLoudness when playback is stopped', () => {
   const audioService = AudioService.getInstance();
   const getLoudnessSpy = vi.spyOn(audioService.mixer, 'getLoudness');
 
-  const { container } = render(<Scrubber {...defaultProps} />);
+  render(<Scrubber {...defaultProps} />);
 
-  const cursor = container.querySelector('.cursor');
   expect(getLoudnessSpy).not.toHaveBeenCalled();
-  expect(cursor?.getAttribute('style')).toBeNull();
 });

@@ -30,9 +30,11 @@
 .scrubber__cursor {
   position: absolute;
   top: 0;
-  left: calc(var(--cursor-position) * 100vw);
+  left: calc(var(--cursor-position) * 100vw - 60px);
   bottom: var(--timeline-margin);
   padding-top: var(--timeline-margin);
+  width: 120px;
+  pointer-events: none;
 }
 
 .scrubber__rewind {
@@ -57,19 +59,30 @@
   );
 }
 
-.cursor {
-  --loudness: 0;
-  height: 100%;
-  width: 1px;
-  background-color: rgba(255, 255, 255, 0.65);
-  transition:
-    background-color 0.3s,
-    box-shadow 0.05s ease-out;
+/* Spectrogram reveal: dims the upcoming (right of playhead) audio */
+.scrubber__reveal {
+  position: absolute;
+  top: 0;
+  left: calc(var(--cursor-position) * 100vw);
+  right: 0;
+  bottom: var(--timeline-margin);
+  padding-top: var(--timeline-margin);
+  pointer-events: none;
+  background: linear-gradient(
+    to right,
+    rgba(0, 0, 0, 0.35),
+    rgba(0, 0, 0, 0.5)
+  );
+  opacity: 0;
+  transition: opacity 0.3s;
 }
 
-.cursor--is-playing {
-  background-color: rgba(255, 255, 255, 1);
-  box-shadow: calc(-2px - 4px * var(--loudness)) 0
-    calc(4px + 8px * var(--loudness)) calc(1px + 2px * var(--loudness))
-    rgba(255, 255, 255, calc(0.5 + 0.5 * var(--loudness)));
+.scrubber__reveal--active {
+  opacity: 1;
+}
+
+.plasma-playhead {
+  display: block;
+  width: 100%;
+  height: 100%;
 }

@@ -118,25 +118,25 @@ test.describe('Drag and scroll timeline to seek while playing', () => {
     expect(scrollLeft).toBeGreaterThan(initialScrollLeft + 50);
   });
 
-  test('cursor loses playing class when scroll pauses playback', async ({
+  test('reveal loses active class when scroll pauses playback', async ({
     page,
   }) => {
-    const cursor = page.locator('.cursor');
+    const reveal = page.locator('.scrubber__reveal');
 
     // Start playback
     await page.getByTitle('Play').click();
-    await expect(cursor).toHaveClass(/cursor--is-playing/);
+    await expect(reveal).toHaveClass(/scrubber__reveal--active/);
 
     // Scroll to pause
     await wheelScrollTimeline(page, 400);
 
-    // Cursor should lose the playing class while paused
-    await expect(cursor).not.toHaveClass(/cursor--is-playing/);
+    // Reveal should lose the active class while paused
+    await expect(reveal).not.toHaveClass(/scrubber__reveal--active/);
 
     // Wait for debounce and resume
     await page.waitForTimeout(400);
 
-    // Cursor should regain the playing class
-    await expect(cursor).toHaveClass(/cursor--is-playing/);
+    // Reveal should regain the active class
+    await expect(reveal).toHaveClass(/scrubber__reveal--active/);
   });
 });

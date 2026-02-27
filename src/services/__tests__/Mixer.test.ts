@@ -220,6 +220,80 @@ describe('getMutedChannels', () => {
   });
 });
 
+describe('getCombinedFrequencyData', () => {
+  it('returns null when no channels exist', () => {
+    expect(mixer.getCombinedFrequencyData()).toBeNull();
+  });
+
+  it('returns the single channel data when one channel exists', () => {
+    mixer.createChannel('track-1', {} as AudioBuffer);
+
+    const combined = mixer.getCombinedFrequencyData();
+
+    expect(combined).toBeInstanceOf(Float32Array);
+    expect(combined!.length).toBe(2048);
+  });
+
+  it('takes element-wise max across multiple channels', () => {
+    mixer.createChannel('track-1', {} as AudioBuffer);
+    mixer.createChannel('track-2', {} as AudioBuffer);
+
+    const ch1 = mixer.retrieveChannel('track-1')!;
+    const ch2 = mixer.retrieveChannel('track-2')!;
+    const data1 = new Float32Array([-50, -30, -80]);
+    const data2 = new Float32Array([-60, -20, -70]);
+    vi.spyOn(ch1, 'getFrequencyData').mockReturnValue(data1);
+    vi.spyOn(ch2, 'getFrequencyData').mockReturnValue(data2);
+
+    const combined = mixer.getCombinedFrequencyData();
+
+    expect(combined).toEqual(new Float32Array([-50, -20, -70]));
+  });
+
+  it('skips muted channels', () => {
+    mixer.createChannel('track-1', {} as AudioBuffer);
+    mixer.createChannel('track-2', {} as AudioBuffer);
+
+    const ch1 = mixer.retrieveChannel('track-1')!;
+    const ch2 = mixer.retrieveChannel('track-2')!;
+    ch1.mute = true;
+    const data1 = new Float32Array([-30, -30, -30]);
+    const data2 = new Float32Array([-60, -60, -60]);
+    vi.spyOn(ch1, 'getFrequencyData').mockReturnValue(data1);
+    vi.spyOn(ch2, 'getFrequencyData').mockReturnValue(data2);
+
+    const combined = mixer.getCombinedFrequencyData();
+
+    expect(combined).toEqual(new Float32Array([-60, -60, -60]));
+  });
+
+  it('returns null when all channels are muted', () => {
+    mixer.createChannel('track-1', {} as AudioBuffer);
+
+    const ch1 = mixer.retrieveChannel('track-1')!;
+    ch1.mute = true;
+
+    expect(mixer.getCombinedFrequencyData()).toBeNull();
+  });
+
+  it('only includes soloed channels when solo is active', () => {
+    mixer.createChannel('track-1', {} as AudioBuffer);
+    mixer.createChannel('track-2', {} as AudioBuffer);
+
+    const ch1 = mixer.retrieveChannel('track-1')!;
+    const ch2 = mixer.retrieveChannel('track-2')!;
+    ch2.solo = true;
+    const data1 = new Float32Array([-30, -30, -30]);
+    const data2 = new Float32Array([-60, -60, -60]);
+    vi.spyOn(ch1, 'getFrequencyData').mockReturnValue(data1);
+    vi.spyOn(ch2, 'getFrequencyData').mockReturnValue(data2);
+
+    const combined = mixer.getCombinedFrequencyData();
+
+    expect(combined).toEqual(new Float32Array([-60, -60, -60]));
+  });
+});
+
 describe('AudioChannel', () => {
   let toneChannel: Tone.Channel;
   let toneAnalyser: Tone.Analyser;

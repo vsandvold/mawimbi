@@ -149,8 +149,8 @@ test.describe('Recording', () => {
     await playButton.click();
     await expect(page.getByTitle('Pause')).toBeVisible();
 
-    const cursor = page.locator('.cursor');
-    await expect(cursor).toHaveClass(/cursor--is-playing/);
+    const reveal = page.locator('.scrubber__reveal');
+    await expect(reveal).toHaveClass(/scrubber__reveal--active/);
   });
 
   test('recorded track plays from the beginning after recording stops', async ({
@@ -173,8 +173,8 @@ test.describe('Recording', () => {
     await page.getByTitle('Play').click();
     await expect(page.getByTitle('Pause')).toBeVisible();
 
-    const cursor = page.locator('.cursor');
-    await expect(cursor).toHaveClass(/cursor--is-playing/);
+    const reveal = page.locator('.scrubber__reveal');
+    await expect(reveal).toHaveClass(/scrubber__reveal--active/);
   });
 });
 
@@ -212,7 +212,7 @@ test.describe('Recording with existing tracks', () => {
     await page.getByTitle('Play').click();
     await expect(page.getByTitle('Pause')).toBeVisible();
 
-    const cursor = page.locator('.cursor');
-    await expect(cursor).toHaveClass(/cursor--is-playing/);
+    const reveal = page.locator('.scrubber__reveal');
+    await expect(reveal).toHaveClass(/scrubber__reveal--active/);
   });
 });

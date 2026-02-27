@@ -156,14 +156,15 @@ test.describe('Playback controls', () => {
   });
 
   test('shows a playback cursor while playing', async ({ page }) => {
-    const cursor = page.locator('.cursor');
-    await expect(cursor).toBeVisible();
+    const playhead = page.locator('.plasma-playhead');
+    await expect(playhead).toBeVisible();
 
+    const reveal = page.locator('.scrubber__reveal');
     await page.getByTitle('Play').click();
-    await expect(cursor).toHaveClass(/cursor--is-playing/);
+    await expect(reveal).toHaveClass(/scrubber__reveal--active/);
 
     await page.getByTitle('Pause').click();
-    await expect(cursor).not.toHaveClass(/cursor--is-playing/);
+    await expect(reveal).not.toHaveClass(/scrubber__reveal--active/);
   });
 });
 

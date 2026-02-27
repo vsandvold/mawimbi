@@ -2,7 +2,6 @@ import { render, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import { useAnimationFrame } from '../../../../hooks/useAnimationFrame';
 import {
-  isPlaying,
   isRecording,
   transportTime,
 } from '../../../../signals/transportSignals';
@@ -307,118 +306,9 @@ describe('scroll offset for tracks with non-zero start time', () => {
   });
 });
 
-describe('live playback overlay', () => {
-  const mockCtx = {
-    clearRect: vi.fn(),
-    drawImage: vi.fn(),
-    fillRect: vi.fn(),
-    save: vi.fn(),
-    restore: vi.fn(),
-    getImageData: vi.fn(),
-    putImageData: vi.fn(),
-    globalCompositeOperation: 'source-over' as string,
-    fillStyle: '' as string,
-    canvas: { width: 800, height: 128 },
-  };
-
-  const cachedEntry = {
-    data: {
-      frequencyFrames: [new Uint8Array(1024)],
-      timeResolution: 0.025,
-      frequencyBinCount: 1024,
-      sampleRate: 44100,
-      duration: 5.0,
-    },
-    tiles: [{ close: vi.fn() }],
-  };
-
-  beforeEach(() => {
-    const audioBuffer = { duration: 5.0 } as AudioBuffer;
-    mockRetrieveAudioBuffer.mockReturnValue(audioBuffer);
-    mockGetEntry.mockReturnValue(cachedEntry);
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
-      mockCtx as unknown as CanvasRenderingContext2D,
-    );
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  function invokeAnimationCallback() {
-    // The component renders twice: initial (tiles empty) + re-render
-    // after useEffect sets the cached entry. Get the latest callback
-    // which closes over the populated tiles array.
-    const calls = vi.mocked(useAnimationFrame).mock.calls;
-    const callback = calls[calls.length - 1]?.[0];
-    callback?.();
-  }
-
-  it('reads live frequency data from mixer during playback', () => {
-    isPlaying.value = true;
-    transportTime.value = 1.0;
-    const fftData = new Float32Array(1024).fill(-50);
-    mockGetFrequencyData.mockReturnValue(fftData);
-
-    render(<Spectrogram {...defaultProps} />);
-    invokeAnimationCallback();
-
-    expect(mockGetFrequencyData).toHaveBeenCalledWith(TRACK_ID);
-  });
-
-  it('does not read frequency data when not playing', () => {
-    isPlaying.value = false;
-
-    render(<Spectrogram {...defaultProps} />);
-    invokeAnimationCallback();
-
-    expect(mockGetFrequencyData).not.toHaveBeenCalled();
-  });
-
-  it('draws overlay column with additive compositing during playback', () => {
-    isPlaying.value = true;
-    transportTime.value = 1.0;
-    const fftData = new Float32Array(1024).fill(-50);
-    mockGetFrequencyData.mockReturnValue(fftData);
-
-    render(<Spectrogram {...defaultProps} />);
-    invokeAnimationCallback();
-
-    expect(mockCtx.save).toHaveBeenCalled();
-    expect(mockCtx.globalCompositeOperation).toBe('lighter');
-    expect(mockCtx.fillRect).toHaveBeenCalled();
-    expect(mockCtx.restore).toHaveBeenCalled();
-  });
-
-  it('skips overlay when mixer returns no frequency data', () => {
-    isPlaying.value = true;
-    transportTime.value = 1.0;
-    mockGetFrequencyData.mockReturnValue(undefined);
-
-    render(<Spectrogram {...defaultProps} />);
-    invokeAnimationCallback();
-
-    expect(mockGetFrequencyData).toHaveBeenCalledWith(TRACK_ID);
-    // save/restore are not called when there is no frequency data
-    expect(mockCtx.save).not.toHaveBeenCalled();
-  });
-
-  it('does not draw overlay column for silent frequency data', () => {
-    isPlaying.value = true;
-    transportTime.value = 1.0;
-    // All bins at or below -80 dB map to intensity 0
-    const silentData = new Float32Array(1024).fill(-100);
-    mockGetFrequencyData.mockReturnValue(silentData);
-
-    render(<Spectrogram {...defaultProps} />);
-    invokeAnimationCallback();
-
-    expect(mockCtx.save).toHaveBeenCalled();
-    // No fillRect calls because all intensities are 0
-    expect(mockCtx.fillRect).not.toHaveBeenCalled();
-    expect(mockCtx.restore).toHaveBeenCalled();
-  });
-});
+// Live playback overlay (drawLiveColumn) has been removed from the
+// Spectrogram component. The plasma playhead now handles per-frequency
+// visualization at the playhead position.
 
 describe('recording mode', () => {
   const RECORDING_TRACK_ID = '__recording__';

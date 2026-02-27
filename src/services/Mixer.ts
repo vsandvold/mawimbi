@@ -46,6 +46,26 @@ class Mixer {
     return this.audioChannelRepository.get(trackId)?.getFrequencyData();
   }
 
+  getCombinedFrequencyData(): Float32Array | null {
+    const channels = this.audioChannelRepository.getAll();
+    const hasSoloChannels = this.hasSoloChannels();
+    let combined: Float32Array | null = null;
+
+    for (const channel of channels) {
+      if (this.isChannelMuted(channel, hasSoloChannels)) continue;
+      const data = channel.getFrequencyData();
+      if (!combined) {
+        combined = new Float32Array(data);
+      } else {
+        for (let i = 0; i < data.length; i++) {
+          if (data[i] > combined[i]) combined[i] = data[i];
+        }
+      }
+    }
+
+    return combined;
+  }
+
   retrieveChannel(trackId: string): AudioChannel | undefined {
     return this.audioChannelRepository.get(trackId);
   }
