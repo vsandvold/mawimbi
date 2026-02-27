@@ -46,6 +46,10 @@ const Spectrogram = ({
 
   const entry = useSpectrogramCache(trackId, audioBuffer, color);
 
+  const startTime = isRecordingTrack
+    ? 0
+    : (audioService.retrieveStartTime(trackId) ?? 0);
+
   const duration = audioBuffer?.duration ?? 0;
 
   const timeResolution = entry?.data.timeResolution ?? 0.025;
@@ -111,12 +115,17 @@ const Spectrogram = ({
   // For recording tracks, width is updated in the rAF loop directly on the
   // DOM node to avoid React re-renders at 60fps.
   const containerWidth = isRecordingTrack ? 0 : duration * pixelsPerSecond;
+  const containerMarginLeft = startTime * pixelsPerSecond;
 
   return (
     <div
       ref={containerRef}
       className="spectrogram"
-      style={{ opacity, width: containerWidth }}
+      style={{
+        opacity,
+        width: containerWidth,
+        marginLeft: containerMarginLeft,
+      }}
     >
       <canvas ref={canvasRef} className="spectrogram__canvas" />
     </div>
@@ -139,8 +148,9 @@ function drawRecordingFrame(
   const elapsed = Math.max(0, transportTime.value - recordingStartTime);
   const contentWidth = elapsed * pixelsPerSecond;
 
-  // Update container width directly to avoid React re-renders
+  // Update container width and offset directly to avoid React re-renders
   container.style.width = `${contentWidth}px`;
+  container.style.marginLeft = `${recordingStartTime * pixelsPerSecond}px`;
 
   // Accumulate a new frame while recording is active
   if (recording) {
