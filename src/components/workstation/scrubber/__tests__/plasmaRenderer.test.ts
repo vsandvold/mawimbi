@@ -2,9 +2,11 @@ import {
   createPlasmaState,
   getFrequencyIntensities,
   pruneEtchMarks,
+  spawnMistParticles,
   spawnSparks,
   stampEtchMark,
   updateBeatDetection,
+  updateMistParticles,
   updateSparks,
 } from '../plasmaRenderer';
 
@@ -17,6 +19,7 @@ describe('createPlasmaState', () => {
     expect(state.prevLoudness).toBe(0);
     expect(state.sparks).toEqual([]);
     expect(state.etchMarks).toEqual([]);
+    expect(state.mistParticles).toEqual([]);
   });
 });
 
@@ -86,8 +89,8 @@ describe('spawnSparks', () => {
 
     spawnSparks(state, 60, 200, 0.5);
 
-    expect(state.sparks.length).toBeGreaterThanOrEqual(5);
-    expect(state.sparks.length).toBeLessThanOrEqual(15);
+    expect(state.sparks.length).toBeGreaterThanOrEqual(8);
+    expect(state.sparks.length).toBeLessThanOrEqual(25);
     for (const spark of state.sparks) {
       expect(spark.x).toBe(60);
       expect(spark.y).toBeGreaterThanOrEqual(0);
@@ -159,6 +162,102 @@ describe('updateSparks', () => {
 
     expect(state.sparks).toHaveLength(1);
     expect(state.sparks[0].life).toBeCloseTo(0.5 - 0.016);
+  });
+});
+
+describe('spawnMistParticles', () => {
+  it('does not spawn when loudness is below threshold', () => {
+    const state = createPlasmaState();
+    const intensities = new Float32Array(10).fill(1.0);
+
+    spawnMistParticles(state, 120, 10, intensities, 0.01);
+
+    expect(state.mistParticles).toHaveLength(0);
+  });
+
+  it('does not spawn when particle limit is reached', () => {
+    const state = createPlasmaState();
+    // Fill up to the max
+    for (let i = 0; i < 150; i++) {
+      state.mistParticles.push({
+        x: 0,
+        y: 0,
+        vx: 0,
+        vy: 0,
+        life: 1,
+        maxLife: 1,
+        size: 5,
+        r: 0,
+        g: 0,
+        b: 0,
+      });
+    }
+    const intensities = new Float32Array(10).fill(1.0);
+
+    spawnMistParticles(state, 120, 10, intensities, 1.0);
+
+    expect(state.mistParticles).toHaveLength(150);
+  });
+
+  it('spawns particles with valid properties at high loudness and intensity', () => {
+    const state = createPlasmaState();
+    const intensities = new Float32Array(100).fill(1.0);
+
+    spawnMistParticles(state, 120, 100, intensities, 1.0);
+
+    // At max loudness and intensity, most spawn attempts should succeed
+    expect(state.mistParticles.length).toBeGreaterThan(0);
+    for (const p of state.mistParticles) {
+      expect(p.life).toBeGreaterThan(0);
+      expect(p.maxLife).toBe(p.life);
+      expect(p.size).toBeGreaterThanOrEqual(5);
+    }
+  });
+});
+
+describe('updateMistParticles', () => {
+  it('advances positions and decelerates', () => {
+    const state = createPlasmaState();
+    state.mistParticles.push({
+      x: 100,
+      y: 50,
+      vx: 40,
+      vy: 2,
+      life: 2.0,
+      maxLife: 2.0,
+      size: 10,
+      r: 100,
+      g: 200,
+      b: 255,
+    });
+
+    updateMistParticles(state, 0.016);
+
+    expect(state.mistParticles).toHaveLength(1);
+    expect(state.mistParticles[0].x).toBeGreaterThan(100);
+    expect(state.mistParticles[0].life).toBeCloseTo(2.0 - 0.016);
+    // Velocity should have decreased due to deceleration
+    expect(state.mistParticles[0].vx).toBeLessThan(40);
+  });
+
+  it('removes expired particles', () => {
+    const state = createPlasmaState();
+    state.mistParticles.push({
+      x: 0,
+      y: 0,
+      vx: 0,
+      vy: 0,
+      life: 0.01,
+      maxLife: 1,
+      size: 5,
+      r: 0,
+      g: 0,
+      b: 0,
+    });
+
+    updateMistParticles(state, 0.05);
+
+    expect(state.mistParticles).toHaveLength(0);
   });
 });
 

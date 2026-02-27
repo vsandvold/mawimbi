@@ -14,26 +14,54 @@ const DB_RANGE = MAX_DB - MIN_DB;
 const EMA_DECAY = 0.05;
 const BEAT_THRESHOLD = 1.6;
 const BEAT_LOUDNESS_FLOOR = 0.15;
-const FLARE_DECAY_RATE = 8;
+const FLARE_DECAY_RATE = 5;
 
 // --- Etch marks ---
 
 const ETCH_MAX_AGE_MS = 12_000;
 
-// --- Beam layer radii (base values, scaled by loudness + frequency) ---
+// --- Beam layer radii (enhanced for vibrant plasma look) ---
 
-const CORE_HALF_WIDTH = 1.5;
-const INNER_GLOW_RADIUS = 6;
-const PLASMA_FIELD_RADIUS = 16;
-const OUTER_AURA_RADIUS = 40;
+const CORE_HALF_WIDTH = 2.0;
+const INNER_GLOW_RADIUS = 12;
+const PLASMA_FIELD_RADIUS = 28;
+const OUTER_AURA_RADIUS = 60;
+
+// --- Beam pulsation ---
+
+const PULSE_SLOW_SPEED = 0.004;
+const PULSE_FAST_SPEED = 0.011;
 
 // --- Spark particles ---
 
-const SPARK_COUNT_MIN = 5;
-const SPARK_COUNT_MAX = 15;
-const SPARK_SPEED_MIN = 40;
-const SPARK_SPEED_MAX = 120;
-const SPARK_MAX_LIFE = 0.15;
+const SPARK_COUNT_MIN = 8;
+const SPARK_COUNT_MAX = 25;
+const SPARK_SPEED_MIN = 50;
+const SPARK_SPEED_MAX = 180;
+const SPARK_MAX_LIFE = 0.3;
+
+// --- Mist particles ---
+
+const MIST_SPAWN_ATTEMPTS = 4;
+const MIST_SPAWN_PROBABILITY = 0.45;
+const MIST_MAX_PARTICLES = 150;
+const MIST_DRIFT_SPEED_MIN = 15;
+const MIST_DRIFT_SPEED_MAX = 55;
+const MIST_LIFE_MIN = 0.8;
+const MIST_LIFE_MAX = 2.5;
+const MIST_SIZE_MIN = 5;
+const MIST_SIZE_MAX = 18;
+const MIST_VERTICAL_WANDER = 8;
+const MIST_DECELERATION = 0.5;
+
+// Mist color palette interpolated by vertical position (frequency band)
+const MIST_COLORS: [number, number, number][] = [
+  [130, 40, 255], // Bass: deep purple
+  [60, 120, 255], // Low-mid: blue
+  [0, 210, 255], // Mid: cyan
+  [100, 255, 200], // High-mid: teal
+  [255, 180, 255], // High: pink
+];
 
 // --- Log-frequency mapping cache ---
 
@@ -70,11 +98,25 @@ export type Spark = {
   maxLife: number;
 };
 
+export type MistParticle = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  size: number;
+  r: number;
+  g: number;
+  b: number;
+};
+
 export type PlasmaState = {
   loudnessEMA: number;
   flareIntensity: number;
   sparks: Spark[];
   etchMarks: EtchMark[];
+  mistParticles: MistParticle[];
   prevLoudness: number;
 };
 
@@ -84,6 +126,7 @@ export function createPlasmaState(): PlasmaState {
     flareIntensity: 0,
     sparks: [],
     etchMarks: [],
+    mistParticles: [],
     prevLoudness: 0,
   };
 }
@@ -150,6 +193,83 @@ export function updateSparks(state: PlasmaState, deltaTime: number): void {
     spark.life -= deltaTime;
     if (spark.life <= 0) {
       state.sparks.splice(i, 1);
+    }
+  }
+}
+
+// --- Mist management ---
+
+function getMistColor(normalizedY: number): [number, number, number] {
+  // normalizedY: 0 = top (high freq), 1 = bottom (low freq)
+  const bandIndex = normalizedY * (MIST_COLORS.length - 1);
+  const lower = Math.floor(bandIndex);
+  const upper = Math.min(MIST_COLORS.length - 1, lower + 1);
+  const t = bandIndex - lower;
+
+  return [
+    MIST_COLORS[lower][0] + t * (MIST_COLORS[upper][0] - MIST_COLORS[lower][0]),
+    MIST_COLORS[lower][1] + t * (MIST_COLORS[upper][1] - MIST_COLORS[lower][1]),
+    MIST_COLORS[lower][2] + t * (MIST_COLORS[upper][2] - MIST_COLORS[lower][2]),
+  ];
+}
+
+export function spawnMistParticles(
+  state: PlasmaState,
+  centerX: number,
+  height: number,
+  intensities: Float32Array,
+  loudness: number,
+): void {
+  if (state.mistParticles.length >= MIST_MAX_PARTICLES) return;
+  if (loudness < 0.02) return;
+
+  for (let i = 0; i < MIST_SPAWN_ATTEMPTS; i++) {
+    if (state.mistParticles.length >= MIST_MAX_PARTICLES) break;
+
+    const y = Math.random() * height;
+    const rowIndex = Math.min(height - 1, Math.floor(y));
+    const intensity = intensities[rowIndex] || 0;
+
+    if (Math.random() > intensity * loudness * MIST_SPAWN_PROBABILITY) continue;
+
+    const direction = Math.random() > 0.5 ? 1 : -1;
+    const speed =
+      MIST_DRIFT_SPEED_MIN +
+      Math.random() * (MIST_DRIFT_SPEED_MAX - MIST_DRIFT_SPEED_MIN);
+    const life =
+      MIST_LIFE_MIN + Math.random() * (MIST_LIFE_MAX - MIST_LIFE_MIN);
+    const size = MIST_SIZE_MIN + intensity * (MIST_SIZE_MAX - MIST_SIZE_MIN);
+    const normalizedY = y / height;
+    const [r, g, b] = getMistColor(normalizedY);
+
+    state.mistParticles.push({
+      x: centerX + (Math.random() - 0.5) * 4,
+      y,
+      vx: direction * speed * (0.7 + intensity * 0.3),
+      vy: (Math.random() - 0.5) * MIST_VERTICAL_WANDER,
+      life,
+      maxLife: life,
+      size,
+      r: Math.round(r),
+      g: Math.round(g),
+      b: Math.round(b),
+    });
+  }
+}
+
+export function updateMistParticles(
+  state: PlasmaState,
+  deltaTime: number,
+): void {
+  for (let i = state.mistParticles.length - 1; i >= 0; i--) {
+    const p = state.mistParticles[i];
+    p.x += p.vx * deltaTime;
+    p.y += p.vy * deltaTime;
+    p.life -= deltaTime;
+    // Smoke deceleration — particles slow as they drift away
+    p.vx *= 1 - MIST_DECELERATION * deltaTime;
+    if (p.life <= 0) {
+      state.mistParticles.splice(i, 1);
     }
   }
 }
@@ -245,19 +365,26 @@ function renderBeamToImageData(
   loudness: number,
   flareIntensity: number,
   centerX: number,
+  pulseMultiplier: number,
+  colorPhase: number,
 ): void {
   const { width, height, data } = imageData;
-  const flareMult = 1 + flareIntensity;
+  const flareMult = 1 + flareIntensity * 1.5;
+  const pm = pulseMultiplier;
+
+  // Color phase shifts for vibrant plasma cycling
+  const cyanShift = 0.5 + 0.5 * Math.sin(colorPhase);
+  const purpleShift = 0.5 + 0.5 * Math.sin(colorPhase + 2.1);
 
   for (let y = 0; y < height; y++) {
     const freq = intensities[y];
-    const combined = Math.min(1, loudness * 0.6 + freq * 0.4);
+    const combined = Math.min(1, loudness * 0.5 + freq * 0.5);
 
-    // Compute layer radii for this row
-    const auraR = OUTER_AURA_RADIUS * loudness * flareMult;
-    const plasmaR = PLASMA_FIELD_RADIUS * combined * flareMult;
-    const innerR = INNER_GLOW_RADIUS * combined * flareMult;
-    const coreR = CORE_HALF_WIDTH * flareMult;
+    // Pulsating radii — each layer breathes with the music
+    const auraR = OUTER_AURA_RADIUS * loudness * flareMult * pm;
+    const plasmaR = PLASMA_FIELD_RADIUS * combined * flareMult * pm;
+    const innerR = INNER_GLOW_RADIUS * combined * flareMult * pm;
+    const coreR = CORE_HALF_WIDTH * flareMult * pm;
 
     const maxR = Math.ceil(Math.max(auraR, plasmaR, innerR, coreR));
     const xStart = Math.max(0, Math.floor(centerX - maxR));
@@ -268,33 +395,40 @@ function renderBeamToImageData(
       const dx = Math.abs(x - centerX);
       const idx = rowOffset + x * 4;
 
-      // Outer aura — soft blue
+      // Outer aura — deep blue-purple atmosphere
       if (dx < auraR && auraR > 0) {
         const d = dx / auraR;
-        const falloff = Math.exp(-d * d * 3);
-        const a = 0.06 * loudness * falloff;
-        addPixel(data, idx, 100, 150, 255, a);
+        const falloff = Math.exp(-d * d * 2.5);
+        const a = 0.12 * loudness * falloff;
+        const r = 40 + 60 * purpleShift;
+        const g = 60 + 40 * cyanShift;
+        const b = 200 + 55 * cyanShift;
+        addPixel(data, idx, r, g, b, a);
       }
 
-      // Plasma field — electric blue
+      // Plasma field — electric blue with purple shimmer
       if (dx < plasmaR && plasmaR > 0) {
         const d = dx / plasmaR;
-        const falloff = Math.exp(-d * d * 4);
-        const a = 0.14 * combined * falloff;
-        addPixel(data, idx, 140, 180, 255, a);
+        const falloff = Math.exp(-d * d * 3.5);
+        const a = 0.22 * combined * falloff;
+        const r = 80 + 80 * purpleShift;
+        const g = 140 + 60 * cyanShift;
+        addPixel(data, idx, r, g, 255, a);
       }
 
-      // Inner glow — warm incandescent
+      // Inner glow — hot cyan-white
       if (dx < innerR && innerR > 0) {
         const d = dx / innerR;
         const falloff = Math.exp(-d * d * 3);
-        const a = 0.35 * combined * falloff;
-        addPixel(data, idx, 255, 210, 120, a);
+        const a = 0.5 * combined * falloff;
+        const r = 140 + 115 * freq;
+        const g = 230 + 25 * freq;
+        addPixel(data, idx, r, g, 255, a);
       }
 
       // Core — white-hot
       if (dx < coreR) {
-        const a = 0.4 + combined * 0.6;
+        const a = 0.5 + combined * 0.5;
         addPixel(data, idx, 255, 255, 255, Math.min(1, a));
       }
     }
@@ -313,7 +447,7 @@ function renderEtchMarksToImageData(
   for (const mark of state.etchMarks) {
     const age = now - mark.timestamp;
     const fade = Math.max(0, 1 - age / ETCH_MAX_AGE_MS);
-    const alpha = mark.intensity * fade * 0.4;
+    const alpha = mark.intensity * fade * 0.35;
     if (alpha < 0.01) continue;
 
     const screenX = Math.round(playheadScreenX - (scrollLeft - mark.scrollPx));
@@ -325,13 +459,53 @@ function renderEtchMarksToImageData(
       const edgeFade = dx === 0 ? 1 : 0.4;
       for (let y = 0; y < height; y++) {
         const idx = (y * width + x) * 4;
-        addPixel(data, idx, 255, 200, 50, alpha * edgeFade);
+        // Cyan-blue etch marks to match plasma theme
+        addPixel(data, idx, 100, 200, 255, alpha * edgeFade);
       }
     }
   }
 }
 
-// --- Spark and tendril rendering (uses canvas API for lines) ---
+// --- Canvas API rendering layers ---
+
+function drawMistLayer(
+  ctx: CanvasRenderingContext2D,
+  state: PlasmaState,
+): void {
+  if (state.mistParticles.length === 0) return;
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+
+  for (const p of state.mistParticles) {
+    const lifeFrac = p.life / p.maxLife;
+    // Fade in quickly, fade out slowly
+    const fadeIn = Math.min(1, (1 - lifeFrac) * 5);
+    const fadeOut = lifeFrac;
+    const alpha = fadeIn * fadeOut * 0.3;
+    if (alpha < 0.005) continue;
+
+    // Grow slightly as particle ages (smoke expansion)
+    const size = p.size * (0.6 + 0.4 * (1 - lifeFrac));
+
+    // Horizontally elongated soft blob for wispy smoke look
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.scale(1.8, 1.0);
+
+    const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, size);
+    grad.addColorStop(0, `rgba(${p.r},${p.g},${p.b},${alpha})`);
+    grad.addColorStop(0.3, `rgba(${p.r},${p.g},${p.b},${alpha * 0.6})`);
+    grad.addColorStop(0.7, `rgba(${p.r},${p.g},${p.b},${alpha * 0.15})`);
+    grad.addColorStop(1, `rgba(${p.r},${p.g},${p.b},0)`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(-size, -size, size * 2, size * 2);
+
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
 
 function drawSparksLayer(
   ctx: CanvasRenderingContext2D,
@@ -345,19 +519,21 @@ function drawSparksLayer(
   for (const spark of state.sparks) {
     const lifeFrac = spark.life / spark.maxLife;
     const alpha = lifeFrac * 0.9;
-    const size = 1 + lifeFrac;
+    const size = 1.5 + lifeFrac * 1.5;
 
-    ctx.fillStyle = `rgba(255,240,200,${alpha})`;
+    // Bright cyan-white sparks
+    ctx.fillStyle = `rgba(200,240,255,${alpha})`;
     ctx.fillRect(spark.x - size / 2, spark.y - size / 2, size, size);
 
+    // Trail with blue tint
     const trailAlpha = alpha * 0.5;
-    ctx.strokeStyle = `rgba(255,200,100,${trailAlpha})`;
-    ctx.lineWidth = 0.5;
+    ctx.strokeStyle = `rgba(100,180,255,${trailAlpha})`;
+    ctx.lineWidth = 0.7;
     ctx.beginPath();
     ctx.moveTo(spark.x, spark.y);
     ctx.lineTo(
-      spark.x - spark.vx * lifeFrac * 0.03,
-      spark.y - spark.vy * lifeFrac * 0.03,
+      spark.x - spark.vx * lifeFrac * 0.04,
+      spark.y - spark.vy * lifeFrac * 0.04,
     );
     ctx.stroke();
   }
@@ -370,25 +546,29 @@ function drawTendrils(
   centerX: number,
   height: number,
   flareIntensity: number,
+  loudness: number,
 ): void {
-  if (flareIntensity < 0.3) return;
+  // Show tendrils on beats and when loudness is substantial
+  const tendrilBase = Math.max(0, flareIntensity, loudness * 0.3);
+  if (tendrilBase < 0.15) return;
 
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
 
-  const tendrilCount = 3 + Math.floor(flareIntensity * 4);
+  const tendrilCount = 4 + Math.floor(tendrilBase * 6);
   for (let i = 0; i < tendrilCount; i++) {
     const y = Math.random() * height;
     const direction = Math.random() > 0.5 ? 1 : -1;
-    const length = (10 + Math.random() * 15) * flareIntensity;
-    const alpha = flareIntensity * 0.2 * Math.random();
+    const length = (12 + Math.random() * 25) * tendrilBase;
+    const alpha = tendrilBase * 0.25 * Math.random();
 
     const endX = centerX + direction * length;
     const left = Math.min(centerX, endX);
 
     const gradient = ctx.createLinearGradient(centerX, y, endX, y);
-    gradient.addColorStop(0, `rgba(180,200,255,${alpha})`);
-    gradient.addColorStop(1, 'rgba(80,120,255,0)');
+    gradient.addColorStop(0, `rgba(150,220,255,${alpha})`);
+    gradient.addColorStop(0.5, `rgba(100,150,255,${alpha * 0.4})`);
+    gradient.addColorStop(1, 'rgba(60,100,255,0)');
     ctx.fillStyle = gradient;
     ctx.fillRect(left, y - 0.5, Math.abs(length), 1);
   }
@@ -424,6 +604,16 @@ export function renderPlasmaFrame(
   // Build per-row frequency intensities
   const intensities = getFrequencyIntensities(frequencyData, height);
 
+  // Spawn and update mist particles (frequency-responsive smoke)
+  spawnMistParticles(state, playheadScreenX, height, intensities, loudness);
+  updateMistParticles(state, deltaTime);
+
+  // Pulsation — beam breathes with slow and fast rhythms
+  const pulseMultiplier =
+    (0.85 + 0.15 * Math.sin(now * PULSE_SLOW_SPEED)) *
+    (0.93 + 0.07 * Math.sin(now * PULSE_FAST_SPEED));
+  const colorPhase = now * 0.002;
+
   // Render beam + etch marks into ImageData (single putImageData call)
   const imageData = ctx.createImageData(canvasWidth, height);
   renderEtchMarksToImageData(
@@ -439,11 +629,14 @@ export function renderPlasmaFrame(
     loudness,
     state.flareIntensity,
     playheadScreenX,
+    pulseMultiplier,
+    colorPhase,
   );
   ctx.putImageData(imageData, 0, 0);
 
-  // Overlay sparks and tendrils (small number of draw calls)
-  drawTendrils(ctx, playheadScreenX, height, state.flareIntensity);
+  // Overlay mist, tendrils, and sparks (canvas API for soft rendering)
+  drawMistLayer(ctx, state);
+  drawTendrils(ctx, playheadScreenX, height, state.flareIntensity, loudness);
   drawSparksLayer(ctx, state);
 }
 
@@ -456,6 +649,24 @@ export function renderIdleFrame(
   centerX: number,
 ): void {
   ctx.clearRect(0, 0, canvasWidth, height);
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+
+  // Subtle outer glow
+  const glowWidth = 20;
+  const gradient = ctx.createLinearGradient(
+    centerX - glowWidth,
+    0,
+    centerX + glowWidth,
+    0,
+  );
+  gradient.addColorStop(0, 'rgba(60, 140, 255, 0)');
+  gradient.addColorStop(0.3, 'rgba(60, 140, 255, 0.02)');
+  gradient.addColorStop(0.5, 'rgba(120, 200, 255, 0.06)');
+  gradient.addColorStop(0.7, 'rgba(60, 140, 255, 0.02)');
+  gradient.addColorStop(1, 'rgba(60, 140, 255, 0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(centerX - glowWidth, 0, glowWidth * 2, height);
+
+  // Core line with slight cyan tint
+  ctx.fillStyle = 'rgba(180, 220, 255, 0.65)';
   ctx.fillRect(centerX - 0.5, 0, 1, height);
 }

@@ -5,7 +5,7 @@ import {
   renderPlasmaFrame,
 } from './plasmaRenderer';
 
-export const PLASMA_WIDTH = 120;
+export const PLASMA_WIDTH = 240;
 
 export type PlasmaPlayheadHandle = {
   render: (
