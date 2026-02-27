@@ -3,6 +3,14 @@ import { type TrackColor } from '../../types/track';
 import type { SpectrogramData } from '../OfflineAnalyser';
 import SpectrogramCache from '../SpectrogramCache';
 
+vi.mock('../OfflineAnalyser', () => ({
+  default: vi.fn(),
+}));
+
+vi.mock('../SpectrogramTileRenderer', () => ({
+  renderTiles: vi.fn(),
+}));
+
 const COLOR: TrackColor = { r: 77, g: 238, b: 234 };
 
 const MOCK_SPECTROGRAM_DATA: SpectrogramData = {
@@ -210,13 +218,28 @@ describe('analyse', () => {
     expect(mockWorker.postMessage.mock.calls[1][0].id).toBe(1);
   });
 
-  it('rejects the promise when the worker responds with an error', async () => {
+  it('falls back to main thread when the worker responds with an error', async () => {
+    const { default: MockOfflineAnalyser } = await import('../OfflineAnalyser');
+    const { renderTiles: mockRenderTiles } =
+      await import('../SpectrogramTileRenderer');
+
+    const fallbackTile = { close: vi.fn() } as unknown as ImageBitmap;
+    const mockAnalyser = {
+      analyseToFrames: vi.fn().mockResolvedValue(MOCK_SPECTROGRAM_DATA),
+    };
+    vi.mocked(MockOfflineAnalyser).mockImplementation(function () {
+      return mockAnalyser;
+    } as unknown as typeof MockOfflineAnalyser);
+    vi.mocked(mockRenderTiles).mockReturnValue([fallbackTile]);
+
     const promise = cache.analyse('track-1', mockAudioBuffer(), COLOR);
-
     simulateWorkerError('OfflineAudioContext failed');
+    await promise;
 
-    await expect(promise).rejects.toThrow('OfflineAudioContext failed');
-    expect(cache.getEntry('track-1')).toBeUndefined();
+    expect(MockOfflineAnalyser).toHaveBeenCalled();
+    const entry = cache.getEntry('track-1');
+    expect(entry).toBeDefined();
+    expect(entry!.tiles).toEqual([fallbackTile]);
   });
 });
 

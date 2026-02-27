@@ -1,5 +1,6 @@
 import { type TrackColor } from '../types/track';
-import { type SpectrogramData } from './OfflineAnalyser';
+import OfflineAnalyser, { type SpectrogramData } from './OfflineAnalyser';
+import { renderTiles } from './SpectrogramTileRenderer';
 import { type AnalyseResponse } from './spectrogram.worker';
 
 export type TrackSpectrogramEntry = {
@@ -15,6 +16,7 @@ type PendingRequest = {
 class SpectrogramCache {
   private entries = new Map<string, TrackSpectrogramEntry>();
   private worker: Worker | null = null;
+  private workerFailed = false;
   private nextMessageId = 0;
   private pendingRequests = new Map<number, PendingRequest>();
 
@@ -23,8 +25,19 @@ class SpectrogramCache {
     audioBuffer: AudioBuffer,
     color: TrackColor,
   ): Promise<void> {
-    const { data, tiles } = await this.analyseInWorker(audioBuffer, color);
-    this.entries.set(trackId, { data, tiles });
+    let result: { data: SpectrogramData; tiles: ImageBitmap[] };
+    if (this.workerFailed) {
+      result = await this.analyseOnMainThread(audioBuffer, color);
+    } else {
+      try {
+        result = await this.analyseInWorker(audioBuffer, color);
+      } catch {
+        // Worker failed (e.g. OfflineAudioContext unavailable in worker scope)
+        this.workerFailed = true;
+        result = await this.analyseOnMainThread(audioBuffer, color);
+      }
+    }
+    this.entries.set(trackId, { data: result.data, tiles: result.tiles });
   }
 
   getEntry(trackId: string): TrackSpectrogramEntry | undefined {
@@ -64,8 +77,21 @@ class SpectrogramCache {
           pending.resolve({ data: event.data.data, tiles: event.data.tiles });
         }
       };
+      this.worker.onerror = () => {
+        this.workerFailed = true;
+        this.rejectAllPending(
+          new Error('Spectrogram worker failed; falling back to main thread'),
+        );
+      };
     }
     return this.worker;
+  }
+
+  private rejectAllPending(error: Error): void {
+    for (const pending of this.pendingRequests.values()) {
+      pending.reject(error);
+    }
+    this.pendingRequests.clear();
   }
 
   private analyseInWorker(
@@ -96,6 +122,16 @@ class SpectrogramCache {
         transferables,
       );
     });
+  }
+
+  private async analyseOnMainThread(
+    audioBuffer: AudioBuffer,
+    color: TrackColor,
+  ): Promise<{ data: SpectrogramData; tiles: ImageBitmap[] }> {
+    const analyser = new OfflineAnalyser(audioBuffer);
+    const data = await analyser.analyseToFrames();
+    const tiles = renderTiles(data, color);
+    return { data, tiles };
   }
 }
 
