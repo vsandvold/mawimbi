@@ -168,9 +168,10 @@ function drawRecordingFrame(
   const paddingLeft = timeline
     ? parseFloat(getComputedStyle(timeline).paddingLeft) || 0
     : 0;
+  const containerMarginLeft = parseFloat(container.style.marginLeft) || 0;
   const maxContentOffset = Math.max(0, contentWidth - viewportWidth);
   const contentOffset = Math.min(
-    Math.max(0, scrollLeft - paddingLeft),
+    Math.max(0, scrollLeft - paddingLeft - containerMarginLeft),
     maxContentOffset,
   );
 
@@ -233,9 +234,10 @@ function drawTilesFrame(
   const paddingLeft = timeline
     ? parseFloat(getComputedStyle(timeline).paddingLeft) || 0
     : 0;
+  const containerMarginLeft = parseFloat(container.style.marginLeft) || 0;
   const maxContentOffset = Math.max(0, containerWidth - viewportWidth);
   const contentOffset = Math.min(
-    Math.max(0, scrollLeft - paddingLeft),
+    Math.max(0, scrollLeft - paddingLeft - containerMarginLeft),
     maxContentOffset,
   );
 
@@ -290,7 +292,10 @@ function drawTilesFrame(
   if (playing) {
     const frequencyData = audioService.mixer.getFrequencyData(trackId);
     if (frequencyData) {
-      const playheadX = transportTime.value * pixelsPerSecond - contentOffset;
+      const playheadX =
+        transportTime.value * pixelsPerSecond -
+        containerMarginLeft -
+        contentOffset;
       drawLiveColumn(ctx, frequencyData, playheadX, height, color);
     }
   }

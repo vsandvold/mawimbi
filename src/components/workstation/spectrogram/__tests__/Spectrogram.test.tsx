@@ -216,10 +216,96 @@ it('sets container width to zero when no audio buffer', () => {
   expect(spectrogram).toHaveStyle({ width: '0px' });
 });
 
-// Scroll-offset tile drawing tests (correct offset, max-offset capping,
-// redraw on scroll change) are covered by the e2e suite in
-// e2e/spectrogram-timeline.spec.ts which verifies actual rendered pixels
-// across the full scroll range, including past the sticky boundary.
+describe('scroll offset for tracks with non-zero start time', () => {
+  const START_TIME = 3.0;
+  const DURATION = 5.0;
+  const VIEWPORT_WIDTH = 800;
+
+  const mockCtx = {
+    clearRect: vi.fn(),
+    drawImage: vi.fn(),
+    fillRect: vi.fn(),
+    save: vi.fn(),
+    restore: vi.fn(),
+    getImageData: vi.fn(),
+    putImageData: vi.fn(),
+    globalCompositeOperation: 'source-over' as string,
+    fillStyle: '' as string,
+    canvas: { width: VIEWPORT_WIDTH, height: 128 },
+  };
+
+  const tileImageBitmap = { close: vi.fn(), width: 4096, height: 1024 };
+
+  const cachedEntry = {
+    data: {
+      frequencyFrames: Array.from({ length: 100 }, () => new Uint8Array(1024)),
+      timeResolution: 0.025,
+      frequencyBinCount: 1024,
+      sampleRate: 44100,
+      duration: DURATION,
+    },
+    tiles: [tileImageBitmap],
+  };
+
+  beforeEach(() => {
+    const audioBuffer = { duration: DURATION } as AudioBuffer;
+    mockRetrieveAudioBuffer.mockReturnValue(audioBuffer);
+    mockRetrieveStartTime.mockReturnValue(START_TIME);
+    mockGetEntry.mockReturnValue(cachedEntry);
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+      mockCtx as unknown as CanvasRenderingContext2D,
+    );
+    mockCtx.drawImage.mockClear();
+    mockCtx.clearRect.mockClear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function setScrollPosition(container: HTMLElement, scrollLeft: number): void {
+    const scrollContainer = container.querySelector('.scrubber__timeline')!;
+    Object.defineProperty(scrollContainer, 'scrollLeft', {
+      value: scrollLeft,
+      configurable: true,
+    });
+    Object.defineProperty(scrollContainer, 'clientWidth', {
+      value: VIEWPORT_WIDTH,
+      configurable: true,
+    });
+  }
+
+  function invokeAnimationCallback() {
+    const calls = vi.mocked(useAnimationFrame).mock.calls;
+    const callback = calls[calls.length - 1]?.[0];
+    callback?.();
+  }
+
+  it('draws first tile at x=0 when viewport is aligned with track start', () => {
+    const containerMarginLeft = START_TIME * defaultProps.pixelsPerSecond;
+
+    const { container } = render(
+      <div className="timeline">
+        <div className="scrubber__timeline">
+          <Spectrogram {...defaultProps} />
+        </div>
+      </div>,
+    );
+
+    setScrollPosition(container, containerMarginLeft);
+    invokeAnimationCallback();
+
+    // When scrolled exactly to the track's start position, content offset
+    // should be 0, so the first tile is drawn at x=0 on the canvas.
+    expect(mockCtx.drawImage).toHaveBeenCalledWith(
+      tileImageBitmap,
+      0,
+      0,
+      expect.any(Number),
+      128,
+    );
+  });
+});
 
 describe('live playback overlay', () => {
   const mockCtx = {
