@@ -121,6 +121,58 @@ function forceSpectrogramRendering(page: import('@playwright/test').Page) {
   });
 }
 
+test.describe('Spectrogram canvas sticky positioning on mobile', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test.beforeEach(async ({ page }) => {
+    await forceSpectrogramRendering(page);
+    await page.goto('/project');
+    await uploadAudioFile(page, LONG_AUDIO);
+
+    const spectrogramCanvas = page.locator('.spectrogram__canvas');
+    await expect(spectrogramCanvas).toBeVisible({ timeout: 15000 });
+
+    await expect(async () => {
+      const hasContent = await canvasHasContent(spectrogramCanvas);
+      expect(hasContent).toBe(true);
+    }).toPass({ timeout: 15000 });
+  });
+
+  test('canvas sticks at the viewport edge, not the content edge', async ({
+    page,
+  }) => {
+    const scrollContainer = page.locator('.scrubber__timeline');
+    const spectrogramCanvas = page.locator('.spectrogram__canvas');
+
+    const paddingLeft = await scrollContainer.evaluate((el) => {
+      const tl = el.querySelector('.timeline') as HTMLElement;
+      return parseFloat(getComputedStyle(tl).paddingLeft);
+    });
+
+    // Scroll well past the padding so sticky positioning is active
+    const scrollPos = Math.floor(paddingLeft + 300);
+    await scrollContainer.evaluate((el, pos) => {
+      el.scrollLeft = pos;
+    }, scrollPos);
+    await page.waitForTimeout(200);
+
+    const canvasLeft = await spectrogramCanvas.evaluate(
+      (canvas: HTMLCanvasElement) => canvas.getBoundingClientRect().left,
+    );
+
+    // The canvas should be at the viewport edge (left: 0), not offset
+    // by the scroll container's padding-left. On a 390px mobile viewport
+    // with 75% cursor position, the padding is ~292px — if the canvas is
+    // at the padding edge, only ~25% of the viewport shows spectrogram.
+    expect(
+      canvasLeft,
+      `Canvas left edge is at ${canvasLeft}px instead of 0px — ` +
+        `it is stuck at the scroll container content edge (paddingLeft=${paddingLeft}) ` +
+        'instead of the viewport edge',
+    ).toBeCloseTo(0, 0);
+  });
+});
+
 test.describe('Spectrogram timeline visualization during scroll', () => {
   test.beforeEach(async ({ page }) => {
     await forceSpectrogramRendering(page);
@@ -140,15 +192,16 @@ test.describe('Spectrogram timeline visualization during scroll', () => {
   test('spectrogram content updates when scrolling into content range', async ({
     page,
   }) => {
-    const timeline = page.locator('.scrubber__timeline');
+    const scrollContainer = page.locator('.scrubber__timeline');
     const spectrogramCanvas = page.locator('.spectrogram__canvas');
 
     // Compute the scroll position where the spectrogram container's left
     // edge aligns with the scroll parent's left edge. Beyond this point,
     // contentOffset increases and the canvas draws different audio content.
-    const paddingLeft = await timeline.evaluate((el) =>
-      parseFloat(getComputedStyle(el).paddingLeft),
-    );
+    const paddingLeft = await scrollContainer.evaluate((el) => {
+      const tl = el.querySelector('.timeline') as HTMLElement;
+      return parseFloat(getComputedStyle(tl).paddingLeft);
+    });
 
     // Hash the full canvas pixel buffer (not just the visible strip),
     // since the canvas is sticky and may be partially off-screen before
@@ -170,7 +223,7 @@ test.describe('Spectrogram timeline visualization during scroll', () => {
     // Scroll just past the padding so the spectrogram enters the content
     // range where contentOffset starts increasing.
     const scrollA = Math.floor(paddingLeft + 100);
-    await timeline.evaluate((el, pos) => {
+    await scrollContainer.evaluate((el, pos) => {
       el.scrollLeft = pos;
     }, scrollA);
     await page.waitForTimeout(200);
@@ -179,7 +232,7 @@ test.describe('Spectrogram timeline visualization during scroll', () => {
 
     // Scroll further into the content range
     const scrollB = scrollA + 400;
-    await timeline.evaluate((el, pos) => {
+    await scrollContainer.evaluate((el, pos) => {
       el.scrollLeft = pos;
     }, scrollB);
     await page.waitForTimeout(200);
@@ -199,12 +252,13 @@ test.describe('Spectrogram timeline visualization during scroll', () => {
   test('spectrogram fills the visible canvas when scrolled into content', async ({
     page,
   }) => {
-    const timeline = page.locator('.scrubber__timeline');
+    const scrollContainer = page.locator('.scrubber__timeline');
     const spectrogramCanvas = page.locator('.spectrogram__canvas');
 
     // Scroll to mid-content where the sticky canvas should be fully visible
-    const contentInfo = await timeline.evaluate((el) => {
-      const paddingLeft = parseFloat(getComputedStyle(el).paddingLeft);
+    const contentInfo = await scrollContainer.evaluate((el) => {
+      const tl = el.querySelector('.timeline') as HTMLElement;
+      const paddingLeft = parseFloat(getComputedStyle(tl).paddingLeft);
       const spectrogram = el.querySelector('.spectrogram') as HTMLElement;
       const spectrogramWidth = spectrogram?.offsetWidth ?? 0;
       return { paddingLeft, spectrogramWidth, clientWidth: el.clientWidth };
@@ -215,7 +269,7 @@ test.describe('Spectrogram timeline visualization during scroll', () => {
         (contentInfo.spectrogramWidth - contentInfo.clientWidth) / 2,
     );
 
-    await timeline.evaluate((el, pos) => {
+    await scrollContainer.evaluate((el, pos) => {
       el.scrollLeft = pos;
     }, midScroll);
     await page.waitForTimeout(200);
@@ -227,11 +281,12 @@ test.describe('Spectrogram timeline visualization during scroll', () => {
   test('spectrogram visible canvas stays filled past the sticky boundary', async ({
     page,
   }) => {
-    const timeline = page.locator('.scrubber__timeline');
+    const scrollContainer = page.locator('.scrubber__timeline');
     const spectrogramCanvas = page.locator('.spectrogram__canvas');
 
-    const contentInfo = await timeline.evaluate((el) => {
-      const paddingLeft = parseFloat(getComputedStyle(el).paddingLeft);
+    const contentInfo = await scrollContainer.evaluate((el) => {
+      const tl = el.querySelector('.timeline') as HTMLElement;
+      const paddingLeft = parseFloat(getComputedStyle(tl).paddingLeft);
       const spectrogram = el.querySelector('.spectrogram') as HTMLElement;
       const spectrogramWidth = spectrogram?.offsetWidth ?? 0;
       return {
@@ -263,7 +318,7 @@ test.describe('Spectrogram timeline visualization during scroll', () => {
     const results: Array<{ scrollPos: number; ratio: number }> = [];
 
     for (const scrollPos of testPositions) {
-      await timeline.evaluate((el, pos) => {
+      await scrollContainer.evaluate((el, pos) => {
         el.scrollLeft = pos;
       }, scrollPos);
       await page.waitForTimeout(150);
@@ -287,11 +342,12 @@ test.describe('Spectrogram timeline visualization during scroll', () => {
   test('spectrogram coverage is consistent across the full scroll range', async ({
     page,
   }) => {
-    const timeline = page.locator('.scrubber__timeline');
+    const scrollContainer = page.locator('.scrubber__timeline');
     const spectrogramCanvas = page.locator('.spectrogram__canvas');
 
-    const contentInfo = await timeline.evaluate((el) => {
-      const paddingLeft = parseFloat(getComputedStyle(el).paddingLeft);
+    const contentInfo = await scrollContainer.evaluate((el) => {
+      const tl = el.querySelector('.timeline') as HTMLElement;
+      const paddingLeft = parseFloat(getComputedStyle(tl).paddingLeft);
       const spectrogram = el.querySelector('.spectrogram') as HTMLElement;
       const spectrogramWidth = spectrogram?.offsetWidth ?? 0;
       return {
@@ -320,7 +376,7 @@ test.describe('Spectrogram timeline visualization during scroll', () => {
       );
       if (scrollPos < 0 || scrollPos > maxScroll) continue;
 
-      await timeline.evaluate((el, pos) => {
+      await scrollContainer.evaluate((el, pos) => {
         el.scrollLeft = pos;
       }, scrollPos);
       await page.waitForTimeout(100);

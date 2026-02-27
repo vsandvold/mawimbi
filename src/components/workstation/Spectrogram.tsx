@@ -73,8 +73,9 @@ const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
     // in how position:sticky elements report their rect (desktop vs. mobile
     // compositors) and is cheaper than triggering layout queries each frame.
     const scrollLeft = scrollParent?.scrollLeft ?? 0;
-    const paddingLeft = scrollParent
-      ? parseFloat(getComputedStyle(scrollParent).paddingLeft) || 0
+    const timeline = container.closest('.timeline');
+    const paddingLeft = timeline
+      ? parseFloat(getComputedStyle(timeline).paddingLeft) || 0
       : 0;
     const maxContentOffset = Math.max(0, containerWidth - viewportWidth);
     const contentOffset = Math.min(

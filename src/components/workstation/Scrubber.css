@@ -13,8 +13,7 @@
 .scrubber__timeline {
   display: flex;
   min-width: 100vw;
-  padding: var(--timeline-margin) 0 var(--timeline-margin)
-    calc(var(--cursor-position) * 100vw);
+  padding: var(--timeline-margin) 0;
   overflow-x: scroll;
 }
 
