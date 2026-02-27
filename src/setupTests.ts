@@ -86,22 +86,3 @@ vi.mock('react-router-dom', async () => {
     }),
   };
 });
-
-const { mockCreate } = vi.hoisted(() => {
-  const mockDestroy = vi.fn();
-  const mockLoad = vi.fn().mockResolvedValue(undefined);
-  const mockCreate = vi.fn().mockImplementation(() => ({
-    destroy: mockDestroy,
-    load: mockLoad,
-  }));
-  return { mockCreate };
-});
-
-vi.mock('wavesurfer.js', async () => {
-  const actual =
-    await vi.importActual<typeof import('wavesurfer.js')>('wavesurfer.js');
-  return {
-    ...actual,
-    default: { create: mockCreate },
-  };
-});

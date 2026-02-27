@@ -122,7 +122,7 @@ test.describe('Recording', () => {
     const waveformTrack = page.locator('.timeline__waveform');
     await expect(waveformTrack).toBeVisible({ timeout: 5000 });
 
-    // The track should contain a canvas (WaveSurfer or Spectrogram)
+    // The track should contain a spectrogram canvas
     const canvas = waveformTrack.locator('canvas');
     await expect(canvas.first()).toBeVisible({ timeout: 5000 });
 

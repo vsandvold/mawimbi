@@ -244,20 +244,17 @@ test.describe('Mixer', () => {
   });
 });
 
-test.describe('Waveform and spectrogram rendering', () => {
+test.describe('Spectrogram rendering', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/project');
   });
 
-  test('renders waveform or spectrogram canvas for uploaded track', async ({
-    page,
-  }) => {
+  test('renders spectrogram canvas for uploaded track', async ({ page }) => {
     await uploadAudioFile(page, SHORT_AUDIO);
 
     const timeline = page.locator('.timeline');
     await expect(timeline).toBeVisible();
 
-    // Should render either a WaveSurfer waveform (contains a canvas) or a spectrogram canvas
     const canvas = timeline.locator('canvas');
     await expect(canvas.first()).toBeVisible();
   });
@@ -276,7 +273,7 @@ test.describe('Waveform and spectrogram rendering', () => {
     }
   });
 
-  test('waveform opacity reflects track volume', async ({ page }) => {
+  test('spectrogram opacity reflects track volume', async ({ page }) => {
     await uploadAudioFile(page, SHORT_AUDIO);
     await expect(page.locator('.timeline__waveform')).toBeVisible();
 

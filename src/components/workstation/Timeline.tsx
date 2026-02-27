@@ -1,13 +1,11 @@
 import { useSignals } from '@preact/signals-react/runtime';
 import classNames from 'classnames';
-import { useBrowserSupport } from '../../browserSupport';
 import { useContainerHeight } from '../../hooks/useContainerHeight';
 import { focusedTracks as focusedTracksSignal } from '../../signals/focusSignals';
 import { mutedTracks as mutedTracksSignal } from '../../signals/trackSignals';
 import { Track, TrackId } from '../project/projectPageReducer';
 import Spectrogram from './Spectrogram';
 import './Timeline.css';
-import Waveform from './Waveform';
 
 type TimelineProps = {
   pixelsPerSecond: number;
@@ -18,7 +16,6 @@ const Timeline = ({ pixelsPerSecond, tracks }: TimelineProps) => {
   useSignals();
   const { containerRef, height } = useContainerHeight();
 
-  const browserSupport = useBrowserSupport();
   const focusedTracks = focusedTracksSignal.value;
   const mutedTracks = mutedTracksSignal.value;
 
@@ -33,19 +30,11 @@ const Timeline = ({ pixelsPerSecond, tracks }: TimelineProps) => {
           );
           return (
             <div key={track.trackId} className={timelineWaveformClass}>
-              {browserSupport.webkitOfflineAudioContext ? (
-                <Waveform
-                  height={height}
-                  pixelsPerSecond={pixelsPerSecond}
-                  track={track}
-                />
-              ) : (
-                <Spectrogram
-                  height={height}
-                  pixelsPerSecond={pixelsPerSecond}
-                  track={track}
-                />
-              )}
+              <Spectrogram
+                height={height}
+                pixelsPerSecond={pixelsPerSecond}
+                track={track}
+              />
             </div>
           );
         })}
