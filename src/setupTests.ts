@@ -47,7 +47,14 @@ vi.mock('tone', () => {
       sampleRate: 44100,
     },
   };
+  function makeAnalyserNode() {
+    return {
+      ...makeNode(),
+      getValue: vi.fn().mockReturnValue(new Float32Array(2048)),
+    };
+  }
   return {
+    Analyser: vi.fn().mockImplementation(makeAnalyserNode),
     Meter: vi.fn().mockImplementation(makeNode),
     UserMedia: vi.fn().mockImplementation(makeNode),
     Player: vi.fn().mockImplementation(makeNode),

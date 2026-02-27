@@ -2,6 +2,7 @@ import * as Tone from 'tone';
 
 const SMOOTHING = 0.8;
 const POWER_CURVE_EXPONENT = 0.6;
+const FFT_SIZE = 2048;
 
 class Mixer {
   private audioChannelRepository: AudioChannelRepository;
@@ -29,11 +30,20 @@ class Mixer {
     const player = new Tone.Player(audioBuffer)
       .sync()
       .start(startTime, audioOffset);
-    const channel = new Tone.Channel().toDestination();
-    player.chain(channel);
+    const channel = new Tone.Channel();
+    const analyser = new Tone.Analyser({
+      type: 'fft',
+      size: FFT_SIZE,
+      smoothing: 0,
+    });
+    player.chain(channel, analyser, Tone.getDestination());
     this.audioChannelRepository.add(
-      new AudioChannel(trackId, channel, normalizationGainDb),
+      new AudioChannel(trackId, channel, analyser, normalizationGainDb),
     );
+  }
+
+  getFrequencyData(trackId: string): Float32Array | undefined {
+    return this.audioChannelRepository.get(trackId)?.getFrequencyData();
   }
 
   retrieveChannel(trackId: string): AudioChannel | undefined {
@@ -72,16 +82,28 @@ class Mixer {
 export class AudioChannel {
   id: string;
   private channel: Tone.Channel;
+  private analyser: Tone.Analyser;
   private normalizationGainDb: number;
 
-  constructor(id: string, channel: Tone.Channel, normalizationGainDb = 0) {
+  constructor(
+    id: string,
+    channel: Tone.Channel,
+    analyser: Tone.Analyser,
+    normalizationGainDb = 0,
+  ) {
     this.id = id;
     this.channel = channel;
+    this.analyser = analyser;
     this.normalizationGainDb = normalizationGainDb;
+  }
+
+  getFrequencyData(): Float32Array {
+    return this.analyser.getValue() as Float32Array;
   }
 
   dispose(): void {
     this.channel.dispose();
+    this.analyser.dispose();
   }
 
   get mute(): boolean {
