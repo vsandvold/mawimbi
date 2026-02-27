@@ -8,7 +8,7 @@
   padding-right: calc((1 - var(--cursor-position)) * 100vw);
 }
 
-.timeline__waveform {
+.timeline__track {
   display: flex;
   grid-column-start: 1;
   grid-column-end: 1;
@@ -19,16 +19,16 @@
   transition: opacity 0.1s;
 }
 
-.timeline__waveform--foreground {
+.timeline__track--foreground {
   z-index: 1;
 }
 
-.timeline__waveform--background {
+.timeline__track--background {
   opacity: 0.5;
   transition: opacity 0.3s;
 }
 
-.timeline__waveform--muted {
+.timeline__track--muted {
   opacity: 0;
   transition: opacity 0.3s;
 }

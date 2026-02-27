@@ -150,7 +150,7 @@ test.describe('Drag and drop – file upload', () => {
     await expect(
       page.getByText('Start recording, or upload some audio files'),
     ).toBeHidden();
-    await expect(page.locator('.timeline__waveform')).toBeVisible();
+    await expect(page.locator('.timeline__track')).toBeVisible();
   });
 
   test('dropping multiple audio files creates one track per file', async ({
@@ -160,7 +160,7 @@ test.describe('Drag and drop – file upload', () => {
     await dragOver(page, dt);
     await drop(page, dt);
 
-    await expect(page.locator('.timeline__waveform')).toHaveCount(2);
+    await expect(page.locator('.timeline__track')).toHaveCount(2);
   });
 
   test('enables play and mixer buttons after a successful drop', async ({
@@ -173,7 +173,7 @@ test.describe('Drag and drop – file upload', () => {
     await dragOver(page, dt);
     await drop(page, dt);
 
-    await expect(page.locator('.timeline__waveform')).toBeVisible();
+    await expect(page.locator('.timeline__track')).toBeVisible();
     await expect(page.getByTitle('Play')).toBeEnabled();
     await expect(page.getByTitle('Show mixer')).toBeEnabled();
   });
@@ -187,7 +187,7 @@ test.describe('Drag and drop – file upload', () => {
     await expect(
       page.getByText('Start recording, or upload some audio files'),
     ).toBeVisible();
-    await expect(page.locator('.timeline__waveform')).toHaveCount(0);
+    await expect(page.locator('.timeline__track')).toHaveCount(0);
   });
 });
 

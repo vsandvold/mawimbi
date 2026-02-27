@@ -96,36 +96,10 @@ async function canvasHasContent(
   }, threshold);
 }
 
-/**
- * addInitScript that forces Spectrogram rendering by removing
- * webkitOfflineAudioContext from the window object, so
- * browserSupport.tsx reports it as absent.
- */
-function forceSpectrogramRendering(page: import('@playwright/test').Page) {
-  return page.addInitScript(() => {
-    try {
-      delete (window as unknown as Record<string, unknown>)
-        .webkitOfflineAudioContext;
-    } catch {
-      /* non-configurable */
-    }
-
-    const proto = Object.getPrototypeOf(window);
-    if (proto && 'webkitOfflineAudioContext' in proto) {
-      try {
-        delete proto.webkitOfflineAudioContext;
-      } catch {
-        /* non-configurable */
-      }
-    }
-  });
-}
-
 test.describe('Spectrogram canvas sticky positioning on mobile', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
   test.beforeEach(async ({ page }) => {
-    await forceSpectrogramRendering(page);
     await page.goto('/project');
     await uploadAudioFile(page, LONG_AUDIO);
 
@@ -175,7 +149,6 @@ test.describe('Spectrogram canvas sticky positioning on mobile', () => {
 
 test.describe('Spectrogram timeline visualization during scroll', () => {
   test.beforeEach(async ({ page }) => {
-    await forceSpectrogramRendering(page);
     await page.goto('/project');
     await uploadAudioFile(page, LONG_AUDIO);
 

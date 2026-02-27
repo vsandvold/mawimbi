@@ -110,20 +110,20 @@ test.describe('Recording', () => {
   test('recording creates a track in the timeline', async ({ page }) => {
     await recordAudio(page);
 
-    const waveformTrack = page.locator('.timeline__waveform');
-    await expect(waveformTrack).toBeVisible({ timeout: 5000 });
+    const timelineTrack = page.locator('.timeline__track');
+    await expect(timelineTrack).toBeVisible({ timeout: 5000 });
   });
 
-  test('recorded track has a visible waveform visualization', async ({
+  test('recorded track has a visible spectrogram', async ({
     page,
   }) => {
     await recordAudio(page);
 
-    const waveformTrack = page.locator('.timeline__waveform');
-    await expect(waveformTrack).toBeVisible({ timeout: 5000 });
+    const timelineTrack = page.locator('.timeline__track');
+    await expect(timelineTrack).toBeVisible({ timeout: 5000 });
 
-    // The track should contain a canvas (WaveSurfer or Spectrogram)
-    const canvas = waveformTrack.locator('canvas');
+    // The track should contain a spectrogram canvas
+    const canvas = timelineTrack.locator('canvas');
     await expect(canvas.first()).toBeVisible({ timeout: 5000 });
 
     // Verify the canvas has non-empty content (data flowing through graph)
@@ -139,7 +139,7 @@ test.describe('Recording', () => {
   test('recorded track can be played back', async ({ page }) => {
     await recordAudio(page);
 
-    await expect(page.locator('.timeline__waveform')).toBeVisible({
+    await expect(page.locator('.timeline__track')).toBeVisible({
       timeout: 5000,
     });
 
@@ -158,7 +158,7 @@ test.describe('Recording', () => {
   }) => {
     await recordAudio(page);
 
-    await expect(page.locator('.timeline__waveform')).toBeVisible({
+    await expect(page.locator('.timeline__track')).toBeVisible({
       timeout: 5000,
     });
 
@@ -187,7 +187,7 @@ test.describe('Recording with existing tracks', () => {
     // Upload a backing track first
     const fileInput = page.locator('.project-page-header input[type="file"]');
     await fileInput.setInputFiles(SHORT_AUDIO);
-    await expect(page.locator('.timeline__waveform')).toBeVisible();
+    await expect(page.locator('.timeline__track')).toBeVisible();
   });
 
   test('overdub recording adds a second track alongside the uploaded track', async ({
@@ -195,7 +195,7 @@ test.describe('Recording with existing tracks', () => {
   }) => {
     await recordAudio(page);
 
-    await expect(page.locator('.timeline__waveform')).toHaveCount(2, {
+    await expect(page.locator('.timeline__track')).toHaveCount(2, {
       timeout: 5000,
     });
   });
@@ -205,7 +205,7 @@ test.describe('Recording with existing tracks', () => {
   }) => {
     await recordAudio(page, 1500);
 
-    await expect(page.locator('.timeline__waveform')).toHaveCount(2, {
+    await expect(page.locator('.timeline__track')).toHaveCount(2, {
       timeout: 5000,
     });
 

@@ -35,7 +35,7 @@ test.describe('Drag and scroll timeline to seek while playing', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/project');
     await uploadAudioFile(page, LONG_AUDIO);
-    await expect(page.locator('.timeline__waveform')).toBeVisible();
+    await expect(page.locator('.timeline__track')).toBeVisible();
   });
 
   test('scrolling the timeline during playback pauses, then resumes at new position', async ({
