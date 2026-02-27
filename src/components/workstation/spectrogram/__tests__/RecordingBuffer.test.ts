@@ -179,3 +179,27 @@ it('draws frequency bins bottom-to-top', () => {
   expect(bottomAlpha).toBeGreaterThan(200);
   expect(topAlpha).toBe(0);
 });
+
+it('applies logarithmic frequency mapping so low frequencies span more rows', () => {
+  const bins = 4;
+  const buffer = new RecordingBuffer(WHITE, bins);
+  // Only the lowest frequency bin is loud
+  const data = new Float32Array(bins).fill(-100);
+  data[0] = -30;
+
+  buffer.addFrame(data);
+
+  const imageData = mockPutImageData.mock.calls[0][0];
+  // With log mapping for 4 bins, output bins 0 and 1 both map to
+  // input bin 0. So the bottom two rows (rows 3 and 2) should be bright,
+  // not just the bottom one.
+  const row3Alpha = imageData.data[3 * 4 + 3]; // bottom
+  const row2Alpha = imageData.data[2 * 4 + 3]; // second from bottom
+  const row1Alpha = imageData.data[1 * 4 + 3]; // third from bottom
+  const row0Alpha = imageData.data[0 * 4 + 3]; // top
+
+  expect(row3Alpha).toBeGreaterThan(200);
+  expect(row2Alpha).toBeGreaterThan(200);
+  expect(row1Alpha).toBe(0);
+  expect(row0Alpha).toBe(0);
+});

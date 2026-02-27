@@ -1,8 +1,6 @@
 import { vi } from 'vitest';
-import {
-  analyseToFrames,
-  createLogFrequencyMapping,
-} from '../spectrogram.worker';
+import { createLogFrequencyMapping } from '../logFrequencyMapping';
+import { analyseToFrames } from '../spectrogram.worker';
 
 // OfflineAudioContext is not available in jsdom — mock it identically to OfflineAnalyser tests
 const mockGetByteFrequencyData = vi.fn();

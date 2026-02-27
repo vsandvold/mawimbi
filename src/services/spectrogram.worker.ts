@@ -1,4 +1,5 @@
 import { type TrackColor } from '../types/track';
+import { createLogFrequencyMapping } from './logFrequencyMapping';
 import { type SpectrogramData } from './OfflineAnalyser';
 import { renderTiles } from './SpectrogramTileRenderer';
 
@@ -19,36 +20,6 @@ export type AnalyseRequest = {
 export type AnalyseResponse =
   | { id: number; type: 'result'; data: SpectrogramData; tiles: ImageBitmap[] }
   | { id: number; type: 'error'; message: string };
-
-/**
- * Logarithmic frequency mapping — identical to OfflineAnalyser.createLogFrequencyMapping.
- *
- * Maps linear FFT bins to perceptual (log-spaced) bins. Lower bins pool
- * multiple linear bins together, compressing the high-frequency region
- * and expanding the low-frequency region for musical relevance.
- */
-export function createLogFrequencyMapping(
-  frequencyBinCount: number,
-): number[][] {
-  const mapping: number[][] = new Array(frequencyBinCount);
-  const lower = 1;
-  const upper = frequencyBinCount + 1;
-  const b = Math.log(lower / upper) / (lower - upper);
-  for (let i = 0; i < frequencyBinCount; i++) {
-    const logIdx = Math.trunc(Math.exp(b * i)) - 1;
-    mapping[i] = [logIdx];
-  }
-  for (let i = 0; i < frequencyBinCount - 1; i++) {
-    const df = mapping[i + 1][0] - mapping[i][0];
-    if (df === 1) {
-      continue;
-    }
-    for (let j = 1; j <= df; j++) {
-      mapping[i].push(mapping[i][0] + j);
-    }
-  }
-  return mapping;
-}
 
 /**
  * FFT analysis producing log-frequency spectrogram frames —
