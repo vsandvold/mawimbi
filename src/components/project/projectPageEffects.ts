@@ -6,7 +6,8 @@ import {
   useFullScreenHandle,
 } from '../fullscreen/Fullscreen';
 import message from '../message';
-import { ADD_TRACK, ProjectAction, Track } from './projectPageReducer';
+import { type Track } from '../../types/track';
+import { ADD_TRACK, type ProjectAction } from './projectPageReducer';
 
 export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
   const audioService = useAudioService();

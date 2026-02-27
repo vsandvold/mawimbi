@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { effect } from '@preact/signals-react';
-import { type TrackId } from '../components/project/projectPageReducer';
+import { type TrackId } from '../types/track';
 import { TrackSignalStore } from '../signals/trackSignals';
 import { useAudioService } from './useAudioService';
 

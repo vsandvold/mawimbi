@@ -1,4 +1,4 @@
-import { TrackColor } from '../components/project/projectPageReducer';
+import { type TrackColor } from '../types/track';
 
 class SpectrogramCanvasRenderer {
   private canvasContext: CanvasRenderingContext2D | null;

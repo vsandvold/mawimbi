@@ -1,4 +1,4 @@
-import { Track } from './components/project/projectPageReducer';
+import { type Track } from './types/track';
 
 export function mockTrack(trackProps: Partial<Track> = {}): Track {
   return {

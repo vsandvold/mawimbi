@@ -1,4 +1,4 @@
-import { TrackColor } from '../components/project/projectPageReducer';
+import { type TrackColor } from '../types/track';
 import OfflineAnalyser, { SpectrogramData } from './OfflineAnalyser';
 import { renderTiles } from './SpectrogramTileRenderer';
 

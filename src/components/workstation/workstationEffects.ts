@@ -11,7 +11,8 @@ import {
   transportTime,
 } from '../../signals/transportSignals';
 import message from '../message';
-import { ADD_TRACK, Track } from '../project/projectPageReducer';
+import { type Track } from '../../types/track';
+import { ADD_TRACK } from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
 
 const RECORDING_FILE_NAME = 'Recording';

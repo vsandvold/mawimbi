@@ -1,5 +1,5 @@
 import { signal } from '@preact/signals-react';
-import { type TrackId } from '../components/project/projectPageReducer';
+import { type TrackId } from '../types/track';
 
 export const focusedTracks = signal<TrackId[]>([]);
 

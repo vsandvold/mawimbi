@@ -1,4 +1,4 @@
-import { TrackColor } from '../components/project/projectPageReducer';
+import { type TrackColor } from '../types/track';
 import { SpectrogramData } from './OfflineAnalyser';
 
 const DEFAULT_TILE_WIDTH = 4096;

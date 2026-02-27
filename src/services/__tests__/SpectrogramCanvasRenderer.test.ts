@@ -1,4 +1,4 @@
-import { TrackColor } from '../../components/project/projectPageReducer';
+import { type TrackColor } from '../../types/track';
 import SpectrogramCanvasRenderer from '../SpectrogramCanvasRenderer';
 
 const COLOR: TrackColor = { r: 77, g: 238, b: 234 };

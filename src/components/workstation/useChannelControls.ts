@@ -1,7 +1,7 @@
 import { useSignals } from '@preact/signals-react/runtime';
 import { focusTrack, unfocusTrack } from '../../signals/focusSignals';
 import { TrackSignalStore } from '../../signals/trackSignals';
-import { type TrackId } from '../project/projectPageReducer';
+import { type TrackId } from '../../types/track';
 
 const DEFAULT_VOLUME = 100;
 
