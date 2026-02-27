@@ -46,6 +46,7 @@ vi.mock('../../dropzone/useFileDropzone', () => ({
 }));
 
 const defaultProps = {
+  recordingColor: { r: 77, g: 238, b: 234 },
   tracks: [],
   uploadFile: vi.fn(),
 };

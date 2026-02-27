@@ -10,7 +10,7 @@ const BYTES_PER_PIXEL = 4;
  * Index 0 = fully transparent (silence), index 255 = near-full opacity (loudest).
  * Each entry is [r, g, b, a] where a is 0–255.
  */
-function createColorMap(color: TrackColor): Uint8Array {
+export function createColorMap(color: TrackColor): Uint8Array {
   const { r, g, b } = color;
   const map = new Uint8Array(COLOR_MAP_SIZE * BYTES_PER_PIXEL);
   for (let i = 0; i < COLOR_MAP_SIZE; i++) {

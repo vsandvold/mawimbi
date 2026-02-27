@@ -7,6 +7,7 @@ import {
   useTrackSideEffects,
   useUploadFile,
 } from './projectPageEffects';
+import { COLOR_PALETTE } from './projectPageReducer';
 import ProjectPageHeader from './ProjectPageHeader';
 import { ProjectDispatch } from './useProjectDispatch';
 import useProjectReducer from './useProjectReducer';
@@ -17,6 +18,8 @@ const ProjectPage = () => {
   const uploadFile = useUploadFile(dispatch);
   const [fullScreenHandle, toggleFullscreen] = useFullscreen();
   useTrackSideEffects(state.tracks);
+
+  const recordingColor = COLOR_PALETTE[state.nextColorId];
 
   return (
     <ProjectDispatch.Provider value={dispatch}>
@@ -35,7 +38,11 @@ const ProjectPage = () => {
             />
           </PageHeader>
           <PageContent>
-            <Workstation tracks={state.tracks} uploadFile={uploadFile} />
+            <Workstation
+              recordingColor={recordingColor}
+              tracks={state.tracks}
+              uploadFile={uploadFile}
+            />
           </PageContent>
         </PageLayout>
       </Fullscreen>

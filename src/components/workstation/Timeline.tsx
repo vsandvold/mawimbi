@@ -2,42 +2,71 @@ import { useSignals } from '@preact/signals-react/runtime';
 import classNames from 'classnames';
 import { useContainerHeight } from '../../hooks/useContainerHeight';
 import { focusedTracks as focusedTracksSignal } from '../../signals/focusSignals';
+import { isRecording as isRecordingSignal } from '../../signals/transportSignals';
 import { mutedTracks as mutedTracksSignal } from '../../signals/trackSignals';
-import { type Track, type TrackId } from '../../types/track';
+import { type Track, type TrackColor, type TrackId } from '../../types/track';
 import Spectrogram from './spectrogram/Spectrogram';
 import './Timeline.css';
 
+const RECORDING_TRACK_ID = '__recording__';
+
 type TimelineProps = {
   pixelsPerSecond: number;
+  recordingColor: TrackColor;
   tracks: Track[];
 };
 
-const Timeline = ({ pixelsPerSecond, tracks }: TimelineProps) => {
+const Timeline = ({
+  pixelsPerSecond,
+  recordingColor,
+  tracks,
+}: TimelineProps) => {
   useSignals();
   const { containerRef, height } = useContainerHeight();
 
   const focusedTracks = focusedTracksSignal.value;
   const mutedTracks = mutedTracksSignal.value;
+  const isRecording = isRecordingSignal.value;
+
+  const recordingTrack: Track = {
+    trackId: RECORDING_TRACK_ID,
+    color: recordingColor,
+    fileName: 'Recording',
+    index: tracks.length,
+  };
 
   return (
     <div ref={containerRef} className="timeline">
-      {height > 0 &&
-        tracks.map((track) => {
-          const timelineTrackClass = getTimelineTrackClass(
-            track,
-            mutedTracks,
-            focusedTracks,
-          );
-          return (
-            <div key={track.trackId} className={timelineTrackClass}>
+      {height > 0 && (
+        <>
+          {tracks.map((track) => {
+            const timelineTrackClass = getTimelineTrackClass(
+              track,
+              mutedTracks,
+              focusedTracks,
+            );
+            return (
+              <div key={track.trackId} className={timelineTrackClass}>
+                <Spectrogram
+                  height={height}
+                  pixelsPerSecond={pixelsPerSecond}
+                  track={track}
+                />
+              </div>
+            );
+          })}
+          {isRecording && (
+            <div className="timeline__track">
               <Spectrogram
                 height={height}
                 pixelsPerSecond={pixelsPerSecond}
-                track={track}
+                track={recordingTrack}
+                isRecordingTrack
               />
             </div>
-          );
-        })}
+          )}
+        </>
+      )}
     </div>
   );
 };
