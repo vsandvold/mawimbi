@@ -3,6 +3,21 @@ import { vi } from 'vitest';
 
 window.TONE_SILENCE_LOGGING = true;
 
+// jsdom does not implement ResizeObserver — provide a no-op stub
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof globalThis.ResizeObserver;
+}
+
+// jsdom does not implement HTMLCanvasElement.getContext — provide a minimal
+// mock that prevents "not implemented" errors in component tests
+if (!HTMLCanvasElement.prototype.getContext) {
+  HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue(null);
+}
+
 vi.mock('tone', () => {
   function mockBlob() {
     return { arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(16)) };

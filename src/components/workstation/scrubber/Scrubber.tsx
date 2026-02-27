@@ -4,6 +4,7 @@ import { Button } from 'antd';
 import classNames from 'classnames';
 import { PropsWithChildren } from 'react';
 import { togglePlayback } from '../../../signals/transportSignals';
+import PlasmaPlayhead from './PlasmaPlayhead';
 import './Scrubber.css';
 import { useScrubber } from './useScrubber';
 
@@ -19,7 +20,8 @@ const Scrubber = (props: ScrubberProps) => {
 
   const {
     timelineScrollRef,
-    cursorRef,
+    cursorContainerRef,
+    plasmaRef,
     playing,
     isRewindButtonHidden,
     timelineScaleStyle,
@@ -38,8 +40,8 @@ const Scrubber = (props: ScrubberProps) => {
     'scrubber__rewind--hidden': isRewindButtonHidden,
   });
 
-  const cursorClass = classNames('cursor', {
-    'cursor--is-playing': playing,
+  const revealClass = classNames('scrubber__reveal', {
+    'scrubber__reveal--active': playing,
   });
 
   return (
@@ -58,8 +60,13 @@ const Scrubber = (props: ScrubberProps) => {
       <div className="scrubber__shade" style={timelineScaleStyle}>
         <div className="shade"></div>
       </div>
-      <div className="scrubber__cursor" style={timelineScaleStyle}>
-        <div ref={cursorRef} className={cursorClass}></div>
+      <div className={revealClass} style={timelineScaleStyle}></div>
+      <div
+        ref={cursorContainerRef}
+        className="scrubber__cursor"
+        style={timelineScaleStyle}
+      >
+        <PlasmaPlayhead ref={plasmaRef} height={0} />
       </div>
       <div className={rewindButtonClass} style={rewindButtonStyle}>
         <Button

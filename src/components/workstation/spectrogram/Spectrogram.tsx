@@ -3,14 +3,12 @@ import { useAnimationFrame } from '../../../hooks/useAnimationFrame';
 import { useAudioService } from '../../../hooks/useAudioService';
 import { useTrackVolume } from '../../../hooks/useTrackVolume';
 import {
-  isPlaying,
   isRecording as isRecordingSignal,
   transportTime,
 } from '../../../signals/transportSignals';
 import { type Track } from '../../../types/track';
 import RecordingBuffer from './RecordingBuffer';
 import './Spectrogram.css';
-import { drawLiveColumn } from './spectrogramRenderer';
 import { useSpectrogramCache } from './useSpectrogramCache';
 
 type SpectrogramProps = {
@@ -85,7 +83,6 @@ const Spectrogram = ({
         audioService,
         pixelsPerSecond,
         height,
-        color,
       );
       return;
     }
@@ -95,9 +92,6 @@ const Spectrogram = ({
     drawTilesFrame(
       canvas,
       container,
-      audioService,
-      trackId,
-      color,
       pixelsPerSecond,
       height,
       tiles,
@@ -139,7 +133,6 @@ function drawRecordingFrame(
   audioService: ReturnType<typeof useAudioService>,
   pixelsPerSecond: number,
   height: number,
-  color: { r: number; g: number; b: number },
 ): void {
   if (!buffer) return;
 
@@ -196,21 +189,11 @@ function drawRecordingFrame(
   );
 
   buffer.drawTo(ctx, srcX, srcWidth, 0, viewportWidth, height);
-
-  // Draw live column at the recording head during active recording
-  if (recording) {
-    const frequencyData = audioService.microphone.getFrequencyData();
-    const playheadX = contentWidth - contentOffset;
-    drawLiveColumn(ctx, frequencyData, playheadX, height, color);
-  }
 }
 
 function drawTilesFrame(
   canvas: HTMLCanvasElement,
   container: HTMLDivElement,
-  audioService: ReturnType<typeof useAudioService>,
-  trackId: string,
-  color: { r: number; g: number; b: number },
   pixelsPerSecond: number,
   height: number,
   tiles: ImageBitmap[],
@@ -241,16 +224,12 @@ function drawTilesFrame(
     maxContentOffset,
   );
 
-  const playing = isPlaying.value;
-
   const needsResize =
     canvas.width !== viewportWidth || canvas.height !== height;
 
   const last = lastDrawnRef.current;
-  // Always redraw during playback so the live overlay tracks the playhead
   if (
     !needsResize &&
-    !playing &&
     contentOffset === last.offset &&
     pixelsPerSecond === last.pps &&
     tiles.length === last.tileCount
@@ -286,18 +265,6 @@ function drawTilesFrame(
     const drawWidth = tileFrameCount * frameDisplayWidth;
 
     ctx.drawImage(tiles[t], drawX, 0, drawWidth, height);
-  }
-
-  // Live playback overlay: draw a bright column at the playhead
-  if (playing) {
-    const frequencyData = audioService.mixer.getFrequencyData(trackId);
-    if (frequencyData) {
-      const playheadX =
-        transportTime.value * pixelsPerSecond -
-        containerMarginLeft -
-        contentOffset;
-      drawLiveColumn(ctx, frequencyData, playheadX, height, color);
-    }
   }
 }
 

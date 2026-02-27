@@ -14,6 +14,7 @@ import {
   stopAndRewindPlayback,
   transportTime,
 } from '../../../signals/transportSignals';
+import { type PlasmaPlayheadHandle } from './PlasmaPlayhead';
 
 type UseScrubberOptions = {
   drawerHeight: number;
@@ -39,9 +40,25 @@ export function useScrubber({
   };
 
   const timelineScrollRef = useRef<HTMLDivElement>(null);
-  const cursorRef = useRef<HTMLDivElement>(null);
+  const cursorContainerRef = useRef<HTMLDivElement>(null);
+  const plasmaRef = useRef<PlasmaPlayheadHandle>(null);
   const isProgrammaticScrollRef = useRef(false);
   const shouldResumeRef = useRef(false);
+
+  // Keep plasma canvas height in sync with the cursor container
+  useLayoutEffect(() => {
+    const el = cursorContainerRef.current;
+    if (!el) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        plasmaRef.current?.resize(entry.contentRect.height);
+      }
+    });
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  }, []);
 
   const setScrollPosition = useCallback(
     (time: number) => {
@@ -73,10 +90,10 @@ export function useScrubber({
 
         const currentLoudness = audioService.mixer.getLoudness();
         loudnessSignal.value = currentLoudness;
-        cursorRef.current?.style.setProperty(
-          '--loudness',
-          String(currentLoudness),
-        );
+
+        const frequencyData = audioService.mixer.getCombinedFrequencyData();
+        const scrollLeft = timelineScrollRef.current?.scrollLeft ?? 0;
+        plasmaRef.current?.render(frequencyData, currentLoudness, scrollLeft);
 
         // Skip end-of-scroll detection while recording — the recording
         // spectrogram grows its container width progressively, so scrollWidth
@@ -104,9 +121,11 @@ export function useScrubber({
   }, [playing, audioService, setScrollPosition]);
 
   // Sync scroll position to transportTime when not playing (e.g. after rewind)
+  // and render the idle (static line) playhead frame
   useEffect(() => {
     if (!playing) {
       setScrollPosition(transportTime.peek());
+      plasmaRef.current?.renderIdle();
     }
   }, [playing, setScrollPosition]);
 
@@ -184,7 +203,8 @@ export function useScrubber({
 
   return {
     timelineScrollRef,
-    cursorRef,
+    cursorContainerRef,
+    plasmaRef,
     playing,
     isRewindButtonHidden,
     timelineScaleStyle,
