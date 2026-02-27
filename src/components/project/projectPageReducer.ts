@@ -1,3 +1,7 @@
+import { type Track, type TrackColor, type TrackId } from '../../types/track';
+
+export type { Track, TrackColor, TrackId };
+
 export type ProjectState = {
   nextColorId: number;
   nextIndex: number;
@@ -24,21 +28,6 @@ export type ProjectAction =
   | [typeof ADD_TRACK, AddTrackPayload]
   | [typeof DELETE_TRACK, DeleteTrackPayload]
   | [typeof MOVE_TRACK, MoveTrackPayload];
-
-export type TrackId = string;
-
-export type Track = {
-  trackId: TrackId;
-  color: TrackColor;
-  fileName: string;
-  index: number;
-};
-
-export type TrackColor = {
-  r: number;
-  g: number;
-  b: number;
-};
 
 export const COLOR_PALETTE: TrackColor[] = [
   { r: 77, g: 238, b: 234 },

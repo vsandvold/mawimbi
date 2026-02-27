@@ -1,40 +1,34 @@
-import { StepBackwardOutlined } from '@ant-design/icons';
-import { useSignals } from '@preact/signals-react/runtime';
-import { Button } from 'antd';
-import classNames from 'classnames';
 import {
-  PropsWithChildren,
   useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
   useState,
 } from 'react';
-import { useAudioService } from '../../hooks/useAudioService';
-import useDebounced from '../../hooks/useDebounced';
+import { useAudioService } from '../../../hooks/useAudioService';
+import useDebounced from '../../../hooks/useDebounced';
 import {
   isPlaying,
   loudness as loudnessSignal,
   stopAndRewindPlayback,
-  togglePlayback,
   transportTime,
-} from '../../signals/transportSignals';
-import './Scrubber.css';
+} from '../../../signals/transportSignals';
 
-type ScrubberProps = PropsWithChildren<{
+type UseScrubberOptions = {
   drawerHeight: number;
   isMixerOpen: boolean;
   pixelsPerSecond: number;
-}>;
+};
 
 // Keep in sync with --timeline-margin in index.css
 const TIMELINE_MARGIN = 40;
 const SCROLL_DEBOUNCE_MS = 200;
 
-const Scrubber = (props: ScrubberProps) => {
-  useSignals();
-  const { drawerHeight, isMixerOpen, pixelsPerSecond } = props;
-
+export function useScrubber({
+  drawerHeight,
+  isMixerOpen,
+  pixelsPerSecond,
+}: UseScrubberOptions) {
   const playing = isPlaying.value;
 
   const [isRewindButtonHidden, setIsRewindButtonHidden] = useState(true);
@@ -158,18 +152,10 @@ const Scrubber = (props: ScrubberProps) => {
     debouncedSetTransportTime();
   };
 
-  const handleTogglePlayback = () => {
-    togglePlayback();
-  };
-
   const handleStopAndRewind = () => {
     stopAndRewindPlayback();
     setScrollPosition(0);
   };
-
-  const rewindButtonClass = classNames('scrubber__rewind', {
-    'scrubber__rewind--hidden': isRewindButtonHidden,
-  });
 
   const [timelineScaleFactor, setTimelineScaleFactor] = useState(1.0);
 
@@ -184,48 +170,25 @@ const Scrubber = (props: ScrubberProps) => {
 
   const timelineScaleStyle = getTimelineStyle(isMixerOpen, timelineScaleFactor);
 
-  const rewindButtonTranslateStyle = getRewindButtonStyle(
+  const rewindButtonStyle = getRewindButtonStyle(
     isMixerOpen,
     drawerHeight,
     timelineScaleFactor,
   );
 
-  const cursorClass = classNames('cursor', {
-    'cursor--is-playing': playing,
-  });
-
-  return (
-    <div className="scrubber scrubber--firefox-scroll-fix">
-      <div
-        ref={timelineScrollRef}
-        className="scrubber__timeline"
-        style={timelineScaleStyle}
-        onClick={handleTogglePlayback}
-        onScroll={handleScroll}
-        onWheel={handleWheel}
-        onTouchMove={handleTouchMove}
-      >
-        {props.children}
-      </div>
-      <div className="scrubber__shade" style={timelineScaleStyle}>
-        <div className="shade"></div>
-      </div>
-      <div className="scrubber__cursor" style={timelineScaleStyle}>
-        <div ref={cursorRef} className={cursorClass}></div>
-      </div>
-      <div className={rewindButtonClass} style={rewindButtonTranslateStyle}>
-        <Button
-          type="link"
-          size="large"
-          className="button"
-          title="Rewind"
-          icon={<StepBackwardOutlined />}
-          onClick={handleStopAndRewind}
-        />
-      </div>
-    </div>
-  );
-};
+  return {
+    timelineScrollRef,
+    cursorRef,
+    playing,
+    isRewindButtonHidden,
+    timelineScaleStyle,
+    rewindButtonStyle,
+    handleScroll,
+    handleWheel,
+    handleTouchMove,
+    handleStopAndRewind,
+  };
+}
 
 const defaultTransformStyle = {
   transformOrigin: 'top left',
@@ -253,5 +216,3 @@ function getRewindButtonStyle(
       }
     : defaultTransformStyle;
 }
-
-export default Scrubber;

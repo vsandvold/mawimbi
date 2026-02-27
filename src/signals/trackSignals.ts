@@ -1,5 +1,5 @@
 import { computed, signal, type Signal } from '@preact/signals-react';
-import { type TrackId } from '../components/project/projectPageReducer';
+import { type TrackId } from '../types/track';
 
 const DEFAULT_VOLUME = 100;
 

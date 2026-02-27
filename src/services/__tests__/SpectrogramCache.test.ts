@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import { TrackColor } from '../../components/project/projectPageReducer';
+import { type TrackColor } from '../../types/track';
 import type { SpectrogramData } from '../OfflineAnalyser';
 import SpectrogramCache from '../SpectrogramCache';
 

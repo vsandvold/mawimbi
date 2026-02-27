@@ -1,6 +1,6 @@
 import { useSignals } from '@preact/signals-react/runtime';
 import { TrackSignalStore } from '../signals/trackSignals';
-import { type TrackId } from '../components/project/projectPageReducer';
+import { type TrackId } from '../types/track';
 
 const DEFAULT_VOLUME = 100;
 const PERCENT_DIVISOR = 100;

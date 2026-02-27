@@ -1,13 +1,13 @@
 import { render, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
-import { useAnimationFrame } from '../../../hooks/useAnimationFrame';
-import { isPlaying, transportTime } from '../../../signals/transportSignals';
-import { TrackSignalStore } from '../../../signals/trackSignals';
-import { resetAllSignals } from '../../../signals/__tests__/testUtils';
-import { mockTrack } from '../../../testUtils';
+import { useAnimationFrame } from '../../../../hooks/useAnimationFrame';
+import { isPlaying, transportTime } from '../../../../signals/transportSignals';
+import { TrackSignalStore } from '../../../../signals/trackSignals';
+import { resetAllSignals } from '../../../../signals/__tests__/testUtils';
+import { mockTrack } from '../../../../testUtils';
 import Spectrogram from '../Spectrogram';
 
-vi.mock('../../../hooks/useAnimationFrame', () => ({
+vi.mock('../../../../hooks/useAnimationFrame', () => ({
   useAnimationFrame: vi.fn(),
 }));
 
@@ -19,7 +19,7 @@ const { mockRetrieveAudioBuffer } = vi.hoisted(() => ({
   mockRetrieveAudioBuffer: vi.fn(),
 }));
 
-vi.mock('../../../hooks/useAudioService', () => ({
+vi.mock('../../../../hooks/useAudioService', () => ({
   useAudioService: () => ({
     retrieveAudioBuffer: mockRetrieveAudioBuffer,
     spectrogramCache: {

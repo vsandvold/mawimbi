@@ -1,11 +1,11 @@
 import { isInaccessible } from '@testing-library/dom';
 import { act, fireEvent, render } from '@testing-library/react';
-import AudioService from '../../../services/AudioService';
+import AudioService from '../../../../services/AudioService';
 import {
   isPlaying,
   resetTransportSignals,
   transportTime,
-} from '../../../signals/transportSignals';
+} from '../../../../signals/transportSignals';
 import Scrubber from '../Scrubber';
 
 const defaultProps = {

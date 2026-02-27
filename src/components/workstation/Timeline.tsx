@@ -3,8 +3,8 @@ import classNames from 'classnames';
 import { useContainerHeight } from '../../hooks/useContainerHeight';
 import { focusedTracks as focusedTracksSignal } from '../../signals/focusSignals';
 import { mutedTracks as mutedTracksSignal } from '../../signals/trackSignals';
-import { Track, TrackId } from '../project/projectPageReducer';
-import Spectrogram from './Spectrogram';
+import { type Track, type TrackId } from '../../types/track';
+import Spectrogram from './spectrogram/Spectrogram';
 import './Timeline.css';
 
 type TimelineProps = {

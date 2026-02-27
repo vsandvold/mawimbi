@@ -13,7 +13,8 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { useSignals } from '@preact/signals-react/runtime';
 import { mutedTracks as mutedTracksSignal } from '../../signals/trackSignals';
-import { MOVE_TRACK, Track, TrackId } from '../project/projectPageReducer';
+import { type Track, type TrackId } from '../../types/track';
+import { MOVE_TRACK } from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
 import Channel from './Channel';
 import './Mixer.css';
