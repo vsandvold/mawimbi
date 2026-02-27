@@ -1,3 +1,5 @@
+import { createLogFrequencyMapping } from './logFrequencyMapping';
+
 export type SpectrogramData = {
   frequencyFrames: Uint8Array[];
   timeResolution: number;
@@ -41,7 +43,9 @@ class OfflineAnalyser {
     this.timeResolution = isContextSuspendSupported
       ? this.offlineContextSuspendTime
       : this.scriptProcessorBufferLength / sampleRate;
-    this.logFrequencyMapping = this.createLogFrequencyMapping();
+    this.logFrequencyMapping = createLogFrequencyMapping(
+      analyser.frequencyBinCount,
+    );
     this.frequencyDataCopy = new Uint8Array(this.frequencyBinCount);
   }
 
@@ -228,32 +232,6 @@ class OfflineAnalyser {
     bufferSource.start(0);
 
     return this.offlineContext.startRendering();
-  }
-
-  private createLogFrequencyMapping() {
-    const logFrequencyMapping: number[][] = new Array(this.frequencyBinCount);
-    const lower = 1;
-    const upper = this.frequencyBinCount + 1;
-    const b = Math.log(lower / upper) / (lower - upper);
-    const a = 1; // lower / Math.exp(b * lower);
-    for (let i = 0, binCount = this.frequencyBinCount; i < binCount; i++) {
-      const logIdx = Math.trunc(a * Math.exp(b * i)) - 1;
-      logFrequencyMapping[i] = [logIdx];
-    }
-    for (
-      let i = 0, binCountDec = this.frequencyBinCount - 1;
-      i < binCountDec;
-      i++
-    ) {
-      const df = logFrequencyMapping[i + 1][0] - logFrequencyMapping[i][0];
-      if (df === 1) {
-        continue;
-      }
-      for (let j = 1; j <= df; j++) {
-        logFrequencyMapping[i].push(logFrequencyMapping[i][0] + j);
-      }
-    }
-    return logFrequencyMapping;
   }
 
   private transformFrequencies(
