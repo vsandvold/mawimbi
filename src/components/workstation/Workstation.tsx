@@ -3,10 +3,11 @@ import classNames from 'classnames';
 import { useState } from 'react';
 import { useAudioBridge } from '../../hooks/useAudioBridge';
 import { useTransportBridge } from '../../hooks/useTransportBridge';
+import { isRecording as isRecordingSignal } from '../../signals/transportSignals';
 import { pixelsPerSecond as pixelsPerSecondSignal } from '../../signals/workstationSignals';
+import { type Track, type TrackColor } from '../../types/track';
 import Dropzone from '../dropzone/Dropzone';
 import { useFileDropzone } from '../dropzone/useFileDropzone';
-import { type Track } from '../../types/track';
 import EmptyTimeline from './EmptyTimeline';
 import Mixer from './Mixer';
 import Scrubber from './scrubber/Scrubber';
@@ -21,6 +22,7 @@ import {
 } from './workstationEffects';
 
 type WorkstationProps = {
+  recordingColor: TrackColor;
   tracks: Track[];
   uploadFile: (file: File) => void;
 };
@@ -30,7 +32,7 @@ const Workstation = (props: WorkstationProps) => {
   const [isMixerOpen, setIsMixerOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
 
-  const { tracks, uploadFile } = props;
+  const { recordingColor, tracks, uploadFile } = props;
   const hasTracks = tracks.length > 0;
 
   const pixelsPerSecond = pixelsPerSecondSignal.value;
@@ -49,6 +51,11 @@ const Workstation = (props: WorkstationProps) => {
   const toggleMixer = () => setIsMixerOpen((prev) => !prev);
   const toggleRecording = () => setIsRecording((prev) => !prev);
 
+  // Show the timeline when tracks exist or when recording is active.
+  // Use the signal (not local state) so the timeline stays visible during
+  // the async stop-recording transition until the new track is added.
+  const showTimeline = hasTracks || isRecording || isRecordingSignal.value;
+
   const editorMixerClass = classNames('editor__mixer', {
     'editor__mixer--closed': !isMixerOpen,
   });
@@ -61,13 +68,17 @@ const Workstation = (props: WorkstationProps) => {
     <div className="workstation">
       <div className="editor" {...rootProps}>
         <div className="editor__timeline">
-          {hasTracks ? (
+          {showTimeline ? (
             <Scrubber
               drawerHeight={mixerHeight}
               isMixerOpen={isMixerOpen}
               pixelsPerSecond={pixelsPerSecond}
             >
-              <Timeline pixelsPerSecond={pixelsPerSecond} tracks={tracks} />
+              <Timeline
+                pixelsPerSecond={pixelsPerSecond}
+                recordingColor={recordingColor}
+                tracks={tracks}
+              />
             </Scrubber>
           ) : (
             <EmptyTimeline isDragActive={isDragActive} />

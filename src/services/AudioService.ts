@@ -229,6 +229,10 @@ class AudioService {
     return this.recorder.state === 'started';
   }
 
+  getRecordingStartTime(): number {
+    return this.recordingStartTime ?? 0;
+  }
+
   estimateRoundTripLatency(): number {
     const ctx = this.context.rawContext as AudioContext;
     const outputLatency = ctx.outputLatency ?? 0;

@@ -1,9 +1,14 @@
-import { useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAnimationFrame } from '../../../hooks/useAnimationFrame';
 import { useAudioService } from '../../../hooks/useAudioService';
 import { useTrackVolume } from '../../../hooks/useTrackVolume';
-import { isPlaying, transportTime } from '../../../signals/transportSignals';
+import {
+  isPlaying,
+  isRecording as isRecordingSignal,
+  transportTime,
+} from '../../../signals/transportSignals';
 import { type Track } from '../../../types/track';
+import RecordingBuffer from './RecordingBuffer';
 import './Spectrogram.css';
 import { drawLiveColumn } from './spectrogramRenderer';
 import { useSpectrogramCache } from './useSpectrogramCache';
@@ -12,25 +17,36 @@ type SpectrogramProps = {
   height: number;
   pixelsPerSecond: number;
   track: Track;
+  isRecordingTrack?: boolean;
 };
 
 const TILE_WIDTH = 4096;
 const SCROLL_CONTAINER_CLASS = '.scrubber__timeline';
 
-const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
+// Frequency bin count from the Tone.Analyser (size: 2048 → 1024 bins)
+const MIC_FREQUENCY_BINS = 1024;
+
+const Spectrogram = ({
+  height,
+  pixelsPerSecond,
+  track,
+  isRecordingTrack = false,
+}: SpectrogramProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastDrawnRef = useRef({ offset: -1, pps: -1, tileCount: -1 });
+  const recordingBufferRef = useRef<RecordingBuffer | null>(null);
 
   const { trackId, color } = track;
 
   const audioService = useAudioService();
-  const audioBuffer = audioService.retrieveAudioBuffer(trackId);
+  const audioBuffer = isRecordingTrack
+    ? undefined
+    : audioService.retrieveAudioBuffer(trackId);
 
   const entry = useSpectrogramCache(trackId, audioBuffer, color);
 
   const duration = audioBuffer?.duration ?? 0;
-  const containerWidth = duration * pixelsPerSecond;
 
   const timeResolution = entry?.data.timeResolution ?? 0.025;
   const frameDisplayWidth = pixelsPerSecond * timeResolution;
@@ -38,88 +54,63 @@ const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
   const totalFrames = entry?.data.frequencyFrames.length ?? 0;
   const tiles = entry?.tiles ?? [];
 
+  // Create/dispose recording buffer when entering/leaving recording mode
+  useEffect(() => {
+    if (isRecordingTrack) {
+      recordingBufferRef.current = new RecordingBuffer(
+        color,
+        MIC_FREQUENCY_BINS,
+      );
+    }
+    return () => {
+      recordingBufferRef.current = null;
+    };
+  }, [isRecordingTrack, color]);
+
   // Draw visible tiles on each animation frame
   useAnimationFrame(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
-    if (!canvas || !container || tiles.length === 0) return;
+    if (!canvas || !container) return;
 
-    const scrollParent = container.closest(SCROLL_CONTAINER_CLASS);
-    const viewportWidth = scrollParent?.clientWidth ?? window.innerWidth;
-
-    // Derive content offset from the scroll parent's scrollLeft property
-    // rather than getBoundingClientRect(). This avoids browser differences
-    // in how position:sticky elements report their rect (desktop vs. mobile
-    // compositors) and is cheaper than triggering layout queries each frame.
-    const scrollLeft = scrollParent?.scrollLeft ?? 0;
-    const timeline = container.closest('.timeline');
-    const paddingLeft = timeline
-      ? parseFloat(getComputedStyle(timeline).paddingLeft) || 0
-      : 0;
-    const maxContentOffset = Math.max(0, containerWidth - viewportWidth);
-    const contentOffset = Math.min(
-      Math.max(0, scrollLeft - paddingLeft),
-      maxContentOffset,
-    );
-
-    const playing = isPlaying.value;
-
-    const needsResize =
-      canvas.width !== viewportWidth || canvas.height !== height;
-
-    const last = lastDrawnRef.current;
-    // Always redraw during playback so the live overlay tracks the playhead
-    if (
-      !needsResize &&
-      !playing &&
-      contentOffset === last.offset &&
-      pixelsPerSecond === last.pps &&
-      tiles.length === last.tileCount
-    ) {
+    if (isRecordingTrack) {
+      drawRecordingFrame(
+        canvas,
+        container,
+        recordingBufferRef.current,
+        audioService,
+        pixelsPerSecond,
+        height,
+        color,
+      );
       return;
     }
-    last.offset = contentOffset;
-    last.pps = pixelsPerSecond;
-    last.tileCount = tiles.length;
 
-    if (needsResize) {
-      canvas.width = viewportWidth;
-      canvas.height = height;
-    }
+    if (tiles.length === 0) return;
 
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    const firstTile = Math.max(0, Math.floor(contentOffset / tileDisplayWidth));
-    const lastTile = Math.min(
-      tiles.length - 1,
-      Math.floor((contentOffset + viewportWidth) / tileDisplayWidth),
+    drawTilesFrame(
+      canvas,
+      container,
+      audioService,
+      trackId,
+      color,
+      pixelsPerSecond,
+      height,
+      tiles,
+      totalFrames,
+      frameDisplayWidth,
+      tileDisplayWidth,
+      duration,
+      lastDrawnRef,
     );
-
-    for (let t = firstTile; t <= lastTile; t++) {
-      const tileLeftPx = t * tileDisplayWidth;
-      const drawX = tileLeftPx - contentOffset;
-      const isLastTile = t === tiles.length - 1;
-      const tileFrameCount = isLastTile
-        ? totalFrames - t * TILE_WIDTH
-        : TILE_WIDTH;
-      const drawWidth = tileFrameCount * frameDisplayWidth;
-
-      ctx.drawImage(tiles[t], drawX, 0, drawWidth, height);
-    }
-
-    // Live playback overlay: draw a bright column at the playhead
-    if (playing) {
-      const frequencyData = audioService.mixer.getFrequencyData(trackId);
-      if (frequencyData) {
-        const playheadX = transportTime.value * pixelsPerSecond - contentOffset;
-        drawLiveColumn(ctx, frequencyData, playheadX, height, color);
-      }
-    }
   });
 
   const { opacity } = useTrackVolume(trackId);
+
+  // For non-recording tracks, width is set from audio buffer duration.
+  // For recording tracks, width is updated in the rAF loop directly on the
+  // DOM node to avoid React re-renders at 60fps.
+  const containerWidth = isRecordingTrack ? 0 : duration * pixelsPerSecond;
 
   return (
     <div
@@ -131,5 +122,168 @@ const Spectrogram = ({ height, pixelsPerSecond, track }: SpectrogramProps) => {
     </div>
   );
 };
+
+function drawRecordingFrame(
+  canvas: HTMLCanvasElement,
+  container: HTMLDivElement,
+  buffer: RecordingBuffer | null,
+  audioService: ReturnType<typeof useAudioService>,
+  pixelsPerSecond: number,
+  height: number,
+  color: { r: number; g: number; b: number },
+): void {
+  if (!buffer) return;
+
+  const recording = isRecordingSignal.value;
+  const recordingStartTime = audioService.getRecordingStartTime();
+  const elapsed = Math.max(0, transportTime.value - recordingStartTime);
+  const contentWidth = elapsed * pixelsPerSecond;
+
+  // Update container width directly to avoid React re-renders
+  container.style.width = `${contentWidth}px`;
+
+  // Accumulate a new frame while recording is active
+  if (recording) {
+    const frequencyData = audioService.microphone.getFrequencyData();
+    buffer.addFrame(frequencyData);
+  }
+
+  if (buffer.frameCount === 0) return;
+
+  const scrollParent = container.closest(SCROLL_CONTAINER_CLASS);
+  const viewportWidth = scrollParent?.clientWidth ?? window.innerWidth;
+
+  const scrollLeft = scrollParent?.scrollLeft ?? 0;
+  const timeline = container.closest('.timeline');
+  const paddingLeft = timeline
+    ? parseFloat(getComputedStyle(timeline).paddingLeft) || 0
+    : 0;
+  const maxContentOffset = Math.max(0, contentWidth - viewportWidth);
+  const contentOffset = Math.min(
+    Math.max(0, scrollLeft - paddingLeft),
+    maxContentOffset,
+  );
+
+  const needsResize =
+    canvas.width !== viewportWidth || canvas.height !== height;
+  if (needsResize) {
+    canvas.width = viewportWidth;
+    canvas.height = height;
+  }
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Map buffer frames (1 frame = 1 pixel in the buffer) to display pixels.
+  // bufferFrames maps to contentWidth display pixels.
+  const framesPerPixel = buffer.frameCount / contentWidth;
+  const srcX = Math.floor(contentOffset * framesPerPixel);
+  const srcWidth = Math.min(
+    Math.ceil(viewportWidth * framesPerPixel),
+    buffer.frameCount - srcX,
+  );
+
+  buffer.drawTo(ctx, srcX, srcWidth, 0, viewportWidth, height);
+
+  // Draw live column at the recording head during active recording
+  if (recording) {
+    const frequencyData = audioService.microphone.getFrequencyData();
+    const playheadX = contentWidth - contentOffset;
+    drawLiveColumn(ctx, frequencyData, playheadX, height, color);
+  }
+}
+
+function drawTilesFrame(
+  canvas: HTMLCanvasElement,
+  container: HTMLDivElement,
+  audioService: ReturnType<typeof useAudioService>,
+  trackId: string,
+  color: { r: number; g: number; b: number },
+  pixelsPerSecond: number,
+  height: number,
+  tiles: ImageBitmap[],
+  totalFrames: number,
+  frameDisplayWidth: number,
+  tileDisplayWidth: number,
+  duration: number,
+  lastDrawnRef: React.MutableRefObject<{
+    offset: number;
+    pps: number;
+    tileCount: number;
+  }>,
+): void {
+  const containerWidth = duration * pixelsPerSecond;
+
+  const scrollParent = container.closest(SCROLL_CONTAINER_CLASS);
+  const viewportWidth = scrollParent?.clientWidth ?? window.innerWidth;
+
+  const scrollLeft = scrollParent?.scrollLeft ?? 0;
+  const timeline = container.closest('.timeline');
+  const paddingLeft = timeline
+    ? parseFloat(getComputedStyle(timeline).paddingLeft) || 0
+    : 0;
+  const maxContentOffset = Math.max(0, containerWidth - viewportWidth);
+  const contentOffset = Math.min(
+    Math.max(0, scrollLeft - paddingLeft),
+    maxContentOffset,
+  );
+
+  const playing = isPlaying.value;
+
+  const needsResize =
+    canvas.width !== viewportWidth || canvas.height !== height;
+
+  const last = lastDrawnRef.current;
+  // Always redraw during playback so the live overlay tracks the playhead
+  if (
+    !needsResize &&
+    !playing &&
+    contentOffset === last.offset &&
+    pixelsPerSecond === last.pps &&
+    tiles.length === last.tileCount
+  ) {
+    return;
+  }
+  last.offset = contentOffset;
+  last.pps = pixelsPerSecond;
+  last.tileCount = tiles.length;
+
+  if (needsResize) {
+    canvas.width = viewportWidth;
+    canvas.height = height;
+  }
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const firstTile = Math.max(0, Math.floor(contentOffset / tileDisplayWidth));
+  const lastTile = Math.min(
+    tiles.length - 1,
+    Math.floor((contentOffset + viewportWidth) / tileDisplayWidth),
+  );
+
+  for (let t = firstTile; t <= lastTile; t++) {
+    const tileLeftPx = t * tileDisplayWidth;
+    const drawX = tileLeftPx - contentOffset;
+    const isLastTile = t === tiles.length - 1;
+    const tileFrameCount = isLastTile
+      ? totalFrames - t * TILE_WIDTH
+      : TILE_WIDTH;
+    const drawWidth = tileFrameCount * frameDisplayWidth;
+
+    ctx.drawImage(tiles[t], drawX, 0, drawWidth, height);
+  }
+
+  // Live playback overlay: draw a bright column at the playhead
+  if (playing) {
+    const frequencyData = audioService.mixer.getFrequencyData(trackId);
+    if (frequencyData) {
+      const playheadX = transportTime.value * pixelsPerSecond - contentOffset;
+      drawLiveColumn(ctx, frequencyData, playheadX, height, color);
+    }
+  }
+}
 
 export default Spectrogram;

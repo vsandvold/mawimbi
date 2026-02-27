@@ -1,7 +1,11 @@
 import { render, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import { useAnimationFrame } from '../../../../hooks/useAnimationFrame';
-import { isPlaying, transportTime } from '../../../../signals/transportSignals';
+import {
+  isPlaying,
+  isRecording,
+  transportTime,
+} from '../../../../signals/transportSignals';
 import { TrackSignalStore } from '../../../../signals/trackSignals';
 import { resetAllSignals } from '../../../../signals/__tests__/testUtils';
 import { mockTrack } from '../../../../testUtils';
@@ -11,9 +15,36 @@ vi.mock('../../../../hooks/useAnimationFrame', () => ({
   useAnimationFrame: vi.fn(),
 }));
 
+// OffscreenCanvas mock for RecordingBuffer
+vi.stubGlobal(
+  'OffscreenCanvas',
+  class {
+    width: number;
+    height: number;
+    constructor(w: number, h: number) {
+      this.width = w;
+      this.height = h;
+    }
+    getContext() {
+      return {
+        putImageData: vi.fn(),
+        drawImage: vi.fn(),
+        clearRect: vi.fn(),
+        createImageData: (w: number, h: number) => ({
+          width: w,
+          height: h,
+          data: new Uint8ClampedArray(w * h * 4),
+        }),
+      };
+    }
+  },
+);
+
 const mockAnalyse = vi.fn().mockResolvedValue(undefined);
 const mockGetEntry = vi.fn().mockReturnValue(undefined);
 const mockGetFrequencyData = vi.fn();
+const mockMicGetFrequencyData = vi.fn();
+const mockGetRecordingStartTime = vi.fn().mockReturnValue(0);
 
 const { mockRetrieveAudioBuffer } = vi.hoisted(() => ({
   mockRetrieveAudioBuffer: vi.fn(),
@@ -29,6 +60,10 @@ vi.mock('../../../../hooks/useAudioService', () => ({
     mixer: {
       getFrequencyData: mockGetFrequencyData,
     },
+    microphone: {
+      getFrequencyData: mockMicGetFrequencyData,
+    },
+    getRecordingStartTime: mockGetRecordingStartTime,
   }),
 }));
 
@@ -45,6 +80,8 @@ beforeEach(() => {
   mockAnalyse.mockClear();
   mockGetEntry.mockReturnValue(undefined);
   mockGetFrequencyData.mockReset();
+  mockMicGetFrequencyData.mockReset();
+  mockGetRecordingStartTime.mockReturnValue(0);
   TrackSignalStore.create(TRACK_ID);
 });
 
@@ -265,5 +302,143 @@ describe('live playback overlay', () => {
     // No fillRect calls because all intensities are 0
     expect(mockCtx.fillRect).not.toHaveBeenCalled();
     expect(mockCtx.restore).toHaveBeenCalled();
+  });
+});
+
+describe('recording mode', () => {
+  const RECORDING_TRACK_ID = '__recording__';
+  const recordingTrack = mockTrack({
+    trackId: RECORDING_TRACK_ID,
+    color: { r: 77, g: 238, b: 234 },
+  });
+
+  const recordingProps = {
+    height: 128,
+    pixelsPerSecond: 200,
+    track: recordingTrack,
+    isRecordingTrack: true,
+  };
+
+  beforeEach(() => {
+    TrackSignalStore.create(RECORDING_TRACK_ID);
+  });
+
+  it('renders without crashing in recording mode', () => {
+    render(<Spectrogram {...recordingProps} />);
+  });
+
+  it('does not retrieve audio buffer in recording mode', () => {
+    render(<Spectrogram {...recordingProps} />);
+
+    expect(mockRetrieveAudioBuffer).not.toHaveBeenCalled();
+  });
+
+  it('does not trigger cache analysis in recording mode', () => {
+    render(<Spectrogram {...recordingProps} />);
+
+    expect(mockAnalyse).not.toHaveBeenCalled();
+  });
+
+  it('sets initial container width to zero in recording mode', () => {
+    const { container } = render(<Spectrogram {...recordingProps} />);
+
+    const spectrogram = container.querySelector('.spectrogram');
+    expect(spectrogram).toHaveStyle({ width: '0px' });
+  });
+
+  it('reads microphone frequency data during recording', () => {
+    isRecording.value = true;
+    transportTime.value = 1.5;
+    mockGetRecordingStartTime.mockReturnValue(0);
+    const micData = new Float32Array(1024).fill(-50);
+    mockMicGetFrequencyData.mockReturnValue(micData);
+
+    const mockCtx = {
+      clearRect: vi.fn(),
+      drawImage: vi.fn(),
+      fillRect: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      globalCompositeOperation: 'source-over' as string,
+      fillStyle: '' as string,
+      canvas: { width: 800, height: 128 },
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+      mockCtx as unknown as CanvasRenderingContext2D,
+    );
+
+    render(<Spectrogram {...recordingProps} />);
+
+    const calls = vi.mocked(useAnimationFrame).mock.calls;
+    const callback = calls[calls.length - 1]?.[0];
+    callback?.();
+
+    expect(mockMicGetFrequencyData).toHaveBeenCalled();
+
+    vi.restoreAllMocks();
+  });
+
+  it('does not read mixer frequency data in recording mode', () => {
+    isRecording.value = true;
+    transportTime.value = 1.5;
+    mockGetRecordingStartTime.mockReturnValue(0);
+    mockMicGetFrequencyData.mockReturnValue(new Float32Array(1024).fill(-50));
+
+    const mockCtx = {
+      clearRect: vi.fn(),
+      drawImage: vi.fn(),
+      fillRect: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      globalCompositeOperation: 'source-over' as string,
+      fillStyle: '' as string,
+      canvas: { width: 800, height: 128 },
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+      mockCtx as unknown as CanvasRenderingContext2D,
+    );
+
+    render(<Spectrogram {...recordingProps} />);
+
+    const calls = vi.mocked(useAnimationFrame).mock.calls;
+    const callback = calls[calls.length - 1]?.[0];
+    callback?.();
+
+    expect(mockGetFrequencyData).not.toHaveBeenCalled();
+
+    vi.restoreAllMocks();
+  });
+
+  it('updates container width based on elapsed recording time', () => {
+    isRecording.value = true;
+    transportTime.value = 2.0;
+    mockGetRecordingStartTime.mockReturnValue(0);
+    mockMicGetFrequencyData.mockReturnValue(new Float32Array(1024).fill(-50));
+
+    const mockCtx = {
+      clearRect: vi.fn(),
+      drawImage: vi.fn(),
+      fillRect: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      globalCompositeOperation: 'source-over' as string,
+      fillStyle: '' as string,
+      canvas: { width: 800, height: 128 },
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+      mockCtx as unknown as CanvasRenderingContext2D,
+    );
+
+    const { container } = render(<Spectrogram {...recordingProps} />);
+
+    const calls = vi.mocked(useAnimationFrame).mock.calls;
+    const callback = calls[calls.length - 1]?.[0];
+    callback?.();
+
+    const spectrogram = container.querySelector('.spectrogram');
+    // elapsed = 2.0 - 0 = 2.0, width = 2.0 * 200 = 400
+    expect(spectrogram).toHaveStyle({ width: '400px' });
+
+    vi.restoreAllMocks();
   });
 });
