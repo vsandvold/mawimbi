@@ -3,6 +3,14 @@ import { type TrackColor } from '../../types/track';
 import type { SpectrogramData } from '../OfflineAnalyser';
 import SpectrogramCache from '../SpectrogramCache';
 
+vi.mock('../OfflineAnalyser', () => ({
+  default: vi.fn(),
+}));
+
+vi.mock('../SpectrogramTileRenderer', () => ({
+  renderTiles: vi.fn(),
+}));
+
 const COLOR: TrackColor = { r: 77, g: 238, b: 234 };
 
 const MOCK_SPECTROGRAM_DATA: SpectrogramData = {
@@ -13,68 +21,164 @@ const MOCK_SPECTROGRAM_DATA: SpectrogramData = {
   duration: 0.05,
 };
 
-const mockAnalyseToFrames = vi.fn().mockResolvedValue(MOCK_SPECTROGRAM_DATA);
-
-const mockOfflineAnalyserConstructor = vi.fn();
-
-vi.mock('../OfflineAnalyser', () => {
-  // Must be a regular function (not arrow) to support `new` in Vitest v4
-  function MockOfflineAnalyser(...args: unknown[]) {
-    mockOfflineAnalyserConstructor(...args);
-    return { analyseToFrames: mockAnalyseToFrames };
-  }
-  return { default: MockOfflineAnalyser };
-});
-
 const mockTileBitmap = {
   close: vi.fn(),
   width: 2,
   height: 2,
 } as unknown as ImageBitmap;
-const mockRenderTiles = vi.fn().mockReturnValue([mockTileBitmap]);
 
-vi.mock('../SpectrogramTileRenderer', () => ({
-  renderTiles: (...args: unknown[]) => mockRenderTiles(...args),
-}));
+type MockWorker = {
+  postMessage: ReturnType<typeof vi.fn>;
+  onmessage: ((event: MessageEvent) => void) | null;
+  terminate: ReturnType<typeof vi.fn>;
+};
 
-function mockAudioBuffer(): AudioBuffer {
+let mockWorker: MockWorker;
+
+// Must be a regular function (not arrow) to support `new` in Vitest v4
+vi.stubGlobal(
+  'Worker',
+  vi.fn().mockImplementation(function () {
+    mockWorker = {
+      postMessage: vi.fn(),
+      onmessage: null,
+      terminate: vi.fn(),
+    };
+    return mockWorker;
+  }),
+);
+
+function mockAudioBuffer(channels = 1): AudioBuffer {
+  const channelData = new Float32Array([0.1, 0.2, 0.3]);
   return {
-    numberOfChannels: 1,
-    length: 100,
+    numberOfChannels: channels,
+    length: 3,
     sampleRate: 44100,
-    duration: 0.05,
-    getChannelData: vi.fn(),
+    duration: 3 / 44100,
+    getChannelData: vi.fn().mockReturnValue(channelData),
   } as unknown as AudioBuffer;
+}
+
+function simulateWorkerResult(
+  data: SpectrogramData,
+  tiles: ImageBitmap[],
+  id = 0,
+) {
+  mockWorker.onmessage!({
+    data: { id, type: 'result', data, tiles },
+  } as MessageEvent);
+}
+
+function simulateWorkerError(message: string, id = 0) {
+  mockWorker.onmessage!({
+    data: { id, type: 'error', message },
+  } as MessageEvent);
 }
 
 let cache: SpectrogramCache;
 
 beforeEach(() => {
   cache = new SpectrogramCache();
-  mockOfflineAnalyserConstructor.mockClear();
-  mockAnalyseToFrames.mockClear();
-  mockRenderTiles.mockClear();
   mockTileBitmap.close = vi.fn();
 });
 
 describe('analyse', () => {
-  it('creates an OfflineAnalyser and calls analyseToFrames', async () => {
+  it('creates a Worker on first analyse call', async () => {
     const audioBuffer = mockAudioBuffer();
+    const promise = cache.analyse('track-1', audioBuffer, COLOR);
 
-    await cache.analyse('track-1', audioBuffer, COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap]);
+    await promise;
 
-    expect(mockOfflineAnalyserConstructor).toHaveBeenCalledWith(audioBuffer);
-    expect(mockAnalyseToFrames).toHaveBeenCalledOnce();
+    expect(Worker).toHaveBeenCalledWith(expect.any(URL), { type: 'module' });
   });
 
-  it('passes spectrogram data and color to renderTiles', async () => {
-    await cache.analyse('track-1', mockAudioBuffer(), COLOR);
+  it('reuses the same Worker across multiple analyse calls', async () => {
+    const promise1 = cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap], 0);
+    await promise1;
 
-    expect(mockRenderTiles).toHaveBeenCalledWith(MOCK_SPECTROGRAM_DATA, COLOR);
+    const promise2 = cache.analyse('track-2', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap], 1);
+    await promise2;
+
+    expect(Worker).toHaveBeenCalledTimes(1);
   });
 
-  it('stores the entry for later retrieval', async () => {
-    await cache.analyse('track-1', mockAudioBuffer(), COLOR);
+  it('posts channel data, sampleRate, length, and color to the worker', async () => {
+    const audioBuffer = mockAudioBuffer();
+    const promise = cache.analyse('track-1', audioBuffer, COLOR);
+
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap]);
+    await promise;
+
+    expect(mockWorker.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 0,
+        sampleRate: 44100,
+        length: 3,
+        color: COLOR,
+      }),
+      expect.any(Array),
+    );
+
+    const postedMessage = mockWorker.postMessage.mock.calls[0][0];
+    expect(postedMessage.channelData).toHaveLength(1);
+    expect(postedMessage.channelData[0]).toBeInstanceOf(Float32Array);
+  });
+
+  it('transfers channel data ArrayBuffers to avoid copying', async () => {
+    const audioBuffer = mockAudioBuffer();
+    const promise = cache.analyse('track-1', audioBuffer, COLOR);
+
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap]);
+    await promise;
+
+    const transferables = mockWorker.postMessage.mock.calls[0][1];
+    expect(transferables).toHaveLength(1);
+    expect(transferables[0]).toBeInstanceOf(ArrayBuffer);
+  });
+
+  it('copies channel data before transfer to preserve the original AudioBuffer', async () => {
+    const originalData = new Float32Array([0.1, 0.2, 0.3]);
+    const audioBuffer = {
+      numberOfChannels: 1,
+      length: 3,
+      sampleRate: 44100,
+      duration: 3 / 44100,
+      getChannelData: vi.fn().mockReturnValue(originalData),
+    } as unknown as AudioBuffer;
+
+    const promise = cache.analyse('track-1', audioBuffer, COLOR);
+
+    const postedChannelData =
+      mockWorker.postMessage.mock.calls[0][0].channelData[0];
+    // Should be a different Float32Array (a copy, not the same reference)
+    expect(postedChannelData).not.toBe(originalData);
+    expect(Array.from(postedChannelData)).toEqual(Array.from(originalData));
+
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap]);
+    await promise;
+  });
+
+  it('extracts all channels for multi-channel audio', async () => {
+    const audioBuffer = mockAudioBuffer(2);
+    const promise = cache.analyse('track-1', audioBuffer, COLOR);
+
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap]);
+    await promise;
+
+    const postedMessage = mockWorker.postMessage.mock.calls[0][0];
+    expect(postedMessage.channelData).toHaveLength(2);
+    expect(audioBuffer.getChannelData).toHaveBeenCalledWith(0);
+    expect(audioBuffer.getChannelData).toHaveBeenCalledWith(1);
+  });
+
+  it('stores the entry from the worker response', async () => {
+    const promise = cache.analyse('track-1', mockAudioBuffer(), COLOR);
+
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap]);
+    await promise;
 
     const entry = cache.getEntry('track-1');
     expect(entry).toBeDefined();
@@ -83,21 +187,59 @@ describe('analyse', () => {
   });
 
   it('overwrites an existing entry for the same track', async () => {
-    await cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    const promise1 = cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap], 0);
+    await promise1;
 
     const secondData: SpectrogramData = {
       ...MOCK_SPECTROGRAM_DATA,
       duration: 1.0,
     };
-    mockAnalyseToFrames.mockResolvedValueOnce(secondData);
     const secondTile = { close: vi.fn() } as unknown as ImageBitmap;
-    mockRenderTiles.mockReturnValueOnce([secondTile]);
-
-    await cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    const promise2 = cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(secondData, [secondTile], 1);
+    await promise2;
 
     const entry = cache.getEntry('track-1');
     expect(entry!.data).toBe(secondData);
     expect(entry!.tiles).toEqual([secondTile]);
+  });
+
+  it('assigns sequential message IDs', async () => {
+    const promise1 = cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap], 0);
+    await promise1;
+
+    const promise2 = cache.analyse('track-2', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap], 1);
+    await promise2;
+
+    expect(mockWorker.postMessage.mock.calls[0][0].id).toBe(0);
+    expect(mockWorker.postMessage.mock.calls[1][0].id).toBe(1);
+  });
+
+  it('falls back to main thread when the worker responds with an error', async () => {
+    const { default: MockOfflineAnalyser } = await import('../OfflineAnalyser');
+    const { renderTiles: mockRenderTiles } =
+      await import('../SpectrogramTileRenderer');
+
+    const fallbackTile = { close: vi.fn() } as unknown as ImageBitmap;
+    const mockAnalyser = {
+      analyseToFrames: vi.fn().mockResolvedValue(MOCK_SPECTROGRAM_DATA),
+    };
+    vi.mocked(MockOfflineAnalyser).mockImplementation(function () {
+      return mockAnalyser;
+    } as unknown as typeof MockOfflineAnalyser);
+    vi.mocked(mockRenderTiles).mockReturnValue([fallbackTile]);
+
+    const promise = cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    simulateWorkerError('OfflineAudioContext failed');
+    await promise;
+
+    expect(MockOfflineAnalyser).toHaveBeenCalled();
+    const entry = cache.getEntry('track-1');
+    expect(entry).toBeDefined();
+    expect(entry!.tiles).toEqual([fallbackTile]);
   });
 });
 
@@ -113,12 +255,13 @@ describe('getEntry', () => {
     };
     const secondTile = { close: vi.fn() } as unknown as ImageBitmap;
 
-    await cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    const promise1 = cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap], 0);
+    await promise1;
 
-    mockAnalyseToFrames.mockResolvedValueOnce(secondData);
-    mockRenderTiles.mockReturnValueOnce([secondTile]);
-
-    await cache.analyse('track-2', mockAudioBuffer(), COLOR);
+    const promise2 = cache.analyse('track-2', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(secondData, [secondTile], 1);
+    await promise2;
 
     expect(cache.getEntry('track-1')!.data).toBe(MOCK_SPECTROGRAM_DATA);
     expect(cache.getEntry('track-2')!.data).toBe(secondData);
@@ -127,7 +270,9 @@ describe('getEntry', () => {
 
 describe('invalidate', () => {
   it('removes the entry for the given track', async () => {
-    await cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    const promise = cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap]);
+    await promise;
 
     cache.invalidate('track-1');
 
@@ -135,7 +280,9 @@ describe('invalidate', () => {
   });
 
   it('closes ImageBitmap tiles on invalidation', async () => {
-    await cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    const promise = cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap]);
+    await promise;
 
     cache.invalidate('track-1');
 
@@ -147,11 +294,14 @@ describe('invalidate', () => {
   });
 
   it('does not affect other cached tracks', async () => {
-    await cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    const promise1 = cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap], 0);
+    await promise1;
 
     const secondTile = { close: vi.fn() } as unknown as ImageBitmap;
-    mockRenderTiles.mockReturnValueOnce([secondTile]);
-    await cache.analyse('track-2', mockAudioBuffer(), COLOR);
+    const promise2 = cache.analyse('track-2', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [secondTile], 1);
+    await promise2;
 
     cache.invalidate('track-1');
 
@@ -162,11 +312,14 @@ describe('invalidate', () => {
 
 describe('invalidateAll', () => {
   it('removes all cached entries', async () => {
-    await cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    const promise1 = cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap], 0);
+    await promise1;
 
     const secondTile = { close: vi.fn() } as unknown as ImageBitmap;
-    mockRenderTiles.mockReturnValueOnce([secondTile]);
-    await cache.analyse('track-2', mockAudioBuffer(), COLOR);
+    const promise2 = cache.analyse('track-2', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [secondTile], 1);
+    await promise2;
 
     cache.invalidateAll();
 
@@ -177,11 +330,14 @@ describe('invalidateAll', () => {
   it('closes all ImageBitmap tiles', async () => {
     const tile1 = { close: vi.fn() } as unknown as ImageBitmap;
     const tile2 = { close: vi.fn() } as unknown as ImageBitmap;
-    mockRenderTiles.mockReturnValueOnce([tile1]);
-    await cache.analyse('track-1', mockAudioBuffer(), COLOR);
 
-    mockRenderTiles.mockReturnValueOnce([tile2]);
-    await cache.analyse('track-2', mockAudioBuffer(), COLOR);
+    const promise1 = cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [tile1], 0);
+    await promise1;
+
+    const promise2 = cache.analyse('track-2', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [tile2], 1);
+    await promise2;
 
     cache.invalidateAll();
 
