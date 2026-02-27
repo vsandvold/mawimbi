@@ -73,20 +73,36 @@ describe('createChannel', () => {
     expect(playerInstance.start).toHaveBeenCalledWith(0, 0);
   });
 
-  it('creates a Tone.Channel routed to destination', () => {
+  it('creates a Tone.Channel', () => {
     mixer.createChannel('track-1', {} as AudioBuffer);
 
     expect(Tone.Channel).toHaveBeenCalled();
-    const channelInstance = vi.mocked(Tone.Channel).mock.results[0].value;
-    expect(channelInstance.toDestination).toHaveBeenCalled();
   });
 
-  it('chains the player to the channel', () => {
+  it('creates a Tone.Analyser with FFT type and no smoothing', () => {
+    mixer.createChannel('track-1', {} as AudioBuffer);
+
+    expect(Tone.Analyser).toHaveBeenCalledWith({
+      type: 'fft',
+      size: 2048,
+      smoothing: 0,
+    });
+  });
+
+  it('chains player through channel and analyser to destination', () => {
     mixer.createChannel('track-1', {} as AudioBuffer);
 
     const playerInstance = vi.mocked(Tone.Player).mock.results[0].value;
     const channelInstance = vi.mocked(Tone.Channel).mock.results[0].value;
-    expect(playerInstance.chain).toHaveBeenCalledWith(channelInstance);
+    const analyserInstance = vi.mocked(Tone.Analyser).mock.results[0].value;
+    const destination = vi
+      .mocked(Tone.getDestination)
+      .mock.results.at(-1)!.value;
+    expect(playerInstance.chain).toHaveBeenCalledWith(
+      channelInstance,
+      analyserInstance,
+      destination,
+    );
   });
 
   it('starts player at given transport time and audio offset', () => {
@@ -134,6 +150,21 @@ describe('deleteChannel', () => {
   it('does nothing when deleting unknown track ID', () => {
     // Should not throw
     mixer.deleteChannel('nonexistent');
+  });
+});
+
+describe('getFrequencyData', () => {
+  it('returns frequency data for existing track', () => {
+    mixer.createChannel('track-1', {} as AudioBuffer);
+
+    const data = mixer.getFrequencyData('track-1');
+
+    expect(data).toBeInstanceOf(Float32Array);
+    expect(data!.length).toBe(2048);
+  });
+
+  it('returns undefined for unknown track ID', () => {
+    expect(mixer.getFrequencyData('nonexistent')).toBeUndefined();
   });
 });
 
@@ -191,6 +222,7 @@ describe('getMutedChannels', () => {
 
 describe('AudioChannel', () => {
   let toneChannel: Tone.Channel;
+  let toneAnalyser: Tone.Analyser;
   let audioChannel: AudioChannel;
 
   beforeEach(() => {
@@ -200,7 +232,11 @@ describe('AudioChannel', () => {
       volume: { rampTo: vi.fn() },
       dispose: vi.fn(),
     } as unknown as Tone.Channel;
-    audioChannel = new AudioChannel('ch-1', toneChannel);
+    toneAnalyser = {
+      getValue: vi.fn().mockReturnValue(new Float32Array(2048)),
+      dispose: vi.fn(),
+    } as unknown as Tone.Analyser;
+    audioChannel = new AudioChannel('ch-1', toneChannel, toneAnalyser);
   });
 
   it('exposes the channel id', () => {
@@ -263,7 +299,12 @@ describe('AudioChannel', () => {
   describe('normalization gain', () => {
     it('adds normalization gain to slider dB at full volume', () => {
       const normGainDb = 6;
-      const normalized = new AudioChannel('ch-norm', toneChannel, normGainDb);
+      const normalized = new AudioChannel(
+        'ch-norm',
+        toneChannel,
+        toneAnalyser,
+        normGainDb,
+      );
 
       normalized.volume = 100;
 
@@ -273,7 +314,12 @@ describe('AudioChannel', () => {
 
     it('adds normalization gain to slider dB at mid volume', () => {
       const normGainDb = 12;
-      const normalized = new AudioChannel('ch-norm', toneChannel, normGainDb);
+      const normalized = new AudioChannel(
+        'ch-norm',
+        toneChannel,
+        toneAnalyser,
+        normGainDb,
+      );
 
       normalized.volume = 50;
 
@@ -285,7 +331,7 @@ describe('AudioChannel', () => {
     });
 
     it('defaults normalization gain to 0 when not provided', () => {
-      const channel = new AudioChannel('ch-default', toneChannel);
+      const channel = new AudioChannel('ch-default', toneChannel, toneAnalyser);
 
       channel.volume = 100;
 
@@ -294,10 +340,24 @@ describe('AudioChannel', () => {
     });
   });
 
+  describe('getFrequencyData', () => {
+    it('returns Float32Array from the analyser', () => {
+      const data = audioChannel.getFrequencyData();
+
+      expect(toneAnalyser.getValue).toHaveBeenCalled();
+      expect(data).toBeInstanceOf(Float32Array);
+    });
+  });
+
   describe('dispose', () => {
     it('disposes the underlying Tone.Channel', () => {
       audioChannel.dispose();
       expect(toneChannel.dispose).toHaveBeenCalled();
+    });
+
+    it('disposes the underlying Tone.Analyser', () => {
+      audioChannel.dispose();
+      expect(toneAnalyser.dispose).toHaveBeenCalled();
     });
   });
 });
