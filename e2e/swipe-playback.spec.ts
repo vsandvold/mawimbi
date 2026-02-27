@@ -115,25 +115,25 @@ test.describe('Swipe to scrub timeline during playback', () => {
     await expect(page.getByTitle('Play')).toBeVisible();
   });
 
-  test('cursor loses playing class when swipe pauses playback', async ({
+  test('reveal loses active class when swipe pauses playback', async ({
     page,
   }) => {
-    const cursor = page.locator('.cursor');
+    const reveal = page.locator('.scrubber__reveal');
 
     // Start playback
     await page.getByTitle('Play').click();
-    await expect(cursor).toHaveClass(/cursor--is-playing/);
+    await expect(reveal).toHaveClass(/scrubber__reveal--active/);
 
     // Swipe to pause
     await swipeTimeline(page, 400);
 
-    // Cursor should lose the playing class while paused
-    await expect(cursor).not.toHaveClass(/cursor--is-playing/);
+    // Reveal should lose the active class while paused
+    await expect(reveal).not.toHaveClass(/scrubber__reveal--active/);
 
     // Wait for debounce and resume
     await page.waitForTimeout(400);
 
-    // Cursor should regain the playing class
-    await expect(cursor).toHaveClass(/cursor--is-playing/);
+    // Reveal should regain the active class
+    await expect(reveal).toHaveClass(/scrubber__reveal--active/);
   });
 });
