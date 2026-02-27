@@ -116,7 +116,7 @@ test.describe('Mixer channel reordering', () => {
     // Upload two tracks
     await uploadAudioFile(page, SHORT_AUDIO);
     await uploadAudioFile(page, LONG_AUDIO);
-    await expect(page.locator('.timeline__waveform')).toHaveCount(2);
+    await expect(page.locator('.timeline__track')).toHaveCount(2);
 
     // Open the mixer and wait for the 300 ms slide-in animation to finish so
     // @dnd-kit can measure accurate droppable rects.
@@ -146,7 +146,7 @@ test.describe('Mixer channel reordering', () => {
 
     await uploadAudioFile(page, SHORT_AUDIO);
     await uploadAudioFile(page, LONG_AUDIO);
-    await expect(page.locator('.timeline__waveform')).toHaveCount(2);
+    await expect(page.locator('.timeline__track')).toHaveCount(2);
 
     await page.getByTitle('Show mixer').click();
     await expect(page.locator('.channel')).toHaveCount(2);

@@ -24,7 +24,7 @@ test.describe('Audio file upload', () => {
     await page.goto('/project');
   });
 
-  test('uploads an audio file and displays a waveform in the timeline', async ({
+  test('uploads an audio file and displays a track in the timeline', async ({
     page,
   }) => {
     await uploadAudioFile(page, SHORT_AUDIO);
@@ -34,17 +34,17 @@ test.describe('Audio file upload', () => {
       page.getByText('Start recording, or upload some audio files'),
     ).toBeHidden();
 
-    // A timeline waveform track should appear
-    const waveformTrack = page.locator('.timeline__waveform');
-    await expect(waveformTrack).toBeVisible();
+    // A timeline track should appear
+    const timelineTrack = page.locator('.timeline__track');
+    await expect(timelineTrack).toBeVisible();
   });
 
   test('uploads multiple audio files', async ({ page }) => {
     await uploadAudioFile(page, SHORT_AUDIO);
-    await expect(page.locator('.timeline__waveform')).toHaveCount(1);
+    await expect(page.locator('.timeline__track')).toHaveCount(1);
 
     await uploadAudioFile(page, LONG_AUDIO);
-    await expect(page.locator('.timeline__waveform')).toHaveCount(2);
+    await expect(page.locator('.timeline__track')).toHaveCount(2);
   });
 
   test('enables play and mixer buttons after upload', async ({ page }) => {
@@ -64,7 +64,7 @@ test.describe('Playback controls', () => {
     await page.goto('/project');
     await uploadAudioFile(page, SHORT_AUDIO);
     // Wait for track to appear
-    await expect(page.locator('.timeline__waveform')).toBeVisible();
+    await expect(page.locator('.timeline__track')).toBeVisible();
   });
 
   test('toggles between play and pause', async ({ page }) => {
@@ -120,7 +120,7 @@ test.describe('Playback controls', () => {
     // Re-navigate so the init script takes effect
     await page.goto('/project');
     await uploadAudioFile(page, SHORT_AUDIO);
-    await expect(page.locator('.timeline__waveform')).toBeVisible();
+    await expect(page.locator('.timeline__track')).toBeVisible();
 
     const prePlaybackCount = await page.evaluate(() => {
       const connections = (
@@ -171,7 +171,7 @@ test.describe('Mixer', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/project');
     await uploadAudioFile(page, SHORT_AUDIO);
-    await expect(page.locator('.timeline__waveform')).toBeVisible();
+    await expect(page.locator('.timeline__track')).toBeVisible();
   });
 
   test('opens and closes the mixer panel', async ({ page }) => {
@@ -217,18 +217,18 @@ test.describe('Mixer', () => {
 
     // Click mute
     await muteButton.click();
-    const waveform = page.locator('.timeline__waveform');
-    await expect(waveform).toHaveClass(/timeline__waveform--muted/);
+    const track = page.locator('.timeline__track');
+    await expect(track).toHaveClass(/timeline__track--muted/);
 
     // Click mute again to unmute
     await muteButton.click();
-    await expect(waveform).not.toHaveClass(/timeline__waveform--muted/);
+    await expect(track).not.toHaveClass(/timeline__track--muted/);
   });
 
   test('solo button highlights the solo state', async ({ page }) => {
     // Upload a second track so solo logic has meaning
     await uploadAudioFile(page, LONG_AUDIO);
-    await expect(page.locator('.timeline__waveform')).toHaveCount(2);
+    await expect(page.locator('.timeline__track')).toHaveCount(2);
 
     await page.getByTitle('Show mixer').click();
 
@@ -237,10 +237,10 @@ test.describe('Mixer', () => {
     await soloButtons.first().click();
 
     // The non-solo track should be muted
-    const waveforms = page.locator('.timeline__waveform');
-    const mutedWaveforms = page.locator('.timeline__waveform--muted');
-    await expect(mutedWaveforms).toHaveCount(1);
-    await expect(waveforms).toHaveCount(2);
+    const tracks = page.locator('.timeline__track');
+    const mutedTracks = page.locator('.timeline__track--muted');
+    await expect(mutedTracks).toHaveCount(1);
+    await expect(tracks).toHaveCount(2);
   });
 });
 
@@ -263,7 +263,7 @@ test.describe('Spectrogram rendering', () => {
     await uploadAudioFile(page, SHORT_AUDIO);
     await uploadAudioFile(page, LONG_AUDIO);
 
-    const tracks = page.locator('.timeline__waveform');
+    const tracks = page.locator('.timeline__track');
     await expect(tracks).toHaveCount(2);
 
     // Each track should contain a canvas element
@@ -275,11 +275,11 @@ test.describe('Spectrogram rendering', () => {
 
   test('spectrogram opacity reflects track volume', async ({ page }) => {
     await uploadAudioFile(page, SHORT_AUDIO);
-    await expect(page.locator('.timeline__waveform')).toBeVisible();
+    await expect(page.locator('.timeline__track')).toBeVisible();
 
     // Full volume → opacity should be close to 1
-    const waveformTrack = page.locator('.timeline__waveform').first();
-    const innerDiv = waveformTrack.locator('> div').first();
+    const timelineTrack = page.locator('.timeline__track').first();
+    const innerDiv = timelineTrack.locator('> div').first();
     const opacity = await innerDiv.evaluate(
       (el) => window.getComputedStyle(el).opacity,
     );
@@ -291,7 +291,7 @@ test.describe('Scrubber', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/project');
     await uploadAudioFile(page, LONG_AUDIO);
-    await expect(page.locator('.timeline__waveform')).toBeVisible();
+    await expect(page.locator('.timeline__track')).toBeVisible();
   });
 
   test('scrolling forward shows the rewind button', async ({ page }) => {
@@ -365,7 +365,7 @@ test.describe('Rewind control', () => {
   test('rewind button appears and resets playback', async ({ page }) => {
     await page.goto('/project');
     await uploadAudioFile(page, LONG_AUDIO);
-    await expect(page.locator('.timeline__waveform')).toBeVisible();
+    await expect(page.locator('.timeline__track')).toBeVisible();
 
     // Start playback
     await page.getByTitle('Play').click();
@@ -399,7 +399,7 @@ test.describe('Visual regression - audio states', () => {
     });
   });
 
-  test('timeline with single waveform track', async ({ page }) => {
+  test('timeline with single track', async ({ page }) => {
     await page.goto('/project');
     await uploadAudioFile(page, SHORT_AUDIO);
 
@@ -411,12 +411,12 @@ test.describe('Visual regression - audio states', () => {
     );
   });
 
-  test('timeline with two waveform tracks', async ({ page }) => {
+  test('timeline with two tracks', async ({ page }) => {
     await page.goto('/project');
     await uploadAudioFile(page, SHORT_AUDIO);
     await uploadAudioFile(page, LONG_AUDIO);
 
-    await expect(page.locator('.timeline__waveform')).toHaveCount(2);
+    await expect(page.locator('.timeline__track')).toHaveCount(2);
     const timeline = page.locator('.timeline');
     await expect(timeline.locator('canvas').first()).toBeVisible();
 
@@ -428,7 +428,7 @@ test.describe('Visual regression - audio states', () => {
   test('toolbar while playing', async ({ page }) => {
     await page.goto('/project');
     await uploadAudioFile(page, SHORT_AUDIO);
-    await expect(page.locator('.timeline__waveform')).toBeVisible();
+    await expect(page.locator('.timeline__track')).toBeVisible();
 
     await page.getByTitle('Play').click();
     await expect(page.getByTitle('Pause')).toBeVisible();
@@ -443,7 +443,7 @@ test.describe('Visual regression - audio states', () => {
   test('mixer open with one channel', async ({ page }) => {
     await page.goto('/project');
     await uploadAudioFile(page, SHORT_AUDIO);
-    await expect(page.locator('.timeline__waveform')).toBeVisible();
+    await expect(page.locator('.timeline__track')).toBeVisible();
 
     await page.getByTitle('Show mixer').click();
     await expect(page.locator('.channel')).toBeVisible();
@@ -456,12 +456,12 @@ test.describe('Visual regression - audio states', () => {
   test('mixer with muted channel', async ({ page }) => {
     await page.goto('/project');
     await uploadAudioFile(page, SHORT_AUDIO);
-    await expect(page.locator('.timeline__waveform')).toBeVisible();
+    await expect(page.locator('.timeline__track')).toBeVisible();
 
     await page.getByTitle('Show mixer').click();
     await page.getByTitle('Mute').click();
     await expect(
-      page.locator('.timeline__waveform--muted'),
+      page.locator('.timeline__track--muted'),
     ).toBeVisible();
 
     await expect(page.locator('.editor')).toHaveScreenshot(
@@ -473,11 +473,11 @@ test.describe('Visual regression - audio states', () => {
     await page.goto('/project');
     await uploadAudioFile(page, SHORT_AUDIO);
     await uploadAudioFile(page, LONG_AUDIO);
-    await expect(page.locator('.timeline__waveform')).toHaveCount(2);
+    await expect(page.locator('.timeline__track')).toHaveCount(2);
 
     await page.getByTitle('Show mixer').click();
     await page.getByTitle('Solo').first().click();
-    await expect(page.locator('.timeline__waveform--muted')).toHaveCount(1);
+    await expect(page.locator('.timeline__track--muted')).toHaveCount(1);
 
     await expect(page.locator('.editor')).toHaveScreenshot(
       'timeline-solo-track.png',
@@ -489,7 +489,7 @@ test.describe('Visual regression - audio states', () => {
   }) => {
     await page.goto('/project');
     await uploadAudioFile(page, LONG_AUDIO);
-    await expect(page.locator('.timeline__waveform')).toBeVisible();
+    await expect(page.locator('.timeline__track')).toBeVisible();
 
     const timeline = page.locator('.scrubber__timeline');
     await timeline.evaluate((el) => {

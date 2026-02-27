@@ -23,13 +23,13 @@ const Timeline = ({ pixelsPerSecond, tracks }: TimelineProps) => {
     <div ref={containerRef} className="timeline">
       {height > 0 &&
         tracks.map((track) => {
-          const timelineWaveformClass = getTimelineWaveformClass(
+          const timelineTrackClass = getTimelineTrackClass(
             track,
             mutedTracks,
             focusedTracks,
           );
           return (
-            <div key={track.trackId} className={timelineWaveformClass}>
+            <div key={track.trackId} className={timelineTrackClass}>
               <Spectrogram
                 height={height}
                 pixelsPerSecond={pixelsPerSecond}
@@ -42,7 +42,7 @@ const Timeline = ({ pixelsPerSecond, tracks }: TimelineProps) => {
   );
 };
 
-function getTimelineWaveformClass(
+function getTimelineTrackClass(
   track: Track,
   mutedTracks: TrackId[],
   focusedTracks: TrackId[],
@@ -50,10 +50,10 @@ function getTimelineWaveformClass(
   const isMuted = mutedTracks.includes(track.trackId);
   const isForeground = focusedTracks.includes(track.trackId);
   const isBackground = focusedTracks.length > 0 && !isForeground;
-  return classNames('timeline__waveform', {
-    'timeline__waveform--muted': isMuted,
-    'timeline__waveform--foreground': !isMuted && isForeground,
-    'timeline__waveform--background': !isMuted && isBackground,
+  return classNames('timeline__track', {
+    'timeline__track--muted': isMuted,
+    'timeline__track--foreground': !isMuted && isForeground,
+    'timeline__track--background': !isMuted && isBackground,
   });
 }
 
