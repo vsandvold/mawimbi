@@ -3,10 +3,14 @@ import * as Tone from 'tone';
 class MicrophoneUserMedia {
   private microphone: Tone.UserMedia;
   private meter: Tone.Meter;
+  private analyser: Tone.Analyser;
 
   constructor() {
     this.meter = new Tone.Meter();
-    this.microphone = new Tone.UserMedia().connect(this.meter);
+    this.analyser = new Tone.Analyser({ type: 'fft', size: 2048 });
+    this.microphone = new Tone.UserMedia()
+      .connect(this.meter)
+      .connect(this.analyser);
   }
 
   get isOpen(): boolean {
@@ -28,6 +32,10 @@ class MicrophoneUserMedia {
   getLoudness(): number {
     const value = this.meter.getValue();
     return typeof value === 'number' ? Math.max(0, value) : 0;
+  }
+
+  getFrequencyData(): Float32Array {
+    return this.analyser.getValue() as Float32Array;
   }
 
   mute(): void {
