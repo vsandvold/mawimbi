@@ -9,6 +9,7 @@ const MIN_DECIBELS = -80;
 const MAX_DECIBELS = -30;
 const SUSPEND_INTERVAL = 0.025;
 const SPLIT_FREQUENCY = 752;
+const LOW_BAND_SAMPLE_RATE = 3000;
 
 export type AnalyseRequest = {
   id: number;
@@ -32,77 +33,38 @@ function createAnalyserNode(context: OfflineAudioContext): AnalyserNode {
 }
 
 /**
- * Dual-band FFT analysis producing log-frequency spectrogram frames.
+ * Runs FFT analysis on a single frequency band, collecting raw frequency
+ * frames at regular suspend intervals.
  *
- * Splits the signal at ~752 Hz with a lowpass/highpass filter pair,
- * runs separate 1024-point FFTs on each band, then merges the results
- * into a single log-frequency spectrogram. The low band benefits from
- * improved dynamic range (high-frequency energy no longer masks bass),
- * producing a more detailed bass region in the spectrogram.
+ * The audio buffer is created at `sampleRate` (the original rate).
+ * When `contextSampleRate` differs (e.g. 3000 Hz for the low band),
+ * the OfflineAudioContext automatically resamples during playback,
+ * concentrating the FFT bins into a narrower frequency range.
  */
-export async function analyseToFrames(
+async function analyseBand(
   channelData: Float32Array[],
   sampleRate: number,
   length: number,
-): Promise<SpectrogramData> {
+  duration: number,
+  contextSampleRate: number,
+  filterType: BiquadFilterType,
+): Promise<Uint8Array[]> {
   const numChannels = channelData.length;
-  const duration = length / sampleRate;
+  const contextLength = Math.ceil(duration * contextSampleRate);
 
-  const offlineContext = new OfflineAudioContext(
+  const context = new OfflineAudioContext(
     numChannels,
-    length,
-    sampleRate,
+    contextLength,
+    contextSampleRate,
   );
 
-  const lowpassFilter = offlineContext.createBiquadFilter();
-  lowpassFilter.type = 'lowpass';
-  lowpassFilter.frequency.value = SPLIT_FREQUENCY;
+  const filter = context.createBiquadFilter();
+  filter.type = filterType;
+  filter.frequency.value = SPLIT_FREQUENCY;
 
-  const highpassFilter = offlineContext.createBiquadFilter();
-  highpassFilter.type = 'highpass';
-  highpassFilter.frequency.value = SPLIT_FREQUENCY;
+  const analyser = createAnalyserNode(context);
 
-  const analyserLow = createAnalyserNode(offlineContext);
-  const analyserHigh = createAnalyserNode(offlineContext);
-
-  const binCount = analyserLow.frequencyBinCount;
-  const splitBin = Math.round(
-    SPLIT_FREQUENCY / (sampleRate / DUAL_BAND_FFT_SIZE),
-  );
-  const logMapping = createLogFrequencyMapping(binCount);
-
-  const frequencyFrames: Uint8Array[] = [];
-  const lowData = new Uint8Array(binCount);
-  const highData = new Uint8Array(binCount);
-  const mergedData = new Uint8Array(binCount);
-  const tempBuffer = new Uint8Array(binCount);
-
-  const collectFrame = () => {
-    analyserLow.getByteFrequencyData(lowData);
-    analyserHigh.getByteFrequencyData(highData);
-
-    for (let i = 0; i < binCount; i++) {
-      mergedData[i] = i < splitBin ? lowData[i] : highData[i];
-    }
-
-    for (let i = 0; i < binCount; i++) {
-      tempBuffer[i] = mergedData[i];
-    }
-    for (let i = 0; i < binCount; i++) {
-      mergedData[i] = 0;
-      const pool = logMapping[i];
-      for (let j = 0; j < pool.length; j++) {
-        mergedData[i] += tempBuffer[pool[j]];
-      }
-    }
-    frequencyFrames.push(new Uint8Array(mergedData));
-  };
-
-  const audioBuffer = offlineContext.createBuffer(
-    numChannels,
-    length,
-    sampleRate,
-  );
+  const audioBuffer = context.createBuffer(numChannels, length, sampleRate);
   for (let ch = 0; ch < numChannels; ch++) {
     audioBuffer.copyToChannel(
       new Float32Array(channelData[ch]) as Float32Array<ArrayBuffer>,
@@ -110,35 +72,118 @@ export async function analyseToFrames(
     );
   }
 
-  const bufferSource = offlineContext.createBufferSource();
+  const bufferSource = context.createBufferSource();
   bufferSource.buffer = audioBuffer;
+  bufferSource.connect(filter);
+  filter.connect(analyser);
+  analyser.connect(context.destination);
 
-  bufferSource.connect(lowpassFilter);
-  bufferSource.connect(highpassFilter);
-  lowpassFilter.connect(analyserLow);
-  highpassFilter.connect(analyserHigh);
-  analyserLow.connect(offlineContext.destination);
-  analyserHigh.connect(offlineContext.destination);
+  const binCount = analyser.frequencyBinCount;
+  const frames: Uint8Array[] = [];
+  const frequencyData = new Uint8Array(binCount);
 
   let suspendTime = SUSPEND_INTERVAL;
   while (suspendTime < duration) {
-    offlineContext
+    context
       .suspend(suspendTime)
       .then(() => {
-        collectFrame();
-        offlineContext.resume();
+        analyser.getByteFrequencyData(frequencyData);
+        frames.push(new Uint8Array(frequencyData));
+        context.resume();
       })
       .catch((error) => console.log(error));
     suspendTime += SUSPEND_INTERVAL;
   }
 
   bufferSource.start(0);
-  await offlineContext.startRendering();
+  await context.startRendering();
+
+  return frames;
+}
+
+/**
+ * Computes the merge boundaries for combining low-band and high-band
+ * FFT results into a single frequency array.
+ */
+export function calculateMergeParams(sampleRate: number) {
+  const lowBinWidth = LOW_BAND_SAMPLE_RATE / DUAL_BAND_FFT_SIZE;
+  const highBinWidth = sampleRate / DUAL_BAND_FFT_SIZE;
+  const lowBinCount = Math.ceil(SPLIT_FREQUENCY / lowBinWidth);
+  const highBinStart = Math.ceil(SPLIT_FREQUENCY / highBinWidth);
+  const highBinEnd = DUAL_BAND_FFT_SIZE / 2;
+  const mergedBinCount = lowBinCount + (highBinEnd - highBinStart);
+  return { lowBinCount, highBinStart, highBinEnd, mergedBinCount };
+}
+
+/**
+ * Dual-band FFT analysis producing log-frequency spectrogram frames.
+ *
+ * Splits the signal at ~752 Hz with separate OfflineAudioContexts:
+ * the low band runs at 3000 Hz sample rate for ~3.7× finer frequency
+ * resolution in the bass range (257 bins vs 70), while the high band
+ * runs at the original sample rate. The two bands are merged and
+ * log-frequency mapped into a single spectrogram.
+ */
+export async function analyseToFrames(
+  channelData: Float32Array[],
+  sampleRate: number,
+  length: number,
+): Promise<SpectrogramData> {
+  const duration = length / sampleRate;
+
+  const [lowFrames, highFrames] = await Promise.all([
+    analyseBand(
+      channelData,
+      sampleRate,
+      length,
+      duration,
+      LOW_BAND_SAMPLE_RATE,
+      'lowpass',
+    ),
+    analyseBand(
+      channelData,
+      sampleRate,
+      length,
+      duration,
+      sampleRate,
+      'highpass',
+    ),
+  ]);
+
+  const { lowBinCount, highBinStart, highBinEnd, mergedBinCount } =
+    calculateMergeParams(sampleRate);
+
+  const logMapping = createLogFrequencyMapping(mergedBinCount);
+  const frameCount = Math.min(lowFrames.length, highFrames.length);
+  const frequencyFrames: Uint8Array[] = [];
+  const mergedData = new Uint8Array(mergedBinCount);
+  const tempBuffer = new Uint8Array(mergedBinCount);
+
+  for (let f = 0; f < frameCount; f++) {
+    for (let i = 0; i < lowBinCount; i++) {
+      mergedData[i] = lowFrames[f][i];
+    }
+    for (let i = highBinStart; i < highBinEnd; i++) {
+      mergedData[lowBinCount + i - highBinStart] = highFrames[f][i];
+    }
+
+    for (let i = 0; i < mergedBinCount; i++) {
+      tempBuffer[i] = mergedData[i];
+    }
+    for (let i = 0; i < mergedBinCount; i++) {
+      mergedData[i] = 0;
+      const pool = logMapping[i];
+      for (let j = 0; j < pool.length; j++) {
+        mergedData[i] += tempBuffer[pool[j]];
+      }
+    }
+    frequencyFrames.push(new Uint8Array(mergedData));
+  }
 
   return {
     frequencyFrames,
     timeResolution: SUSPEND_INTERVAL,
-    frequencyBinCount: binCount,
+    frequencyBinCount: mergedBinCount,
     sampleRate,
     duration,
   };
