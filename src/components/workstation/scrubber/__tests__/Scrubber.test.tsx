@@ -13,6 +13,7 @@ const defaultProps = {
   drawerHeight: 0,
   isMixerOpen: false,
   pixelsPerSecond: 200,
+  tracks: [] as import('../../../../types/track').Track[],
 };
 
 afterEach(() => {
@@ -114,6 +115,9 @@ it('feeds plasma renderer with loudness during playback', () => {
   vi.spyOn(audioService.mixer, 'getCombinedFrequencyData').mockReturnValue(
     null,
   );
+  vi.spyOn(audioService.mixer, 'getActiveTrackFrequencyData').mockReturnValue(
+    [],
+  );
 
   let rafCallback: FrameRequestCallback = () => {};
   vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
@@ -139,6 +143,9 @@ it('does not stop playback at end of scroll during recording', () => {
   vi.spyOn(audioService.mixer, 'getLoudness').mockReturnValue(0);
   vi.spyOn(audioService.mixer, 'getCombinedFrequencyData').mockReturnValue(
     null,
+  );
+  vi.spyOn(audioService.mixer, 'getActiveTrackFrequencyData').mockReturnValue(
+    [],
   );
 
   let rafCallback: FrameRequestCallback = () => {};

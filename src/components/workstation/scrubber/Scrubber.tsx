@@ -4,6 +4,7 @@ import { Button } from 'antd';
 import classNames from 'classnames';
 import { PropsWithChildren } from 'react';
 import { togglePlayback } from '../../../signals/transportSignals';
+import { type Track } from '../../../types/track';
 import PlasmaPlayhead from './PlasmaPlayhead';
 import './Scrubber.css';
 import { useScrubber } from './useScrubber';
@@ -12,11 +13,12 @@ type ScrubberProps = PropsWithChildren<{
   drawerHeight: number;
   isMixerOpen: boolean;
   pixelsPerSecond: number;
+  tracks: Track[];
 }>;
 
 const Scrubber = (props: ScrubberProps) => {
   useSignals();
-  const { drawerHeight, isMixerOpen, pixelsPerSecond } = props;
+  const { drawerHeight, isMixerOpen, pixelsPerSecond, tracks } = props;
 
   const {
     timelineScrollRef,
@@ -30,7 +32,7 @@ const Scrubber = (props: ScrubberProps) => {
     handleWheel,
     handleTouchMove,
     handleStopAndRewind,
-  } = useScrubber({ drawerHeight, isMixerOpen, pixelsPerSecond });
+  } = useScrubber({ drawerHeight, isMixerOpen, pixelsPerSecond, tracks });
 
   const handleTogglePlayback = () => {
     togglePlayback();

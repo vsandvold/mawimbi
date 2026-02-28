@@ -1,5 +1,6 @@
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 import {
+  type TrackFrequencyInput,
   createPlasmaState,
   renderIdleFrame,
   renderPlasmaFrame,
@@ -12,6 +13,7 @@ export type PlasmaPlayheadHandle = {
     frequencyData: Float32Array | null,
     loudness: number,
     scrollLeft: number,
+    trackFrequencyInputs: TrackFrequencyInput[],
   ) => void;
   renderIdle: () => void;
   resize: (height: number) => void;
@@ -34,6 +36,7 @@ const PlasmaPlayhead = forwardRef<PlasmaPlayheadHandle, PlasmaPlayheadProps>(
         frequencyData: Float32Array | null,
         loudness: number,
         scrollLeft: number,
+        trackFrequencyInputs: TrackFrequencyInput[],
       ) {
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -58,6 +61,7 @@ const PlasmaPlayhead = forwardRef<PlasmaPlayheadHandle, PlasmaPlayheadProps>(
           centerX,
           now,
           deltaTime,
+          trackFrequencyInputs,
         );
       },
 
