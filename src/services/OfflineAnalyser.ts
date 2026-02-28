@@ -8,7 +8,8 @@ export type SpectrogramData = {
   duration: number;
 };
 
-const DUAL_BAND_FFT_SIZE = 1024;
+const LOW_BAND_FFT_SIZE = 2048;
+const HIGH_BAND_FFT_SIZE = 1024;
 const SPLIT_FREQUENCY = 752;
 const LOW_BAND_SAMPLE_RATE = 3000;
 
@@ -62,9 +63,12 @@ class OfflineAnalyser {
     return analyser;
   }
 
-  private createDualBandAnalyser(offlineContext: OfflineAudioContext) {
+  private createDualBandAnalyser(
+    offlineContext: OfflineAudioContext,
+    fftSize: number,
+  ) {
     const analyser = offlineContext.createAnalyser();
-    analyser.fftSize = DUAL_BAND_FFT_SIZE;
+    analyser.fftSize = fftSize;
     analyser.smoothingTimeConstant = 0;
     analyser.minDecibels = -80;
     analyser.maxDecibels = -30;
@@ -102,23 +106,32 @@ class OfflineAnalyser {
    * Dual-band FFT analysis producing log-frequency spectrogram frames.
    *
    * Splits the signal at ~752 Hz with separate OfflineAudioContexts:
-   * the low band runs at 3000 Hz sample rate for ~3.7× finer frequency
-   * resolution in the bass range (257 bins vs 70), while the high band
-   * runs at the original sample rate. The two bands are merged and
-   * log-frequency mapped into a single spectrogram.
+   * the low band runs at 3000 Hz with a 2048-point FFT for ~7× finer
+   * frequency resolution in the bass range (514 bins vs 70), achieving
+   * semitone discrimination down to ~25 Hz. The high band runs at the
+   * original sample rate with a 1024-point FFT. The two bands are merged
+   * and log-frequency mapped into a single spectrogram.
    */
   async analyseToFrames(): Promise<SpectrogramData> {
     const { audioBuffer } = this;
     const sampleRate = audioBuffer.sampleRate;
 
-    const lowFrames = await this.analyseBand(LOW_BAND_SAMPLE_RATE, 'lowpass');
-    const highFrames = await this.analyseBand(sampleRate, 'highpass');
+    const lowFrames = await this.analyseBand(
+      LOW_BAND_SAMPLE_RATE,
+      'lowpass',
+      LOW_BAND_FFT_SIZE,
+    );
+    const highFrames = await this.analyseBand(
+      sampleRate,
+      'highpass',
+      HIGH_BAND_FFT_SIZE,
+    );
 
-    const lowBinWidth = LOW_BAND_SAMPLE_RATE / DUAL_BAND_FFT_SIZE;
-    const highBinWidth = sampleRate / DUAL_BAND_FFT_SIZE;
+    const lowBinWidth = LOW_BAND_SAMPLE_RATE / LOW_BAND_FFT_SIZE;
+    const highBinWidth = sampleRate / HIGH_BAND_FFT_SIZE;
     const lowBinCount = Math.ceil(SPLIT_FREQUENCY / lowBinWidth);
     const highBinStart = Math.ceil(SPLIT_FREQUENCY / highBinWidth);
-    const highBinEnd = DUAL_BAND_FFT_SIZE / 2;
+    const highBinEnd = HIGH_BAND_FFT_SIZE / 2;
     const mergedBinCount = lowBinCount + (highBinEnd - highBinStart);
 
     const logMapping = createLogFrequencyMapping(mergedBinCount);
@@ -173,6 +186,7 @@ class OfflineAnalyser {
   private async analyseBand(
     contextSampleRate: number,
     filterType: BiquadFilterType,
+    fftSize: number,
   ): Promise<Uint8Array[]> {
     const { audioBuffer } = this;
     const numChannels = audioBuffer.numberOfChannels;
@@ -189,7 +203,7 @@ class OfflineAnalyser {
     filter.type = filterType;
     filter.frequency.value = SPLIT_FREQUENCY;
 
-    const analyser = this.createDualBandAnalyser(context);
+    const analyser = this.createDualBandAnalyser(context, fftSize);
 
     const newBuffer = context.createBuffer(
       numChannels,

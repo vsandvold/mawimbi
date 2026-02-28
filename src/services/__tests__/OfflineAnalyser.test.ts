@@ -214,8 +214,8 @@ type OfflineAnalyserInternals = {
   logFrequencyMapping: number[][];
 };
 
-// At 44100 Hz: lowBinCount=257, highBinStart=18, highBinEnd=512, merged=751
-const MERGED_BIN_COUNT = 751;
+// At 44100 Hz: lowBinCount=514, highBinStart=18, highBinEnd=512, merged=1008
+const MERGED_BIN_COUNT = 1008;
 
 describe('constructor', () => {
   it('creates an OfflineAudioContext with correct parameters', () => {
@@ -478,7 +478,7 @@ describe('analyseToFrames (suspend context)', () => {
 
     await analyser.analyseToFrames();
 
-    // Each band context creates one analyser (fftSize=1024)
+    // Each band context creates one analyser (low: fftSize=2048, high: fftSize=1024)
     expect(contexts[1].createAnalyser).toHaveBeenCalledTimes(1);
     expect(contexts[2].createAnalyser).toHaveBeenCalledTimes(1);
   });
@@ -730,7 +730,7 @@ describe('analyseToFrames merge logic', () => {
     // Verify the split: output bins mapped entirely from the low band
     // should be non-zero (sum of LOW_VALUE=1 per pooled bin)
     const logMapping = createLogFrequencyMapping(MERGED_BIN_COUNT);
-    const lowBinCount = 257; // at 44100 Hz
+    const lowBinCount = 514; // at 44100 Hz
     const firstHighOutputBin = logMapping.findIndex((pool) =>
       pool.some((idx) => idx >= lowBinCount),
     );

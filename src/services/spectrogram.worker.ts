@@ -3,7 +3,8 @@ import { createLogFrequencyMapping } from './logFrequencyMapping';
 import { type SpectrogramData } from './OfflineAnalyser';
 import { renderTiles } from './SpectrogramTileRenderer';
 
-const DUAL_BAND_FFT_SIZE = 1024;
+const LOW_BAND_FFT_SIZE = 2048;
+const HIGH_BAND_FFT_SIZE = 1024;
 const SMOOTHING_TIME_CONSTANT = 0;
 const MIN_DECIBELS = -80;
 const MAX_DECIBELS = -30;
@@ -23,9 +24,12 @@ export type AnalyseResponse =
   | { id: number; type: 'result'; data: SpectrogramData; tiles: ImageBitmap[] }
   | { id: number; type: 'error'; message: string };
 
-function createAnalyserNode(context: OfflineAudioContext): AnalyserNode {
+function createAnalyserNode(
+  context: OfflineAudioContext,
+  fftSize: number,
+): AnalyserNode {
   const analyser = context.createAnalyser();
-  analyser.fftSize = DUAL_BAND_FFT_SIZE;
+  analyser.fftSize = fftSize;
   analyser.smoothingTimeConstant = SMOOTHING_TIME_CONSTANT;
   analyser.minDecibels = MIN_DECIBELS;
   analyser.maxDecibels = MAX_DECIBELS;
@@ -48,6 +52,7 @@ async function analyseBand(
   duration: number,
   contextSampleRate: number,
   filterType: BiquadFilterType,
+  fftSize: number,
 ): Promise<Uint8Array[]> {
   const numChannels = channelData.length;
   const contextLength = Math.ceil(duration * contextSampleRate);
@@ -62,7 +67,7 @@ async function analyseBand(
   filter.type = filterType;
   filter.frequency.value = SPLIT_FREQUENCY;
 
-  const analyser = createAnalyserNode(context);
+  const analyser = createAnalyserNode(context, fftSize);
 
   const audioBuffer = context.createBuffer(numChannels, length, sampleRate);
   for (let ch = 0; ch < numChannels; ch++) {
@@ -106,11 +111,11 @@ async function analyseBand(
  * FFT results into a single frequency array.
  */
 export function calculateMergeParams(sampleRate: number) {
-  const lowBinWidth = LOW_BAND_SAMPLE_RATE / DUAL_BAND_FFT_SIZE;
-  const highBinWidth = sampleRate / DUAL_BAND_FFT_SIZE;
+  const lowBinWidth = LOW_BAND_SAMPLE_RATE / LOW_BAND_FFT_SIZE;
+  const highBinWidth = sampleRate / HIGH_BAND_FFT_SIZE;
   const lowBinCount = Math.ceil(SPLIT_FREQUENCY / lowBinWidth);
   const highBinStart = Math.ceil(SPLIT_FREQUENCY / highBinWidth);
-  const highBinEnd = DUAL_BAND_FFT_SIZE / 2;
+  const highBinEnd = HIGH_BAND_FFT_SIZE / 2;
   const mergedBinCount = lowBinCount + (highBinEnd - highBinStart);
   return { lowBinCount, highBinStart, highBinEnd, mergedBinCount };
 }
@@ -119,10 +124,11 @@ export function calculateMergeParams(sampleRate: number) {
  * Dual-band FFT analysis producing log-frequency spectrogram frames.
  *
  * Splits the signal at ~752 Hz with separate OfflineAudioContexts:
- * the low band runs at 3000 Hz sample rate for ~3.7× finer frequency
- * resolution in the bass range (257 bins vs 70), while the high band
- * runs at the original sample rate. The two bands are merged and
- * log-frequency mapped into a single spectrogram.
+ * the low band runs at 3000 Hz with a 2048-point FFT for ~7× finer
+ * frequency resolution in the bass range (514 bins vs 70), achieving
+ * semitone discrimination down to ~25 Hz. The high band runs at the
+ * original sample rate with a 1024-point FFT. The two bands are merged
+ * and log-frequency mapped into a single spectrogram.
  */
 export async function analyseToFrames(
   channelData: Float32Array[],
@@ -139,6 +145,7 @@ export async function analyseToFrames(
       duration,
       LOW_BAND_SAMPLE_RATE,
       'lowpass',
+      LOW_BAND_FFT_SIZE,
     ),
     analyseBand(
       channelData,
@@ -147,6 +154,7 @@ export async function analyseToFrames(
       duration,
       sampleRate,
       'highpass',
+      HIGH_BAND_FFT_SIZE,
     ),
   ]);
 

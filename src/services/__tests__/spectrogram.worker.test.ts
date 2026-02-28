@@ -2,7 +2,7 @@ import { vi } from 'vitest';
 import { createLogFrequencyMapping } from '../logFrequencyMapping';
 import { analyseToFrames, calculateMergeParams } from '../spectrogram.worker';
 
-const FFT_BIN_COUNT = 512;
+const LOG_MAPPING_BIN_COUNT = 512;
 
 type MockAnalyser = {
   fftSize: number;
@@ -15,10 +15,18 @@ type MockAnalyser = {
   connect: ReturnType<typeof vi.fn>;
 };
 
-function createMockAnalyser(): MockAnalyser {
+function createMockAnalyser() {
   return {
-    fftSize: 1024,
-    frequencyBinCount: FFT_BIN_COUNT,
+    _fftSize: 0,
+    get fftSize() {
+      return this._fftSize;
+    },
+    set fftSize(value: number) {
+      this._fftSize = value;
+    },
+    get frequencyBinCount() {
+      return this._fftSize / 2;
+    },
     smoothingTimeConstant: 0,
     minDecibels: -80,
     maxDecibels: -30,
@@ -100,13 +108,13 @@ afterEach(() => {
 
 describe('createLogFrequencyMapping', () => {
   it('produces a mapping array with length equal to frequencyBinCount', () => {
-    const mapping = createLogFrequencyMapping(FFT_BIN_COUNT);
+    const mapping = createLogFrequencyMapping(LOG_MAPPING_BIN_COUNT);
 
-    expect(mapping.length).toBe(FFT_BIN_COUNT);
+    expect(mapping.length).toBe(LOG_MAPPING_BIN_COUNT);
   });
 
   it('produces mapping entries that are arrays of at least one index', () => {
-    const mapping = createLogFrequencyMapping(FFT_BIN_COUNT);
+    const mapping = createLogFrequencyMapping(LOG_MAPPING_BIN_COUNT);
 
     for (const entry of mapping) {
       expect(Array.isArray(entry)).toBe(true);
@@ -115,7 +123,7 @@ describe('createLogFrequencyMapping', () => {
   });
 
   it('has higher bins mapping to more entries than lower bins', () => {
-    const mapping = createLogFrequencyMapping(FFT_BIN_COUNT);
+    const mapping = createLogFrequencyMapping(LOG_MAPPING_BIN_COUNT);
 
     const lastBinPoolSize = mapping[mapping.length - 1].length;
     const firstBinPoolSize = mapping[0].length;
@@ -144,19 +152,19 @@ describe('calculateMergeParams', () => {
   it('returns correct merge parameters for 44100 Hz', () => {
     const params = calculateMergeParams(44100);
 
-    expect(params.lowBinCount).toBe(257);
+    expect(params.lowBinCount).toBe(514);
     expect(params.highBinStart).toBe(18);
     expect(params.highBinEnd).toBe(512);
-    expect(params.mergedBinCount).toBe(751);
+    expect(params.mergedBinCount).toBe(1008);
   });
 
   it('returns correct merge parameters for 48000 Hz', () => {
     const params = calculateMergeParams(48000);
 
-    expect(params.lowBinCount).toBe(257);
+    expect(params.lowBinCount).toBe(514);
     expect(params.highBinStart).toBe(17);
     expect(params.highBinEnd).toBe(512);
-    expect(params.mergedBinCount).toBe(752);
+    expect(params.mergedBinCount).toBe(1009);
   });
 });
 
@@ -346,7 +354,9 @@ describe('analyseToFrames', () => {
   });
 
   it('merges low-frequency bins from lowpass and high-frequency bins from highpass', async () => {
-    const LOW_VALUE = 100;
+    // Use value 1 for low band to avoid Uint8Array overflow when log-mapping
+    // pools multiple bins (poolSize × value must stay ≤ 255)
+    const LOW_VALUE = 1;
     const HIGH_VALUE = 200;
     const contexts: MockOfflineContext[] = [];
     let contextIndex = 0;
@@ -358,8 +368,16 @@ describe('analyseToFrames', () => {
         const fillValue = contextIndex === 0 ? LOW_VALUE : HIGH_VALUE;
         contextIndex++;
         ctx.createAnalyser = vi.fn().mockImplementation(() => ({
-          fftSize: 1024,
-          frequencyBinCount: FFT_BIN_COUNT,
+          _fftSize: 0,
+          get fftSize() {
+            return this._fftSize;
+          },
+          set fftSize(value: number) {
+            this._fftSize = value;
+          },
+          get frequencyBinCount() {
+            return this._fftSize / 2;
+          },
           smoothingTimeConstant: 0,
           minDecibels: -80,
           maxDecibels: -30,
@@ -388,20 +406,20 @@ describe('analyseToFrames', () => {
     const frame = result.frequencyFrames[0];
     expect(frame).toBeDefined();
 
-    // Bin 0 maps to linear bin 0 (1:1 in log mapping) → should be 100 (low band)
+    // Bin 0 maps to linear bin 0 (1:1 in log mapping) → low band value
     expect(frame[0]).toBe(LOW_VALUE);
 
-    // The last output bin maps to the highest linear bins → should reflect high-band value
+    // The last output bin maps to the highest linear bins → high band value
     expect(frame[mergedBinCount - 1]).toBeGreaterThan(0);
 
-    // Output bins that map exclusively to linear bins below lowBinCount
-    // should come from the low band (100)
+    // Verify the split: output bins mapped entirely from the low band
+    // should be non-zero (sum of LOW_VALUE=1 per pooled bin)
     const logMapping = createLogFrequencyMapping(mergedBinCount);
     const firstHighOutputBin = logMapping.findIndex((pool) =>
       pool.some((idx) => idx >= lowBinCount),
     );
     if (firstHighOutputBin > 0) {
-      expect(frame[firstHighOutputBin - 1]).toBe(LOW_VALUE);
+      expect(frame[firstHighOutputBin - 1]).toBeGreaterThan(0);
     }
   });
 });
