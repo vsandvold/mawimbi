@@ -14,12 +14,15 @@ import {
   stopAndRewindPlayback,
   transportTime,
 } from '../../../signals/transportSignals';
+import { type Track } from '../../../types/track';
 import { type PlasmaPlayheadHandle } from './PlasmaPlayhead';
+import { type TrackFrequencyInput } from './plasmaRenderer';
 
 type UseScrubberOptions = {
   drawerHeight: number;
   isMixerOpen: boolean;
   pixelsPerSecond: number;
+  tracks: Track[];
 };
 
 // Keep in sync with --timeline-margin in index.css
@@ -30,6 +33,7 @@ export function useScrubber({
   drawerHeight,
   isMixerOpen,
   pixelsPerSecond,
+  tracks,
 }: UseScrubberOptions) {
   const playing = isPlaying.value;
 
@@ -44,6 +48,8 @@ export function useScrubber({
   const plasmaRef = useRef<PlasmaPlayheadHandle>(null);
   const isProgrammaticScrollRef = useRef(false);
   const shouldResumeRef = useRef(false);
+  const tracksRef = useRef(tracks);
+  tracksRef.current = tracks;
 
   // Keep plasma canvas height in sync with the cursor container
   useLayoutEffect(() => {
@@ -92,8 +98,21 @@ export function useScrubber({
         loudnessSignal.value = currentLoudness;
 
         const frequencyData = audioService.mixer.getCombinedFrequencyData();
+        const perTrackData = audioService.mixer.getActiveTrackFrequencyData();
+        const trackFrequencyInputs: TrackFrequencyInput[] = perTrackData.map(
+          ({ trackId, data }) => {
+            const track = tracksRef.current.find((t) => t.trackId === trackId);
+            const color = track?.color ?? { r: 100, g: 200, b: 255 };
+            return { r: color.r, g: color.g, b: color.b, data };
+          },
+        );
         const scrollLeft = timelineScrollRef.current?.scrollLeft ?? 0;
-        plasmaRef.current?.render(frequencyData, currentLoudness, scrollLeft);
+        plasmaRef.current?.render(
+          frequencyData,
+          currentLoudness,
+          scrollLeft,
+          trackFrequencyInputs,
+        );
 
         // Skip end-of-scroll detection while recording — the recording
         // spectrogram grows its container width progressively, so scrollWidth

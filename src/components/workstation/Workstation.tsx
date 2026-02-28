@@ -73,6 +73,7 @@ const Workstation = (props: WorkstationProps) => {
               drawerHeight={mixerHeight}
               isMixerOpen={isMixerOpen}
               pixelsPerSecond={pixelsPerSecond}
+              tracks={tracks}
             >
               <Timeline
                 pixelsPerSecond={pixelsPerSecond}

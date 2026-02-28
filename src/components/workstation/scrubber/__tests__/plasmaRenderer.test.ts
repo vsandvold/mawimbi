@@ -170,7 +170,7 @@ describe('spawnMistParticles', () => {
     const state = createPlasmaState();
     const intensities = new Float32Array(10).fill(1.0);
 
-    spawnMistParticles(state, 120, 10, intensities, 0.01);
+    spawnMistParticles(state, 120, 10, intensities, [], 0.01);
 
     expect(state.mistParticles).toHaveLength(0);
   });
@@ -194,7 +194,7 @@ describe('spawnMistParticles', () => {
     }
     const intensities = new Float32Array(10).fill(1.0);
 
-    spawnMistParticles(state, 120, 10, intensities, 1.0);
+    spawnMistParticles(state, 120, 10, intensities, [], 1.0);
 
     expect(state.mistParticles).toHaveLength(150);
   });
@@ -203,7 +203,7 @@ describe('spawnMistParticles', () => {
     const state = createPlasmaState();
     const intensities = new Float32Array(100).fill(1.0);
 
-    spawnMistParticles(state, 120, 100, intensities, 1.0);
+    spawnMistParticles(state, 120, 100, intensities, [], 1.0);
 
     // At max loudness and intensity, most spawn attempts should succeed
     expect(state.mistParticles.length).toBeGreaterThan(0);

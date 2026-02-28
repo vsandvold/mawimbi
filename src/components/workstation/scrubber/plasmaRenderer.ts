@@ -54,14 +54,8 @@ const MIST_SIZE_MAX = 18;
 const MIST_VERTICAL_WANDER = 8;
 const MIST_DECELERATION = 0.5;
 
-// Mist color palette interpolated by vertical position (frequency band)
-const MIST_COLORS: [number, number, number][] = [
-  [130, 40, 255], // Bass: deep purple
-  [60, 120, 255], // Low-mid: blue
-  [0, 210, 255], // Mid: cyan
-  [100, 255, 200], // High-mid: teal
-  [255, 180, 255], // High: pink
-];
+// Default mist color when no track is dominant (cyan-blue)
+const MIST_DEFAULT_COLOR: [number, number, number] = [100, 200, 255];
 
 // --- Log-frequency mapping cache ---
 
@@ -82,6 +76,13 @@ function getLogMapping(binCount: number): {
 }
 
 // --- Types ---
+
+export type TrackFrequencyInput = {
+  r: number;
+  g: number;
+  b: number;
+  data: Float32Array;
+};
 
 export type EtchMark = {
   scrollPx: number;
@@ -199,18 +200,33 @@ export function updateSparks(state: PlasmaState, deltaTime: number): void {
 
 // --- Mist management ---
 
-function getMistColor(normalizedY: number): [number, number, number] {
-  // normalizedY: 0 = top (high freq), 1 = bottom (low freq)
-  const bandIndex = normalizedY * (MIST_COLORS.length - 1);
-  const lower = Math.floor(bandIndex);
-  const upper = Math.min(MIST_COLORS.length - 1, lower + 1);
-  const t = bandIndex - lower;
+type TrackMistInput = {
+  r: number;
+  g: number;
+  b: number;
+  intensities: Float32Array;
+};
 
-  return [
-    MIST_COLORS[lower][0] + t * (MIST_COLORS[upper][0] - MIST_COLORS[lower][0]),
-    MIST_COLORS[lower][1] + t * (MIST_COLORS[upper][1] - MIST_COLORS[lower][1]),
-    MIST_COLORS[lower][2] + t * (MIST_COLORS[upper][2] - MIST_COLORS[lower][2]),
-  ];
+function getDominantTrackColor(
+  trackInputs: TrackMistInput[],
+  rowIndex: number,
+): [number, number, number] {
+  let maxIntensity = 0;
+  let r = MIST_DEFAULT_COLOR[0];
+  let g = MIST_DEFAULT_COLOR[1];
+  let b = MIST_DEFAULT_COLOR[2];
+
+  for (const track of trackInputs) {
+    const intensity = track.intensities[rowIndex] || 0;
+    if (intensity > maxIntensity) {
+      maxIntensity = intensity;
+      r = track.r;
+      g = track.g;
+      b = track.b;
+    }
+  }
+
+  return [r, g, b];
 }
 
 export function spawnMistParticles(
@@ -218,6 +234,7 @@ export function spawnMistParticles(
   centerX: number,
   height: number,
   intensities: Float32Array,
+  trackMistInputs: TrackMistInput[],
   loudness: number,
 ): void {
   if (state.mistParticles.length >= MIST_MAX_PARTICLES) return;
@@ -232,20 +249,19 @@ export function spawnMistParticles(
 
     if (Math.random() > intensity * loudness * MIST_SPAWN_PROBABILITY) continue;
 
-    const direction = Math.random() > 0.5 ? 1 : -1;
+    // Drift right-to-left, following the timeline scroll direction
     const speed =
       MIST_DRIFT_SPEED_MIN +
       Math.random() * (MIST_DRIFT_SPEED_MAX - MIST_DRIFT_SPEED_MIN);
     const life =
       MIST_LIFE_MIN + Math.random() * (MIST_LIFE_MAX - MIST_LIFE_MIN);
     const size = MIST_SIZE_MIN + intensity * (MIST_SIZE_MAX - MIST_SIZE_MIN);
-    const normalizedY = y / height;
-    const [r, g, b] = getMistColor(normalizedY);
+    const [r, g, b] = getDominantTrackColor(trackMistInputs, rowIndex);
 
     state.mistParticles.push({
       x: centerX + (Math.random() - 0.5) * 4,
       y,
-      vx: direction * speed * (0.7 + intensity * 0.3),
+      vx: -speed * (0.7 + intensity * 0.3),
       vy: (Math.random() - 0.5) * MIST_VERTICAL_WANDER,
       life,
       maxLife: life,
@@ -589,10 +605,11 @@ export function renderPlasmaFrame(
   playheadScreenX: number,
   now: number,
   deltaTime: number,
+  trackFrequencyInputs: TrackFrequencyInput[],
 ): void {
   ctx.clearRect(0, 0, canvasWidth, height);
 
-  // State updates
+  // State updates — beat detection and glow react to the master loudness only
   const isBeat = updateBeatDetection(state, loudness, deltaTime);
   if (isBeat) {
     spawnSparks(state, playheadScreenX, height, loudness);
@@ -601,11 +618,28 @@ export function renderPlasmaFrame(
   updateSparks(state, deltaTime);
   pruneEtchMarks(state, now);
 
-  // Build per-row frequency intensities
+  // Build per-row frequency intensities from combined master data (for beam)
   const intensities = getFrequencyIntensities(frequencyData, height);
 
-  // Spawn and update mist particles (frequency-responsive smoke)
-  spawnMistParticles(state, playheadScreenX, height, intensities, loudness);
+  // Build per-track intensities for mist coloring
+  const trackMistInputs: TrackMistInput[] = trackFrequencyInputs.map(
+    (input) => ({
+      r: input.r,
+      g: input.g,
+      b: input.b,
+      intensities: getFrequencyIntensities(input.data, height),
+    }),
+  );
+
+  // Spawn and update mist particles — colored by dominant track per frequency band
+  spawnMistParticles(
+    state,
+    playheadScreenX,
+    height,
+    intensities,
+    trackMistInputs,
+    loudness,
+  );
   updateMistParticles(state, deltaTime);
 
   // Pulsation — beam breathes with slow and fast rhythms

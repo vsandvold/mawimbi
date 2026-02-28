@@ -46,6 +46,19 @@ class Mixer {
     return this.audioChannelRepository.get(trackId)?.getFrequencyData();
   }
 
+  getActiveTrackFrequencyData(): { trackId: string; data: Float32Array }[] {
+    const channels = this.audioChannelRepository.getAll();
+    const hasSoloChannels = this.hasSoloChannels();
+    const result: { trackId: string; data: Float32Array }[] = [];
+
+    for (const channel of channels) {
+      if (this.isChannelMuted(channel, hasSoloChannels)) continue;
+      result.push({ trackId: channel.id, data: channel.getFrequencyData() });
+    }
+
+    return result;
+  }
+
   getCombinedFrequencyData(): Float32Array | null {
     const channels = this.audioChannelRepository.getAll();
     const hasSoloChannels = this.hasSoloChannels();
