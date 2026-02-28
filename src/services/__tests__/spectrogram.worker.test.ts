@@ -2,7 +2,7 @@ import { vi } from 'vitest';
 import { createLogFrequencyMapping } from '../logFrequencyMapping';
 import { analyseToFrames, calculateMergeParams } from '../spectrogram.worker';
 
-const FFT_BIN_COUNT = 512; // DUAL_BAND_FFT_SIZE / 2
+const FFT_BIN_COUNT = 512;
 
 type MockAnalyser = {
   fftSize: number;
@@ -185,9 +185,9 @@ describe('analyseToFrames', () => {
     await analyseToFrames(channelData, 44100, 44100);
 
     expect(OfflineAudioContext).toHaveBeenCalledTimes(2);
-    // Low band: 1 channel, 3000 samples (1s × 3000 Hz), 3000 Hz
+    // Low band: 1 channel, ceil(1.0 × 3000) = 3000 samples, 3000 Hz
     expect(OfflineAudioContext).toHaveBeenCalledWith(1, 3000, 3000);
-    // High band: 1 channel, 44100 samples (1s × 44100 Hz), 44100 Hz
+    // High band: 1 channel, ceil(1.0 × 44100) = 44100 samples, 44100 Hz
     expect(OfflineAudioContext).toHaveBeenCalledWith(1, 44100, 44100);
   });
 
@@ -198,7 +198,7 @@ describe('analyseToFrames', () => {
     await analyseToFrames(channelData, 44100, 1024);
 
     expect(OfflineAudioContext).toHaveBeenCalledTimes(2);
-    // duration = 1024/44100 ≈ 0.0232s, low band length = ceil(0.0232 * 3000) = 70
+    // duration = 1024/44100 ≈ 0.0232s → low band length = ceil(0.0232 × 3000) = 70
     expect(OfflineAudioContext).toHaveBeenCalledWith(2, 70, 3000);
     expect(OfflineAudioContext).toHaveBeenCalledWith(2, 1024, 44100);
   });
@@ -210,7 +210,6 @@ describe('analyseToFrames', () => {
     const ch1 = new Float32Array([0.3, 0.4]);
     await analyseToFrames([ch0, ch1], 44100, 2);
 
-    // Each band context creates a buffer at the original sample rate
     for (const ctx of mockContexts) {
       expect(ctx.createBuffer).toHaveBeenCalledWith(2, 2, 44100);
       const buffer = ctx.createBuffer.mock.results[0].value;
@@ -232,13 +231,11 @@ describe('analyseToFrames', () => {
 
     expect(mockContexts).toHaveLength(2);
 
-    // Low band context: one lowpass filter at 752 Hz
     const lowFilter = mockContexts[0].createBiquadFilter.mock.results[0]
       .value as MockBiquadFilter;
     expect(lowFilter.type).toBe('lowpass');
     expect(lowFilter.frequency.value).toBe(752);
 
-    // High band context: one highpass filter at 752 Hz
     const highFilter = mockContexts[1].createBiquadFilter.mock.results[0]
       .value as MockBiquadFilter;
     expect(highFilter.type).toBe('highpass');
@@ -281,7 +278,7 @@ describe('analyseToFrames', () => {
     const length = Math.ceil(0.1 * sampleRate);
     await analyseToFrames([new Float32Array(length)], sampleRate, length);
 
-    // 3 suspend points → 3 frames per band
+    // 3 suspend points → 3 getByteFrequencyData calls per band analyser
     for (const ctx of mockContexts) {
       const analyser = ctx.createAnalyser.mock.results[0].value as MockAnalyser;
       expect(analyser.getByteFrequencyData).toHaveBeenCalledTimes(3);
@@ -349,10 +346,9 @@ describe('analyseToFrames', () => {
   });
 
   it('merges low-frequency bins from lowpass and high-frequency bins from highpass', async () => {
-    // Use value 1 for low band to avoid Uint8Array overflow when log-mapping
-    // pools multiple bins (poolSize × value must stay ≤ 255)
-    const LOW_VALUE = 1;
-    const HIGH_VALUE = 2;
+    const LOW_VALUE = 100;
+    const HIGH_VALUE = 200;
+    const contexts: MockOfflineContext[] = [];
     let contextIndex = 0;
 
     vi.stubGlobal(
@@ -375,6 +371,7 @@ describe('analyseToFrames', () => {
             }),
           connect: vi.fn(),
         }));
+        contexts.push(ctx);
         return ctx;
       }),
     );
@@ -391,20 +388,20 @@ describe('analyseToFrames', () => {
     const frame = result.frequencyFrames[0];
     expect(frame).toBeDefined();
 
-    // Bin 0 maps to linear bin 0 (1:1 in log mapping) → low band value
+    // Bin 0 maps to linear bin 0 (1:1 in log mapping) → should be 100 (low band)
     expect(frame[0]).toBe(LOW_VALUE);
 
-    // The last output bin maps to the highest linear bins → high band value
+    // The last output bin maps to the highest linear bins → should reflect high-band value
     expect(frame[mergedBinCount - 1]).toBeGreaterThan(0);
 
-    // Verify the split: output bins mapped entirely from the low band
-    // should be non-zero (sum of LOW_VALUE=1 per pooled bin)
+    // Output bins that map exclusively to linear bins below lowBinCount
+    // should come from the low band (100)
     const logMapping = createLogFrequencyMapping(mergedBinCount);
     const firstHighOutputBin = logMapping.findIndex((pool) =>
       pool.some((idx) => idx >= lowBinCount),
     );
     if (firstHighOutputBin > 0) {
-      expect(frame[firstHighOutputBin - 1]).toBeGreaterThan(0);
+      expect(frame[firstHighOutputBin - 1]).toBe(LOW_VALUE);
     }
   });
 });
