@@ -30,10 +30,10 @@
 .scrubber__cursor {
   position: absolute;
   top: 0;
-  left: calc(var(--cursor-position) * 100vw - 60px);
+  left: calc(var(--cursor-position) * 100vw - 120px);
   bottom: var(--timeline-margin);
   padding-top: var(--timeline-margin);
-  width: 120px;
+  width: 240px;
   pointer-events: none;
 }
 
