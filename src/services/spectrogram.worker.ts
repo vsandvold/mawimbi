@@ -3,11 +3,12 @@ import { createLogFrequencyMapping } from './logFrequencyMapping';
 import { type SpectrogramData } from './OfflineAnalyser';
 import { renderTiles } from './SpectrogramTileRenderer';
 
-const FFT_SIZE = 4096;
+const DUAL_BAND_FFT_SIZE = 1024;
 const SMOOTHING_TIME_CONSTANT = 0;
 const MIN_DECIBELS = -80;
 const MAX_DECIBELS = -30;
 const SUSPEND_INTERVAL = 0.025;
+const SPLIT_FREQUENCY = 752;
 
 export type AnalyseRequest = {
   id: number;
@@ -21,10 +22,23 @@ export type AnalyseResponse =
   | { id: number; type: 'result'; data: SpectrogramData; tiles: ImageBitmap[] }
   | { id: number; type: 'error'; message: string };
 
+function createAnalyserNode(context: OfflineAudioContext): AnalyserNode {
+  const analyser = context.createAnalyser();
+  analyser.fftSize = DUAL_BAND_FFT_SIZE;
+  analyser.smoothingTimeConstant = SMOOTHING_TIME_CONSTANT;
+  analyser.minDecibels = MIN_DECIBELS;
+  analyser.maxDecibels = MAX_DECIBELS;
+  return analyser;
+}
+
 /**
- * FFT analysis producing log-frequency spectrogram frames —
- * replicates OfflineAnalyser.analyseToFrames for use in the worker thread
- * (no `window.` prefix, no ScriptProcessorNode fallback).
+ * Dual-band FFT analysis producing log-frequency spectrogram frames.
+ *
+ * Splits the signal at ~752 Hz with a lowpass/highpass filter pair,
+ * runs separate 1024-point FFTs on each band, then merges the results
+ * into a single log-frequency spectrogram. The low band benefits from
+ * improved dynamic range (high-frequency energy no longer masks bass),
+ * producing a more detailed bass region in the spectrogram.
  */
 export async function analyseToFrames(
   channelData: Float32Array[],
@@ -40,32 +54,48 @@ export async function analyseToFrames(
     sampleRate,
   );
 
-  const analyser = offlineContext.createAnalyser();
-  analyser.fftSize = FFT_SIZE;
-  analyser.smoothingTimeConstant = SMOOTHING_TIME_CONSTANT;
-  analyser.minDecibels = MIN_DECIBELS;
-  analyser.maxDecibels = MAX_DECIBELS;
+  const lowpassFilter = offlineContext.createBiquadFilter();
+  lowpassFilter.type = 'lowpass';
+  lowpassFilter.frequency.value = SPLIT_FREQUENCY;
 
-  const binCount = analyser.frequencyBinCount;
+  const highpassFilter = offlineContext.createBiquadFilter();
+  highpassFilter.type = 'highpass';
+  highpassFilter.frequency.value = SPLIT_FREQUENCY;
+
+  const analyserLow = createAnalyserNode(offlineContext);
+  const analyserHigh = createAnalyserNode(offlineContext);
+
+  const binCount = analyserLow.frequencyBinCount;
+  const splitBin = Math.round(
+    SPLIT_FREQUENCY / (sampleRate / DUAL_BAND_FFT_SIZE),
+  );
   const logMapping = createLogFrequencyMapping(binCount);
 
   const frequencyFrames: Uint8Array[] = [];
-  const frequencyData = new Uint8Array(binCount);
+  const lowData = new Uint8Array(binCount);
+  const highData = new Uint8Array(binCount);
+  const mergedData = new Uint8Array(binCount);
   const tempBuffer = new Uint8Array(binCount);
 
   const collectFrame = () => {
-    analyser.getByteFrequencyData(frequencyData);
+    analyserLow.getByteFrequencyData(lowData);
+    analyserHigh.getByteFrequencyData(highData);
+
     for (let i = 0; i < binCount; i++) {
-      tempBuffer[i] = frequencyData[i];
+      mergedData[i] = i < splitBin ? lowData[i] : highData[i];
+    }
+
+    for (let i = 0; i < binCount; i++) {
+      tempBuffer[i] = mergedData[i];
     }
     for (let i = 0; i < binCount; i++) {
-      frequencyData[i] = 0;
+      mergedData[i] = 0;
       const pool = logMapping[i];
       for (let j = 0; j < pool.length; j++) {
-        frequencyData[i] += tempBuffer[pool[j]];
+        mergedData[i] += tempBuffer[pool[j]];
       }
     }
-    frequencyFrames.push(new Uint8Array(frequencyData));
+    frequencyFrames.push(new Uint8Array(mergedData));
   };
 
   const audioBuffer = offlineContext.createBuffer(
@@ -82,8 +112,13 @@ export async function analyseToFrames(
 
   const bufferSource = offlineContext.createBufferSource();
   bufferSource.buffer = audioBuffer;
-  bufferSource.connect(analyser);
-  analyser.connect(offlineContext.destination);
+
+  bufferSource.connect(lowpassFilter);
+  bufferSource.connect(highpassFilter);
+  lowpassFilter.connect(analyserLow);
+  highpassFilter.connect(analyserHigh);
+  analyserLow.connect(offlineContext.destination);
+  analyserHigh.connect(offlineContext.destination);
 
   let suspendTime = SUSPEND_INTERVAL;
   while (suspendTime < duration) {

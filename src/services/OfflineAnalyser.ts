@@ -8,6 +8,9 @@ export type SpectrogramData = {
   duration: number;
 };
 
+const DUAL_BAND_FFT_SIZE = 1024;
+const SPLIT_FREQUENCY = 752;
+
 class OfflineAnalyser {
   readonly frequencyBinCount: number;
   readonly timeResolution: number;
@@ -58,6 +61,15 @@ class OfflineAnalyser {
     return analyser;
   }
 
+  private createDualBandAnalyser(offlineContext: OfflineAudioContext) {
+    const analyser = offlineContext.createAnalyser();
+    analyser.fftSize = DUAL_BAND_FFT_SIZE;
+    analyser.smoothingTimeConstant = 0;
+    analyser.minDecibels = -80;
+    analyser.maxDecibels = -30;
+    return analyser;
+  }
+
   private detectContextSuspendSupported(offlineContext: OfflineAudioContext) {
     return 'suspend' in offlineContext;
   }
@@ -88,7 +100,6 @@ class OfflineAnalyser {
   async analyseToFrames(): Promise<SpectrogramData> {
     const { audioBuffer } = this;
     const sampleRate = audioBuffer.sampleRate;
-    const binCount = this.frequencyBinCount;
 
     // Fresh context — OfflineAudioContext.startRendering() is single-use
     const offlineContext = new window.OfflineAudioContext(
@@ -96,40 +107,66 @@ class OfflineAnalyser {
       audioBuffer.length,
       sampleRate,
     );
-    const analyser = this.createAnalyser(offlineContext);
+
+    const lowpassFilter = offlineContext.createBiquadFilter();
+    lowpassFilter.type = 'lowpass';
+    lowpassFilter.frequency.value = SPLIT_FREQUENCY;
+
+    const highpassFilter = offlineContext.createBiquadFilter();
+    highpassFilter.type = 'highpass';
+    highpassFilter.frequency.value = SPLIT_FREQUENCY;
+
+    const analyserLow = this.createDualBandAnalyser(offlineContext);
+    const analyserHigh = this.createDualBandAnalyser(offlineContext);
     const supportsSuspend = this.detectContextSuspendSupported(offlineContext);
+
+    const binCount = analyserLow.frequencyBinCount;
+    const splitBin = Math.round(
+      SPLIT_FREQUENCY / (sampleRate / DUAL_BAND_FFT_SIZE),
+    );
+    const logMapping = createLogFrequencyMapping(binCount);
 
     const timeResolution = supportsSuspend
       ? this.offlineContextSuspendTime
       : this.scriptProcessorBufferLength / sampleRate;
 
     const frequencyFrames: Uint8Array[] = [];
-    const frequencyData = new Uint8Array(binCount);
+    const lowData = new Uint8Array(binCount);
+    const highData = new Uint8Array(binCount);
+    const mergedData = new Uint8Array(binCount);
     const tempBuffer = new Uint8Array(binCount);
 
     const collectFrame = () => {
-      analyser.getByteFrequencyData(frequencyData);
-      // Apply log-frequency mapping with a local temp buffer
-      // to avoid sharing the instance-level frequencyDataCopy
+      analyserLow.getByteFrequencyData(lowData);
+      analyserHigh.getByteFrequencyData(highData);
+
       for (let i = 0; i < binCount; i++) {
-        tempBuffer[i] = frequencyData[i];
+        mergedData[i] = i < splitBin ? lowData[i] : highData[i];
+      }
+
+      for (let i = 0; i < binCount; i++) {
+        tempBuffer[i] = mergedData[i];
       }
       for (let i = 0; i < binCount; i++) {
-        frequencyData[i] = 0;
-        const pool = this.logFrequencyMapping[i];
+        mergedData[i] = 0;
+        const pool = logMapping[i];
         for (let j = 0; j < pool.length; j++) {
-          frequencyData[i] += tempBuffer[pool[j]];
+          mergedData[i] += tempBuffer[pool[j]];
         }
       }
-      frequencyFrames.push(new Uint8Array(frequencyData));
+      frequencyFrames.push(new Uint8Array(mergedData));
     };
 
     const bufferSource = offlineContext.createBufferSource();
     bufferSource.buffer = audioBuffer;
 
     if (supportsSuspend) {
-      bufferSource.connect(analyser);
-      analyser.connect(offlineContext.destination);
+      bufferSource.connect(lowpassFilter);
+      bufferSource.connect(highpassFilter);
+      lowpassFilter.connect(analyserLow);
+      highpassFilter.connect(analyserHigh);
+      analyserLow.connect(offlineContext.destination);
+      analyserHigh.connect(offlineContext.destination);
 
       const step = timeResolution;
       let suspendTime = step;
@@ -149,13 +186,17 @@ class OfflineAnalyser {
     } else {
       const scriptProcessor = offlineContext.createScriptProcessor(
         this.scriptProcessorBufferLength,
-        analyser.numberOfOutputs,
-        analyser.numberOfOutputs,
+        analyserLow.numberOfOutputs,
+        analyserLow.numberOfOutputs,
       );
 
-      bufferSource.connect(analyser);
-      analyser.connect(scriptProcessor);
+      bufferSource.connect(lowpassFilter);
+      bufferSource.connect(highpassFilter);
+      lowpassFilter.connect(analyserLow);
+      highpassFilter.connect(analyserHigh);
+      analyserLow.connect(scriptProcessor);
       scriptProcessor.connect(offlineContext.destination);
+      analyserHigh.connect(offlineContext.destination);
 
       scriptProcessor.onaudioprocess = () => {
         collectFrame();

@@ -3,24 +3,32 @@ import { createLogFrequencyMapping } from '../logFrequencyMapping';
 import { analyseToFrames } from '../spectrogram.worker';
 
 // OfflineAudioContext is not available in jsdom — mock it identically to OfflineAnalyser tests
-const mockGetByteFrequencyData = vi.fn();
 const mockStartRendering = vi.fn();
 const mockSuspend = vi.fn();
-const mockConnect = vi.fn();
 const mockCopyToChannel = vi.fn();
 
-const FREQUENCY_BIN_COUNT = 2048;
+const FREQUENCY_BIN_COUNT = 512;
 
-const mockAnalyser = {
-  fftSize: 4096,
-  frequencyBinCount: FREQUENCY_BIN_COUNT,
-  smoothingTimeConstant: 0,
-  minDecibels: -80,
-  maxDecibels: -30,
-  numberOfOutputs: 1,
-  getByteFrequencyData: mockGetByteFrequencyData,
-  connect: mockConnect,
-};
+function createMockAnalyser() {
+  return {
+    fftSize: 1024,
+    frequencyBinCount: FREQUENCY_BIN_COUNT,
+    smoothingTimeConstant: 0,
+    minDecibels: -80,
+    maxDecibels: -30,
+    numberOfOutputs: 1,
+    getByteFrequencyData: vi.fn(),
+    connect: vi.fn(),
+  };
+}
+
+function createMockBiquadFilter() {
+  return {
+    type: '' as BiquadFilterType,
+    frequency: { value: 0 },
+    connect: vi.fn(),
+  };
+}
 
 const mockBufferSource = {
   buffer: null as AudioBuffer | null,
@@ -34,6 +42,7 @@ type MockOfflineContext = {
   destination: typeof mockDestination;
   currentTime: number;
   createAnalyser: ReturnType<typeof vi.fn>;
+  createBiquadFilter: ReturnType<typeof vi.fn>;
   createBufferSource: ReturnType<typeof vi.fn>;
   createBuffer: ReturnType<typeof vi.fn>;
   startRendering: typeof mockStartRendering;
@@ -45,7 +54,10 @@ function createMockOfflineContext(): MockOfflineContext {
   return {
     destination: mockDestination,
     currentTime: 0,
-    createAnalyser: vi.fn().mockReturnValue({ ...mockAnalyser }),
+    createAnalyser: vi.fn().mockImplementation(() => createMockAnalyser()),
+    createBiquadFilter: vi
+      .fn()
+      .mockImplementation(() => createMockBiquadFilter()),
     createBufferSource: vi.fn().mockReturnValue({ ...mockBufferSource }),
     createBuffer: vi.fn().mockReturnValue({
       copyToChannel: mockCopyToChannel,
@@ -167,15 +179,71 @@ describe('analyseToFrames', () => {
     expect(mockCopyToChannel).toHaveBeenCalledWith(ch1, 1);
   });
 
-  it('connects buffer source to analyser and destination', async () => {
+  it('creates dual-band filters at 752 Hz', async () => {
+    const mockCtx = createMockOfflineContext();
+    stubOfflineAudioContext(mockCtx);
+
+    await analyseToFrames([new Float32Array(44100)], 44100, 44100);
+
+    expect(mockCtx.createBiquadFilter).toHaveBeenCalledTimes(2);
+    const filters = mockCtx.createBiquadFilter.mock.results.map(
+      (r) => r.value as ReturnType<typeof createMockBiquadFilter>,
+    );
+    expect(filters[0].type).toBe('lowpass');
+    expect(filters[0].frequency.value).toBe(752);
+    expect(filters[1].type).toBe('highpass');
+    expect(filters[1].frequency.value).toBe(752);
+  });
+
+  it('creates two analysers for dual-band processing', async () => {
+    const mockCtx = createMockOfflineContext();
+    stubOfflineAudioContext(mockCtx);
+
+    await analyseToFrames([new Float32Array(44100)], 44100, 44100);
+
+    expect(mockCtx.createAnalyser).toHaveBeenCalledTimes(2);
+  });
+
+  it('connects buffer source through filters to analysers and destination', async () => {
     const mockCtx = createMockOfflineContext();
     stubOfflineAudioContext(mockCtx);
 
     await analyseToFrames([new Float32Array(44100)], 44100, 44100);
 
     const bufferSource = mockCtx.createBufferSource.mock.results[0].value;
-    expect(bufferSource.connect).toHaveBeenCalled();
+    // Buffer source connects to both filters
+    expect(bufferSource.connect).toHaveBeenCalledTimes(2);
     expect(bufferSource.start).toHaveBeenCalledWith(0);
+
+    // Each filter connects to its analyser
+    const filters = mockCtx.createBiquadFilter.mock.results.map(
+      (r) => r.value as ReturnType<typeof createMockBiquadFilter>,
+    );
+    expect(filters[0].connect).toHaveBeenCalledTimes(1);
+    expect(filters[1].connect).toHaveBeenCalledTimes(1);
+
+    // Each analyser connects to destination
+    const analysers = mockCtx.createAnalyser.mock.results.map(
+      (r) => r.value as ReturnType<typeof createMockAnalyser>,
+    );
+    expect(analysers[0].connect).toHaveBeenCalledTimes(1);
+    expect(analysers[1].connect).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads frequency data from both analysers during frame collection', async () => {
+    const mockCtx = createMockOfflineContext();
+    stubOfflineAudioContext(mockCtx);
+
+    const sampleRate = 44100;
+    const length = Math.ceil(0.1 * sampleRate);
+    await analyseToFrames([new Float32Array(length)], sampleRate, length);
+
+    // 3 suspend points → 3 frames → each reads from both analysers
+    const analysers = mockCtx.createAnalyser.mock.results.map(
+      (r) => r.value as ReturnType<typeof createMockAnalyser>,
+    );
+    expect(analysers[0].getByteFrequencyData).toHaveBeenCalledTimes(3);
+    expect(analysers[1].getByteFrequencyData).toHaveBeenCalledTimes(3);
   });
 
   it('suspends at regular intervals for frame collection', async () => {
@@ -235,5 +303,66 @@ describe('analyseToFrames', () => {
     await analyseToFrames([new Float32Array(44100)], 44100, 44100);
 
     expect(mockCtx.startRendering).toHaveBeenCalledOnce();
+  });
+
+  it('merges low-frequency bins from lowpass and high-frequency bins from highpass', async () => {
+    const mockCtx = createMockOfflineContext();
+
+    // At 44100 Hz with FFT_SIZE=1024, splitBin = round(752 / (44100/1024)) ≈ 17
+    const sampleRate = 44100;
+    const splitBin = Math.round(752 / (sampleRate / 1024));
+
+    let analyserIndex = 0;
+    mockCtx.createAnalyser = vi.fn().mockImplementation(() => {
+      const LOW_VALUE = 100;
+      const HIGH_VALUE = 200;
+      const fillValue = analyserIndex === 0 ? LOW_VALUE : HIGH_VALUE;
+      analyserIndex++;
+      return {
+        fftSize: 1024,
+        frequencyBinCount: FREQUENCY_BIN_COUNT,
+        smoothingTimeConstant: 0,
+        minDecibels: -80,
+        maxDecibels: -30,
+        numberOfOutputs: 1,
+        getByteFrequencyData: vi.fn().mockImplementation((arr: Uint8Array) => {
+          arr.fill(fillValue);
+        }),
+        connect: vi.fn(),
+      };
+    });
+    stubOfflineAudioContext(mockCtx);
+
+    const length = Math.ceil(0.05 * sampleRate);
+    const result = await analyseToFrames(
+      [new Float32Array(length)],
+      sampleRate,
+      length,
+    );
+
+    // The first frame should have low-band values (100) before splitBin
+    // and high-band values (200) at and after splitBin, before log mapping
+    // After log mapping, bin 0 maps 1:1, so it should retain its input value
+    const frame = result.frequencyFrames[0];
+    expect(frame).toBeDefined();
+
+    // Bin 0 maps to linear bin 0 (1:1 in log mapping) → should be 100 (low band)
+    expect(frame[0]).toBe(100);
+
+    // The last output bin maps to the highest linear bins → should reflect high-band value
+    // Due to log mapping pooling, the exact value depends on the mapping,
+    // but it should be non-zero (high band has data)
+    expect(frame[FREQUENCY_BIN_COUNT - 1]).toBeGreaterThan(0);
+
+    // Verify split bin boundary: output bins that map exclusively to linear bins
+    // below splitBin should come from the low band (100)
+    const logMapping = createLogFrequencyMapping(FREQUENCY_BIN_COUNT);
+    const firstHighOutputBin = logMapping.findIndex((pool) =>
+      pool.some((idx) => idx >= splitBin),
+    );
+    // Output bins before firstHighOutputBin map only to low-band linear bins
+    if (firstHighOutputBin > 0) {
+      expect(frame[firstHighOutputBin - 1]).toBe(100);
+    }
   });
 });
