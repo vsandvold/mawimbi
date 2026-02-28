@@ -11,7 +11,7 @@ export type SpectrogramData = {
 const LOW_BAND_FFT_SIZE = 2048;
 const HIGH_BAND_FFT_SIZE = 1024;
 const SPLIT_FREQUENCY = 752;
-const LOW_BAND_SAMPLE_RATE = 3000;
+const LOW_BAND_SAMPLE_RATE = 5120;
 
 class OfflineAnalyser {
   readonly frequencyBinCount: number;
@@ -106,9 +106,9 @@ class OfflineAnalyser {
    * Dual-band FFT analysis producing log-frequency spectrogram frames.
    *
    * Splits the signal at ~752 Hz with separate OfflineAudioContexts:
-   * the low band runs at 3000 Hz with a 2048-point FFT for ~7× finer
-   * frequency resolution in the bass range (514 bins vs 70), achieving
-   * semitone discrimination down to ~25 Hz. The high band runs at the
+   * the low band runs at 5120 Hz with a 2048-point FFT for ~4× finer
+   * frequency resolution in the bass range (301 bins vs 70), achieving
+   * semitone discrimination down to ~42 Hz. The high band runs at the
    * original sample rate with a 1024-point FFT. The two bands are merged
    * and log-frequency mapped into a single spectrogram.
    */
@@ -179,7 +179,7 @@ class OfflineAnalyser {
    * frames at regular intervals.
    *
    * A new AudioBuffer is created at the original sample rate inside a context
-   * running at `contextSampleRate`. When these differ (e.g. 3000 Hz for the
+   * running at `contextSampleRate`. When these differ (e.g. 5120 Hz for the
    * low band), the OfflineAudioContext automatically resamples during playback,
    * concentrating the FFT bins into a narrower frequency range.
    */

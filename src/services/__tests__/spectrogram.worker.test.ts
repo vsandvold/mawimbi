@@ -152,19 +152,19 @@ describe('calculateMergeParams', () => {
   it('returns correct merge parameters for 44100 Hz', () => {
     const params = calculateMergeParams(44100);
 
-    expect(params.lowBinCount).toBe(514);
+    expect(params.lowBinCount).toBe(301);
     expect(params.highBinStart).toBe(18);
     expect(params.highBinEnd).toBe(512);
-    expect(params.mergedBinCount).toBe(1008);
+    expect(params.mergedBinCount).toBe(795);
   });
 
   it('returns correct merge parameters for 48000 Hz', () => {
     const params = calculateMergeParams(48000);
 
-    expect(params.lowBinCount).toBe(514);
+    expect(params.lowBinCount).toBe(301);
     expect(params.highBinStart).toBe(17);
     expect(params.highBinEnd).toBe(512);
-    expect(params.mergedBinCount).toBe(1009);
+    expect(params.mergedBinCount).toBe(796);
   });
 });
 
@@ -193,8 +193,8 @@ describe('analyseToFrames', () => {
     await analyseToFrames(channelData, 44100, 44100);
 
     expect(OfflineAudioContext).toHaveBeenCalledTimes(2);
-    // Low band: 1 channel, ceil(1.0 × 3000) = 3000 samples, 3000 Hz
-    expect(OfflineAudioContext).toHaveBeenCalledWith(1, 3000, 3000);
+    // Low band: 1 channel, ceil(1.0 × 5120) = 5120 samples, 5120 Hz
+    expect(OfflineAudioContext).toHaveBeenCalledWith(1, 5120, 5120);
     // High band: 1 channel, ceil(1.0 × 44100) = 44100 samples, 44100 Hz
     expect(OfflineAudioContext).toHaveBeenCalledWith(1, 44100, 44100);
   });
@@ -206,8 +206,8 @@ describe('analyseToFrames', () => {
     await analyseToFrames(channelData, 44100, 1024);
 
     expect(OfflineAudioContext).toHaveBeenCalledTimes(2);
-    // duration = 1024/44100 ≈ 0.0232s → low band length = ceil(0.0232 × 3000) = 70
-    expect(OfflineAudioContext).toHaveBeenCalledWith(2, 70, 3000);
+    // duration = 1024/44100 ≈ 0.0232s → low band length = ceil(0.0232 × 5120) = 119
+    expect(OfflineAudioContext).toHaveBeenCalledWith(2, 119, 5120);
     expect(OfflineAudioContext).toHaveBeenCalledWith(2, 1024, 44100);
   });
 
