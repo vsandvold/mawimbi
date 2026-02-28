@@ -4,7 +4,7 @@
 > UNIFIED_VISUALIZATION_PLAN.md, RECORDING_PLAN.md, docs/audio-visualization-research.md,
 > docs/research/low-latency-overdubbing.md, docs/step-11-analysis.md, and open issues.
 >
-> Last updated: 2026-02-27
+> Last updated: 2026-02-28
 
 ---
 
@@ -138,15 +138,6 @@ The current approach renders tiles at native resolution and scales via
 **Trigger:** Profile GPU memory and rendering quality after several tracks of
 10+ minute audio. Implement only if zoom artifacts are visible.
 
-#### 1e. Stereo spectrogram display
-
-Current implementation analyses channel 0 only. Options:
-- Mix to mono before analysis.
-- Show split L/R spectrograms.
-- Show a merged "max of L/R" spectrogram.
-
-**Trigger:** User feedback requesting stereo visualization.
-
 ---
 
 ### 2. Canvas & Rendering Performance — Issue #29
@@ -170,11 +161,6 @@ layer changes.
 
 Audit `will-change` and `transform: translateZ(0)` usage on scrolling containers
 and canvas elements to promote the right layers to the GPU without over-promoting.
-
-#### 2d. Spectrogram export
-
-`canvas.toBlob()` from the tile cache makes PNG export straightforward. Expose a
-"Download spectrogram" action per track.
 
 ---
 
