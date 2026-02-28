@@ -8,6 +8,11 @@ export type SpectrogramData = {
   duration: number;
 };
 
+const LOW_BAND_FFT_SIZE = 2048;
+const HIGH_BAND_FFT_SIZE = 1024;
+const SPLIT_FREQUENCY = 752;
+const LOW_BAND_SAMPLE_RATE = 5120;
+
 class OfflineAnalyser {
   readonly frequencyBinCount: number;
   readonly timeResolution: number;
@@ -58,6 +63,18 @@ class OfflineAnalyser {
     return analyser;
   }
 
+  private createDualBandAnalyser(
+    offlineContext: OfflineAudioContext,
+    fftSize: number,
+  ) {
+    const analyser = offlineContext.createAnalyser();
+    analyser.fftSize = fftSize;
+    analyser.smoothingTimeConstant = 0;
+    analyser.minDecibels = -80;
+    analyser.maxDecibels = -30;
+    return analyser;
+  }
+
   private detectContextSuspendSupported(offlineContext: OfflineAudioContext) {
     return 'suspend' in offlineContext;
   }
@@ -85,93 +102,165 @@ class OfflineAnalyser {
     );
   }
 
+  /**
+   * Dual-band FFT analysis producing log-frequency spectrogram frames.
+   *
+   * Splits the signal at ~752 Hz with separate OfflineAudioContexts:
+   * the low band runs at 5120 Hz with a 2048-point FFT for ~4× finer
+   * frequency resolution in the bass range (301 bins vs 70), achieving
+   * semitone discrimination down to ~42 Hz. The high band runs at the
+   * original sample rate with a 1024-point FFT. The two bands are merged
+   * and log-frequency mapped into a single spectrogram.
+   */
   async analyseToFrames(): Promise<SpectrogramData> {
     const { audioBuffer } = this;
     const sampleRate = audioBuffer.sampleRate;
-    const binCount = this.frequencyBinCount;
 
-    // Fresh context — OfflineAudioContext.startRendering() is single-use
-    const offlineContext = new window.OfflineAudioContext(
-      audioBuffer.numberOfChannels,
-      audioBuffer.length,
-      sampleRate,
+    const lowFrames = await this.analyseBand(
+      LOW_BAND_SAMPLE_RATE,
+      'lowpass',
+      LOW_BAND_FFT_SIZE,
     );
-    const analyser = this.createAnalyser(offlineContext);
-    const supportsSuspend = this.detectContextSuspendSupported(offlineContext);
+    const highFrames = await this.analyseBand(
+      sampleRate,
+      'highpass',
+      HIGH_BAND_FFT_SIZE,
+    );
 
-    const timeResolution = supportsSuspend
+    const lowBinWidth = LOW_BAND_SAMPLE_RATE / LOW_BAND_FFT_SIZE;
+    const highBinWidth = sampleRate / HIGH_BAND_FFT_SIZE;
+    const lowBinCount = Math.ceil(SPLIT_FREQUENCY / lowBinWidth);
+    const highBinStart = Math.ceil(SPLIT_FREQUENCY / highBinWidth);
+    const highBinEnd = HIGH_BAND_FFT_SIZE / 2;
+    const mergedBinCount = lowBinCount + (highBinEnd - highBinStart);
+
+    const logMapping = createLogFrequencyMapping(mergedBinCount);
+    const frameCount = Math.min(lowFrames.length, highFrames.length);
+    const frequencyFrames: Uint8Array[] = [];
+    const mergedData = new Uint8Array(mergedBinCount);
+    const tempBuffer = new Uint8Array(mergedBinCount);
+
+    for (let f = 0; f < frameCount; f++) {
+      for (let i = 0; i < lowBinCount; i++) {
+        mergedData[i] = lowFrames[f][i];
+      }
+      for (let i = highBinStart; i < highBinEnd; i++) {
+        mergedData[lowBinCount + i - highBinStart] = highFrames[f][i];
+      }
+
+      for (let i = 0; i < mergedBinCount; i++) {
+        tempBuffer[i] = mergedData[i];
+      }
+      for (let i = 0; i < mergedBinCount; i++) {
+        mergedData[i] = 0;
+        const pool = logMapping[i];
+        for (let j = 0; j < pool.length; j++) {
+          mergedData[i] += tempBuffer[pool[j]];
+        }
+      }
+      frequencyFrames.push(new Uint8Array(mergedData));
+    }
+
+    const timeResolution = this.isContextSuspendSupported
       ? this.offlineContextSuspendTime
       : this.scriptProcessorBufferLength / sampleRate;
 
-    const frequencyFrames: Uint8Array[] = [];
-    const frequencyData = new Uint8Array(binCount);
-    const tempBuffer = new Uint8Array(binCount);
-
-    const collectFrame = () => {
-      analyser.getByteFrequencyData(frequencyData);
-      // Apply log-frequency mapping with a local temp buffer
-      // to avoid sharing the instance-level frequencyDataCopy
-      for (let i = 0; i < binCount; i++) {
-        tempBuffer[i] = frequencyData[i];
-      }
-      for (let i = 0; i < binCount; i++) {
-        frequencyData[i] = 0;
-        const pool = this.logFrequencyMapping[i];
-        for (let j = 0; j < pool.length; j++) {
-          frequencyData[i] += tempBuffer[pool[j]];
-        }
-      }
-      frequencyFrames.push(new Uint8Array(frequencyData));
+    return {
+      frequencyFrames,
+      timeResolution,
+      frequencyBinCount: mergedBinCount,
+      sampleRate,
+      duration: audioBuffer.duration,
     };
+  }
 
-    const bufferSource = offlineContext.createBufferSource();
-    bufferSource.buffer = audioBuffer;
+  /**
+   * Runs FFT analysis on a single frequency band, collecting raw frequency
+   * frames at regular intervals.
+   *
+   * A new AudioBuffer is created at the original sample rate inside a context
+   * running at `contextSampleRate`. When these differ (e.g. 5120 Hz for the
+   * low band), the OfflineAudioContext automatically resamples during playback,
+   * concentrating the FFT bins into a narrower frequency range.
+   */
+  private async analyseBand(
+    contextSampleRate: number,
+    filterType: BiquadFilterType,
+    fftSize: number,
+  ): Promise<Uint8Array[]> {
+    const { audioBuffer } = this;
+    const numChannels = audioBuffer.numberOfChannels;
+    const duration = audioBuffer.duration;
+    const contextLength = Math.ceil(duration * contextSampleRate);
+
+    const context = new window.OfflineAudioContext(
+      numChannels,
+      contextLength,
+      contextSampleRate,
+    );
+
+    const filter = context.createBiquadFilter();
+    filter.type = filterType;
+    filter.frequency.value = SPLIT_FREQUENCY;
+
+    const analyser = this.createDualBandAnalyser(context, fftSize);
+
+    const newBuffer = context.createBuffer(
+      numChannels,
+      audioBuffer.length,
+      audioBuffer.sampleRate,
+    );
+    for (let ch = 0; ch < numChannels; ch++) {
+      newBuffer.copyToChannel(audioBuffer.getChannelData(ch), ch);
+    }
+
+    const bufferSource = context.createBufferSource();
+    bufferSource.buffer = newBuffer;
+    bufferSource.connect(filter);
+    filter.connect(analyser);
+
+    const binCount = analyser.frequencyBinCount;
+    const frames: Uint8Array[] = [];
+    const frequencyData = new Uint8Array(binCount);
+
+    const supportsSuspend = this.detectContextSuspendSupported(context);
 
     if (supportsSuspend) {
-      bufferSource.connect(analyser);
-      analyser.connect(offlineContext.destination);
+      analyser.connect(context.destination);
 
-      const step = timeResolution;
+      const step = this.offlineContextSuspendTime;
       let suspendTime = step;
-      while (suspendTime < audioBuffer.duration) {
-        offlineContext
+      while (suspendTime < duration) {
+        context
           .suspend(suspendTime)
           .then(() => {
-            collectFrame();
-            offlineContext.resume();
+            analyser.getByteFrequencyData(frequencyData);
+            frames.push(new Uint8Array(frequencyData));
+            context.resume();
           })
           .catch((error) => console.log(error));
         suspendTime += step;
       }
-
-      bufferSource.start(0);
-      await offlineContext.startRendering();
     } else {
-      const scriptProcessor = offlineContext.createScriptProcessor(
+      const scriptProcessor = context.createScriptProcessor(
         this.scriptProcessorBufferLength,
         analyser.numberOfOutputs,
         analyser.numberOfOutputs,
       );
 
-      bufferSource.connect(analyser);
       analyser.connect(scriptProcessor);
-      scriptProcessor.connect(offlineContext.destination);
+      scriptProcessor.connect(context.destination);
 
       scriptProcessor.onaudioprocess = () => {
-        collectFrame();
+        analyser.getByteFrequencyData(frequencyData);
+        frames.push(new Uint8Array(frequencyData));
       };
-
-      bufferSource.start(0);
-      await offlineContext.startRendering();
     }
 
-    return {
-      frequencyFrames,
-      timeResolution,
-      frequencyBinCount: binCount,
-      sampleRate,
-      duration: audioBuffer.duration,
-    };
+    bufferSource.start(0);
+    await context.startRendering();
+
+    return frames;
   }
 
   private getFrequencyDataSuspendContext(
