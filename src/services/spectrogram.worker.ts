@@ -1,5 +1,8 @@
 import { type TrackColor } from '../types/track';
-import { createLogFrequencyMapping } from './logFrequencyMapping';
+import {
+  applyLogFrequencyMapping,
+  createLogFrequencyMapping,
+} from './logFrequencyMapping';
 import { type SpectrogramData } from './OfflineAnalyser';
 import { renderTiles } from './SpectrogramTileRenderer';
 
@@ -175,17 +178,8 @@ export async function analyseToFrames(
       mergedData[lowBinCount + i - highBinStart] = highFrames[f][i];
     }
 
-    for (let i = 0; i < mergedBinCount; i++) {
-      tempBuffer[i] = mergedData[i];
-    }
-    for (let i = 0; i < mergedBinCount; i++) {
-      const pool = logMapping[i];
-      let max = tempBuffer[pool[0]];
-      for (let j = 1; j < pool.length; j++) {
-        if (tempBuffer[pool[j]] > max) max = tempBuffer[pool[j]];
-      }
-      mergedData[i] = max;
-    }
+    tempBuffer.set(mergedData);
+    applyLogFrequencyMapping(tempBuffer, logMapping, mergedData);
     frequencyFrames.push(new Uint8Array(mergedData));
   }
 

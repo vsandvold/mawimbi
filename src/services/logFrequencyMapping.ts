@@ -44,9 +44,9 @@ export function createLogFrequencyMapping(
  * is kept, preserving the strongest frequency component in each band.
  */
 export function applyLogFrequencyMapping(
-  input: Float32Array,
+  input: Float32Array | Uint8Array,
   mapping: number[][],
-  output: Float32Array,
+  output: Float32Array | Uint8Array,
 ): void {
   for (let i = 0; i < mapping.length; i++) {
     const pool = mapping[i];

@@ -1,4 +1,7 @@
-import { createLogFrequencyMapping } from './logFrequencyMapping';
+import {
+  applyLogFrequencyMapping,
+  createLogFrequencyMapping,
+} from './logFrequencyMapping';
 
 export type SpectrogramData = {
   frequencyFrames: Uint8Array[];
@@ -148,17 +151,8 @@ class OfflineAnalyser {
         mergedData[lowBinCount + i - highBinStart] = highFrames[f][i];
       }
 
-      for (let i = 0; i < mergedBinCount; i++) {
-        tempBuffer[i] = mergedData[i];
-      }
-      for (let i = 0; i < mergedBinCount; i++) {
-        const pool = logMapping[i];
-        let max = tempBuffer[pool[0]];
-        for (let j = 1; j < pool.length; j++) {
-          if (tempBuffer[pool[j]] > max) max = tempBuffer[pool[j]];
-        }
-        mergedData[i] = max;
-      }
+      tempBuffer.set(mergedData);
+      applyLogFrequencyMapping(tempBuffer, logMapping, mergedData);
       frequencyFrames.push(new Uint8Array(mergedData));
     }
 
@@ -328,18 +322,12 @@ class OfflineAnalyser {
     frequencyData: Uint8Array,
     frequencyMapping: number[][],
   ) {
-    for (let i = 0, binCount = this.frequencyBinCount; i < binCount; i++) {
-      this.frequencyDataCopy[i] = frequencyData[i];
-    }
-    for (let i = 0, binCount = this.frequencyBinCount; i < binCount; i++) {
-      const pool = frequencyMapping[i];
-      let max = this.frequencyDataCopy[pool[0]];
-      for (let j = 1, poolCount = pool.length; j < poolCount; j++) {
-        if (this.frequencyDataCopy[pool[j]] > max)
-          max = this.frequencyDataCopy[pool[j]];
-      }
-      frequencyData[i] = max;
-    }
+    this.frequencyDataCopy.set(frequencyData);
+    applyLogFrequencyMapping(
+      this.frequencyDataCopy,
+      frequencyMapping,
+      frequencyData,
+    );
     return frequencyData;
   }
 }
