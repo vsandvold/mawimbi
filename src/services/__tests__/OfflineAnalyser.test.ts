@@ -668,11 +668,64 @@ describe('analyseToFrames (script processor fallback)', () => {
 });
 
 describe('analyseToFrames merge logic', () => {
+  it('uses maximum when pooling bins in log frequency mapping', async () => {
+    const FILL_VALUE = 200;
+    const contexts: IndependentMockContext[] = [];
+    let contextIndex = 0;
+
+    vi.stubGlobal(
+      'OfflineAudioContext',
+      vi.fn().mockImplementation(function () {
+        const ctx = createIndependentMockContext(true);
+        if (contextIndex > 0) {
+          ctx.createAnalyser = vi.fn().mockImplementation(() => ({
+            _fftSize: 1024,
+            get fftSize() {
+              return this._fftSize;
+            },
+            set fftSize(value: number) {
+              this._fftSize = value;
+            },
+            get frequencyBinCount() {
+              return this._fftSize / 2;
+            },
+            smoothingTimeConstant: 0,
+            minDecibels: -80,
+            maxDecibels: -30,
+            numberOfOutputs: 1,
+            getByteFrequencyData: vi
+              .fn()
+              .mockImplementation((arr: Uint8Array) => {
+                arr.fill(FILL_VALUE);
+              }),
+            connect: vi.fn(),
+          }));
+        }
+        contextIndex++;
+        contexts.push(ctx);
+        return ctx;
+      }),
+    );
+
+    const sampleRate = 44100;
+    const audioBuffer = createAudioBuffer(0.05, sampleRate);
+    const analyser = new OfflineAnalyser(audioBuffer);
+
+    const result = await analyser.analyseToFrames();
+
+    const frame = result.frequencyFrames[0];
+    expect(frame).toBeDefined();
+
+    // Every output bin should be exactly FILL_VALUE (the max of its pooled
+    // inputs), not a sum that overflows Uint8Array.
+    for (let i = 0; i < MERGED_BIN_COUNT; i++) {
+      expect(frame[i]).toBe(FILL_VALUE);
+    }
+  });
+
   it('merges low-frequency bins from low band and high-frequency bins from high band', async () => {
-    // Use value 1 for low band to avoid Uint8Array overflow when log-mapping
-    // pools multiple bins (poolSize × value must stay ≤ 255)
-    const LOW_VALUE = 1;
-    const HIGH_VALUE = 2;
+    const LOW_VALUE = 100;
+    const HIGH_VALUE = 200;
     const contexts: IndependentMockContext[] = [];
     let contextIndex = 0;
 
@@ -728,7 +781,7 @@ describe('analyseToFrames merge logic', () => {
     expect(frame[MERGED_BIN_COUNT - 1]).toBeGreaterThan(0);
 
     // Verify the split: output bins mapped entirely from the low band
-    // should be non-zero (sum of LOW_VALUE=1 per pooled bin)
+    // should carry the low band value
     const logMapping = createLogFrequencyMapping(MERGED_BIN_COUNT);
     const lowBinCount = 301; // at 44100 Hz
     const firstHighOutputBin = logMapping.findIndex((pool) =>

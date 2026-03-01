@@ -179,11 +179,12 @@ export async function analyseToFrames(
       tempBuffer[i] = mergedData[i];
     }
     for (let i = 0; i < mergedBinCount; i++) {
-      mergedData[i] = 0;
       const pool = logMapping[i];
-      for (let j = 0; j < pool.length; j++) {
-        mergedData[i] += tempBuffer[pool[j]];
+      let max = tempBuffer[pool[0]];
+      for (let j = 1; j < pool.length; j++) {
+        if (tempBuffer[pool[j]] > max) max = tempBuffer[pool[j]];
       }
+      mergedData[i] = max;
     }
     frequencyFrames.push(new Uint8Array(mergedData));
   }

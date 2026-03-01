@@ -152,11 +152,12 @@ class OfflineAnalyser {
         tempBuffer[i] = mergedData[i];
       }
       for (let i = 0; i < mergedBinCount; i++) {
-        mergedData[i] = 0;
         const pool = logMapping[i];
-        for (let j = 0; j < pool.length; j++) {
-          mergedData[i] += tempBuffer[pool[j]];
+        let max = tempBuffer[pool[0]];
+        for (let j = 1; j < pool.length; j++) {
+          if (tempBuffer[pool[j]] > max) max = tempBuffer[pool[j]];
         }
+        mergedData[i] = max;
       }
       frequencyFrames.push(new Uint8Array(mergedData));
     }
@@ -331,14 +332,13 @@ class OfflineAnalyser {
       this.frequencyDataCopy[i] = frequencyData[i];
     }
     for (let i = 0, binCount = this.frequencyBinCount; i < binCount; i++) {
-      frequencyData[i] = 0;
-      for (
-        let j = 0, poolCount = frequencyMapping[i].length;
-        j < poolCount;
-        j++
-      ) {
-        frequencyData[i] += this.frequencyDataCopy[frequencyMapping[i][j]];
+      const pool = frequencyMapping[i];
+      let max = this.frequencyDataCopy[pool[0]];
+      for (let j = 1, poolCount = pool.length; j < poolCount; j++) {
+        if (this.frequencyDataCopy[pool[j]] > max)
+          max = this.frequencyDataCopy[pool[j]];
       }
+      frequencyData[i] = max;
     }
     return frequencyData;
   }
