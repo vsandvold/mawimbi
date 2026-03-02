@@ -16,11 +16,11 @@ import {
   play,
   rewind,
   transportTime,
-} from '../../../services/PlaybackMachine';
+} from '../../../services/PlaybackService';
 import {
   isActivelyRecording,
   isCountingIn,
-} from '../../../services/RecordingMachine';
+} from '../../../services/RecordingService';
 import { isPlaying } from '../../../signals/transportSignals';
 import { type Track } from '../../../types/track';
 import { type PlasmaPlayheadHandle } from './PlasmaPlayhead';

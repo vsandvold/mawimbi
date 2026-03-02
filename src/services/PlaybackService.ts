@@ -1,4 +1,6 @@
-// Playback state machine: stopped → playing ⇄ paused → stopped
+// PlaybackService — owns playback state and transport time signals.
+//
+// State machine: stopped → playing ⇄ paused → stopped
 //
 // Models the transport lifecycle used by music apps like GarageBand.
 // Other components read state via signals and send commands through
@@ -15,7 +17,7 @@ export type PlaybackTransition =
   | 'rewind'
   | 'seekAndPlay';
 
-// --- Signals exposed to the UI layer ---
+// --- Signals owned by PlaybackService ---
 
 export const playbackState = signal<PlaybackState>('stopped');
 export const transportTime = signal(0);
@@ -108,7 +110,7 @@ function isAtEndOfTimeline(): boolean {
 
 // --- Reset (used in tests and when navigating away) ---
 
-export function resetPlaybackMachine(): void {
+export function resetPlaybackService(): void {
   playbackState.value = 'stopped';
   transportTime.value = 0;
   totalTime.value = 0;

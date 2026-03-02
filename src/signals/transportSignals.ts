@@ -1,6 +1,6 @@
-// Backward-compatible facade over PlaybackMachine and RecordingMachine.
+// Backward-compatible facade over PlaybackService and RecordingService.
 //
-// Re-exports the canonical signals from each machine and provides computed
+// Re-exports the canonical signals from each service and provides computed
 // boolean signals (isPlaying, isRecording) so existing consumers that read
 // `.value` as a boolean continue to work unchanged.
 
@@ -8,15 +8,15 @@ import { computed, type ReadonlySignal } from '@preact/signals-react';
 import {
   consumePendingSeek as _consumePendingSeek,
   playbackState,
-  resetPlaybackMachine,
+  resetPlaybackService,
   rewind,
   togglePlayback as _togglePlayback,
-} from '../services/PlaybackMachine';
+} from '../services/PlaybackService';
 import {
   isCountingIn,
   recordingState,
-  resetRecordingMachine,
-} from '../services/RecordingMachine';
+  resetRecordingService,
+} from '../services/RecordingService';
 
 // --- Re-export canonical signals ---
 
@@ -24,9 +24,9 @@ export {
   transportTime,
   totalTime,
   loudness,
-} from '../services/PlaybackMachine';
-export { playbackState } from '../services/PlaybackMachine';
-export { isCountingIn, recordingState } from '../services/RecordingMachine';
+} from '../services/PlaybackService';
+export { playbackState } from '../services/PlaybackService';
+export { isCountingIn, recordingState } from '../services/RecordingService';
 
 // --- Computed boolean signals for backward compatibility ---
 
@@ -59,6 +59,6 @@ export function consumePendingSeek(): number | null {
 }
 
 export function resetTransportSignals(): void {
-  resetPlaybackMachine();
-  resetRecordingMachine();
+  resetPlaybackService();
+  resetRecordingService();
 }

@@ -1,12 +1,12 @@
 import { fireEvent, render } from '@testing-library/react';
 import { vi } from 'vitest';
-import { play, resetPlaybackMachine } from '../../../services/PlaybackMachine';
+import { play, resetPlaybackService } from '../../../services/PlaybackService';
 import {
   arm,
-  resetRecordingMachine,
+  resetRecordingService,
   startCountIn,
   startRecording,
-} from '../../../services/RecordingMachine';
+} from '../../../services/RecordingService';
 import { isPlaying } from '../../../signals/transportSignals';
 import Toolbar from '../Toolbar';
 
@@ -21,8 +21,8 @@ const defaultProps = {
 };
 
 afterEach(() => {
-  resetPlaybackMachine();
-  resetRecordingMachine();
+  resetPlaybackService();
+  resetRecordingService();
 });
 
 it('renders all buttons', () => {

@@ -3,6 +3,7 @@ import { type ReactNode } from 'react';
 import { vi } from 'vitest';
 import { useFileDropzone } from '../../dropzone/useFileDropzone';
 import { useAudioBridge } from '../../../hooks/useAudioBridge';
+import { useRecordingTransportBridge } from '../../../hooks/useRecordingTransportBridge';
 import { useTransportBridge } from '../../../hooks/useTransportBridge';
 import { mockTrack } from '../../../testUtils';
 import Workstation from '../Workstation';
@@ -28,6 +29,10 @@ vi.mock('../Timeline', () => ({
 
 vi.mock('../../../hooks/useAudioBridge', () => ({
   useAudioBridge: vi.fn(),
+}));
+
+vi.mock('../../../hooks/useRecordingTransportBridge', () => ({
+  useRecordingTransportBridge: vi.fn(),
 }));
 
 vi.mock('../../../hooks/useTransportBridge', () => ({
@@ -91,6 +96,7 @@ it('uses workstation effect hooks', () => {
 
   expect(useAudioBridge).toHaveBeenCalled();
   expect(useTransportBridge).toHaveBeenCalled();
+  expect(useRecordingTransportBridge).toHaveBeenCalled();
   expect(useFileDropzone).toHaveBeenCalled();
   expect(useMixerHeight).toHaveBeenCalled();
   expect(useSpacebarPlaybackToggle).toHaveBeenCalled();

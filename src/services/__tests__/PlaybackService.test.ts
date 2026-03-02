@@ -7,20 +7,20 @@ import {
   pause,
   play,
   playbackState,
-  resetPlaybackMachine,
+  resetPlaybackService,
   rewind,
   seekTo,
   stop,
   togglePlayback,
   totalTime,
   transportTime,
-} from '../PlaybackMachine';
+} from '../PlaybackService';
 
 afterEach(() => {
-  resetPlaybackMachine();
+  resetPlaybackService();
 });
 
-describe('PlaybackMachine', () => {
+describe('PlaybackService', () => {
   describe('initial state', () => {
     it('starts in stopped state', () => {
       expect(playbackState.value).toBe('stopped');
@@ -243,14 +243,14 @@ describe('PlaybackMachine', () => {
     });
   });
 
-  describe('resetPlaybackMachine', () => {
+  describe('resetPlaybackService', () => {
     it('resets all state to defaults', () => {
       playbackState.value = 'playing';
       transportTime.value = 99;
       totalTime.value = 120;
       loudness.value = -6;
 
-      resetPlaybackMachine();
+      resetPlaybackService();
 
       expect(playbackState.value).toBe('stopped');
       expect(transportTime.value).toBe(0);
@@ -261,7 +261,7 @@ describe('PlaybackMachine', () => {
     it('clears pending seek', () => {
       rewind();
 
-      resetPlaybackMachine();
+      resetPlaybackService();
 
       expect(consumePendingSeek()).toBeNull();
     });

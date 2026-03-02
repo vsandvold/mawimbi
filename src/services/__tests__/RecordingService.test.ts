@@ -7,19 +7,19 @@ import {
   isIdle,
   isTransportLocked,
   recordingState,
-  resetRecordingMachine,
+  resetRecordingService,
   startCountIn,
   startRecording,
   stopCountIn,
   stopRecording,
   toggleArm,
-} from '../RecordingMachine';
+} from '../RecordingService';
 
 afterEach(() => {
-  resetRecordingMachine();
+  resetRecordingService();
 });
 
-describe('RecordingMachine', () => {
+describe('RecordingService', () => {
   describe('initial state', () => {
     it('starts in idle state', () => {
       expect(recordingState.value).toBe('idle');
@@ -204,13 +204,13 @@ describe('RecordingMachine', () => {
     });
   });
 
-  describe('resetRecordingMachine', () => {
+  describe('resetRecordingService', () => {
     it('resets all state to defaults', () => {
       arm();
       startRecording();
       startCountIn();
 
-      resetRecordingMachine();
+      resetRecordingService();
 
       expect(recordingState.value).toBe('idle');
       expect(isCountingIn.value).toBe(false);

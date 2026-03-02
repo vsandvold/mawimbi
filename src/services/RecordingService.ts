@@ -1,23 +1,21 @@
-// Recording state machine: idle → armed → recording → idle
+// RecordingService — owns recording state and count-in signals.
+//
+// State machine: idle → armed → recording → idle
 //
 // Three-state model per GitHub issue #172:
-//   idle    — not recording, transport free for normal playback
-//   armed   — ready to record; starts capturing on next transport play
+//   idle      — not recording, transport free for normal playback
+//   armed     — ready to record; starts capturing on next transport play
 //   recording — actively capturing audio
 //
 // The armed state lets users set up their recording position, arm the
 // track, and then press play (or spacebar) to begin — matching the
 // workflow in GarageBand and other DAWs.
-//
-// When recording stops, the playhead pauses at the current position
-// rather than rewinding. This lets the user immediately press play to
-// hear the recording in context — the standard DAW behavior.
 
 import { signal } from '@preact/signals-react';
 
 export type RecordingState = 'idle' | 'armed' | 'recording';
 
-// --- Signal exposed to the UI layer ---
+// --- Signals owned by RecordingService ---
 
 export const recordingState = signal<RecordingState>('idle');
 export const isCountingIn = signal(false);
@@ -85,7 +83,7 @@ export function isTransportLocked(): boolean {
 
 // --- Reset ---
 
-export function resetRecordingMachine(): void {
+export function resetRecordingService(): void {
   recordingState.value = 'idle';
   isCountingIn.value = false;
 }

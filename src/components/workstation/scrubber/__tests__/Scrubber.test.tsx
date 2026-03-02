@@ -3,15 +3,15 @@ import { act, fireEvent, render } from '@testing-library/react';
 import AudioService from '../../../../services/AudioService';
 import {
   play,
-  resetPlaybackMachine,
+  resetPlaybackService,
   transportTime,
-} from '../../../../services/PlaybackMachine';
+} from '../../../../services/PlaybackService';
 import {
   arm,
-  resetRecordingMachine,
+  resetRecordingService,
   startCountIn,
   startRecording,
-} from '../../../../services/RecordingMachine';
+} from '../../../../services/RecordingService';
 import { isPlaying } from '../../../../signals/transportSignals';
 import Scrubber from '../Scrubber';
 
@@ -24,8 +24,8 @@ const defaultProps = {
 };
 
 afterEach(() => {
-  resetPlaybackMachine();
-  resetRecordingMachine();
+  resetPlaybackService();
+  resetRecordingService();
 });
 
 it('hides rewind button at start of playback', () => {

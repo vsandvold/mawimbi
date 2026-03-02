@@ -1,17 +1,15 @@
 import { fireEvent } from '@testing-library/react';
 import { act, renderHook } from '@testing-library/react';
 import { vi } from 'vitest';
-import { resetPlaybackMachine } from '../../../services/PlaybackMachine';
+import { resetPlaybackService } from '../../../services/PlaybackService';
 import {
   arm,
-  resetRecordingMachine,
+  recordingState,
+  resetRecordingService,
   startRecording,
-} from '../../../services/RecordingMachine';
-import {
-  isPlaying,
-  isRecording,
-  transportTime,
-} from '../../../signals/transportSignals';
+} from '../../../services/RecordingService';
+import { isPlaying } from '../../../signals/transportSignals';
+import { TrackSignalStore } from '../../../signals/trackSignals';
 import {
   useSpacebarPlaybackToggle,
   useMicrophone,
@@ -45,8 +43,9 @@ vi.mock('../../../hooks/useAudioService', () => ({
   }),
 }));
 
+const mockProjectDispatch = vi.fn();
 vi.mock('../../project/useProjectDispatch', () => ({
-  default: () => vi.fn(),
+  default: () => mockProjectDispatch,
 }));
 
 vi.mock('../../../signals/trackSignals', () => ({
@@ -65,8 +64,8 @@ vi.mock('../../message', () => ({
 }));
 
 afterEach(() => {
-  resetPlaybackMachine();
-  resetRecordingMachine();
+  resetPlaybackService();
+  resetRecordingService();
   vi.clearAllMocks();
 });
 
@@ -94,17 +93,17 @@ describe('useSpacebarPlaybackToggle', () => {
 });
 
 describe('useMicrophone', () => {
-  it('sets isPlaying when recording starts', async () => {
+  it('starts overdub recording on the audio engine', async () => {
     renderHook(({ isRec }: { isRec: boolean }) => useMicrophone(isRec), {
       initialProps: { isRec: true },
     });
 
     await act(async () => {});
 
-    expect(isPlaying.value).toBe(true);
+    expect(mockStartOverdubRecording).toHaveBeenCalledOnce();
   });
 
-  it('clears isPlaying and isRecording signals when recording stops', async () => {
+  it('stops overdub recording and creates a track', async () => {
     const { rerender } = renderHook(
       ({ isRec }: { isRec: boolean }) => useMicrophone(isRec),
       { initialProps: { isRec: true } },
@@ -114,26 +113,42 @@ describe('useMicrophone', () => {
     rerender({ isRec: false });
     await act(async () => {});
 
-    expect(isRecording.value).toBe(false);
+    expect(mockStopOverdubRecording).toHaveBeenCalledOnce();
+    expect(TrackSignalStore.create).toHaveBeenCalledWith(
+      'recorded-track-1',
+      80,
+    );
+    expect(mockProjectDispatch).toHaveBeenCalledWith([
+      'ADD_TRACK',
+      { trackId: 'recorded-track-1', fileName: 'Recording' },
+    ]);
+  });
+
+  it('transitions recording state to idle when recording stops', async () => {
+    arm();
+    startRecording();
+
+    const { rerender } = renderHook(
+      ({ isRec }: { isRec: boolean }) => useMicrophone(isRec),
+      { initialProps: { isRec: true } },
+    );
+    await act(async () => {});
+
+    rerender({ isRec: false });
+    await act(async () => {});
+
+    expect(recordingState.value).toBe('idle');
+  });
+
+  it('does not directly control playback signals', async () => {
+    // useMicrophone delegates playback control to useRecordingTransportBridge
+    renderHook(({ isRec }: { isRec: boolean }) => useMicrophone(isRec), {
+      initialProps: { isRec: true },
+    });
+
+    await act(async () => {});
+
+    // isPlaying should still be false — useMicrophone no longer calls play()
     expect(isPlaying.value).toBe(false);
-  });
-
-  it('pauses at current position after recording stops', async () => {
-    transportTime.value = 99;
-    mockGetTransportTime.mockReturnValue(5.0);
-
-    const { rerender } = renderHook(
-      ({ isRec }: { isRec: boolean }) => useMicrophone(isRec),
-      { initialProps: { isRec: true } },
-    );
-    await act(async () => {});
-
-    // Stop recording
-    rerender({ isRec: false });
-    await act(async () => {});
-
-    // transportTime should be set to the transport's current position
-    // (returned by getTransportTime), not rewound to 0
-    expect(transportTime.value).toBe(5.0);
   });
 });

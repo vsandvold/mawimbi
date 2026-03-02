@@ -9,11 +9,11 @@ import { Button } from 'antd';
 import { useSignals } from '@preact/signals-react/runtime';
 import classNames from 'classnames';
 import ControlSvg from '../../icons/control.svg?react';
-import { playbackState, rewind } from '../../services/PlaybackMachine';
+import { playbackState, rewind } from '../../services/PlaybackService';
 import {
   isTransportLocked,
   recordingState,
-} from '../../services/RecordingMachine';
+} from '../../services/RecordingService';
 import {
   isPlaying as isPlayingSignal,
   togglePlayback,

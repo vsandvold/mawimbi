@@ -2,12 +2,13 @@ import { useSignals } from '@preact/signals-react/runtime';
 import classNames from 'classnames';
 import { useCallback, useState } from 'react';
 import { useAudioBridge } from '../../hooks/useAudioBridge';
+import { useRecordingTransportBridge } from '../../hooks/useRecordingTransportBridge';
 import { useTransportBridge } from '../../hooks/useTransportBridge';
 import {
   arm,
   isCountingIn as isCountingInSignal,
   recordingState,
-} from '../../services/RecordingMachine';
+} from '../../services/RecordingService';
 import { pixelsPerSecond as pixelsPerSecondSignal } from '../../signals/workstationSignals';
 import { type Track, type TrackColor } from '../../types/track';
 import CountIn from './CountIn';
@@ -51,6 +52,7 @@ const Workstation = (props: WorkstationProps) => {
   const trackIds = tracks.map((t) => t.trackId);
   useAudioBridge(trackIds);
   useTransportBridge();
+  useRecordingTransportBridge();
   useSpacebarPlaybackToggle();
   useTotalTime(tracks);
 
@@ -69,7 +71,7 @@ const Workstation = (props: WorkstationProps) => {
     } else if (isRecording) {
       setIsRecording(false);
     } else {
-      // Arm the recording machine, then start count-in
+      // Arm the recording service, then start count-in
       arm();
       setIsCountingIn(true);
     }

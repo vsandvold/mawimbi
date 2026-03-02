@@ -6,15 +6,14 @@ import {
   pause,
   play,
   totalTime as totalTimeSignal,
-  transportTime,
-} from '../../services/PlaybackMachine';
+} from '../../services/PlaybackService';
 import {
   isTransportLocked,
   startCountIn,
-  startRecording as startRecordingMachine,
+  startRecording as beginRecording,
   stopCountIn,
-  stopRecording as stopRecordingMachine,
-} from '../../services/RecordingMachine';
+  stopRecording as endRecording,
+} from '../../services/RecordingService';
 import { TrackSignalStore } from '../../signals/trackSignals';
 import { togglePlayback } from '../../signals/transportSignals';
 import message from '../message';
@@ -88,7 +87,7 @@ export const useCountIn = (
 
       startCountIn();
       // Block spacebar and show recording UI during count-in
-      startRecordingMachine();
+      beginRecording();
 
       if (availableLeadIn > 0) {
         audioService.setTransportTime(recordingPosition - availableLeadIn);
@@ -141,7 +140,7 @@ export const useCountIn = (
         audioService.closeMicrophone();
         stopCountIn();
         pause();
-        stopRecordingMachine();
+        endRecording();
       }
     };
     // audioService and onComplete are stable refs
@@ -166,7 +165,6 @@ export const useMicrophone = (isRecording: boolean) => {
     const startRecording = async () => {
       try {
         await audioService.startOverdubRecording();
-        play();
         msg.success('Recording started');
       } catch {
         msg.error('Recording failed');
@@ -185,18 +183,13 @@ export const useMicrophone = (isRecording: boolean) => {
           ADD_TRACK,
           { trackId, fileName: RECORDING_FILE_NAME },
         ]);
-        stopRecordingMachine();
-        // Pause at current position rather than rewinding to 0.
-        // This lets the user immediately press play to hear the
-        // recording in context — standard DAW behavior.
-        pause();
-        // Update transportTime to where the transport actually is
-        // after stopping the overdub recording.
-        transportTime.value = audioService.getTransportTime();
+        // Transition recording state to idle. The recording transport
+        // bridge reacts to this signal change and pauses playback at
+        // the current position.
+        endRecording();
         msg.success('Recording stopped');
       } catch {
-        stopRecordingMachine();
-        pause();
+        endRecording();
         msg.error('Recording failed');
       }
     };

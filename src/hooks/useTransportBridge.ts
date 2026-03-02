@@ -4,7 +4,7 @@ import {
   type PlaybackState,
   consumePendingSeek,
   playbackState,
-} from '../services/PlaybackMachine';
+} from '../services/PlaybackService';
 import { useAudioService } from './useAudioService';
 
 export function useTransportBridge(): void {

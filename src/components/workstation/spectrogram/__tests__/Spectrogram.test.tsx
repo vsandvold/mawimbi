@@ -1,8 +1,8 @@
 import { render, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import { useAnimationFrame } from '../../../../hooks/useAnimationFrame';
-import { transportTime } from '../../../../services/PlaybackMachine';
-import { arm, startRecording } from '../../../../services/RecordingMachine';
+import { transportTime } from '../../../../services/PlaybackService';
+import { arm, startRecording } from '../../../../services/RecordingService';
 import { TrackSignalStore } from '../../../../signals/trackSignals';
 import { resetAllSignals } from '../../../../signals/__tests__/testUtils';
 import { mockTrack } from '../../../../testUtils';

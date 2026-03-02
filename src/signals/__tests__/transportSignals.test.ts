@@ -9,8 +9,8 @@ import {
   totalTime,
   transportTime,
 } from '../transportSignals';
-import { play } from '../../services/PlaybackMachine';
-import { arm } from '../../services/RecordingMachine';
+import { play } from '../../services/PlaybackService';
+import { arm } from '../../services/RecordingService';
 
 afterEach(() => {
   resetTransportSignals();

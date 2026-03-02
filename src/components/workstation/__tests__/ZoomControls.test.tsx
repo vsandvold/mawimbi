@@ -1,6 +1,6 @@
 import { fireEvent, render } from '@testing-library/react';
-import { resetPlaybackMachine } from '../../../services/PlaybackMachine';
-import { arm, resetRecordingMachine } from '../../../services/RecordingMachine';
+import { resetPlaybackService } from '../../../services/PlaybackService';
+import { arm, resetRecordingService } from '../../../services/RecordingService';
 import {
   MAX_PIXELS_PER_SECOND,
   MIN_PIXELS_PER_SECOND,
@@ -11,8 +11,8 @@ import ZoomControls from '../ZoomControls';
 
 afterEach(() => {
   resetWorkstationSignals();
-  resetPlaybackMachine();
-  resetRecordingMachine();
+  resetPlaybackService();
+  resetRecordingService();
 });
 
 it('renders zoom in and zoom out buttons', () => {

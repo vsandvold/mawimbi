@@ -4,12 +4,12 @@ import {
   play,
   pause,
   rewind,
-  resetPlaybackMachine,
+  resetPlaybackService,
   togglePlayback,
   totalTime,
   transportTime,
-} from '../../services/PlaybackMachine';
-import { resetRecordingMachine } from '../../services/RecordingMachine';
+} from '../../services/PlaybackService';
+import { resetRecordingService } from '../../services/RecordingService';
 
 const mockAudioService = {
   startPlayback: vi.fn(),
@@ -26,8 +26,8 @@ vi.mock('../useAudioService', () => ({
 const { useTransportBridge } = await import('../useTransportBridge');
 
 afterEach(() => {
-  resetPlaybackMachine();
-  resetRecordingMachine();
+  resetPlaybackService();
+  resetRecordingService();
   vi.clearAllMocks();
 });
 

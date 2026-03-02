@@ -6,7 +6,7 @@ import { PropsWithChildren } from 'react';
 import {
   isActivelyRecording,
   isCountingIn,
-} from '../../../services/RecordingMachine';
+} from '../../../services/RecordingService';
 import { togglePlayback } from '../../../signals/transportSignals';
 import { type Track } from '../../../types/track';
 import ZoomControls from '../ZoomControls';
