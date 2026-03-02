@@ -13,6 +13,7 @@ import Scrubber from '../Scrubber';
 const defaultProps = {
   drawerHeight: 0,
   isMixerOpen: false,
+  onToggleRecording: vi.fn(),
   pixelsPerSecond: 200,
   tracks: [] as import('../../../../types/track').Track[],
 };
@@ -167,15 +168,36 @@ it('does not call getLoudness when playback is stopped', () => {
   expect(getLoudnessSpy).not.toHaveBeenCalled();
 });
 
-it('does not toggle playback when timeline is clicked during recording', () => {
+it('stops recording when timeline is clicked during recording', () => {
   isPlaying.value = true;
   isRecording.value = true;
+  const onToggleRecording = vi.fn();
 
-  const { container } = render(<Scrubber {...defaultProps} />);
+  const { container } = render(
+    <Scrubber {...defaultProps} onToggleRecording={onToggleRecording} />,
+  );
 
   const timeline = container.querySelector('.scrubber__timeline')!;
   fireEvent.click(timeline);
 
+  expect(onToggleRecording).toHaveBeenCalledOnce();
+  expect(isPlaying.value).toBe(true);
+});
+
+it('cancels count-in when timeline is clicked during count-in', () => {
+  isPlaying.value = true;
+  isRecording.value = true;
+  isCountingIn.value = true;
+  const onToggleRecording = vi.fn();
+
+  const { container } = render(
+    <Scrubber {...defaultProps} onToggleRecording={onToggleRecording} />,
+  );
+
+  const timeline = container.querySelector('.scrubber__timeline')!;
+  fireEvent.click(timeline);
+
+  expect(onToggleRecording).toHaveBeenCalledOnce();
   expect(isPlaying.value).toBe(true);
 });
 

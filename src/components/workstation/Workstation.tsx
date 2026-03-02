@@ -91,6 +91,7 @@ const Workstation = (props: WorkstationProps) => {
             <Scrubber
               drawerHeight={mixerHeight}
               isMixerOpen={isMixerOpen}
+              onToggleRecording={toggleRecording}
               pixelsPerSecond={pixelsPerSecond}
               tracks={tracks}
             >

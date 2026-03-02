@@ -3,7 +3,11 @@ import { useSignals } from '@preact/signals-react/runtime';
 import { Button } from 'antd';
 import classNames from 'classnames';
 import { PropsWithChildren } from 'react';
-import { isRecording, togglePlayback } from '../../../signals/transportSignals';
+import {
+  isCountingIn,
+  isRecording,
+  togglePlayback,
+} from '../../../signals/transportSignals';
 import { type Track } from '../../../types/track';
 import ZoomControls from '../ZoomControls';
 import PlasmaPlayhead from './PlasmaPlayhead';
@@ -13,13 +17,20 @@ import { useScrubber } from './useScrubber';
 type ScrubberProps = PropsWithChildren<{
   drawerHeight: number;
   isMixerOpen: boolean;
+  onToggleRecording: () => void;
   pixelsPerSecond: number;
   tracks: Track[];
 }>;
 
 const Scrubber = (props: ScrubberProps) => {
   useSignals();
-  const { drawerHeight, isMixerOpen, pixelsPerSecond, tracks } = props;
+  const {
+    drawerHeight,
+    isMixerOpen,
+    onToggleRecording,
+    pixelsPerSecond,
+    tracks,
+  } = props;
 
   const {
     timelineScrollRef,
@@ -35,8 +46,11 @@ const Scrubber = (props: ScrubberProps) => {
     handleStopAndRewind,
   } = useScrubber({ drawerHeight, isMixerOpen, pixelsPerSecond, tracks });
 
-  const handleTogglePlayback = () => {
-    if (isRecording.value) return;
+  const handleTimelineClick = () => {
+    if (isCountingIn.value || isRecording.value) {
+      onToggleRecording();
+      return;
+    }
     togglePlayback();
   };
 
@@ -54,7 +68,7 @@ const Scrubber = (props: ScrubberProps) => {
         ref={timelineScrollRef}
         className="scrubber__timeline"
         style={timelineScaleStyle}
-        onClick={handleTogglePlayback}
+        onClick={handleTimelineClick}
         onScroll={handleScroll}
         onWheel={handleWheel}
         onTouchMove={handleTouchMove}
