@@ -4,7 +4,7 @@ import { type TrackId } from '../types/track';
 import { TrackSignalStore } from '../signals/trackSignals';
 import { useAudioService } from './useAudioService';
 
-export function useAudioBridge(trackIds: TrackId[]): void {
+export function useTrackSync(trackIds: TrackId[]): void {
   const audioService = useAudioService();
 
   useEffect(() => {

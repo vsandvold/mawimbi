@@ -49,17 +49,18 @@ Prettier runs automatically on pre-commit via Husky + lint-staged (ESLint --fix 
 
 ## Architecture
 
-The architecture is organized in layers with clear ownership boundaries. Each layer has a single direction of control; dependencies point downward.
+The architecture is organized in layers with clear ownership boundaries. Dependencies point downward.
 
 ```
-UI Components          Read signals for rendering, call service functions for commands
+UI Components & Effects    Read signals for rendering, call service functions for commands,
+      │                    coordinate workflows (count-in, recording lifecycle)
       │
-  Bridges              React hooks with signal effect() listeners — translate signal
-      │                changes into audio engine calls (inversion of control)
+  Sync Hooks               Subscribe to signals via effect(), translate state changes
+      │                    into audio engine calls
       │
-  Services & Signals   State machines that own and guard their signals
+  Services & Signals       State machines that own and guard their signals
       │
-  Audio Engine         Tone.js / Web Audio API (imperative, side-effectful)
+  Audio Engine             Tone.js / Web Audio API (imperative, side-effectful)
 ```
 
 ### Design Principles
@@ -70,15 +71,15 @@ These principles guide architectural decisions. Apply them when adding features,
 
 - **Services as state machines.** Services (`PlaybackService`, `RecordingService`) define their own state, transitions, and guards. They reject invalid transitions silently. Components and hooks call service functions (`play()`, `arm()`, `stopRecording()`) rather than manipulating state directly.
 
-- **Reactive bridges, not imperative wiring.** When one subsystem must react to another's state changes, use a bridge — a hook that subscribes to signals via `effect()` and translates changes into actions on the audio engine. Bridges are deliberately simple: they react, they don't decide. This inverts control: the service doesn't need to know who listens; the bridge doesn't need to know why state changed.
+- **Sync hooks for signal-to-engine translation.** Services are pure state machines with no audio engine dependency. Sync hooks (`usePlaybackSync`, `useTrackSync`) subscribe to signals via `effect()` and apply state changes to the Tone.js audio engine. They are deliberately simple — they translate, they don't decide.
 
-- **Single responsibility per module.** Each module does one thing. `useMicrophone` manages the audio engine's recording lifecycle and track creation — it does not control transport time. `useRecordingTransportBridge` pauses playback when recording stops — it does not know about tracks or the microphone. When a module handles two unrelated concerns, split them.
+- **Workflows coordinate, services don't.** When a user action spans multiple services (e.g., recording stop needs to end the recording, create a track, and pause playback), the workflow hook (`useMicrophone`, `useCountIn`) coordinates those calls in sequence. Services stay focused on their own domain. Don't add a reactive intermediary when a direct function call in the workflow is simpler and more readable.
 
-- **Separation of concerns across boundaries.** Recording state and transport-time management are separate responsibilities owned by separate modules. A recording service should not pause playback or sync transport time — that is a transport concern. Identify which domain a behavior belongs to and place it there, even when the trigger crosses domains. Use reactive signals to connect them.
+- **Single responsibility per module.** Each module does one thing. `useMicrophone` manages the full recording lifecycle — starting/stopping the audio engine, creating tracks, transitioning recording state, and pausing playback on completion. `usePlaybackSync` translates playback state to audio engine commands. When a module accumulates unrelated concerns, split it. But don't split a cohesive workflow into pieces just because it touches multiple services — that adds indirection without adding clarity.
 
-- **Low coupling through signals.** Modules communicate through signals, not direct function calls between peers. `useMicrophone` calls `endRecording()`, which sets `recordingState` to `idle`. `useRecordingTransportBridge` independently reacts to that signal change and pauses playback. Neither module imports or calls the other.
+- **Encapsulation.** Services expose a public API of functions and signals. Internal state (like `pendingSeekTime` in PlaybackService) is module-scoped and never exported. Repositories inside services are private. Consumers interact through the defined interface.
 
-- **Encapsulation.** Services expose a public API of functions and read-only signals. Internal state (like `pendingSeekTime` in PlaybackService) is module-scoped and never exported. Repositories inside services are private. Consumers interact through the defined interface.
+- **Prefer simple over indirect.** A direct call (`pause()`) in a workflow is better than a reactive chain (signal change → effect → service call → another effect → engine call) when the intent is clear and the trigger is already known. Reserve reactive patterns for cases where the producer genuinely shouldn't know about the consumer, such as the sync hooks that decouple services from the audio engine.
 
 ### Services (`src/services/`)
 
@@ -112,15 +113,14 @@ Signals are the reactive backbone. Services own their signals; the `signals/` di
 - **`focusSignals.ts`** — Focused track IDs with debounced unfocus.
 - **`workstationSignals.ts`** — Zoom level (`pixelsPerSecond`).
 
-### Bridges (`src/hooks/use*Bridge.ts`)
+### Sync Hooks (`src/hooks/use*Sync.ts`)
 
-Bridges are React hooks that subscribe to service signals via `effect()` and translate state changes into audio engine calls. They implement inversion of control: the service sets a signal, the bridge reacts, the audio engine executes.
+Sync hooks subscribe to service signals via `effect()` and translate state changes into audio engine commands. They exist because services are pure state machines with no Tone.js dependency — something needs to drive the imperative audio engine.
 
-- **`useTransportBridge`** — Watches `playbackState` → calls `audioService.startPlayback()` / `pausePlayback()` / `stopPlayback()`. Consumes pending seeks atomically with state transitions.
-- **`useRecordingTransportBridge`** — Watches `recordingState` → when recording stops (`recording → idle`), pauses playback and syncs `transportTime` from the audio engine. Does not start playback on recording start (count-in orchestrates that).
-- **`useAudioBridge`** — Watches per-track `volume`/`mute`/`solo` signals → applies changes to `Tone.Channel` instances.
+- **`usePlaybackSync`** — Watches `playbackState` → calls `audioService.startPlayback()` / `pausePlayback()` / `stopPlayback()`. Consumes pending seeks atomically with state transitions.
+- **`useTrackSync`** — Watches per-track `volume`/`mute`/`solo` signals → applies changes to `Tone.Channel` instances.
 
-All three bridges are wired in `Workstation.tsx`.
+Both are wired in `Workstation.tsx`.
 
 ### State Management
 
@@ -135,7 +135,7 @@ All three bridges are wired in `Workstation.tsx`.
 - `src/components/project/` — Project page container, header with file upload
 - `src/components/workstation/` — Core editor: `Timeline`, `Waveform`, `Scrubber`, `Toolbar`, `Mixer`, `Channel`
 - `src/components/dropzone/` — Drag-and-drop file upload
-- `src/hooks/` — Shared hooks and bridge hooks
+- `src/hooks/` — Shared hooks and sync hooks
 
 ### Routing
 
@@ -169,9 +169,8 @@ src/
 │   └── workstationSignals.ts          # Zoom level: pixelsPerSecond
 │
 ├── hooks/
-│   ├── useTransportBridge.ts          # Bridge: playbackState signal → AudioService playback commands
-│   ├── useRecordingTransportBridge.ts # Bridge: recordingState signal → pause playback on recording stop
-│   ├── useAudioBridge.ts              # Bridge: per-track volume/mute/solo signals → Tone.Channel
+│   ├── usePlaybackSync.ts             # Sync: playbackState signal → AudioService playback commands
+│   ├── useTrackSync.ts                # Sync: per-track volume/mute/solo signals → Tone.Channel
 │   ├── useAudioService.tsx            # Context hook providing AudioService singleton
 │   ├── useAnimation.tsx               # requestAnimationFrame wrapper with FPS throttling
 │   ├── useKeypress.tsx                # Window keyup listener (default: spacebar → play/pause)
@@ -194,7 +193,7 @@ src/
 │   │   └── useProjectDispatch.tsx     # Context consumer hook for project dispatch
 │   │
 │   └── workstation/
-│       ├── Workstation.tsx            # Editor layout; wires all bridges and effect hooks
+│       ├── Workstation.tsx            # Editor layout; wires sync hooks and effect hooks
 │       ├── Toolbar.tsx                # Playback/record/rewind/mixer toggle controls
 │       ├── Timeline.tsx               # Track list: renders Waveform or Spectrogram per track (memoized)
 │       ├── Waveform.tsx               # WaveSurfer.js integration per track
@@ -213,13 +212,10 @@ src/
 ## Non-Obvious Patterns
 
 ### Pending seek pattern
-`seekTo(time)` sets a module-scoped `pendingSeekTime` and updates `transportTime.value`. The bridge calls `consumePendingSeek()` when `playbackState` changes, reads the buffered seek, and applies it to the audio engine atomically with the state transition. This avoids race conditions between signal writes and effect execution.
+`seekTo(time)` sets a module-scoped `pendingSeekTime` and updates `transportTime.value`. The sync hook calls `consumePendingSeek()` when `playbackState` changes, reads the buffered seek, and applies it to the audio engine atomically with the state transition. This avoids race conditions between signal writes and effect execution.
 
-### Cross-domain behavior lives in bridges, not services
-When recording stops, playback should pause at the current position. This is a transport concern, not a recording concern. `useMicrophone` calls `endRecording()` which sets `recordingState` to `idle`. `useRecordingTransportBridge` independently reacts to that signal change and pauses playback. Neither module imports or references the other. When adding new cross-domain behavior, follow this pattern: the originating service sets its own signal, and a bridge in the consuming domain reacts.
-
-### Count-in orchestrates playback timing
-`useCountIn` is the one place where recording-related code legitimately calls `play()` and `pause()`. It coordinates microphone preparation, lead-in playback timing, and beat counting. This is orchestration, not a bridge — it sequences multiple services to achieve a user-facing interaction. The key distinction: orchestrators are driven by component lifecycle (React state), while bridges are driven by signal changes.
+### Workflow hooks coordinate across services
+`useMicrophone` and `useCountIn` are workflow hooks that coordinate multiple services to complete a user-facing interaction. When recording stops, `useMicrophone` calls `endRecording()` (RecordingService), then `pause()` (PlaybackService), then syncs `transportTime` — all in sequence. This is simpler and more readable than routing through reactive intermediaries. Workflows call service functions directly; they don't introduce signal-to-signal relays.
 
 ### Project reducer action format is tuple-based
 Actions are `[ACTION_TYPE, payload?]` tuples, **not** `{ type, payload }` objects:

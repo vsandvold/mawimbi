@@ -2,9 +2,8 @@ import { render } from '@testing-library/react';
 import { type ReactNode } from 'react';
 import { vi } from 'vitest';
 import { useFileDropzone } from '../../dropzone/useFileDropzone';
-import { useAudioBridge } from '../../../hooks/useAudioBridge';
-import { useRecordingTransportBridge } from '../../../hooks/useRecordingTransportBridge';
-import { useTransportBridge } from '../../../hooks/useTransportBridge';
+import { usePlaybackSync } from '../../../hooks/usePlaybackSync';
+import { useTrackSync } from '../../../hooks/useTrackSync';
 import { mockTrack } from '../../../testUtils';
 import Workstation from '../Workstation';
 import {
@@ -27,16 +26,12 @@ vi.mock('../Timeline', () => ({
   default: () => <div data-testid="regular-timeline"></div>,
 }));
 
-vi.mock('../../../hooks/useAudioBridge', () => ({
-  useAudioBridge: vi.fn(),
+vi.mock('../../../hooks/usePlaybackSync', () => ({
+  usePlaybackSync: vi.fn(),
 }));
 
-vi.mock('../../../hooks/useRecordingTransportBridge', () => ({
-  useRecordingTransportBridge: vi.fn(),
-}));
-
-vi.mock('../../../hooks/useTransportBridge', () => ({
-  useTransportBridge: vi.fn(),
+vi.mock('../../../hooks/useTrackSync', () => ({
+  useTrackSync: vi.fn(),
 }));
 
 vi.mock('../workstationEffects', () => mockWorkstationEffects());
@@ -94,9 +89,8 @@ it('renders dropzone hidden by default', () => {
 it('uses workstation effect hooks', () => {
   render(<Workstation {...defaultProps} />);
 
-  expect(useAudioBridge).toHaveBeenCalled();
-  expect(useTransportBridge).toHaveBeenCalled();
-  expect(useRecordingTransportBridge).toHaveBeenCalled();
+  expect(usePlaybackSync).toHaveBeenCalled();
+  expect(useTrackSync).toHaveBeenCalled();
   expect(useFileDropzone).toHaveBeenCalled();
   expect(useMixerHeight).toHaveBeenCalled();
   expect(useSpacebarPlaybackToggle).toHaveBeenCalled();

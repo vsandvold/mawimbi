@@ -7,7 +7,7 @@ import {
 } from '../services/PlaybackService';
 import { useAudioService } from './useAudioService';
 
-export function useTransportBridge(): void {
+export function usePlaybackSync(): void {
   const audioService = useAudioService();
 
   useEffect(() => {

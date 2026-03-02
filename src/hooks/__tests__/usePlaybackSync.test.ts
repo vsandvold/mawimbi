@@ -23,7 +23,7 @@ vi.mock('../useAudioService', () => ({
 }));
 
 // Import after mocks are set up
-const { useTransportBridge } = await import('../useTransportBridge');
+const { usePlaybackSync } = await import('../usePlaybackSync');
 
 afterEach(() => {
   resetPlaybackService();
@@ -32,7 +32,7 @@ afterEach(() => {
 });
 
 it('does not call audio service on initial mount', () => {
-  renderHook(() => useTransportBridge());
+  renderHook(() => usePlaybackSync());
 
   expect(mockAudioService.startPlayback).not.toHaveBeenCalled();
   expect(mockAudioService.pausePlayback).not.toHaveBeenCalled();
@@ -40,7 +40,7 @@ it('does not call audio service on initial mount', () => {
 });
 
 it('starts playback when playbackState changes to playing', () => {
-  renderHook(() => useTransportBridge());
+  renderHook(() => usePlaybackSync());
 
   play();
 
@@ -51,7 +51,7 @@ it('starts playback when playbackState changes to playing', () => {
 it('pauses playback when playbackState changes to paused', () => {
   play();
 
-  renderHook(() => useTransportBridge());
+  renderHook(() => usePlaybackSync());
   vi.clearAllMocks();
 
   pause();
@@ -63,7 +63,7 @@ it('pauses playback when playbackState changes to paused', () => {
 it('stops playback when playbackState changes to stopped via rewind', () => {
   play();
 
-  renderHook(() => useTransportBridge());
+  renderHook(() => usePlaybackSync());
   vi.clearAllMocks();
 
   rewind();
@@ -76,7 +76,7 @@ it('seeks when starting playback with pending seek (end-of-playback rewind)', ()
   transportTime.value = 10.0;
   totalTime.value = 10.0;
 
-  renderHook(() => useTransportBridge());
+  renderHook(() => usePlaybackSync());
 
   togglePlayback();
 
@@ -86,7 +86,7 @@ it('seeks when starting playback with pending seek (end-of-playback rewind)', ()
 it('does not seek on normal toggle (no pending seek)', () => {
   totalTime.value = 10;
 
-  renderHook(() => useTransportBridge());
+  renderHook(() => usePlaybackSync());
 
   togglePlayback();
 
@@ -94,7 +94,7 @@ it('does not seek on normal toggle (no pending seek)', () => {
 });
 
 it('disposes effect on unmount', () => {
-  const { unmount } = renderHook(() => useTransportBridge());
+  const { unmount } = renderHook(() => usePlaybackSync());
 
   unmount();
   vi.clearAllMocks();

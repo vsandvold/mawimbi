@@ -6,6 +6,7 @@ import {
   pause,
   play,
   totalTime as totalTimeSignal,
+  transportTime,
 } from '../../services/PlaybackService';
 import {
   isTransportLocked,
@@ -183,13 +184,15 @@ export const useMicrophone = (isRecording: boolean) => {
           ADD_TRACK,
           { trackId, fileName: RECORDING_FILE_NAME },
         ]);
-        // Transition recording state to idle. The recording transport
-        // bridge reacts to this signal change and pauses playback at
-        // the current position.
         endRecording();
+        // Pause at current position so the user can immediately press
+        // play to hear the recording in context (standard DAW behavior).
+        pause();
+        transportTime.value = audioService.getTransportTime();
         msg.success('Recording stopped');
       } catch {
         endRecording();
+        pause();
         msg.error('Recording failed');
       }
     };

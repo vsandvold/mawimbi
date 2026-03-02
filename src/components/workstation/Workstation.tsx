@@ -1,9 +1,8 @@
 import { useSignals } from '@preact/signals-react/runtime';
 import classNames from 'classnames';
 import { useCallback, useState } from 'react';
-import { useAudioBridge } from '../../hooks/useAudioBridge';
-import { useRecordingTransportBridge } from '../../hooks/useRecordingTransportBridge';
-import { useTransportBridge } from '../../hooks/useTransportBridge';
+import { usePlaybackSync } from '../../hooks/usePlaybackSync';
+import { useTrackSync } from '../../hooks/useTrackSync';
 import {
   arm,
   isCountingIn as isCountingInSignal,
@@ -50,9 +49,8 @@ const Workstation = (props: WorkstationProps) => {
     useFileDropzone(uploadFile);
 
   const trackIds = tracks.map((t) => t.trackId);
-  useAudioBridge(trackIds);
-  useTransportBridge();
-  useRecordingTransportBridge();
+  usePlaybackSync();
+  useTrackSync(trackIds);
   useSpacebarPlaybackToggle();
   useTotalTime(tracks);
 

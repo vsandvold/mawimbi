@@ -8,6 +8,7 @@ import {
   resetRecordingService,
   startRecording,
 } from '../../../services/RecordingService';
+import { transportTime } from '../../../services/PlaybackService';
 import { isPlaying } from '../../../signals/transportSignals';
 import { TrackSignalStore } from '../../../signals/trackSignals';
 import {
@@ -140,15 +141,30 @@ describe('useMicrophone', () => {
     expect(recordingState.value).toBe('idle');
   });
 
-  it('does not directly control playback signals', async () => {
-    // useMicrophone delegates playback control to useRecordingTransportBridge
+  it('does not start playback when recording starts', async () => {
     renderHook(({ isRec }: { isRec: boolean }) => useMicrophone(isRec), {
       initialProps: { isRec: true },
     });
 
     await act(async () => {});
 
-    // isPlaying should still be false — useMicrophone no longer calls play()
+    // Count-in handles playback start, not useMicrophone
     expect(isPlaying.value).toBe(false);
+  });
+
+  it('pauses at current position when recording stops', async () => {
+    mockGetTransportTime.mockReturnValue(5.0);
+
+    const { rerender } = renderHook(
+      ({ isRec }: { isRec: boolean }) => useMicrophone(isRec),
+      { initialProps: { isRec: true } },
+    );
+    await act(async () => {});
+
+    rerender({ isRec: false });
+    await act(async () => {});
+
+    expect(isPlaying.value).toBe(false);
+    expect(transportTime.value).toBe(5.0);
   });
 });
