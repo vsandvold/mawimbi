@@ -203,9 +203,12 @@ describe('spawnMistParticles', () => {
     const state = createPlasmaState();
     const intensities = new Float32Array(100).fill(1.0);
 
+    // Use deterministic random to guarantee spawns
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0.1);
     spawnMistParticles(state, 120, 100, intensities, [], 1.0);
+    randomSpy.mockRestore();
 
-    // At max loudness and intensity, most spawn attempts should succeed
+    // At max loudness and intensity, all spawn attempts should succeed
     expect(state.mistParticles.length).toBeGreaterThan(0);
     for (const p of state.mistParticles) {
       expect(p.life).toBeGreaterThan(0);

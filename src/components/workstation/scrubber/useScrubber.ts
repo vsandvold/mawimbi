@@ -1,4 +1,5 @@
 import {
+  type WheelEvent as ReactWheelEvent,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -7,6 +8,7 @@ import {
 } from 'react';
 import { useAudioService } from '../../../hooks/useAudioService';
 import useDebounced from '../../../hooks/useDebounced';
+import { useTimelineZoom } from '../../../hooks/useTimelineZoom';
 import {
   isPlaying,
   isRecording,
@@ -50,6 +52,8 @@ export function useScrubber({
   const shouldResumeRef = useRef(false);
   const tracksRef = useRef(tracks);
   tracksRef.current = tracks;
+
+  const { isPinchingRef } = useTimelineZoom(timelineScrollRef);
 
   // Keep plasma canvas height in sync with the cursor container
   useLayoutEffect(() => {
@@ -172,12 +176,16 @@ export function useScrubber({
     }
   };
 
-  const handleWheel = () => {
+  const handleWheel = (e: ReactWheelEvent) => {
+    // Skip scroll handling when Ctrl/Meta+wheel is used for zoom
+    if (e.ctrlKey || e.metaKey) return;
     pauseForUserScroll();
     debouncedSetTransportTime();
   };
 
   const handleTouchMove = () => {
+    // Skip scroll handling during pinch-to-zoom
+    if (isPinchingRef.current) return;
     pauseForUserScroll();
     debouncedSetTransportTime();
   };

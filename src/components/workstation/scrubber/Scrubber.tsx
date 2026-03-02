@@ -5,6 +5,7 @@ import classNames from 'classnames';
 import { PropsWithChildren } from 'react';
 import { togglePlayback } from '../../../signals/transportSignals';
 import { type Track } from '../../../types/track';
+import ZoomControls from '../ZoomControls';
 import PlasmaPlayhead from './PlasmaPlayhead';
 import './Scrubber.css';
 import { useScrubber } from './useScrubber';
@@ -80,6 +81,7 @@ const Scrubber = (props: ScrubberProps) => {
           onClick={handleStopAndRewind}
         />
       </div>
+      <ZoomControls style={rewindButtonStyle} />
     </div>
   );
 };
