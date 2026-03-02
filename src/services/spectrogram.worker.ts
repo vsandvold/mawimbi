@@ -1,7 +1,7 @@
 import { type TrackColor } from '../types/track';
 import {
   applyLogFrequencyMapping,
-  createLogFrequencyMapping,
+  createDualBandLogMapping,
 } from './logFrequencyMapping';
 import { type SpectrogramData } from './OfflineAnalyser';
 import { renderTiles } from './SpectrogramTileRenderer';
@@ -120,7 +120,14 @@ export function calculateMergeParams(sampleRate: number) {
   const highBinStart = Math.ceil(SPLIT_FREQUENCY / highBinWidth);
   const highBinEnd = HIGH_BAND_FFT_SIZE / 2;
   const mergedBinCount = lowBinCount + (highBinEnd - highBinStart);
-  return { lowBinCount, highBinStart, highBinEnd, mergedBinCount };
+  return {
+    lowBinWidth,
+    highBinWidth,
+    lowBinCount,
+    highBinStart,
+    highBinEnd,
+    mergedBinCount,
+  };
 }
 
 /**
@@ -161,10 +168,22 @@ export async function analyseToFrames(
     ),
   ]);
 
-  const { lowBinCount, highBinStart, highBinEnd, mergedBinCount } =
-    calculateMergeParams(sampleRate);
+  const {
+    lowBinWidth,
+    highBinWidth,
+    lowBinCount,
+    highBinStart,
+    highBinEnd,
+    mergedBinCount,
+  } = calculateMergeParams(sampleRate);
 
-  const logMapping = createLogFrequencyMapping(mergedBinCount);
+  const logMapping = createDualBandLogMapping(
+    mergedBinCount,
+    lowBinCount,
+    lowBinWidth,
+    highBinStart,
+    highBinWidth,
+  );
   const frameCount = Math.min(lowFrames.length, highFrames.length);
   const frequencyFrames: Uint8Array[] = [];
   const mergedData = new Uint8Array(mergedBinCount);

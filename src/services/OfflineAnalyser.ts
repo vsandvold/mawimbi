@@ -1,5 +1,6 @@
 import {
   applyLogFrequencyMapping,
+  createDualBandLogMapping,
   createLogFrequencyMapping,
 } from './logFrequencyMapping';
 
@@ -137,7 +138,13 @@ class OfflineAnalyser {
     const highBinEnd = HIGH_BAND_FFT_SIZE / 2;
     const mergedBinCount = lowBinCount + (highBinEnd - highBinStart);
 
-    const logMapping = createLogFrequencyMapping(mergedBinCount);
+    const logMapping = createDualBandLogMapping(
+      mergedBinCount,
+      lowBinCount,
+      lowBinWidth,
+      highBinStart,
+      highBinWidth,
+    );
     const frameCount = Math.min(lowFrames.length, highFrames.length);
     const frequencyFrames: Uint8Array[] = [];
     const mergedData = new Uint8Array(mergedBinCount);
