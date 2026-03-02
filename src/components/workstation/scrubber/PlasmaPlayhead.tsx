@@ -10,7 +10,7 @@ export const PLASMA_WIDTH = 240;
 
 export type PlasmaPlayheadHandle = {
   render: (
-    frequencyData: Float32Array | null,
+    frequencyData: Uint8Array | null,
     loudness: number,
     scrollLeft: number,
     trackFrequencyInputs: TrackFrequencyInput[],
@@ -33,7 +33,7 @@ const PlasmaPlayhead = forwardRef<PlasmaPlayheadHandle, PlasmaPlayheadProps>(
 
     useImperativeHandle(ref, () => ({
       render(
-        frequencyData: Float32Array | null,
+        frequencyData: Uint8Array | null,
         loudness: number,
         scrollLeft: number,
         trackFrequencyInputs: TrackFrequencyInput[],

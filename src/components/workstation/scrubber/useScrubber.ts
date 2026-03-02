@@ -101,8 +101,8 @@ export function useScrubber({
         const currentLoudness = audioService.mixer.getLoudness();
         loudnessSignal.value = currentLoudness;
 
-        const frequencyData = audioService.mixer.getCombinedFrequencyData();
-        const perTrackData = audioService.mixer.getActiveTrackFrequencyData();
+        const frequencyData = audioService.mixer.getVisualizationData();
+        const perTrackData = audioService.mixer.getTrackVisualizationData();
         const trackFrequencyInputs: TrackFrequencyInput[] = perTrackData.map(
           ({ trackId, data }) => {
             const track = tracksRef.current.find((t) => t.trackId === trackId);

@@ -1,6 +1,18 @@
 import { vi } from 'vitest';
 import * as Tone from 'tone';
 import Mixer, { AudioChannel } from '../Mixer';
+import FrequencyVisualizer from '../FrequencyVisualizer';
+
+vi.mock('../FrequencyVisualizer', () => ({
+  // Must be a regular function (not arrow) to support `new`
+  default: vi.fn().mockImplementation(function () {
+    return {
+      frequencyBinCount: 774,
+      getVisualizationData: vi.fn().mockReturnValue(new Uint8Array(774)),
+      dispose: vi.fn(),
+    };
+  }),
+}));
 
 let mixer: Mixer;
 
@@ -79,30 +91,25 @@ describe('createChannel', () => {
     expect(Tone.Channel).toHaveBeenCalled();
   });
 
-  it('creates a Tone.Analyser with FFT type and no smoothing', () => {
-    mixer.createChannel('track-1', {} as AudioBuffer);
-
-    expect(Tone.Analyser).toHaveBeenCalledWith({
-      type: 'fft',
-      size: 2048,
-      smoothing: 0,
-    });
-  });
-
-  it('chains player through channel and analyser to destination', () => {
+  it('chains player through channel to destination', () => {
     mixer.createChannel('track-1', {} as AudioBuffer);
 
     const playerInstance = vi.mocked(Tone.Player).mock.results[0].value;
     const channelInstance = vi.mocked(Tone.Channel).mock.results[0].value;
-    const analyserInstance = vi.mocked(Tone.Analyser).mock.results[0].value;
     const destination = vi
       .mocked(Tone.getDestination)
       .mock.results.at(-1)!.value;
     expect(playerInstance.chain).toHaveBeenCalledWith(
       channelInstance,
-      analyserInstance,
       destination,
     );
+  });
+
+  it('creates a FrequencyVisualizer connected to the channel', () => {
+    mixer.createChannel('track-1', {} as AudioBuffer);
+
+    const channelInstance = vi.mocked(Tone.Channel).mock.results[0].value;
+    expect(FrequencyVisualizer).toHaveBeenCalledWith(channelInstance);
   });
 
   it('starts player at given transport time and audio offset', () => {
@@ -153,18 +160,77 @@ describe('deleteChannel', () => {
   });
 });
 
-describe('getFrequencyData', () => {
-  it('returns frequency data for existing track', () => {
-    mixer.createChannel('track-1', {} as AudioBuffer);
-
-    const data = mixer.getFrequencyData('track-1');
-
-    expect(data).toBeInstanceOf(Float32Array);
-    expect(data!.length).toBe(2048);
+describe('getVisualizationData', () => {
+  it('returns null when no channels exist', () => {
+    expect(mixer.getVisualizationData()).toBeNull();
   });
 
-  it('returns undefined for unknown track ID', () => {
-    expect(mixer.getFrequencyData('nonexistent')).toBeUndefined();
+  it('returns the single channel data when one channel exists', () => {
+    mixer.createChannel('track-1', {} as AudioBuffer);
+
+    const combined = mixer.getVisualizationData();
+
+    expect(combined).toBeInstanceOf(Uint8Array);
+    expect(combined!.length).toBe(774);
+  });
+
+  it('takes element-wise max across multiple channels', () => {
+    mixer.createChannel('track-1', {} as AudioBuffer);
+    mixer.createChannel('track-2', {} as AudioBuffer);
+
+    const ch1 = mixer.retrieveChannel('track-1')!;
+    const ch2 = mixer.retrieveChannel('track-2')!;
+    const data1 = new Uint8Array([50, 200, 10]);
+    const data2 = new Uint8Array([100, 150, 80]);
+    vi.spyOn(ch1, 'getVisualizationData').mockReturnValue(data1);
+    vi.spyOn(ch2, 'getVisualizationData').mockReturnValue(data2);
+
+    const combined = mixer.getVisualizationData();
+
+    expect(combined).toEqual(new Uint8Array([100, 200, 80]));
+  });
+
+  it('skips muted channels', () => {
+    mixer.createChannel('track-1', {} as AudioBuffer);
+    mixer.createChannel('track-2', {} as AudioBuffer);
+
+    const ch1 = mixer.retrieveChannel('track-1')!;
+    const ch2 = mixer.retrieveChannel('track-2')!;
+    ch1.mute = true;
+    const data1 = new Uint8Array([200, 200, 200]);
+    const data2 = new Uint8Array([50, 50, 50]);
+    vi.spyOn(ch1, 'getVisualizationData').mockReturnValue(data1);
+    vi.spyOn(ch2, 'getVisualizationData').mockReturnValue(data2);
+
+    const combined = mixer.getVisualizationData();
+
+    expect(combined).toEqual(new Uint8Array([50, 50, 50]));
+  });
+
+  it('returns null when all channels are muted', () => {
+    mixer.createChannel('track-1', {} as AudioBuffer);
+
+    const ch1 = mixer.retrieveChannel('track-1')!;
+    ch1.mute = true;
+
+    expect(mixer.getVisualizationData()).toBeNull();
+  });
+
+  it('only includes soloed channels when solo is active', () => {
+    mixer.createChannel('track-1', {} as AudioBuffer);
+    mixer.createChannel('track-2', {} as AudioBuffer);
+
+    const ch1 = mixer.retrieveChannel('track-1')!;
+    const ch2 = mixer.retrieveChannel('track-2')!;
+    ch2.solo = true;
+    const data1 = new Uint8Array([200, 200, 200]);
+    const data2 = new Uint8Array([50, 50, 50]);
+    vi.spyOn(ch1, 'getVisualizationData').mockReturnValue(data1);
+    vi.spyOn(ch2, 'getVisualizationData').mockReturnValue(data2);
+
+    const combined = mixer.getVisualizationData();
+
+    expect(combined).toEqual(new Uint8Array([50, 50, 50]));
   });
 });
 
@@ -220,83 +286,9 @@ describe('getMutedChannels', () => {
   });
 });
 
-describe('getCombinedFrequencyData', () => {
-  it('returns null when no channels exist', () => {
-    expect(mixer.getCombinedFrequencyData()).toBeNull();
-  });
-
-  it('returns the single channel data when one channel exists', () => {
-    mixer.createChannel('track-1', {} as AudioBuffer);
-
-    const combined = mixer.getCombinedFrequencyData();
-
-    expect(combined).toBeInstanceOf(Float32Array);
-    expect(combined!.length).toBe(2048);
-  });
-
-  it('takes element-wise max across multiple channels', () => {
-    mixer.createChannel('track-1', {} as AudioBuffer);
-    mixer.createChannel('track-2', {} as AudioBuffer);
-
-    const ch1 = mixer.retrieveChannel('track-1')!;
-    const ch2 = mixer.retrieveChannel('track-2')!;
-    const data1 = new Float32Array([-50, -30, -80]);
-    const data2 = new Float32Array([-60, -20, -70]);
-    vi.spyOn(ch1, 'getFrequencyData').mockReturnValue(data1);
-    vi.spyOn(ch2, 'getFrequencyData').mockReturnValue(data2);
-
-    const combined = mixer.getCombinedFrequencyData();
-
-    expect(combined).toEqual(new Float32Array([-50, -20, -70]));
-  });
-
-  it('skips muted channels', () => {
-    mixer.createChannel('track-1', {} as AudioBuffer);
-    mixer.createChannel('track-2', {} as AudioBuffer);
-
-    const ch1 = mixer.retrieveChannel('track-1')!;
-    const ch2 = mixer.retrieveChannel('track-2')!;
-    ch1.mute = true;
-    const data1 = new Float32Array([-30, -30, -30]);
-    const data2 = new Float32Array([-60, -60, -60]);
-    vi.spyOn(ch1, 'getFrequencyData').mockReturnValue(data1);
-    vi.spyOn(ch2, 'getFrequencyData').mockReturnValue(data2);
-
-    const combined = mixer.getCombinedFrequencyData();
-
-    expect(combined).toEqual(new Float32Array([-60, -60, -60]));
-  });
-
-  it('returns null when all channels are muted', () => {
-    mixer.createChannel('track-1', {} as AudioBuffer);
-
-    const ch1 = mixer.retrieveChannel('track-1')!;
-    ch1.mute = true;
-
-    expect(mixer.getCombinedFrequencyData()).toBeNull();
-  });
-
-  it('only includes soloed channels when solo is active', () => {
-    mixer.createChannel('track-1', {} as AudioBuffer);
-    mixer.createChannel('track-2', {} as AudioBuffer);
-
-    const ch1 = mixer.retrieveChannel('track-1')!;
-    const ch2 = mixer.retrieveChannel('track-2')!;
-    ch2.solo = true;
-    const data1 = new Float32Array([-30, -30, -30]);
-    const data2 = new Float32Array([-60, -60, -60]);
-    vi.spyOn(ch1, 'getFrequencyData').mockReturnValue(data1);
-    vi.spyOn(ch2, 'getFrequencyData').mockReturnValue(data2);
-
-    const combined = mixer.getCombinedFrequencyData();
-
-    expect(combined).toEqual(new Float32Array([-60, -60, -60]));
-  });
-});
-
 describe('AudioChannel', () => {
   let toneChannel: Tone.Channel;
-  let toneAnalyser: Tone.Analyser;
+  let mockVisualizer: FrequencyVisualizer;
   let audioChannel: AudioChannel;
 
   beforeEach(() => {
@@ -306,11 +298,12 @@ describe('AudioChannel', () => {
       volume: { rampTo: vi.fn() },
       dispose: vi.fn(),
     } as unknown as Tone.Channel;
-    toneAnalyser = {
-      getValue: vi.fn().mockReturnValue(new Float32Array(2048)),
+    mockVisualizer = {
+      frequencyBinCount: 774,
+      getVisualizationData: vi.fn().mockReturnValue(new Uint8Array(774)),
       dispose: vi.fn(),
-    } as unknown as Tone.Analyser;
-    audioChannel = new AudioChannel('ch-1', toneChannel, toneAnalyser);
+    } as unknown as FrequencyVisualizer;
+    audioChannel = new AudioChannel('ch-1', toneChannel, mockVisualizer);
   });
 
   it('exposes the channel id', () => {
@@ -376,7 +369,7 @@ describe('AudioChannel', () => {
       const normalized = new AudioChannel(
         'ch-norm',
         toneChannel,
-        toneAnalyser,
+        mockVisualizer,
         normGainDb,
       );
 
@@ -391,7 +384,7 @@ describe('AudioChannel', () => {
       const normalized = new AudioChannel(
         'ch-norm',
         toneChannel,
-        toneAnalyser,
+        mockVisualizer,
         normGainDb,
       );
 
@@ -405,7 +398,11 @@ describe('AudioChannel', () => {
     });
 
     it('defaults normalization gain to 0 when not provided', () => {
-      const channel = new AudioChannel('ch-default', toneChannel, toneAnalyser);
+      const channel = new AudioChannel(
+        'ch-default',
+        toneChannel,
+        mockVisualizer,
+      );
 
       channel.volume = 100;
 
@@ -414,12 +411,12 @@ describe('AudioChannel', () => {
     });
   });
 
-  describe('getFrequencyData', () => {
-    it('returns Float32Array from the analyser', () => {
-      const data = audioChannel.getFrequencyData();
+  describe('getVisualizationData', () => {
+    it('returns Uint8Array from the visualizer', () => {
+      const data = audioChannel.getVisualizationData();
 
-      expect(toneAnalyser.getValue).toHaveBeenCalled();
-      expect(data).toBeInstanceOf(Float32Array);
+      expect(mockVisualizer.getVisualizationData).toHaveBeenCalled();
+      expect(data).toBeInstanceOf(Uint8Array);
     });
   });
 
@@ -429,9 +426,9 @@ describe('AudioChannel', () => {
       expect(toneChannel.dispose).toHaveBeenCalled();
     });
 
-    it('disposes the underlying Tone.Analyser', () => {
+    it('disposes the underlying FrequencyVisualizer', () => {
       audioChannel.dispose();
-      expect(toneAnalyser.dispose).toHaveBeenCalled();
+      expect(mockVisualizer.dispose).toHaveBeenCalled();
     });
   });
 });

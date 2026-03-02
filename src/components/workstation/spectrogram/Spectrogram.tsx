@@ -21,9 +21,6 @@ type SpectrogramProps = {
 const TILE_WIDTH = 4096;
 const SCROLL_CONTAINER_CLASS = '.scrubber__timeline';
 
-// Frequency bin count from the Tone.Analyser (size: 2048 → 1024 bins)
-const MIC_FREQUENCY_BINS = 1024;
-
 const Spectrogram = ({
   height,
   pixelsPerSecond,
@@ -61,13 +58,13 @@ const Spectrogram = ({
     if (isRecordingTrack) {
       recordingBufferRef.current = new RecordingBuffer(
         color,
-        MIC_FREQUENCY_BINS,
+        audioService.microphone.frequencyBinCount,
       );
     }
     return () => {
       recordingBufferRef.current = null;
     };
-  }, [isRecordingTrack, color]);
+  }, [isRecordingTrack, color, audioService]);
 
   // Draw visible tiles on each animation frame
   useAnimationFrame(() => {
@@ -147,7 +144,7 @@ function drawRecordingFrame(
 
   // Accumulate a new frame while recording is active
   if (recording) {
-    const frequencyData = audioService.microphone.getFrequencyData();
+    const frequencyData = audioService.microphone.getVisualizationData();
     buffer.addFrame(frequencyData);
   }
 

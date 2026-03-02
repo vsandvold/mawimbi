@@ -1,20 +1,23 @@
 import * as Tone from 'tone';
+import FrequencyVisualizer from './FrequencyVisualizer';
 
 class MicrophoneUserMedia {
   private microphone: Tone.UserMedia;
   private meter: Tone.Meter;
-  private analyser: Tone.Analyser;
+  private visualizer: FrequencyVisualizer;
 
   constructor() {
     this.meter = new Tone.Meter();
-    this.analyser = new Tone.Analyser({ type: 'fft', size: 2048 });
-    this.microphone = new Tone.UserMedia()
-      .connect(this.meter)
-      .connect(this.analyser);
+    this.microphone = new Tone.UserMedia().connect(this.meter);
+    this.visualizer = new FrequencyVisualizer(this.microphone);
   }
 
   get isOpen(): boolean {
     return this.microphone.state === 'started';
+  }
+
+  get frequencyBinCount(): number {
+    return this.visualizer.frequencyBinCount;
   }
 
   async open(): Promise<void> {
@@ -34,8 +37,8 @@ class MicrophoneUserMedia {
     return typeof value === 'number' ? Math.max(0, value) : 0;
   }
 
-  getFrequencyData(): Float32Array {
-    return this.analyser.getValue() as Float32Array;
+  getVisualizationData(): Uint8Array {
+    return this.visualizer.getVisualizationData();
   }
 
   mute(): void {

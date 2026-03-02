@@ -46,7 +46,7 @@ it('starts with zero frames', () => {
 
 it('increments frameCount on each addFrame call', () => {
   const buffer = new RecordingBuffer(WHITE, 8);
-  const data = new Float32Array(8).fill(-50);
+  const data = new Uint8Array(8).fill(128);
 
   buffer.addFrame(data);
   expect(buffer.frameCount).toBe(1);
@@ -57,7 +57,7 @@ it('increments frameCount on each addFrame call', () => {
 
 it('calls putImageData for each frame', () => {
   const buffer = new RecordingBuffer(WHITE, 8);
-  const data = new Float32Array(8).fill(-50);
+  const data = new Uint8Array(8).fill(128);
 
   buffer.addFrame(data);
   buffer.addFrame(data);
@@ -79,7 +79,7 @@ it('does not draw to destination when frameCount is 0', () => {
 
 it('does not draw to destination when srcWidth is 0', () => {
   const buffer = new RecordingBuffer(WHITE, 8);
-  const data = new Float32Array(8).fill(-50);
+  const data = new Uint8Array(8).fill(128);
   buffer.addFrame(data);
 
   const destCtx = { drawImage: vi.fn() } as unknown as CanvasRenderingContext2D;
@@ -91,7 +91,7 @@ it('does not draw to destination when srcWidth is 0', () => {
 
 it('draws to destination canvas with correct parameters', () => {
   const buffer = new RecordingBuffer(WHITE, 8);
-  const data = new Float32Array(8).fill(-50);
+  const data = new Uint8Array(8).fill(128);
   buffer.addFrame(data);
   buffer.addFrame(data);
 
@@ -118,7 +118,7 @@ it('draws to destination canvas with correct parameters', () => {
 it('creates ImageData with correct dimensions for each frame', () => {
   const bins = 16;
   const buffer = new RecordingBuffer(WHITE, bins);
-  const data = new Float32Array(bins).fill(-60);
+  const data = new Uint8Array(bins).fill(128);
 
   buffer.addFrame(data);
 
@@ -131,8 +131,8 @@ it('creates ImageData with correct dimensions for each frame', () => {
 it('maps silent data to transparent pixels', () => {
   const bins = 4;
   const buffer = new RecordingBuffer(WHITE, bins);
-  // -100 dB is below MIN_DB (-80), so dbToByte returns 0 → fully transparent
-  const silentData = new Float32Array(bins).fill(-100);
+  // byte 0 → fully transparent
+  const silentData = new Uint8Array(bins).fill(0);
 
   buffer.addFrame(silentData);
 
@@ -148,13 +148,13 @@ it('maps silent data to transparent pixels', () => {
 it('maps loud data to opaque pixels', () => {
   const bins = 4;
   const buffer = new RecordingBuffer(WHITE, bins);
-  // -30 dB is at MAX_DB, so dbToByte returns 255 → near-full opacity
-  const loudData = new Float32Array(bins).fill(-30);
+  // byte 255 → near-full opacity
+  const loudData = new Uint8Array(bins).fill(255);
 
   buffer.addFrame(loudData);
 
   const imageData = mockPutImageData.mock.calls[0][0];
-  // All alpha values should be near max (255 maps to alpha ~254)
+  // All alpha values should be near max
   for (let i = 0; i < bins; i++) {
     const row = bins - 1 - i;
     const alpha = imageData.data[row * 4 + 3];
@@ -165,9 +165,9 @@ it('maps loud data to opaque pixels', () => {
 it('draws frequency bins bottom-to-top', () => {
   const bins = 4;
   const buffer = new RecordingBuffer(WHITE, bins);
-  // Only the first bin has signal, rest are silent
-  const data = new Float32Array(bins).fill(-100);
-  data[0] = -30; // bin 0 = loud
+  // Only the first bin is loud, rest are silent
+  const data = new Uint8Array(bins).fill(0);
+  data[0] = 255; // bin 0 = loud
 
   buffer.addFrame(data);
 
@@ -178,28 +178,4 @@ it('draws frequency bins bottom-to-top', () => {
 
   expect(bottomAlpha).toBeGreaterThan(200);
   expect(topAlpha).toBe(0);
-});
-
-it('applies logarithmic frequency mapping so low frequencies span more rows', () => {
-  const bins = 4;
-  const buffer = new RecordingBuffer(WHITE, bins);
-  // Only the lowest frequency bin is loud
-  const data = new Float32Array(bins).fill(-100);
-  data[0] = -30;
-
-  buffer.addFrame(data);
-
-  const imageData = mockPutImageData.mock.calls[0][0];
-  // With log mapping for 4 bins, output bins 0 and 1 both map to
-  // input bin 0. So the bottom two rows (rows 3 and 2) should be bright,
-  // not just the bottom one.
-  const row3Alpha = imageData.data[3 * 4 + 3]; // bottom
-  const row2Alpha = imageData.data[2 * 4 + 3]; // second from bottom
-  const row1Alpha = imageData.data[1 * 4 + 3]; // third from bottom
-  const row0Alpha = imageData.data[0 * 4 + 3]; // top
-
-  expect(row3Alpha).toBeGreaterThan(200);
-  expect(row2Alpha).toBeGreaterThan(200);
-  expect(row1Alpha).toBe(0);
-  expect(row0Alpha).toBe(0);
 });

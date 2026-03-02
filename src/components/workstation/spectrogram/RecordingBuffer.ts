@@ -1,21 +1,16 @@
-import {
-  applyLogFrequencyMapping,
-  createLogFrequencyMapping,
-} from '../../../services/logFrequencyMapping';
 import { createColorMap } from '../../../services/SpectrogramTileRenderer';
 import { type TrackColor } from '../../../types/track';
-import { dbToByte } from './spectrogramRenderer';
 
 const INITIAL_WIDTH = 8192;
 const BYTES_PER_PIXEL = 4;
 
 /**
- * Accumulates live microphone frequency data during recording into an
+ * Accumulates live visualization data during recording into an
  * OffscreenCanvas buffer. Each call to addFrame() appends a single-pixel
  * column. The buffer grows automatically when full.
  *
- * Frequency data is remapped to a logarithmic scale before rendering,
- * matching the offline spectrogram tile convention. Bins are drawn
+ * Input data is pre-processed (dual-band merged, log-frequency mapped,
+ * 0–255 byte values) by the FrequencyVisualizer service. Bins are drawn
  * bottom-to-top (bin 0 at bottom).
  */
 class RecordingBuffer {
@@ -25,32 +20,26 @@ class RecordingBuffer {
   private ctx: OffscreenCanvasRenderingContext2D;
   private colorMap: Uint8Array;
   private height: number;
-  private logMapping: number[][];
-  private logBuffer: Float32Array;
 
   constructor(color: TrackColor, frequencyBinCount: number) {
     this.height = frequencyBinCount;
     this.canvas = new OffscreenCanvas(INITIAL_WIDTH, frequencyBinCount);
     this.ctx = this.canvas.getContext('2d')!;
     this.colorMap = createColorMap(color);
-    this.logMapping = createLogFrequencyMapping(frequencyBinCount);
-    this.logBuffer = new Float32Array(frequencyBinCount);
   }
 
-  addFrame(frequencyData: Float32Array): void {
+  addFrame(visualizationData: Uint8Array): void {
     if (this.frameCount >= this.canvas.width) {
       this.grow();
     }
 
-    applyLogFrequencyMapping(frequencyData, this.logMapping, this.logBuffer);
-
     const col = this.frameCount;
-    const bins = Math.min(this.logBuffer.length, this.height);
+    const bins = Math.min(visualizationData.length, this.height);
     const imageData = this.ctx.createImageData(1, this.height);
     const pixels = imageData.data;
 
     for (let bin = 0; bin < bins; bin++) {
-      const byte = dbToByte(this.logBuffer[bin]);
+      const byte = visualizationData[bin];
       // bin 0 → bottom row, last bin → top row
       const row = this.height - 1 - bin;
       const pixelOffset = row * BYTES_PER_PIXEL;
