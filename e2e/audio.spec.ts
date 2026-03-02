@@ -350,8 +350,8 @@ test.describe('Scrubber', () => {
     await page.waitForTimeout(400);
     await expect(rewindButton).not.toHaveClass(/scrubber__rewind--hidden/);
 
-    // Click the rewind button
-    await page.getByTitle('Rewind').click();
+    // Click the scrubber's rewind button (scoped to avoid the toolbar's)
+    await page.locator('.scrubber__rewind').getByTitle('Rewind').click();
 
     // Rewind button should hide (transport time reset to 0 → scrollLeft = 0)
     await expect(rewindButton).toHaveClass(/scrubber__rewind--hidden/);
@@ -378,11 +378,11 @@ test.describe('Rewind control', () => {
     // Pause
     await page.getByTitle('Pause').click();
 
-    // The rewind button should become visible after scrolling
-    const rewindButton = page.getByTitle('Rewind');
+    // The toolbar rewind button (scoped to avoid the scrubber's)
+    const rewindButton = page.locator('.toolbar').getByTitle('Rewind');
 
-    // Click rewind if visible (scrolled position)
-    if (await rewindButton.isVisible()) {
+    // Click rewind if enabled
+    if (await rewindButton.isEnabled()) {
       await rewindButton.click();
 
       // Should stop playback and rewind

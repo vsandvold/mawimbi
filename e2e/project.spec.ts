@@ -7,7 +7,9 @@ test.describe('Project page', () => {
 
   test.describe('header', () => {
     test('displays a back button', async ({ page }) => {
-      await expect(page.getByRole('button', { name: 'Back' })).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: 'Back', exact: true })
+      ).toBeVisible();
     });
 
     test('back button navigates to the home page', async ({ page }) => {
@@ -15,7 +17,7 @@ test.describe('Project page', () => {
       await page.goto('/');
       await page.getByRole('button', { name: 'Create Project' }).click();
       await expect(page).toHaveURL('/project');
-      await page.getByRole('button', { name: 'Back' }).click();
+      await page.getByRole('button', { name: 'Back', exact: true }).click();
       await expect(page).toHaveURL('/');
     });
 
