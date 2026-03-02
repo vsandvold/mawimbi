@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAudioService } from '../../hooks/useAudioService';
 import { useContainerHeight } from '../../hooks/useContainerHeight';
 import useKeypress from '../../hooks/useKeypress';
@@ -17,17 +17,93 @@ import useProjectDispatch from '../project/useProjectDispatch';
 
 const RECORDING_FILE_NAME = 'Recording';
 
+// ~120 BPM: 500ms per beat
+const COUNT_IN_BEAT_INTERVAL = 500;
+const COUNT_IN_TOTAL_BEATS = 4;
+
 export const useSpacebarPlaybackToggle = () => {
   useKeypress(
     () => {
-      // Prevent spacebar from toggling playback during recording,
-      // because Transport is controlled by the recording lifecycle.
+      // Prevent spacebar from toggling playback during recording
+      // or count-in, because Transport is controlled by the
+      // recording lifecycle.
       if (!isRecordingSignal.value) {
         togglePlayback();
       }
     },
     { targetKey: ' ' },
   );
+};
+
+export const useCountIn = (
+  isCountingIn: boolean,
+  onComplete: () => void,
+): number | null => {
+  const audioService = useAudioService();
+  const [currentBeat, setCurrentBeat] = useState<number | null>(null);
+  const completedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isCountingIn) {
+      setCurrentBeat(null);
+      return;
+    }
+
+    completedRef.current = false;
+    let cancelled = false;
+
+    const run = async () => {
+      const msg = message({ key: 'microphone' });
+
+      try {
+        await audioService.prepareMicrophone();
+      } catch {
+        msg.error('Microphone access failed');
+        return;
+      }
+
+      if (cancelled) {
+        audioService.closeMicrophone();
+        return;
+      }
+
+      // Start playback of existing tracks during count-in
+      isPlaying.value = true;
+      // Block spacebar and show recording UI during count-in
+      isRecordingSignal.value = true;
+
+      for (let i = 1; i <= COUNT_IN_TOTAL_BEATS; i++) {
+        if (cancelled) break;
+        setCurrentBeat(i);
+        await new Promise((resolve) =>
+          setTimeout(resolve, COUNT_IN_BEAT_INTERVAL),
+        );
+      }
+
+      if (!cancelled) {
+        completedRef.current = true;
+        setCurrentBeat(null);
+        onComplete();
+      }
+    };
+
+    run();
+
+    return () => {
+      cancelled = true;
+      setCurrentBeat(null);
+
+      if (!completedRef.current) {
+        // Cancelled by user — clean up microphone and playback
+        audioService.closeMicrophone();
+        isPlaying.value = false;
+        isRecordingSignal.value = false;
+      }
+    };
+    // audioService and onComplete are stable refs
+  }, [isCountingIn]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return currentBeat;
 };
 
 export const useTotalTime = (tracks: Track[]) => {

@@ -182,6 +182,18 @@ class AudioService {
       .reduce((prev, curr) => (prev >= curr ? prev : curr), 0);
   }
 
+  async prepareMicrophone(): Promise<void> {
+    if (!this.microphone.isOpen) {
+      await this.microphone.open();
+    }
+  }
+
+  closeMicrophone(): void {
+    if (this.microphone.isOpen) {
+      this.microphone.close();
+    }
+  }
+
   // --- Overdub recording (Phase 1: MediaRecorder + timestamp bookkeeping) ---
 
   async startOverdubRecording(): Promise<void> {

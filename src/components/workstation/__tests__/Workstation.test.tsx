@@ -7,6 +7,7 @@ import { useTransportBridge } from '../../../hooks/useTransportBridge';
 import { mockTrack } from '../../../testUtils';
 import Workstation from '../Workstation';
 import {
+  useCountIn,
   useMixerHeight,
   useSpacebarPlaybackToggle,
   useTotalTime,
@@ -94,10 +95,12 @@ it('uses workstation effect hooks', () => {
   expect(useMixerHeight).toHaveBeenCalled();
   expect(useSpacebarPlaybackToggle).toHaveBeenCalled();
   expect(useTotalTime).toHaveBeenCalled();
+  expect(useCountIn).toHaveBeenCalled();
 });
 
 function mockWorkstationEffects() {
   return {
+    useCountIn: vi.fn(() => null),
     useMixerHeight: vi.fn(() => ({
       mixerContainerRef: { current: null },
       mixerHeight: 0,

@@ -13,6 +13,7 @@ const defaultProps = {
   isMixerOpen: false,
   isEmpty: false,
   isRecording: false,
+  isCountingIn: false,
   onToggleMixer: mockToggleMixer,
   onToggleRecording: mockToggleRecording,
 };
@@ -115,4 +116,20 @@ it('disables play/pause button while recording', () => {
   );
 
   expect(getByTitle('Pause')).toBeDisabled();
+});
+
+it('disables play/pause button during count-in', () => {
+  const { getByTitle } = render(
+    <Toolbar {...{ ...defaultProps, isCountingIn: true }} />,
+  );
+
+  expect(getByTitle('Play')).toBeDisabled();
+});
+
+it('keeps record button enabled during count-in for cancellation', () => {
+  const { getByTitle } = render(
+    <Toolbar {...{ ...defaultProps, isCountingIn: true }} />,
+  );
+
+  expect(getByTitle('Record')).toBeEnabled();
 });
