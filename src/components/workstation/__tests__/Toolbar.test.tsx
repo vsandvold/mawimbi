@@ -1,9 +1,13 @@
 import { fireEvent, render } from '@testing-library/react';
 import { vi } from 'vitest';
+import { play, resetPlaybackService } from '../../../services/PlaybackService';
 import {
-  isPlaying,
-  resetTransportSignals,
-} from '../../../signals/transportSignals';
+  arm,
+  resetRecordingService,
+  startCountIn,
+  startRecording,
+} from '../../../services/RecordingService';
+import { isPlaying } from '../../../signals/transportSignals';
 import Toolbar from '../Toolbar';
 
 const mockToggleMixer = vi.fn();
@@ -12,20 +16,19 @@ const mockToggleRecording = vi.fn();
 const defaultProps = {
   isMixerOpen: false,
   isEmpty: false,
-  isRecording: false,
-  isCountingIn: false,
   onToggleMixer: mockToggleMixer,
   onToggleRecording: mockToggleRecording,
 };
 
 afterEach(() => {
-  resetTransportSignals();
+  resetPlaybackService();
+  resetRecordingService();
 });
 
 it('renders all buttons', () => {
   const { getAllByRole } = render(<Toolbar {...defaultProps} />);
 
-  expect(getAllByRole('button')).toHaveLength(3);
+  expect(getAllByRole('button')).toHaveLength(4);
 });
 
 it('disables buttons when tracks are empty', () => {
@@ -35,18 +38,21 @@ it('disables buttons when tracks are empty', () => {
 
   expect(getByTitle('Show mixer')).toBeDisabled();
   expect(getByTitle('Play')).toBeDisabled();
+  expect(getByTitle('Rewind')).toBeDisabled();
   expect(getByTitle('Record')).not.toBeDisabled();
 });
 
-it('enables buttons when tracks are not empty', () => {
-  const { getAllByRole } = render(
+it('enables non-transport buttons when tracks are not empty', () => {
+  const { getByTitle } = render(
     <Toolbar {...{ ...defaultProps, isEmpty: false }} />,
   );
 
-  getAllByRole('button').forEach((button) => expect(button).toBeEnabled());
+  expect(getByTitle('Show mixer')).toBeEnabled();
+  expect(getByTitle('Play')).toBeEnabled();
+  expect(getByTitle('Record')).toBeEnabled();
 });
 
-it('renders play icon when paused', () => {
+it('renders play icon when stopped', () => {
   const { getByTitle } = render(<Toolbar {...defaultProps} />);
 
   const playButton = getByTitle('Play');
@@ -57,7 +63,7 @@ it('renders play icon when paused', () => {
 });
 
 it('renders pause icon when playing', () => {
-  isPlaying.value = true;
+  play();
 
   const { getByTitle } = render(<Toolbar {...defaultProps} />);
 
@@ -109,27 +115,41 @@ it('toggles mixer when mixer show/hide is clicked', () => {
 });
 
 it('disables play/pause button while recording', () => {
-  isPlaying.value = true;
+  play();
+  arm();
+  startRecording();
 
-  const { getByTitle } = render(
-    <Toolbar {...{ ...defaultProps, isRecording: true }} />,
-  );
+  const { getByTitle } = render(<Toolbar {...defaultProps} />);
 
   expect(getByTitle('Pause')).toBeDisabled();
 });
 
 it('disables play/pause button during count-in', () => {
-  const { getByTitle } = render(
-    <Toolbar {...{ ...defaultProps, isCountingIn: true }} />,
-  );
+  startCountIn();
+
+  const { getByTitle } = render(<Toolbar {...defaultProps} />);
 
   expect(getByTitle('Play')).toBeDisabled();
 });
 
 it('keeps record button enabled during count-in for cancellation', () => {
-  const { getByTitle } = render(
-    <Toolbar {...{ ...defaultProps, isCountingIn: true }} />,
-  );
+  startCountIn();
+
+  const { getByTitle } = render(<Toolbar {...defaultProps} />);
 
   expect(getByTitle('Record')).toBeEnabled();
+});
+
+it('disables rewind button when stopped', () => {
+  const { getByTitle } = render(<Toolbar {...defaultProps} />);
+
+  expect(getByTitle('Rewind')).toBeDisabled();
+});
+
+it('enables rewind button when playing', () => {
+  play();
+
+  const { getByTitle } = render(<Toolbar {...defaultProps} />);
+
+  expect(getByTitle('Rewind')).toBeEnabled();
 });

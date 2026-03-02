@@ -1,10 +1,8 @@
 import { render, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
 import { useAnimationFrame } from '../../../../hooks/useAnimationFrame';
-import {
-  isRecording,
-  transportTime,
-} from '../../../../signals/transportSignals';
+import { transportTime } from '../../../../services/PlaybackService';
+import { arm, startRecording } from '../../../../services/RecordingService';
 import { TrackSignalStore } from '../../../../signals/trackSignals';
 import { resetAllSignals } from '../../../../signals/__tests__/testUtils';
 import { mockTrack } from '../../../../testUtils';
@@ -357,7 +355,8 @@ describe('recording mode', () => {
   });
 
   it('reads visualization data from FrequencyVisualizer during recording', () => {
-    isRecording.value = true;
+    arm();
+    startRecording();
     transportTime.value = 1.5;
     mockGetRecordingStartTime.mockReturnValue(0);
     mockGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));
@@ -388,7 +387,8 @@ describe('recording mode', () => {
   });
 
   it('offsets container by recording start time during overdub', () => {
-    isRecording.value = true;
+    arm();
+    startRecording();
     transportTime.value = 5.0;
     mockGetRecordingStartTime.mockReturnValue(3.0);
     mockGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));
@@ -421,7 +421,8 @@ describe('recording mode', () => {
   });
 
   it('updates container width based on elapsed recording time', () => {
-    isRecording.value = true;
+    arm();
+    startRecording();
     transportTime.value = 2.0;
     mockGetRecordingStartTime.mockReturnValue(0);
     mockGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));

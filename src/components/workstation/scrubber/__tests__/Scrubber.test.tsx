@@ -2,24 +2,30 @@ import { isInaccessible } from '@testing-library/dom';
 import { act, fireEvent, render } from '@testing-library/react';
 import AudioService from '../../../../services/AudioService';
 import {
-  isCountingIn,
-  isPlaying,
-  isRecording,
-  resetTransportSignals,
+  play,
+  resetPlaybackService,
   transportTime,
-} from '../../../../signals/transportSignals';
+} from '../../../../services/PlaybackService';
+import {
+  arm,
+  resetRecordingService,
+  startCountIn,
+  startRecording,
+} from '../../../../services/RecordingService';
+import { isPlaying } from '../../../../signals/transportSignals';
 import Scrubber from '../Scrubber';
 
 const defaultProps = {
   drawerHeight: 0,
   isMixerOpen: false,
-  onToggleRecording: vi.fn(),
+  onStopRecording: vi.fn(),
   pixelsPerSecond: 200,
   tracks: [] as import('../../../../types/track').Track[],
 };
 
 afterEach(() => {
-  resetTransportSignals();
+  resetPlaybackService();
+  resetRecordingService();
 });
 
 it('hides rewind button at start of playback', () => {
@@ -46,7 +52,7 @@ it('shows rewind button when playback has progressed', () => {
 });
 
 it('stops and rewinds playback when rewind button is clicked', () => {
-  isPlaying.value = true;
+  play();
   transportTime.value = 5.0;
 
   const { getByTitle } = render(<Scrubber {...defaultProps} />);
@@ -59,7 +65,7 @@ it('stops and rewinds playback when rewind button is clicked', () => {
 });
 
 it('pauses playback when timeline is scrolled while playing', () => {
-  isPlaying.value = true;
+  play();
 
   const { container } = render(<Scrubber {...defaultProps} />);
 
@@ -121,7 +127,7 @@ it('feeds plasma renderer with loudness during playback', () => {
     return 1;
   });
 
-  isPlaying.value = true;
+  play();
 
   render(<Scrubber {...defaultProps} />);
 
@@ -143,14 +149,15 @@ it('does not stop playback at end of scroll during recording', () => {
     return 1;
   });
 
-  isPlaying.value = true;
-  isRecording.value = true;
+  play();
+  arm();
+  startRecording();
 
   render(<Scrubber {...defaultProps} />);
 
   // In jsdom, scrollWidth equals clientWidth (no overflow), so the
   // end-of-scroll condition is satisfied. During recording this must NOT
-  // trigger stopAndRewindPlayback.
+  // trigger rewind.
   act(() => {
     rafCallback(0);
   });
@@ -169,41 +176,44 @@ it('does not call getLoudness when playback is stopped', () => {
 });
 
 it('stops recording when timeline is clicked during recording', () => {
-  isPlaying.value = true;
-  isRecording.value = true;
-  const onToggleRecording = vi.fn();
+  play();
+  arm();
+  startRecording();
+  const onStopRecording = vi.fn();
 
   const { container } = render(
-    <Scrubber {...defaultProps} onToggleRecording={onToggleRecording} />,
+    <Scrubber {...defaultProps} onStopRecording={onStopRecording} />,
   );
 
   const timeline = container.querySelector('.scrubber__timeline')!;
   fireEvent.click(timeline);
 
-  expect(onToggleRecording).toHaveBeenCalledOnce();
+  expect(onStopRecording).toHaveBeenCalledOnce();
   expect(isPlaying.value).toBe(true);
 });
 
 it('cancels count-in when timeline is clicked during count-in', () => {
-  isPlaying.value = true;
-  isRecording.value = true;
-  isCountingIn.value = true;
-  const onToggleRecording = vi.fn();
+  play();
+  arm();
+  startRecording();
+  startCountIn();
+  const onStopRecording = vi.fn();
 
   const { container } = render(
-    <Scrubber {...defaultProps} onToggleRecording={onToggleRecording} />,
+    <Scrubber {...defaultProps} onStopRecording={onStopRecording} />,
   );
 
   const timeline = container.querySelector('.scrubber__timeline')!;
   fireEvent.click(timeline);
 
-  expect(onToggleRecording).toHaveBeenCalledOnce();
+  expect(onStopRecording).toHaveBeenCalledOnce();
   expect(isPlaying.value).toBe(true);
 });
 
 it('does not pause playback when timeline is scrolled during recording', () => {
-  isPlaying.value = true;
-  isRecording.value = true;
+  play();
+  arm();
+  startRecording();
 
   const { container } = render(<Scrubber {...defaultProps} />);
 
@@ -214,8 +224,9 @@ it('does not pause playback when timeline is scrolled during recording', () => {
 });
 
 it('does not rewind when rewind button is clicked during recording', () => {
-  isPlaying.value = true;
-  isRecording.value = true;
+  play();
+  arm();
+  startRecording();
   transportTime.value = 5.0;
 
   const { getByTitle } = render(<Scrubber {...defaultProps} />);
@@ -238,9 +249,10 @@ it('does not update transportTime during count-in', () => {
   });
 
   transportTime.value = 5.0;
-  isPlaying.value = true;
-  isRecording.value = true;
-  isCountingIn.value = true;
+  play();
+  arm();
+  startRecording();
+  startCountIn();
 
   render(<Scrubber {...defaultProps} />);
 

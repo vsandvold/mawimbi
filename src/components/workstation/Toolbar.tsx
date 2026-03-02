@@ -3,11 +3,17 @@ import Icon, {
   AudioOutlined,
   CaretRightOutlined,
   PauseOutlined,
+  StepBackwardOutlined,
 } from '@ant-design/icons';
 import { Button } from 'antd';
 import { useSignals } from '@preact/signals-react/runtime';
 import classNames from 'classnames';
 import ControlSvg from '../../icons/control.svg?react';
+import { playbackState, rewind } from '../../services/PlaybackService';
+import {
+  isTransportLocked,
+  recordingState,
+} from '../../services/RecordingService';
 import {
   isPlaying as isPlayingSignal,
   togglePlayback,
@@ -17,23 +23,18 @@ import './Toolbar.css';
 type ToolbarProps = {
   isMixerOpen: boolean;
   isEmpty: boolean;
-  isRecording: boolean;
-  isCountingIn: boolean;
   onToggleMixer: () => void;
   onToggleRecording: () => void;
 };
 
 const Toolbar = (props: ToolbarProps) => {
   useSignals();
-  const {
-    isMixerOpen,
-    isEmpty,
-    isRecording,
-    isCountingIn,
-    onToggleMixer,
-    onToggleRecording,
-  } = props;
+  const { isMixerOpen, isEmpty, onToggleMixer, onToggleRecording } = props;
   const isPlaying = isPlayingSignal.value;
+  const locked = isTransportLocked();
+  const recState = recordingState.value;
+  const isRecordActive = recState !== 'idle';
+  const isStopped = playbackState.value === 'stopped';
 
   const mixerIconClass = classNames({ 'show-mixer': isMixerOpen });
   const mixerIcon = <Icon component={ControlSvg} className={mixerIconClass} />;
@@ -50,6 +51,18 @@ const Toolbar = (props: ToolbarProps) => {
     />
   );
 
+  const rewindButton = (
+    <Button
+      type="link"
+      size="large"
+      className="button"
+      icon={<StepBackwardOutlined />}
+      title="Rewind"
+      onClick={() => rewind()}
+      disabled={isEmpty || locked || isStopped}
+    />
+  );
+
   const playPauseButton = (
     <Button
       type="link"
@@ -58,11 +71,10 @@ const Toolbar = (props: ToolbarProps) => {
       icon={isPlaying ? <PauseOutlined /> : <CaretRightOutlined />}
       title={isPlaying ? 'Pause' : 'Play'}
       onClick={() => togglePlayback()}
-      disabled={isEmpty || isRecording || isCountingIn}
+      disabled={isEmpty || locked}
     />
   );
 
-  const isRecordActive = isRecording || isCountingIn;
   const microphoneButton = (
     <Button
       type="link"
@@ -73,9 +85,11 @@ const Toolbar = (props: ToolbarProps) => {
       onClick={onToggleRecording}
     />
   );
+
   return (
     <div className="toolbar">
       <div className="toolbar__button">{mixerButton}</div>
+      <div className="toolbar__button">{rewindButton}</div>
       <div className="toolbar__button">{playPauseButton}</div>
       <div className="toolbar__button">{microphoneButton}</div>
     </div>

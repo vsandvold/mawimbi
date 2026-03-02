@@ -9,6 +9,8 @@ import {
   totalTime,
   transportTime,
 } from '../transportSignals';
+import { play } from '../../services/PlaybackService';
+import { arm } from '../../services/RecordingService';
 
 afterEach(() => {
   resetTransportSignals();
@@ -44,14 +46,14 @@ describe('transportSignals', () => {
       expect(transportTime.value).toBe(42.5);
     });
 
-    it('allows toggling isPlaying', () => {
-      isPlaying.value = true;
+    it('reflects isPlaying from playback state machine', () => {
+      play();
 
       expect(isPlaying.value).toBe(true);
     });
 
-    it('allows toggling isRecording', () => {
-      isRecording.value = true;
+    it('reflects isRecording from recording state machine', () => {
+      arm();
 
       expect(isRecording.value).toBe(true);
     });
@@ -77,7 +79,7 @@ describe('transportSignals', () => {
     });
 
     it('pauses playback when playing', () => {
-      isPlaying.value = true;
+      play();
 
       togglePlayback();
 
@@ -135,7 +137,7 @@ describe('transportSignals', () => {
 
   describe('stopAndRewindPlayback', () => {
     it('stops playback and rewinds to beginning', () => {
-      isPlaying.value = true;
+      play();
       transportTime.value = 5.0;
 
       stopAndRewindPlayback();
@@ -145,7 +147,7 @@ describe('transportSignals', () => {
     });
 
     it('sets pending seek to 0', () => {
-      isPlaying.value = true;
+      play();
       transportTime.value = 5.0;
 
       stopAndRewindPlayback();
@@ -171,8 +173,8 @@ describe('transportSignals', () => {
   describe('resetTransportSignals', () => {
     it('resets all transport signals to defaults', () => {
       transportTime.value = 99;
-      isPlaying.value = true;
-      isRecording.value = true;
+      play();
+      arm();
       loudness.value = -6;
       totalTime.value = 120;
 

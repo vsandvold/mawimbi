@@ -1,12 +1,16 @@
 import { fireEvent } from '@testing-library/react';
 import { act, renderHook } from '@testing-library/react';
 import { vi } from 'vitest';
+import { resetPlaybackService } from '../../../services/PlaybackService';
 import {
-  resetTransportSignals,
-  isPlaying,
-  isRecording,
-  transportTime,
-} from '../../../signals/transportSignals';
+  arm,
+  recordingState,
+  resetRecordingService,
+  startRecording,
+} from '../../../services/RecordingService';
+import { transportTime } from '../../../services/PlaybackService';
+import { isPlaying } from '../../../signals/transportSignals';
+import { TrackSignalStore } from '../../../signals/trackSignals';
 import {
   useSpacebarPlaybackToggle,
   useMicrophone,
@@ -40,8 +44,9 @@ vi.mock('../../../hooks/useAudioService', () => ({
   }),
 }));
 
+const mockProjectDispatch = vi.fn();
 vi.mock('../../project/useProjectDispatch', () => ({
-  default: () => vi.fn(),
+  default: () => mockProjectDispatch,
 }));
 
 vi.mock('../../../signals/trackSignals', () => ({
@@ -60,7 +65,8 @@ vi.mock('../../message', () => ({
 }));
 
 afterEach(() => {
-  resetTransportSignals();
+  resetPlaybackService();
+  resetRecordingService();
   vi.clearAllMocks();
 });
 
@@ -76,7 +82,8 @@ describe('useSpacebarPlaybackToggle', () => {
   });
 
   it('does not toggle playback with spacebar while recording', () => {
-    isRecording.value = true;
+    arm();
+    startRecording();
 
     renderHook(() => useSpacebarPlaybackToggle());
 
@@ -87,18 +94,17 @@ describe('useSpacebarPlaybackToggle', () => {
 });
 
 describe('useMicrophone', () => {
-  it('sets isPlaying and isRecording signals when recording starts', async () => {
+  it('starts overdub recording on the audio engine', async () => {
     renderHook(({ isRec }: { isRec: boolean }) => useMicrophone(isRec), {
       initialProps: { isRec: true },
     });
 
     await act(async () => {});
 
-    expect(isRecording.value).toBe(true);
-    expect(isPlaying.value).toBe(true);
+    expect(mockStartOverdubRecording).toHaveBeenCalledOnce();
   });
 
-  it('clears isPlaying and isRecording signals when recording stops', async () => {
+  it('stops overdub recording and creates a track', async () => {
     const { rerender } = renderHook(
       ({ isRec }: { isRec: boolean }) => useMicrophone(isRec),
       { initialProps: { isRec: true } },
@@ -108,12 +114,46 @@ describe('useMicrophone', () => {
     rerender({ isRec: false });
     await act(async () => {});
 
-    expect(isRecording.value).toBe(false);
+    expect(mockStopOverdubRecording).toHaveBeenCalledOnce();
+    expect(TrackSignalStore.create).toHaveBeenCalledWith(
+      'recorded-track-1',
+      80,
+    );
+    expect(mockProjectDispatch).toHaveBeenCalledWith([
+      'ADD_TRACK',
+      { trackId: 'recorded-track-1', fileName: 'Recording' },
+    ]);
+  });
+
+  it('transitions recording state to idle when recording stops', async () => {
+    arm();
+    startRecording();
+
+    const { rerender } = renderHook(
+      ({ isRec }: { isRec: boolean }) => useMicrophone(isRec),
+      { initialProps: { isRec: true } },
+    );
+    await act(async () => {});
+
+    rerender({ isRec: false });
+    await act(async () => {});
+
+    expect(recordingState.value).toBe('idle');
+  });
+
+  it('does not start playback when recording starts', async () => {
+    renderHook(({ isRec }: { isRec: boolean }) => useMicrophone(isRec), {
+      initialProps: { isRec: true },
+    });
+
+    await act(async () => {});
+
+    // Count-in handles playback start, not useMicrophone
     expect(isPlaying.value).toBe(false);
   });
 
-  it('rewinds transport to the beginning after recording stops', async () => {
-    transportTime.value = 99;
+  it('pauses at current position when recording stops', async () => {
+    mockGetTransportTime.mockReturnValue(5.0);
 
     const { rerender } = renderHook(
       ({ isRec }: { isRec: boolean }) => useMicrophone(isRec),
@@ -121,30 +161,10 @@ describe('useMicrophone', () => {
     );
     await act(async () => {});
 
-    // Stop recording
     rerender({ isRec: false });
     await act(async () => {});
 
-    // transportTime should rewind to 0 so the user can play everything
-    // from the beginning after recording
-    expect(transportTime.value).toBe(0);
-  });
-
-  it('rewinds transport to the beginning even for mid-session recordings', async () => {
-    transportTime.value = 99;
-
-    const { rerender } = renderHook(
-      ({ isRec }: { isRec: boolean }) => useMicrophone(isRec),
-      { initialProps: { isRec: true } },
-    );
-    await act(async () => {});
-
-    // Stop recording
-    rerender({ isRec: false });
-    await act(async () => {});
-
-    // transportTime should rewind to 0 so the user can play everything
-    // from the beginning, regardless of where recording started
-    expect(transportTime.value).toBe(0);
+    expect(isPlaying.value).toBe(false);
+    expect(transportTime.value).toBe(5.0);
   });
 });

@@ -1,51 +1,64 @@
-import { signal } from '@preact/signals-react';
+// Backward-compatible facade over PlaybackService and RecordingService.
+//
+// Re-exports the canonical signals from each service and provides computed
+// boolean signals (isPlaying, isRecording) so existing consumers that read
+// `.value` as a boolean continue to work unchanged.
 
-export const transportTime = signal(0);
-export const isPlaying = signal(false);
-export const isRecording = signal(false);
-export const isCountingIn = signal(false);
-export const loudness = signal(0);
-export const totalTime = signal(0);
+import { computed, type ReadonlySignal } from '@preact/signals-react';
+import {
+  consumePendingSeek as _consumePendingSeek,
+  playbackState,
+  resetPlaybackService,
+  rewind,
+  togglePlayback as _togglePlayback,
+} from '../services/PlaybackService';
+import {
+  isCountingIn,
+  recordingState,
+  resetRecordingService,
+} from '../services/RecordingService';
 
-// Tracks whether the next isPlaying change should include a seek to the
-// current transportTime value.  Set by user-initiated seeks (scroll, rewind)
-// and consumed by the transport bridge.
-let pendingSeekTime: number | null = null;
+// --- Re-export canonical signals ---
+
+export {
+  transportTime,
+  totalTime,
+  loudness,
+} from '../services/PlaybackService';
+export { playbackState } from '../services/PlaybackService';
+export { isCountingIn, recordingState } from '../services/RecordingService';
+
+// --- Computed boolean signals for backward compatibility ---
+
+// Components read `isPlaying.value` as a boolean throughout the codebase.
+// This computed signal derives from the playback state machine.
+export const isPlaying: ReadonlySignal<boolean> = computed(
+  () => playbackState.value === 'playing',
+);
+
+// Components read `isRecording.value` as a boolean. This derives from
+// the recording state machine: true when armed, recording, or counting in.
+// Armed counts as "recording mode active" because the UI should reflect
+// that the user is in a recording workflow (e.g. showing red indicator).
+export const isRecording: ReadonlySignal<boolean> = computed(
+  () => recordingState.value !== 'idle' || isCountingIn.value,
+);
+
+// --- Facade functions ---
 
 export function togglePlayback(): void {
-  const isEndOfPlayback =
-    transportTime.value.toFixed(1) === totalTime.value.toFixed(1);
-  if (isEndOfPlayback && !isPlaying.value) {
-    // Set pending seek and transport time before toggling isPlaying,
-    // because signal effects fire synchronously on isPlaying change.
-    pendingSeekTime = 0;
-    transportTime.value = 0;
-    isPlaying.value = true;
-  } else {
-    isPlaying.value = !isPlaying.value;
-  }
+  _togglePlayback();
 }
 
 export function stopAndRewindPlayback(): void {
-  // Set pending seek before toggling isPlaying, because signal effects
-  // fire synchronously on isPlaying change.
-  pendingSeekTime = 0;
-  isPlaying.value = false;
-  transportTime.value = 0;
+  rewind();
 }
 
 export function consumePendingSeek(): number | null {
-  const seek = pendingSeekTime;
-  pendingSeekTime = null;
-  return seek;
+  return _consumePendingSeek();
 }
 
 export function resetTransportSignals(): void {
-  transportTime.value = 0;
-  isPlaying.value = false;
-  isRecording.value = false;
-  isCountingIn.value = false;
-  loudness.value = 0;
-  totalTime.value = 0;
-  pendingSeekTime = null;
+  resetPlaybackService();
+  resetRecordingService();
 }

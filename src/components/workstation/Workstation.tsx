@@ -1,9 +1,13 @@
 import { useSignals } from '@preact/signals-react/runtime';
 import classNames from 'classnames';
 import { useCallback, useState } from 'react';
-import { useAudioBridge } from '../../hooks/useAudioBridge';
-import { useTransportBridge } from '../../hooks/useTransportBridge';
-import { isRecording as isRecordingSignal } from '../../signals/transportSignals';
+import { usePlaybackSync } from '../../hooks/usePlaybackSync';
+import { useTrackSync } from '../../hooks/useTrackSync';
+import {
+  arm,
+  isCountingIn as isCountingInSignal,
+  recordingState,
+} from '../../services/RecordingService';
 import { pixelsPerSecond as pixelsPerSecondSignal } from '../../signals/workstationSignals';
 import { type Track, type TrackColor } from '../../types/track';
 import CountIn from './CountIn';
@@ -45,8 +49,8 @@ const Workstation = (props: WorkstationProps) => {
     useFileDropzone(uploadFile);
 
   const trackIds = tracks.map((t) => t.trackId);
-  useAudioBridge(trackIds);
-  useTransportBridge();
+  usePlaybackSync();
+  useTrackSync(trackIds);
   useSpacebarPlaybackToggle();
   useTotalTime(tracks);
 
@@ -65,15 +69,31 @@ const Workstation = (props: WorkstationProps) => {
     } else if (isRecording) {
       setIsRecording(false);
     } else {
+      // Arm the recording service, then start count-in
+      arm();
       setIsCountingIn(true);
     }
   };
 
+  const handleStopRecording = () => {
+    if (isRecording) {
+      setIsRecording(false);
+    } else if (isCountingIn) {
+      setIsCountingIn(false);
+    }
+  };
+
   // Show the timeline when tracks exist or when recording is active.
-  // Use the signal (not local state) so the timeline stays visible during
-  // the async stop-recording transition until the new track is added.
+  // Use the recording state machine signal (not local state) so the
+  // timeline stays visible during the async stop-recording transition
+  // until the new track is added.
+  const isRecordingActive = recordingState.value !== 'idle';
   const showTimeline =
-    hasTracks || isRecording || isCountingIn || isRecordingSignal.value;
+    hasTracks ||
+    isRecording ||
+    isCountingIn ||
+    isRecordingActive ||
+    isCountingInSignal.value;
 
   const editorMixerClass = classNames('editor__mixer', {
     'editor__mixer--closed': !isMixerOpen,
@@ -91,7 +111,7 @@ const Workstation = (props: WorkstationProps) => {
             <Scrubber
               drawerHeight={mixerHeight}
               isMixerOpen={isMixerOpen}
-              onToggleRecording={toggleRecording}
+              onStopRecording={handleStopRecording}
               pixelsPerSecond={pixelsPerSecond}
               tracks={tracks}
             >
@@ -121,8 +141,6 @@ const Workstation = (props: WorkstationProps) => {
         <Toolbar
           isMixerOpen={isMixerOpen}
           isEmpty={!hasTracks}
-          isRecording={isRecording}
-          isCountingIn={isCountingIn}
           onToggleMixer={toggleMixer}
           onToggleRecording={toggleRecording}
         />

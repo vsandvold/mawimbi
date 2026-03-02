@@ -19,7 +19,7 @@ vi.mock('../useAudioService', () => ({
 }));
 
 // Import after mocks are set up
-const { useAudioBridge } = await import('../useAudioBridge');
+const { useTrackSync } = await import('../useTrackSync');
 
 afterEach(() => {
   resetAllSignals();
@@ -29,7 +29,7 @@ afterEach(() => {
 it('sets channel volume when volume signal changes', async () => {
   TrackSignalStore.create('track-1');
 
-  renderHook(() => useAudioBridge(['track-1']));
+  renderHook(() => useTrackSync(['track-1']));
 
   const signals = TrackSignalStore.get('track-1')!;
   signals.volume.value = 75;
@@ -41,7 +41,7 @@ it('handles multiple tracks', () => {
   TrackSignalStore.create('track-1');
   TrackSignalStore.create('track-2');
 
-  renderHook(() => useAudioBridge(['track-1', 'track-2']));
+  renderHook(() => useTrackSync(['track-1', 'track-2']));
 
   TrackSignalStore.get('track-1')!.volume.value = 50;
   expect(mockChannel.volume).toBe(50);
@@ -52,14 +52,14 @@ it('handles multiple tracks', () => {
 
 it('does not crash when track signals do not exist', () => {
   expect(() => {
-    renderHook(() => useAudioBridge(['nonexistent']));
+    renderHook(() => useTrackSync(['nonexistent']));
   }).not.toThrow();
 });
 
 it('disposes effects on unmount', () => {
   TrackSignalStore.create('track-1');
 
-  const { unmount } = renderHook(() => useAudioBridge(['track-1']));
+  const { unmount } = renderHook(() => useTrackSync(['track-1']));
 
   unmount();
 
