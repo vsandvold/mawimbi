@@ -18,6 +18,7 @@ type ToolbarProps = {
   isMixerOpen: boolean;
   isEmpty: boolean;
   isRecording: boolean;
+  isCountingIn: boolean;
   onToggleMixer: () => void;
   onToggleRecording: () => void;
 };
@@ -28,6 +29,7 @@ const Toolbar = (props: ToolbarProps) => {
     isMixerOpen,
     isEmpty,
     isRecording,
+    isCountingIn,
     onToggleMixer,
     onToggleRecording,
   } = props;
@@ -56,16 +58,17 @@ const Toolbar = (props: ToolbarProps) => {
       icon={isPlaying ? <PauseOutlined /> : <CaretRightOutlined />}
       title={isPlaying ? 'Pause' : 'Play'}
       onClick={() => togglePlayback()}
-      disabled={isEmpty || isRecording}
+      disabled={isEmpty || isRecording || isCountingIn}
     />
   );
 
+  const isRecordActive = isRecording || isCountingIn;
   const microphoneButton = (
     <Button
       type="link"
       size="large"
       className="button"
-      icon={isRecording ? <AudioFilled /> : <AudioOutlined />}
+      icon={isRecordActive ? <AudioFilled /> : <AudioOutlined />}
       title="Record"
       onClick={onToggleRecording}
     />

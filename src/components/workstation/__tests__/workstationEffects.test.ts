@@ -112,15 +112,8 @@ describe('useMicrophone', () => {
     expect(isPlaying.value).toBe(false);
   });
 
-  it('syncs transportTime with actual transport position after recording stops', async () => {
-    // transportTime is stale — it was never updated during recording because
-    // the Scrubber animation loop wasn't running (no tracks existed yet, so
-    // EmptyTimeline rendered instead of Scrubber).
+  it('rewinds transport to the beginning after recording stops', async () => {
     transportTime.value = 99;
-
-    // After stopOverdubRecording rewinds the transport, getTransportTime
-    // returns the recording start position.
-    mockGetTransportTime.mockReturnValue(0);
 
     const { rerender } = renderHook(
       ({ isRec }: { isRec: boolean }) => useMicrophone(isRec),
@@ -132,21 +125,13 @@ describe('useMicrophone', () => {
     rerender({ isRec: false });
     await act(async () => {});
 
-    // transportTime should be synced with the actual transport position (0),
-    // not left at the stale value (99). Without this sync, togglePlayback()
-    // can't correctly detect end-of-playback and won't rewind — the user
-    // presses play, transport resumes from a position past the recording's
-    // content, and no audio is heard.
+    // transportTime should rewind to 0 so the user can play everything
+    // from the beginning after recording
     expect(transportTime.value).toBe(0);
   });
 
-  it('syncs transportTime to mid-session recording start position', async () => {
-    // Simulate: transportTime drifted to a stale value during recording
+  it('rewinds transport to the beginning even for mid-session recordings', async () => {
     transportTime.value = 99;
-
-    // After stopOverdubRecording, the transport was rewound to 3.0
-    // (the position where recording started mid-session)
-    mockGetTransportTime.mockReturnValue(3.0);
 
     const { rerender } = renderHook(
       ({ isRec }: { isRec: boolean }) => useMicrophone(isRec),
@@ -158,7 +143,8 @@ describe('useMicrophone', () => {
     rerender({ isRec: false });
     await act(async () => {});
 
-    // transportTime should reflect the actual transport position (3.0)
-    expect(transportTime.value).toBe(3.0);
+    // transportTime should rewind to 0 so the user can play everything
+    // from the beginning, regardless of where recording started
+    expect(transportTime.value).toBe(0);
   });
 });
