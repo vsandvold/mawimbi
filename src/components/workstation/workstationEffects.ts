@@ -7,9 +7,9 @@ import {
   isCountingIn as isCountingInSignal,
   isPlaying,
   isRecording as isRecordingSignal,
+  stopAndRewindPlayback,
   togglePlayback,
   totalTime as totalTimeSignal,
-  transportTime,
 } from '../../signals/transportSignals';
 import message from '../message';
 import { type Track } from '../../types/track';
@@ -158,13 +158,11 @@ export const useMicrophone = (isRecording: boolean) => {
           { trackId, fileName: RECORDING_FILE_NAME },
         ]);
         isRecordingSignal.value = false;
-        isPlaying.value = false;
-        transportTime.value = audioService.getTransportTime();
+        stopAndRewindPlayback();
         msg.success('Recording stopped');
       } catch {
         isRecordingSignal.value = false;
-        isPlaying.value = false;
-        transportTime.value = audioService.getTransportTime();
+        stopAndRewindPlayback();
         msg.error('Recording failed');
       }
     };
