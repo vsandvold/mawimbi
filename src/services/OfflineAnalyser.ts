@@ -1,4 +1,12 @@
 import {
+  calculateMergeParams,
+  createMergedLogMapping,
+  HIGH_BAND_FFT_SIZE,
+  LOW_BAND_FFT_SIZE,
+  LOW_BAND_SAMPLE_RATE,
+  SPLIT_FREQUENCY,
+} from './dualBandAnalysis';
+import {
   applyLogFrequencyMapping,
   createLogFrequencyMapping,
 } from './logFrequencyMapping';
@@ -10,11 +18,6 @@ export type SpectrogramData = {
   sampleRate: number;
   duration: number;
 };
-
-const LOW_BAND_FFT_SIZE = 2048;
-const HIGH_BAND_FFT_SIZE = 1024;
-const SPLIT_FREQUENCY = 752;
-const LOW_BAND_SAMPLE_RATE = 5120;
 
 class OfflineAnalyser {
   readonly frequencyBinCount: number;
@@ -130,14 +133,10 @@ class OfflineAnalyser {
       HIGH_BAND_FFT_SIZE,
     );
 
-    const lowBinWidth = LOW_BAND_SAMPLE_RATE / LOW_BAND_FFT_SIZE;
-    const highBinWidth = sampleRate / HIGH_BAND_FFT_SIZE;
-    const lowBinCount = Math.ceil(SPLIT_FREQUENCY / lowBinWidth);
-    const highBinStart = Math.ceil(SPLIT_FREQUENCY / highBinWidth);
-    const highBinEnd = HIGH_BAND_FFT_SIZE / 2;
-    const mergedBinCount = lowBinCount + (highBinEnd - highBinStart);
+    const { lowBinCount, highBinStart, highBinEnd, mergedBinCount } =
+      calculateMergeParams(sampleRate);
 
-    const logMapping = createLogFrequencyMapping(mergedBinCount);
+    const logMapping = createMergedLogMapping(sampleRate);
     const frameCount = Math.min(lowFrames.length, highFrames.length);
     const frequencyFrames: Uint8Array[] = [];
     const mergedData = new Uint8Array(mergedBinCount);

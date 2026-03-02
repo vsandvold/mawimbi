@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
+import { createMergedLogMapping } from '../dualBandAnalysis';
 import OfflineAnalyser, { type SpectrogramData } from '../OfflineAnalyser';
-import { createLogFrequencyMapping } from '../logFrequencyMapping';
 
 // OfflineAudioContext is not available in jsdom, so we need a thorough mock
 const mockGetByteFrequencyData = vi.fn();
@@ -723,6 +723,75 @@ describe('analyseToFrames merge logic', () => {
     }
   });
 
+  it('places a low-frequency peak at the correct log-frequency position', async () => {
+    const contexts: IndependentMockContext[] = [];
+    let contextIndex = 0;
+
+    vi.stubGlobal(
+      'OfflineAudioContext',
+      vi.fn().mockImplementation(function () {
+        const ctx = createIndependentMockContext(true);
+        if (contextIndex > 0) {
+          const isLowBand = contextIndex === 1;
+          ctx.createAnalyser = vi.fn().mockImplementation(() => ({
+            _fftSize: 4096,
+            get fftSize() {
+              return this._fftSize;
+            },
+            set fftSize(value: number) {
+              this._fftSize = value;
+            },
+            get frequencyBinCount() {
+              return this._fftSize / 2;
+            },
+            smoothingTimeConstant: 0,
+            minDecibels: -80,
+            maxDecibels: -30,
+            numberOfOutputs: 1,
+            getByteFrequencyData: vi
+              .fn()
+              .mockImplementation((arr: Uint8Array) => {
+                arr.fill(0);
+                if (isLowBand) {
+                  // 500 Hz peak in low band (2.5 Hz per bin → bin 200)
+                  arr[200] = 255;
+                }
+              }),
+            connect: vi.fn(),
+          }));
+        }
+        contextIndex++;
+        contexts.push(ctx);
+        return ctx;
+      }),
+    );
+
+    const sampleRate = 44100;
+    const audioBuffer = createAudioBuffer(0.05, sampleRate);
+    const analyser = new OfflineAnalyser(audioBuffer);
+
+    const result = await analyser.analyseToFrames();
+
+    const frame = result.frequencyFrames[0];
+    expect(frame).toBeDefined();
+
+    // Find peak position in the log-mapped output
+    let peakBin = 0;
+    for (let i = 1; i < frame.length; i++) {
+      if (frame[i] > frame[peakBin]) peakBin = i;
+    }
+
+    // 500 Hz on a log scale from 2.5 Hz to ~22009 Hz:
+    // position ≈ log(500/2.5) / log(22009/2.5) ≈ 0.583
+    // Expected output bin ≈ 0.583 * (795 - 1) ≈ 463
+    //
+    // With the naive createLogFrequencyMapping(795), the peak is placed
+    // at output bin ~631 because the mapping treats non-uniform dual-band
+    // bins as if they had equal frequency widths.
+    const expectedBin = 463;
+    expect(Math.abs(peakBin - expectedBin)).toBeLessThan(30);
+  });
+
   it('merges low-frequency bins from low band and high-frequency bins from high band', async () => {
     const LOW_VALUE = 100;
     const HIGH_VALUE = 200;
@@ -782,8 +851,8 @@ describe('analyseToFrames merge logic', () => {
 
     // Verify the split: output bins mapped entirely from the low band
     // should carry the low band value
-    const logMapping = createLogFrequencyMapping(MERGED_BIN_COUNT);
     const lowBinCount = 301; // at 44100 Hz
+    const logMapping = createMergedLogMapping(44100);
     const firstHighOutputBin = logMapping.findIndex((pool) =>
       pool.some((idx) => idx >= lowBinCount),
     );

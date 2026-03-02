@@ -60,6 +60,38 @@ vi.mock('tone', () => {
       outputLatency: 0.01,
       baseLatency: 0.005,
       sampleRate: 44100,
+      destination: {},
+      createBiquadFilter: vi.fn().mockImplementation(() => ({
+        type: '',
+        frequency: { value: 0 },
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+      })),
+      createAnalyser: vi.fn().mockImplementation(() => {
+        let fftSize = 2048;
+        return {
+          get fftSize() {
+            return fftSize;
+          },
+          set fftSize(v: number) {
+            fftSize = v;
+          },
+          get frequencyBinCount() {
+            return fftSize / 2;
+          },
+          smoothingTimeConstant: 0,
+          minDecibels: -100,
+          maxDecibels: -30,
+          getByteFrequencyData: vi.fn(),
+          connect: vi.fn(),
+          disconnect: vi.fn(),
+        };
+      }),
+      createGain: vi.fn().mockImplementation(() => ({
+        gain: { value: 1 },
+        connect: vi.fn(),
+        disconnect: vi.fn(),
+      })),
     },
   };
   function makeAnalyserNode() {

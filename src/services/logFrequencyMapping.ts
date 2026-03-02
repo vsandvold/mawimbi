@@ -38,6 +38,73 @@ export function createLogFrequencyMapping(
 }
 
 /**
+ * Creates a log-frequency mapping for merged dual-band FFT data.
+ *
+ * Unlike `createLogFrequencyMapping` (which assumes uniform bin width),
+ * this function respects the actual frequency of each merged bin. The low
+ * band has much finer frequency resolution than the high band, so a mapping
+ * based purely on bin index would incorrectly over-expand the low-frequency
+ * region and compress the high-frequency region.
+ *
+ * Each entry `mapping[i]` is an array of merged-bin indices that feed into
+ * output bin `i`, using the same pooling convention as the uniform version.
+ */
+export function createDualBandLogMapping(
+  mergedBinCount: number,
+  lowBinCount: number,
+  lowBinWidth: number,
+  highBinStart: number,
+  highBinWidth: number,
+): number[][] {
+  const freq = new Float64Array(mergedBinCount);
+  for (let i = 0; i < lowBinCount; i++) {
+    freq[i] = i * lowBinWidth;
+  }
+  for (let i = lowBinCount; i < mergedBinCount; i++) {
+    freq[i] = (highBinStart + (i - lowBinCount)) * highBinWidth;
+  }
+
+  const minFreq = freq[1] || lowBinWidth;
+  const maxFreq = freq[mergedBinCount - 1];
+  const logMin = Math.log(minFreq);
+  const logMax = Math.log(maxFreq);
+
+  const mapping: number[][] = new Array(mergedBinCount);
+
+  for (let i = 0; i < mergedBinCount; i++) {
+    const t = i / (mergedBinCount - 1);
+    const targetFreq = Math.exp(logMin + t * (logMax - logMin));
+
+    let lo = 0;
+    let hi = mergedBinCount - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (freq[mid] < targetFreq) lo = mid + 1;
+      else hi = mid;
+    }
+    let closest = lo;
+    if (
+      lo > 0 &&
+      Math.abs(targetFreq - freq[lo - 1]) < Math.abs(freq[lo] - targetFreq)
+    ) {
+      closest = lo - 1;
+    }
+
+    mapping[i] = [closest];
+  }
+
+  for (let i = 0; i < mergedBinCount - 1; i++) {
+    const df = mapping[i + 1][0] - mapping[i][0];
+    if (df <= 1) continue;
+    for (let j = 1; j <= df; j++) {
+      mapping[i].push(mapping[i][0] + j);
+    }
+  }
+
+  return mapping;
+}
+
+/**
  * Applies a logarithmic frequency mapping to Float32Array dB data.
  *
  * When multiple input bins map to one output bin the **maximum** value

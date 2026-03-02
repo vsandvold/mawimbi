@@ -1,6 +1,10 @@
 import { vi } from 'vitest';
+import {
+  calculateMergeParams,
+  createMergedLogMapping,
+} from '../dualBandAnalysis';
 import { createLogFrequencyMapping } from '../logFrequencyMapping';
-import { analyseToFrames, calculateMergeParams } from '../spectrogram.worker';
+import { analyseToFrames } from '../spectrogram.worker';
 
 const LOG_MAPPING_BIN_COUNT = 512;
 
@@ -152,6 +156,8 @@ describe('calculateMergeParams', () => {
   it('returns correct merge parameters for 44100 Hz', () => {
     const params = calculateMergeParams(44100);
 
+    expect(params.lowBinWidth).toBe(2.5);
+    expect(params.highBinWidth).toBeCloseTo(43.066, 2);
     expect(params.lowBinCount).toBe(301);
     expect(params.highBinStart).toBe(18);
     expect(params.highBinEnd).toBe(512);
@@ -161,6 +167,8 @@ describe('calculateMergeParams', () => {
   it('returns correct merge parameters for 48000 Hz', () => {
     const params = calculateMergeParams(48000);
 
+    expect(params.lowBinWidth).toBe(2.5);
+    expect(params.highBinWidth).toBeCloseTo(46.875, 2);
     expect(params.lowBinCount).toBe(301);
     expect(params.highBinStart).toBe(17);
     expect(params.highBinEnd).toBe(512);
@@ -466,7 +474,7 @@ describe('analyseToFrames', () => {
 
     // Verify the split: output bins mapped entirely from the low band
     // should carry the low band value
-    const logMapping = createLogFrequencyMapping(mergedBinCount);
+    const logMapping = createMergedLogMapping(sampleRate);
     const firstHighOutputBin = logMapping.findIndex((pool) =>
       pool.some((idx) => idx >= lowBinCount),
     );

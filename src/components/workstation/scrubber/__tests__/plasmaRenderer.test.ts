@@ -316,23 +316,23 @@ describe('pruneEtchMarks', () => {
 });
 
 describe('getFrequencyIntensities', () => {
-  it('returns zero-filled array when frequency data is null', () => {
+  it('returns zero-filled array when visualization data is null', () => {
     const result = getFrequencyIntensities(null, 10);
 
     expect(result).toHaveLength(10);
     expect(result.every((v) => v === 0)).toBe(true);
   });
 
-  it('returns zero-filled array when frequency data is empty', () => {
-    const result = getFrequencyIntensities(new Float32Array(0), 10);
+  it('returns zero-filled array when visualization data is empty', () => {
+    const result = getFrequencyIntensities(new Uint8Array(0), 10);
 
     expect(result).toHaveLength(10);
     expect(result.every((v) => v === 0)).toBe(true);
   });
 
-  it('maps loud frequency to high intensity', () => {
-    // All bins at max dB
-    const data = new Float32Array(8).fill(-30);
+  it('maps max byte value to high intensity', () => {
+    // All bins at max (255)
+    const data = new Uint8Array(8).fill(255);
 
     const result = getFrequencyIntensities(data, 4);
 
@@ -342,8 +342,8 @@ describe('getFrequencyIntensities', () => {
     }
   });
 
-  it('maps silent frequency to zero intensity', () => {
-    const data = new Float32Array(8).fill(-80);
+  it('maps zero byte value to zero intensity', () => {
+    const data = new Uint8Array(8).fill(0);
 
     const result = getFrequencyIntensities(data, 4);
 

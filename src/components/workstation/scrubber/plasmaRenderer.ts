@@ -1,14 +1,3 @@
-import {
-  applyLogFrequencyMapping,
-  createLogFrequencyMapping,
-} from '../../../services/logFrequencyMapping';
-
-// --- dB conversion (matches spectrogramRenderer.ts) ---
-
-const MIN_DB = -80;
-const MAX_DB = -30;
-const DB_RANGE = MAX_DB - MIN_DB;
-
 // --- Beat detection ---
 
 const EMA_DECAY = 0.05;
@@ -57,31 +46,13 @@ const MIST_DECELERATION = 0.5;
 // Default mist color when no track is dominant (cyan-blue)
 const MIST_DEFAULT_COLOR: [number, number, number] = [100, 200, 255];
 
-// --- Log-frequency mapping cache ---
-
-let cachedBinCount = 0;
-let cachedMapping: number[][] = [];
-let cachedLogBuffer: Float32Array = new Float32Array(0);
-
-function getLogMapping(binCount: number): {
-  mapping: number[][];
-  buffer: Float32Array;
-} {
-  if (cachedBinCount !== binCount) {
-    cachedMapping = createLogFrequencyMapping(binCount);
-    cachedLogBuffer = new Float32Array(binCount);
-    cachedBinCount = binCount;
-  }
-  return { mapping: cachedMapping, buffer: cachedLogBuffer };
-}
-
 // --- Types ---
 
 export type TrackFrequencyInput = {
   r: number;
   g: number;
   b: number;
-  data: Float32Array;
+  data: Uint8Array;
 };
 
 export type EtchMark = {
@@ -315,38 +286,29 @@ export function pruneEtchMarks(state: PlasmaState, now: number): void {
 
 // --- Rendering helpers ---
 
-function dbToByte(db: number): number {
-  if (db <= MIN_DB) return 0;
-  if (db >= MAX_DB) return 255;
-  return ((db - MIN_DB) / DB_RANGE) * 255;
-}
-
 /**
- * Convert raw FFT bins (dB) into per-row intensity values (0–1) for the
- * canvas height. Uses log-frequency mapping so low frequencies spread
- * across more rows (bottom) and high frequencies compress (top).
+ * Convert visualization data (pre-mapped Uint8Array 0–255) into per-row
+ * intensity values (0–1) for the canvas height. Low-frequency bins map
+ * to bottom rows, high-frequency bins to top rows.
  */
 export function getFrequencyIntensities(
-  frequencyData: Float32Array | null,
+  visualizationData: Uint8Array | null,
   height: number,
 ): Float32Array {
   const intensities = new Float32Array(height);
-  if (!frequencyData || frequencyData.length === 0) return intensities;
+  if (!visualizationData || visualizationData.length === 0) return intensities;
 
-  const bins = frequencyData.length;
-  const { mapping, buffer: logData } = getLogMapping(bins);
-  applyLogFrequencyMapping(frequencyData, mapping, logData);
-
+  const bins = visualizationData.length;
   const binsPerRow = bins / height;
   for (let row = 0; row < height; row++) {
     const startBin = Math.floor(row * binsPerRow);
     const endBin = Math.floor((row + 1) * binsPerRow);
-    let maxDb = MIN_DB;
+    let maxByte = 0;
     for (let bin = startBin; bin < endBin; bin++) {
-      if (logData[bin] > maxDb) maxDb = logData[bin];
+      if (visualizationData[bin] > maxByte) maxByte = visualizationData[bin];
     }
     // bin 0 → bottom row, normalize to 0–1
-    intensities[height - row - 1] = dbToByte(maxDb) / 255;
+    intensities[height - row - 1] = maxByte / 255;
   }
   return intensities;
 }
@@ -597,7 +559,7 @@ function drawTendrils(
 export function renderPlasmaFrame(
   ctx: CanvasRenderingContext2D,
   state: PlasmaState,
-  frequencyData: Float32Array | null,
+  frequencyData: Uint8Array | null,
   loudness: number,
   height: number,
   canvasWidth: number,

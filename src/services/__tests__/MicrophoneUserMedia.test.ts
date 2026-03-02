@@ -1,6 +1,18 @@
 import { vi } from 'vitest';
 import * as Tone from 'tone';
 import MicrophoneUserMedia from '../MicrophoneUserMedia';
+import FrequencyVisualizer from '../FrequencyVisualizer';
+
+vi.mock('../FrequencyVisualizer', () => ({
+  // Must be a regular function (not arrow) to support `new`
+  default: vi.fn().mockImplementation(function () {
+    return {
+      frequencyBinCount: 774,
+      getVisualizationData: vi.fn().mockReturnValue(new Uint8Array(774)),
+      dispose: vi.fn(),
+    };
+  }),
+}));
 
 let mic: MicrophoneUserMedia;
 
@@ -13,39 +25,32 @@ describe('constructor', () => {
     expect(Tone.Meter).toHaveBeenCalled();
   });
 
-  it('creates a Tone.Analyser with FFT type and size 2048', () => {
-    expect(Tone.Analyser).toHaveBeenCalledWith({
-      type: 'fft',
-      size: 2048,
-    });
-  });
-
-  it('creates a Tone.UserMedia connected to both meter and analyser', () => {
+  it('creates a Tone.UserMedia connected to the meter', () => {
     expect(Tone.UserMedia).toHaveBeenCalled();
 
     const userMediaInstance = vi.mocked(Tone.UserMedia).mock.results[0].value;
     const meterInstance = vi.mocked(Tone.Meter).mock.results[0].value;
-    const analyserInstance = vi.mocked(Tone.Analyser).mock.results[0].value;
 
     expect(userMediaInstance.connect).toHaveBeenCalledWith(meterInstance);
-    expect(userMediaInstance.connect).toHaveBeenCalledWith(analyserInstance);
+  });
+
+  it('creates a FrequencyVisualizer connected to the microphone', () => {
+    const userMediaInstance = vi.mocked(Tone.UserMedia).mock.results[0].value;
+    expect(FrequencyVisualizer).toHaveBeenCalledWith(userMediaInstance);
   });
 });
 
-describe('getFrequencyData', () => {
-  it('returns a Float32Array from the analyser', () => {
-    const data = mic.getFrequencyData();
-
-    expect(data).toBeInstanceOf(Float32Array);
+describe('frequencyBinCount', () => {
+  it('returns the bin count from the visualizer', () => {
+    expect(mic.frequencyBinCount).toBe(774);
   });
+});
 
-  it('delegates to analyser.getValue()', () => {
-    const analyserInstance = vi.mocked(Tone.Analyser).mock.results[0].value;
-    const expectedData = new Float32Array([1, 2, 3]);
-    analyserInstance.getValue.mockReturnValue(expectedData);
+describe('getVisualizationData', () => {
+  it('returns a Uint8Array from the visualizer', () => {
+    const data = mic.getVisualizationData();
 
-    const data = mic.getFrequencyData();
-
-    expect(data).toBe(expectedData);
+    expect(data).toBeInstanceOf(Uint8Array);
+    expect(data.length).toBe(774);
   });
 });

@@ -41,8 +41,8 @@ vi.stubGlobal(
 
 const mockAnalyse = vi.fn().mockResolvedValue(undefined);
 const mockGetEntry = vi.fn().mockReturnValue(undefined);
-const mockGetFrequencyData = vi.fn();
-const mockMicGetFrequencyData = vi.fn();
+const mockGetVisualizationData = vi.fn();
+const mockMicGetVisualizationData = vi.fn();
 const mockGetRecordingStartTime = vi.fn().mockReturnValue(0);
 
 const { mockRetrieveAudioBuffer, mockRetrieveStartTime } = vi.hoisted(() => ({
@@ -59,10 +59,11 @@ vi.mock('../../../../hooks/useAudioService', () => ({
       getEntry: mockGetEntry,
     },
     mixer: {
-      getFrequencyData: mockGetFrequencyData,
+      getVisualizationData: mockGetVisualizationData,
     },
     microphone: {
-      getFrequencyData: mockMicGetFrequencyData,
+      getVisualizationData: mockMicGetVisualizationData,
+      frequencyBinCount: 774,
     },
     getRecordingStartTime: mockGetRecordingStartTime,
   }),
@@ -81,8 +82,8 @@ beforeEach(() => {
   mockRetrieveStartTime.mockReturnValue(0);
   mockAnalyse.mockClear();
   mockGetEntry.mockReturnValue(undefined);
-  mockGetFrequencyData.mockReset();
-  mockMicGetFrequencyData.mockReset();
+  mockGetVisualizationData.mockReset();
+  mockMicGetVisualizationData.mockReset();
   mockGetRecordingStartTime.mockReturnValue(0);
   TrackSignalStore.create(TRACK_ID);
 });
@@ -351,12 +352,12 @@ describe('recording mode', () => {
     expect(spectrogram).toHaveStyle({ width: '0px' });
   });
 
-  it('reads microphone frequency data during recording', () => {
+  it('reads microphone visualization data during recording', () => {
     isRecording.value = true;
     transportTime.value = 1.5;
     mockGetRecordingStartTime.mockReturnValue(0);
-    const micData = new Float32Array(1024).fill(-50);
-    mockMicGetFrequencyData.mockReturnValue(micData);
+    const micData = new Uint8Array(774).fill(128);
+    mockMicGetVisualizationData.mockReturnValue(micData);
 
     const mockCtx = {
       clearRect: vi.fn(),
@@ -378,16 +379,16 @@ describe('recording mode', () => {
     const callback = calls[calls.length - 1]?.[0];
     callback?.();
 
-    expect(mockMicGetFrequencyData).toHaveBeenCalled();
+    expect(mockMicGetVisualizationData).toHaveBeenCalled();
 
     vi.restoreAllMocks();
   });
 
-  it('does not read mixer frequency data in recording mode', () => {
+  it('does not read mixer visualization data in recording mode', () => {
     isRecording.value = true;
     transportTime.value = 1.5;
     mockGetRecordingStartTime.mockReturnValue(0);
-    mockMicGetFrequencyData.mockReturnValue(new Float32Array(1024).fill(-50));
+    mockMicGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));
 
     const mockCtx = {
       clearRect: vi.fn(),
@@ -409,7 +410,7 @@ describe('recording mode', () => {
     const callback = calls[calls.length - 1]?.[0];
     callback?.();
 
-    expect(mockGetFrequencyData).not.toHaveBeenCalled();
+    expect(mockGetVisualizationData).not.toHaveBeenCalled();
 
     vi.restoreAllMocks();
   });
@@ -418,7 +419,7 @@ describe('recording mode', () => {
     isRecording.value = true;
     transportTime.value = 5.0;
     mockGetRecordingStartTime.mockReturnValue(3.0);
-    mockMicGetFrequencyData.mockReturnValue(new Float32Array(1024).fill(-50));
+    mockMicGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));
 
     const mockCtx = {
       clearRect: vi.fn(),
@@ -451,7 +452,7 @@ describe('recording mode', () => {
     isRecording.value = true;
     transportTime.value = 2.0;
     mockGetRecordingStartTime.mockReturnValue(0);
-    mockMicGetFrequencyData.mockReturnValue(new Float32Array(1024).fill(-50));
+    mockMicGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));
 
     const mockCtx = {
       clearRect: vi.fn(),

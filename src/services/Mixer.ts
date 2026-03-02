@@ -1,8 +1,8 @@
 import * as Tone from 'tone';
+import FrequencyVisualizer from './FrequencyVisualizer';
 
 const SMOOTHING = 0.8;
 const POWER_CURVE_EXPONENT = 0.6;
-const FFT_SIZE = 2048;
 
 class Mixer {
   private audioChannelRepository: AudioChannelRepository;
@@ -31,44 +31,23 @@ class Mixer {
       .sync()
       .start(startTime, audioOffset);
     const channel = new Tone.Channel();
-    const analyser = new Tone.Analyser({
-      type: 'fft',
-      size: FFT_SIZE,
-      smoothing: 0,
-    });
-    player.chain(channel, analyser, Tone.getDestination());
+    player.chain(channel, Tone.getDestination());
+    const visualizer = new FrequencyVisualizer(channel);
     this.audioChannelRepository.add(
-      new AudioChannel(trackId, channel, analyser, normalizationGainDb),
+      new AudioChannel(trackId, channel, visualizer, normalizationGainDb),
     );
   }
 
-  getFrequencyData(trackId: string): Float32Array | undefined {
-    return this.audioChannelRepository.get(trackId)?.getFrequencyData();
-  }
-
-  getActiveTrackFrequencyData(): { trackId: string; data: Float32Array }[] {
+  getVisualizationData(): Uint8Array | null {
     const channels = this.audioChannelRepository.getAll();
     const hasSoloChannels = this.hasSoloChannels();
-    const result: { trackId: string; data: Float32Array }[] = [];
+    let combined: Uint8Array | null = null;
 
     for (const channel of channels) {
       if (this.isChannelMuted(channel, hasSoloChannels)) continue;
-      result.push({ trackId: channel.id, data: channel.getFrequencyData() });
-    }
-
-    return result;
-  }
-
-  getCombinedFrequencyData(): Float32Array | null {
-    const channels = this.audioChannelRepository.getAll();
-    const hasSoloChannels = this.hasSoloChannels();
-    let combined: Float32Array | null = null;
-
-    for (const channel of channels) {
-      if (this.isChannelMuted(channel, hasSoloChannels)) continue;
-      const data = channel.getFrequencyData();
+      const data = channel.getVisualizationData();
       if (!combined) {
-        combined = new Float32Array(data);
+        combined = new Uint8Array(data);
       } else {
         for (let i = 0; i < data.length; i++) {
           if (data[i] > combined[i]) combined[i] = data[i];
@@ -77,6 +56,22 @@ class Mixer {
     }
 
     return combined;
+  }
+
+  getTrackVisualizationData(): { trackId: string; data: Uint8Array }[] {
+    const channels = this.audioChannelRepository.getAll();
+    const hasSoloChannels = this.hasSoloChannels();
+    const result: { trackId: string; data: Uint8Array }[] = [];
+
+    for (const channel of channels) {
+      if (this.isChannelMuted(channel, hasSoloChannels)) continue;
+      result.push({
+        trackId: channel.id,
+        data: channel.getVisualizationData(),
+      });
+    }
+
+    return result;
   }
 
   retrieveChannel(trackId: string): AudioChannel | undefined {
@@ -115,28 +110,28 @@ class Mixer {
 export class AudioChannel {
   id: string;
   private channel: Tone.Channel;
-  private analyser: Tone.Analyser;
+  private visualizer: FrequencyVisualizer;
   private normalizationGainDb: number;
 
   constructor(
     id: string,
     channel: Tone.Channel,
-    analyser: Tone.Analyser,
+    visualizer: FrequencyVisualizer,
     normalizationGainDb = 0,
   ) {
     this.id = id;
     this.channel = channel;
-    this.analyser = analyser;
+    this.visualizer = visualizer;
     this.normalizationGainDb = normalizationGainDb;
   }
 
-  getFrequencyData(): Float32Array {
-    return this.analyser.getValue() as Float32Array;
+  getVisualizationData(): Uint8Array {
+    return this.visualizer.getVisualizationData();
   }
 
   dispose(): void {
     this.channel.dispose();
-    this.analyser.dispose();
+    this.visualizer.dispose();
   }
 
   get mute(): boolean {
