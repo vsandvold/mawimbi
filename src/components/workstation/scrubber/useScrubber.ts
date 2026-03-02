@@ -11,13 +11,17 @@ import useDebounced from '../../../hooks/useDebounced';
 import { useTimelineZoom } from '../../../hooks/useTimelineZoom';
 import FrequencyVisualizer from '../../../services/FrequencyVisualizer';
 import {
-  isCountingIn,
-  isPlaying,
-  isRecording,
   loudness as loudnessSignal,
-  stopAndRewindPlayback,
+  pause,
+  play,
+  rewind,
   transportTime,
-} from '../../../signals/transportSignals';
+} from '../../../services/PlaybackMachine';
+import {
+  isActivelyRecording,
+  isCountingIn,
+} from '../../../services/RecordingMachine';
+import { isPlaying } from '../../../signals/transportSignals';
 import { type Track } from '../../../types/track';
 import { type PlasmaPlayheadHandle } from './PlasmaPlayhead';
 import { type TrackFrequencyInput } from './plasmaRenderer';
@@ -144,13 +148,13 @@ export function useScrubber({
         // can momentarily equal clientWidth before new content is laid out.
         // Stopping playback here would freeze transportTime updates and halt
         // the live spectrogram scroll.
-        if (timelineScrollRef.current && !isRecording.value) {
+        if (timelineScrollRef.current && !isActivelyRecording()) {
           const isEndOfScroll =
             timelineScrollRef.current.scrollLeft +
               timelineScrollRef.current.clientWidth >=
             timelineScrollRef.current.scrollWidth;
           if (isEndOfScroll) {
-            stopAndRewindPlayback();
+            rewind();
             return;
           }
         }
@@ -182,7 +186,7 @@ export function useScrubber({
     }
     if (shouldResumeRef.current) {
       shouldResumeRef.current = false;
-      isPlaying.value = true;
+      play();
     }
   };
 
@@ -193,14 +197,14 @@ export function useScrubber({
   const pauseForUserScroll = () => {
     if (playing && !shouldResumeRef.current) {
       shouldResumeRef.current = true;
-      isPlaying.value = false;
+      pause();
     }
   };
 
   const handleWheel = (e: ReactWheelEvent) => {
     // Skip scroll handling when Ctrl/Meta+wheel is used for zoom
     if (e.ctrlKey || e.metaKey) return;
-    if (isRecording.value) return;
+    if (isActivelyRecording()) return;
     pauseForUserScroll();
     debouncedSetTransportTime();
   };
@@ -208,7 +212,7 @@ export function useScrubber({
   const handleTouchMove = () => {
     // Skip scroll handling during pinch-to-zoom
     if (isPinchingRef.current) return;
-    if (isRecording.value) return;
+    if (isActivelyRecording()) return;
     pauseForUserScroll();
     debouncedSetTransportTime();
   };
@@ -223,14 +227,14 @@ export function useScrubber({
       toggleRewindButton(timelineScrollRef.current.scrollLeft);
     }
 
-    if (isRecording.value) return;
+    if (isActivelyRecording()) return;
     pauseForUserScroll();
     debouncedSetTransportTime();
   };
 
   const handleStopAndRewind = () => {
-    if (isRecording.value) return;
-    stopAndRewindPlayback();
+    if (isActivelyRecording()) return;
+    rewind();
     setScrollPosition(0);
   };
 

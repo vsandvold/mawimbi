@@ -1,33 +1,44 @@
 import { useEffect } from 'react';
 import { effect } from '@preact/signals-react';
-import { consumePendingSeek, isPlaying } from '../signals/transportSignals';
+import {
+  type PlaybackState,
+  consumePendingSeek,
+  playbackState,
+} from '../services/PlaybackMachine';
 import { useAudioService } from './useAudioService';
 
 export function useTransportBridge(): void {
   const audioService = useAudioService();
 
   useEffect(() => {
-    let prevPlaying = isPlaying.peek();
+    let prevState: PlaybackState = playbackState.peek();
 
     const dispose = effect(() => {
-      const playing = isPlaying.value;
+      const state = playbackState.value;
 
-      if (playing === prevPlaying) return;
-      prevPlaying = playing;
+      if (state === prevState) return;
+      prevState = state;
 
       const seekTime = consumePendingSeek();
 
-      if (playing) {
+      if (state === 'playing') {
         if (seekTime !== null) {
           audioService.startPlayback(seekTime);
         } else {
           audioService.startPlayback();
         }
-      } else {
+      } else if (state === 'paused') {
         if (seekTime !== null) {
           audioService.pausePlayback(seekTime);
         } else {
           audioService.pausePlayback();
+        }
+      } else {
+        // stopped — use stopPlayback to reset transport timeline
+        if (seekTime !== null) {
+          audioService.stopPlayback(seekTime);
+        } else {
+          audioService.stopPlayback();
         }
       }
     });

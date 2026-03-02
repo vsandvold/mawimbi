@@ -1,8 +1,13 @@
 import { fireEvent } from '@testing-library/react';
 import { act, renderHook } from '@testing-library/react';
 import { vi } from 'vitest';
+import { resetPlaybackMachine } from '../../../services/PlaybackMachine';
 import {
-  resetTransportSignals,
+  arm,
+  resetRecordingMachine,
+  startRecording,
+} from '../../../services/RecordingMachine';
+import {
   isPlaying,
   isRecording,
   transportTime,
@@ -60,7 +65,8 @@ vi.mock('../../message', () => ({
 }));
 
 afterEach(() => {
-  resetTransportSignals();
+  resetPlaybackMachine();
+  resetRecordingMachine();
   vi.clearAllMocks();
 });
 
@@ -76,7 +82,8 @@ describe('useSpacebarPlaybackToggle', () => {
   });
 
   it('does not toggle playback with spacebar while recording', () => {
-    isRecording.value = true;
+    arm();
+    startRecording();
 
     renderHook(() => useSpacebarPlaybackToggle());
 
@@ -87,14 +94,13 @@ describe('useSpacebarPlaybackToggle', () => {
 });
 
 describe('useMicrophone', () => {
-  it('sets isPlaying and isRecording signals when recording starts', async () => {
+  it('sets isPlaying when recording starts', async () => {
     renderHook(({ isRec }: { isRec: boolean }) => useMicrophone(isRec), {
       initialProps: { isRec: true },
     });
 
     await act(async () => {});
 
-    expect(isRecording.value).toBe(true);
     expect(isPlaying.value).toBe(true);
   });
 
@@ -112,8 +118,9 @@ describe('useMicrophone', () => {
     expect(isPlaying.value).toBe(false);
   });
 
-  it('rewinds transport to the beginning after recording stops', async () => {
+  it('pauses at current position after recording stops', async () => {
     transportTime.value = 99;
+    mockGetTransportTime.mockReturnValue(5.0);
 
     const { rerender } = renderHook(
       ({ isRec }: { isRec: boolean }) => useMicrophone(isRec),
@@ -125,26 +132,8 @@ describe('useMicrophone', () => {
     rerender({ isRec: false });
     await act(async () => {});
 
-    // transportTime should rewind to 0 so the user can play everything
-    // from the beginning after recording
-    expect(transportTime.value).toBe(0);
-  });
-
-  it('rewinds transport to the beginning even for mid-session recordings', async () => {
-    transportTime.value = 99;
-
-    const { rerender } = renderHook(
-      ({ isRec }: { isRec: boolean }) => useMicrophone(isRec),
-      { initialProps: { isRec: true } },
-    );
-    await act(async () => {});
-
-    // Stop recording
-    rerender({ isRec: false });
-    await act(async () => {});
-
-    // transportTime should rewind to 0 so the user can play everything
-    // from the beginning, regardless of where recording started
-    expect(transportTime.value).toBe(0);
+    // transportTime should be set to the transport's current position
+    // (returned by getTransportTime), not rewound to 0
+    expect(transportTime.value).toBe(5.0);
   });
 });

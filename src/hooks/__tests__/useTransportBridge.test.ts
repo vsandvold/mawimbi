@@ -1,17 +1,20 @@
 import { renderHook } from '@testing-library/react';
 import { vi } from 'vitest';
 import {
-  isPlaying,
-  resetTransportSignals,
-  stopAndRewindPlayback,
+  play,
+  pause,
+  rewind,
+  resetPlaybackMachine,
   togglePlayback,
-  transportTime,
   totalTime,
-} from '../../signals/transportSignals';
+  transportTime,
+} from '../../services/PlaybackMachine';
+import { resetRecordingMachine } from '../../services/RecordingMachine';
 
 const mockAudioService = {
   startPlayback: vi.fn(),
   pausePlayback: vi.fn(),
+  stopPlayback: vi.fn(),
   setTransportTime: vi.fn(),
 };
 
@@ -23,7 +26,8 @@ vi.mock('../useAudioService', () => ({
 const { useTransportBridge } = await import('../useTransportBridge');
 
 afterEach(() => {
-  resetTransportSignals();
+  resetPlaybackMachine();
+  resetRecordingMachine();
   vi.clearAllMocks();
 });
 
@@ -32,27 +36,40 @@ it('does not call audio service on initial mount', () => {
 
   expect(mockAudioService.startPlayback).not.toHaveBeenCalled();
   expect(mockAudioService.pausePlayback).not.toHaveBeenCalled();
+  expect(mockAudioService.stopPlayback).not.toHaveBeenCalled();
 });
 
-it('starts playback when isPlaying changes to true', () => {
+it('starts playback when playbackState changes to playing', () => {
   renderHook(() => useTransportBridge());
 
-  isPlaying.value = true;
+  play();
 
   expect(mockAudioService.startPlayback).toHaveBeenCalledTimes(1);
   expect(mockAudioService.startPlayback).toHaveBeenCalledWith();
 });
 
-it('pauses playback when isPlaying changes to false', () => {
-  isPlaying.value = true;
+it('pauses playback when playbackState changes to paused', () => {
+  play();
 
   renderHook(() => useTransportBridge());
   vi.clearAllMocks();
 
-  isPlaying.value = false;
+  pause();
 
   expect(mockAudioService.pausePlayback).toHaveBeenCalledTimes(1);
   expect(mockAudioService.pausePlayback).toHaveBeenCalledWith();
+});
+
+it('stops playback when playbackState changes to stopped via rewind', () => {
+  play();
+
+  renderHook(() => useTransportBridge());
+  vi.clearAllMocks();
+
+  rewind();
+
+  expect(mockAudioService.stopPlayback).toHaveBeenCalledTimes(1);
+  expect(mockAudioService.stopPlayback).toHaveBeenCalledWith(0);
 });
 
 it('seeks when starting playback with pending seek (end-of-playback rewind)', () => {
@@ -64,17 +81,6 @@ it('seeks when starting playback with pending seek (end-of-playback rewind)', ()
   togglePlayback();
 
   expect(mockAudioService.startPlayback).toHaveBeenCalledWith(0);
-});
-
-it('seeks when stopping with pending seek (stop and rewind)', () => {
-  isPlaying.value = true;
-
-  renderHook(() => useTransportBridge());
-  vi.clearAllMocks();
-
-  stopAndRewindPlayback();
-
-  expect(mockAudioService.pausePlayback).toHaveBeenCalledWith(0);
 });
 
 it('does not seek on normal toggle (no pending seek)', () => {
@@ -93,7 +99,7 @@ it('disposes effect on unmount', () => {
   unmount();
   vi.clearAllMocks();
 
-  isPlaying.value = true;
+  play();
 
   expect(mockAudioService.startPlayback).not.toHaveBeenCalled();
 });

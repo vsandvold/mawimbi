@@ -2,15 +2,21 @@ import { useEffect, useRef, useState } from 'react';
 import { useAudioService } from '../../hooks/useAudioService';
 import { useContainerHeight } from '../../hooks/useContainerHeight';
 import useKeypress from '../../hooks/useKeypress';
-import { TrackSignalStore } from '../../signals/trackSignals';
 import {
-  isCountingIn as isCountingInSignal,
-  isPlaying,
-  isRecording as isRecordingSignal,
-  stopAndRewindPlayback,
-  togglePlayback,
+  pause,
+  play,
   totalTime as totalTimeSignal,
-} from '../../signals/transportSignals';
+  transportTime,
+} from '../../services/PlaybackMachine';
+import {
+  isTransportLocked,
+  startCountIn,
+  startRecording as startRecordingMachine,
+  stopCountIn,
+  stopRecording as stopRecordingMachine,
+} from '../../services/RecordingMachine';
+import { TrackSignalStore } from '../../signals/trackSignals';
+import { togglePlayback } from '../../signals/transportSignals';
 import message from '../message';
 import { type Track } from '../../types/track';
 import { ADD_TRACK } from '../project/projectPageReducer';
@@ -27,10 +33,9 @@ const COUNT_IN_DURATION_SEC =
 export const useSpacebarPlaybackToggle = () => {
   useKeypress(
     () => {
-      // Prevent spacebar from toggling playback during recording
-      // or count-in, because Transport is controlled by the
-      // recording lifecycle.
-      if (!isRecordingSignal.value) {
+      // Prevent spacebar from toggling playback when the transport is
+      // locked by the recording lifecycle (count-in or active recording).
+      if (!isTransportLocked()) {
         togglePlayback();
       }
     },
@@ -81,9 +86,9 @@ export const useCountIn = (
         COUNT_IN_DURATION_SEC,
       );
 
-      isCountingInSignal.value = true;
+      startCountIn();
       // Block spacebar and show recording UI during count-in
-      isRecordingSignal.value = true;
+      startRecordingMachine();
 
       if (availableLeadIn > 0) {
         audioService.setTransportTime(recordingPosition - availableLeadIn);
@@ -96,12 +101,12 @@ export const useCountIn = (
           // position exactly when the count-in ends
           playbackTimerId = setTimeout(() => {
             if (!cancelled) {
-              isPlaying.value = true;
+              play();
             }
           }, playbackDelayMs);
         } else {
           // Full lead-in available — start playback immediately
-          isPlaying.value = true;
+          play();
         }
       }
 
@@ -115,7 +120,7 @@ export const useCountIn = (
 
       if (!cancelled) {
         completedRef.current = true;
-        isCountingInSignal.value = false;
+        stopCountIn();
         setCurrentBeat(null);
         onComplete();
       }
@@ -134,9 +139,9 @@ export const useCountIn = (
       if (!completedRef.current) {
         // Cancelled by user — clean up microphone and playback
         audioService.closeMicrophone();
-        isCountingInSignal.value = false;
-        isPlaying.value = false;
-        isRecordingSignal.value = false;
+        stopCountIn();
+        pause();
+        stopRecordingMachine();
       }
     };
     // audioService and onComplete are stable refs
@@ -161,8 +166,7 @@ export const useMicrophone = (isRecording: boolean) => {
     const startRecording = async () => {
       try {
         await audioService.startOverdubRecording();
-        isRecordingSignal.value = true;
-        isPlaying.value = true;
+        play();
         msg.success('Recording started');
       } catch {
         msg.error('Recording failed');
@@ -181,12 +185,18 @@ export const useMicrophone = (isRecording: boolean) => {
           ADD_TRACK,
           { trackId, fileName: RECORDING_FILE_NAME },
         ]);
-        isRecordingSignal.value = false;
-        stopAndRewindPlayback();
+        stopRecordingMachine();
+        // Pause at current position rather than rewinding to 0.
+        // This lets the user immediately press play to hear the
+        // recording in context — standard DAW behavior.
+        pause();
+        // Update transportTime to where the transport actually is
+        // after stopping the overdub recording.
+        transportTime.value = audioService.getTransportTime();
         msg.success('Recording stopped');
       } catch {
-        isRecordingSignal.value = false;
-        stopAndRewindPlayback();
+        stopRecordingMachine();
+        pause();
         msg.error('Recording failed');
       }
     };

@@ -4,10 +4,10 @@ import { Button } from 'antd';
 import classNames from 'classnames';
 import { PropsWithChildren } from 'react';
 import {
+  isActivelyRecording,
   isCountingIn,
-  isRecording,
-  togglePlayback,
-} from '../../../signals/transportSignals';
+} from '../../../services/RecordingMachine';
+import { togglePlayback } from '../../../signals/transportSignals';
 import { type Track } from '../../../types/track';
 import ZoomControls from '../ZoomControls';
 import PlasmaPlayhead from './PlasmaPlayhead';
@@ -17,7 +17,7 @@ import { useScrubber } from './useScrubber';
 type ScrubberProps = PropsWithChildren<{
   drawerHeight: number;
   isMixerOpen: boolean;
-  onToggleRecording: () => void;
+  onStopRecording: () => void;
   pixelsPerSecond: number;
   tracks: Track[];
 }>;
@@ -27,7 +27,7 @@ const Scrubber = (props: ScrubberProps) => {
   const {
     drawerHeight,
     isMixerOpen,
-    onToggleRecording,
+    onStopRecording,
     pixelsPerSecond,
     tracks,
   } = props;
@@ -47,8 +47,8 @@ const Scrubber = (props: ScrubberProps) => {
   } = useScrubber({ drawerHeight, isMixerOpen, pixelsPerSecond, tracks });
 
   const handleTimelineClick = () => {
-    if (isCountingIn.value || isRecording.value) {
-      onToggleRecording();
+    if (isCountingIn.value || isActivelyRecording()) {
+      onStopRecording();
       return;
     }
     togglePlayback();

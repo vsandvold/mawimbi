@@ -1,8 +1,6 @@
 import { fireEvent, render } from '@testing-library/react';
-import {
-  isRecording,
-  resetTransportSignals,
-} from '../../../signals/transportSignals';
+import { resetPlaybackMachine } from '../../../services/PlaybackMachine';
+import { arm, resetRecordingMachine } from '../../../services/RecordingMachine';
 import {
   MAX_PIXELS_PER_SECOND,
   MIN_PIXELS_PER_SECOND,
@@ -13,7 +11,8 @@ import ZoomControls from '../ZoomControls';
 
 afterEach(() => {
   resetWorkstationSignals();
-  resetTransportSignals();
+  resetPlaybackMachine();
+  resetRecordingMachine();
 });
 
 it('renders zoom in and zoom out buttons', () => {
@@ -56,7 +55,7 @@ it('disables zoom out at minimum zoom', () => {
 });
 
 it('disables both zoom buttons during recording', () => {
-  isRecording.value = true;
+  arm();
   const { getByTitle } = render(<ZoomControls />);
 
   expect(getByTitle('Zoom in')).toBeDisabled();
