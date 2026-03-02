@@ -52,7 +52,7 @@ export type TrackFrequencyInput = {
   r: number;
   g: number;
   b: number;
-  data: Uint8Array;
+  data: Uint8Array | null;
 };
 
 export type EtchMark = {

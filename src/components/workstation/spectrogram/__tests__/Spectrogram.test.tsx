@@ -41,9 +41,18 @@ vi.stubGlobal(
 
 const mockAnalyse = vi.fn().mockResolvedValue(undefined);
 const mockGetEntry = vi.fn().mockReturnValue(undefined);
-const mockGetVisualizationData = vi.fn();
-const mockMicGetVisualizationData = vi.fn();
 const mockGetRecordingStartTime = vi.fn().mockReturnValue(0);
+const mockGetVisualizationData = vi.fn().mockReturnValue(new Uint8Array(774));
+
+vi.mock('../../../../services/FrequencyVisualizer', () => ({
+  default: vi.fn().mockImplementation(function () {
+    return {
+      frequencyBinCount: 774,
+      getVisualizationData: mockGetVisualizationData,
+      dispose: vi.fn(),
+    };
+  }),
+}));
 
 const { mockRetrieveAudioBuffer, mockRetrieveStartTime } = vi.hoisted(() => ({
   mockRetrieveAudioBuffer: vi.fn(),
@@ -58,12 +67,8 @@ vi.mock('../../../../hooks/useAudioService', () => ({
       analyse: mockAnalyse,
       getEntry: mockGetEntry,
     },
-    mixer: {
-      getVisualizationData: mockGetVisualizationData,
-    },
     microphone: {
-      getVisualizationData: mockMicGetVisualizationData,
-      frequencyBinCount: 774,
+      source: {},
     },
     getRecordingStartTime: mockGetRecordingStartTime,
   }),
@@ -82,8 +87,7 @@ beforeEach(() => {
   mockRetrieveStartTime.mockReturnValue(0);
   mockAnalyse.mockClear();
   mockGetEntry.mockReturnValue(undefined);
-  mockGetVisualizationData.mockReset();
-  mockMicGetVisualizationData.mockReset();
+  mockGetVisualizationData.mockReset().mockReturnValue(new Uint8Array(774));
   mockGetRecordingStartTime.mockReturnValue(0);
   TrackSignalStore.create(TRACK_ID);
 });
@@ -352,12 +356,11 @@ describe('recording mode', () => {
     expect(spectrogram).toHaveStyle({ width: '0px' });
   });
 
-  it('reads microphone visualization data during recording', () => {
+  it('reads visualization data from FrequencyVisualizer during recording', () => {
     isRecording.value = true;
     transportTime.value = 1.5;
     mockGetRecordingStartTime.mockReturnValue(0);
-    const micData = new Uint8Array(774).fill(128);
-    mockMicGetVisualizationData.mockReturnValue(micData);
+    mockGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));
 
     const mockCtx = {
       clearRect: vi.fn(),
@@ -379,38 +382,7 @@ describe('recording mode', () => {
     const callback = calls[calls.length - 1]?.[0];
     callback?.();
 
-    expect(mockMicGetVisualizationData).toHaveBeenCalled();
-
-    vi.restoreAllMocks();
-  });
-
-  it('does not read mixer visualization data in recording mode', () => {
-    isRecording.value = true;
-    transportTime.value = 1.5;
-    mockGetRecordingStartTime.mockReturnValue(0);
-    mockMicGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));
-
-    const mockCtx = {
-      clearRect: vi.fn(),
-      drawImage: vi.fn(),
-      fillRect: vi.fn(),
-      save: vi.fn(),
-      restore: vi.fn(),
-      globalCompositeOperation: 'source-over' as string,
-      fillStyle: '' as string,
-      canvas: { width: 800, height: 128 },
-    };
-    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
-      mockCtx as unknown as CanvasRenderingContext2D,
-    );
-
-    render(<Spectrogram {...recordingProps} />);
-
-    const calls = vi.mocked(useAnimationFrame).mock.calls;
-    const callback = calls[calls.length - 1]?.[0];
-    callback?.();
-
-    expect(mockGetVisualizationData).not.toHaveBeenCalled();
+    expect(mockGetVisualizationData).toHaveBeenCalled();
 
     vi.restoreAllMocks();
   });
@@ -419,7 +391,7 @@ describe('recording mode', () => {
     isRecording.value = true;
     transportTime.value = 5.0;
     mockGetRecordingStartTime.mockReturnValue(3.0);
-    mockMicGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));
+    mockGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));
 
     const mockCtx = {
       clearRect: vi.fn(),
@@ -452,7 +424,7 @@ describe('recording mode', () => {
     isRecording.value = true;
     transportTime.value = 2.0;
     mockGetRecordingStartTime.mockReturnValue(0);
-    mockMicGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));
+    mockGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));
 
     const mockCtx = {
       clearRect: vi.fn(),

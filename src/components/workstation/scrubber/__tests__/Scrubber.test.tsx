@@ -112,8 +112,6 @@ it('renders plasma playhead canvas in the cursor container', () => {
 it('feeds plasma renderer with loudness during playback', () => {
   const audioService = AudioService.getInstance();
   vi.spyOn(audioService.mixer, 'getLoudness').mockReturnValue(0.75);
-  vi.spyOn(audioService.mixer, 'getVisualizationData').mockReturnValue(null);
-  vi.spyOn(audioService.mixer, 'getTrackVisualizationData').mockReturnValue([]);
 
   let rafCallback: FrameRequestCallback = () => {};
   vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
@@ -130,15 +128,12 @@ it('feeds plasma renderer with loudness during playback', () => {
   });
 
   expect(audioService.mixer.getLoudness).toHaveBeenCalled();
-  expect(audioService.mixer.getVisualizationData).toHaveBeenCalled();
 });
 
 it('does not stop playback at end of scroll during recording', () => {
   const audioService = AudioService.getInstance();
   vi.spyOn(audioService, 'getTransportTime').mockReturnValue(1.5);
   vi.spyOn(audioService.mixer, 'getLoudness').mockReturnValue(0);
-  vi.spyOn(audioService.mixer, 'getVisualizationData').mockReturnValue(null);
-  vi.spyOn(audioService.mixer, 'getTrackVisualizationData').mockReturnValue([]);
 
   let rafCallback: FrameRequestCallback = () => {};
   vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {

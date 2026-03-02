@@ -43,7 +43,10 @@ class FrequencyVisualizer {
   private highBinEnd: number;
 
   constructor(source: Tone.ToneAudioNode) {
-    const ctx = Tone.context.rawContext as AudioContext;
+    // Derive the AudioContext from the source node to avoid cross-context
+    // errors when Tone.context has been swapped via Tone.setContext().
+    const toneCtx = source.context ?? Tone.context;
+    const ctx = toneCtx.rawContext as AudioContext;
     const sampleRate = ctx.sampleRate;
 
     this.lowFilter = ctx.createBiquadFilter();
