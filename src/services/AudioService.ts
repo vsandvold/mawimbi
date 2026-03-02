@@ -171,6 +171,10 @@ class AudioService {
     this.transport.seconds = transportTime;
   }
 
+  getDestination(): Tone.ToneAudioNode {
+    return Tone.getDestination();
+  }
+
   getTotalTime(): number {
     return this.audioSourceRepository
       .getAll()

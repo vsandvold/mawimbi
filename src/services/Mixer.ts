@@ -1,5 +1,4 @@
 import * as Tone from 'tone';
-import FrequencyVisualizer from './FrequencyVisualizer';
 
 const SMOOTHING = 0.8;
 const POWER_CURVE_EXPONENT = 0.6;
@@ -32,46 +31,9 @@ class Mixer {
       .start(startTime, audioOffset);
     const channel = new Tone.Channel();
     player.chain(channel, Tone.getDestination());
-    const visualizer = new FrequencyVisualizer(channel);
     this.audioChannelRepository.add(
-      new AudioChannel(trackId, channel, visualizer, normalizationGainDb),
+      new AudioChannel(trackId, channel, normalizationGainDb),
     );
-  }
-
-  getVisualizationData(): Uint8Array | null {
-    const channels = this.audioChannelRepository.getAll();
-    const hasSoloChannels = this.hasSoloChannels();
-    let combined: Uint8Array | null = null;
-
-    for (const channel of channels) {
-      if (this.isChannelMuted(channel, hasSoloChannels)) continue;
-      const data = channel.getVisualizationData();
-      if (!combined) {
-        combined = new Uint8Array(data);
-      } else {
-        for (let i = 0; i < data.length; i++) {
-          if (data[i] > combined[i]) combined[i] = data[i];
-        }
-      }
-    }
-
-    return combined;
-  }
-
-  getTrackVisualizationData(): { trackId: string; data: Uint8Array }[] {
-    const channels = this.audioChannelRepository.getAll();
-    const hasSoloChannels = this.hasSoloChannels();
-    const result: { trackId: string; data: Uint8Array }[] = [];
-
-    for (const channel of channels) {
-      if (this.isChannelMuted(channel, hasSoloChannels)) continue;
-      result.push({
-        trackId: channel.id,
-        data: channel.getVisualizationData(),
-      });
-    }
-
-    return result;
   }
 
   retrieveChannel(trackId: string): AudioChannel | undefined {
@@ -110,28 +72,16 @@ class Mixer {
 export class AudioChannel {
   id: string;
   private channel: Tone.Channel;
-  private visualizer: FrequencyVisualizer;
   private normalizationGainDb: number;
 
-  constructor(
-    id: string,
-    channel: Tone.Channel,
-    visualizer: FrequencyVisualizer,
-    normalizationGainDb = 0,
-  ) {
+  constructor(id: string, channel: Tone.Channel, normalizationGainDb = 0) {
     this.id = id;
     this.channel = channel;
-    this.visualizer = visualizer;
     this.normalizationGainDb = normalizationGainDb;
-  }
-
-  getVisualizationData(): Uint8Array {
-    return this.visualizer.getVisualizationData();
   }
 
   dispose(): void {
     this.channel.dispose();
-    this.visualizer.dispose();
   }
 
   get mute(): boolean {

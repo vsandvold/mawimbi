@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useAnimationFrame } from '../../../hooks/useAnimationFrame';
 import { useAudioService } from '../../../hooks/useAudioService';
 import { useTrackVolume } from '../../../hooks/useTrackVolume';
+import FrequencyVisualizer from '../../../services/FrequencyVisualizer';
 import {
   isRecording as isRecordingSignal,
   transportTime,
@@ -53,15 +54,23 @@ const Spectrogram = ({
   const totalFrames = entry?.data.frequencyFrames.length ?? 0;
   const tiles = entry?.tiles ?? [];
 
-  // Create/dispose recording buffer when entering/leaving recording mode
+  const visualizerRef = useRef<FrequencyVisualizer | null>(null);
+
+  // Create/dispose recording buffer and visualizer when entering/leaving recording mode
   useEffect(() => {
     if (isRecordingTrack) {
+      const visualizer = new FrequencyVisualizer(
+        audioService.microphone.source,
+      );
+      visualizerRef.current = visualizer;
       recordingBufferRef.current = new RecordingBuffer(
         color,
-        audioService.microphone.frequencyBinCount,
+        visualizer.frequencyBinCount,
       );
     }
     return () => {
+      visualizerRef.current?.dispose();
+      visualizerRef.current = null;
       recordingBufferRef.current = null;
     };
   }, [isRecordingTrack, color, audioService]);
@@ -77,6 +86,7 @@ const Spectrogram = ({
         canvas,
         container,
         recordingBufferRef.current,
+        visualizerRef.current,
         audioService,
         pixelsPerSecond,
         height,
@@ -127,11 +137,12 @@ function drawRecordingFrame(
   canvas: HTMLCanvasElement,
   container: HTMLDivElement,
   buffer: RecordingBuffer | null,
+  visualizer: FrequencyVisualizer | null,
   audioService: ReturnType<typeof useAudioService>,
   pixelsPerSecond: number,
   height: number,
 ): void {
-  if (!buffer) return;
+  if (!buffer || !visualizer) return;
 
   const recording = isRecordingSignal.value;
   const recordingStartTime = audioService.getRecordingStartTime();
@@ -144,7 +155,7 @@ function drawRecordingFrame(
 
   // Accumulate a new frame while recording is active
   if (recording) {
-    const frequencyData = audioService.microphone.getVisualizationData();
+    const frequencyData = visualizer.getVisualizationData();
     buffer.addFrame(frequencyData);
   }
 

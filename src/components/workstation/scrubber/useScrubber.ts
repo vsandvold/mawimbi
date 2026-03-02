@@ -9,6 +9,7 @@ import {
 import { useAudioService } from '../../../hooks/useAudioService';
 import useDebounced from '../../../hooks/useDebounced';
 import { useTimelineZoom } from '../../../hooks/useTimelineZoom';
+import FrequencyVisualizer from '../../../services/FrequencyVisualizer';
 import {
   isPlaying,
   isRecording,
@@ -85,6 +86,21 @@ export function useScrubber({
   );
 
   const audioService = useAudioService();
+  const visualizerRef = useRef<FrequencyVisualizer | null>(null);
+
+  // Create/dispose the FrequencyVisualizer when playback starts/stops.
+  // Connected to Tone.getDestination() so it sees the combined master output.
+  useEffect(() => {
+    if (!playing) return;
+
+    const visualizer = new FrequencyVisualizer(audioService.getDestination());
+    visualizerRef.current = visualizer;
+
+    return () => {
+      visualizer.dispose();
+      visualizerRef.current = null;
+    };
+  }, [playing, audioService]);
 
   // Animation loop: runs during playback, reads from audio engine, updates DOM directly
   useEffect(() => {
@@ -101,15 +117,13 @@ export function useScrubber({
         const currentLoudness = audioService.mixer.getLoudness();
         loudnessSignal.value = currentLoudness;
 
-        const frequencyData = audioService.mixer.getVisualizationData();
-        const perTrackData = audioService.mixer.getTrackVisualizationData();
-        const trackFrequencyInputs: TrackFrequencyInput[] = perTrackData.map(
-          ({ trackId, data }) => {
-            const track = tracksRef.current.find((t) => t.trackId === trackId);
-            const color = track?.color ?? { r: 100, g: 200, b: 255 };
-            return { r: color.r, g: color.g, b: color.b, data };
-          },
-        );
+        const frequencyData =
+          visualizerRef.current?.getVisualizationData() ?? null;
+        const trackFrequencyInputs: TrackFrequencyInput[] =
+          tracksRef.current.map((track) => {
+            const color = track.color ?? { r: 100, g: 200, b: 255 };
+            return { r: color.r, g: color.g, b: color.b, data: frequencyData };
+          });
         const scrollLeft = timelineScrollRef.current?.scrollLeft ?? 0;
         plasmaRef.current?.render(
           frequencyData,
