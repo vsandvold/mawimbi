@@ -4,6 +4,7 @@ import { useContainerHeight } from '../../hooks/useContainerHeight';
 import useKeypress from '../../hooks/useKeypress';
 import { TrackSignalStore } from '../../signals/trackSignals';
 import {
+  isCountingIn as isCountingInSignal,
   isPlaying,
   isRecording as isRecordingSignal,
   togglePlayback,
@@ -20,6 +21,8 @@ const RECORDING_FILE_NAME = 'Recording';
 // ~120 BPM: 500ms per beat
 const COUNT_IN_BEAT_INTERVAL = 500;
 const COUNT_IN_TOTAL_BEATS = 4;
+const COUNT_IN_DURATION_SEC =
+  (COUNT_IN_TOTAL_BEATS * COUNT_IN_BEAT_INTERVAL) / 1000;
 
 export const useSpacebarPlaybackToggle = () => {
   useKeypress(
@@ -67,7 +70,17 @@ export const useCountIn = (
         return;
       }
 
+      // Seek transport back so existing tracks play as lead-in during
+      // the count-in. After the 4-beat sequence (~2 s) the transport
+      // arrives at the original position where recording begins.
+      const seekBackTime = Math.max(
+        0,
+        audioService.getTransportTime() - COUNT_IN_DURATION_SEC,
+      );
+      audioService.setTransportTime(seekBackTime);
+
       // Start playback of existing tracks during count-in
+      isCountingInSignal.value = true;
       isPlaying.value = true;
       // Block spacebar and show recording UI during count-in
       isRecordingSignal.value = true;
@@ -82,6 +95,7 @@ export const useCountIn = (
 
       if (!cancelled) {
         completedRef.current = true;
+        isCountingInSignal.value = false;
         setCurrentBeat(null);
         onComplete();
       }
@@ -96,6 +110,7 @@ export const useCountIn = (
       if (!completedRef.current) {
         // Cancelled by user — clean up microphone and playback
         audioService.closeMicrophone();
+        isCountingInSignal.value = false;
         isPlaying.value = false;
         isRecordingSignal.value = false;
       }

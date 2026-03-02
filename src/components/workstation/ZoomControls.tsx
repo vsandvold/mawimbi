@@ -2,6 +2,7 @@ import { MinusOutlined, PlusOutlined } from '@ant-design/icons';
 import { useSignals } from '@preact/signals-react/runtime';
 import { Button } from 'antd';
 import { type CSSProperties } from 'react';
+import { isRecording as isRecordingSignal } from '../../signals/transportSignals';
 import {
   MAX_PIXELS_PER_SECOND,
   MIN_PIXELS_PER_SECOND,
@@ -18,6 +19,7 @@ type ZoomControlsProps = {
 const ZoomControls = ({ style }: ZoomControlsProps) => {
   useSignals();
   const pixelsPerSecond = pixelsPerSecondSignal.value;
+  const isRecording = isRecordingSignal.value;
   const isMaxZoom = pixelsPerSecond >= MAX_PIXELS_PER_SECOND;
   const isMinZoom = pixelsPerSecond <= MIN_PIXELS_PER_SECOND;
 
@@ -30,7 +32,7 @@ const ZoomControls = ({ style }: ZoomControlsProps) => {
         icon={<PlusOutlined />}
         title="Zoom in"
         onClick={zoomIn}
-        disabled={isMaxZoom}
+        disabled={isMaxZoom || isRecording}
       />
       <Button
         type="link"
@@ -39,7 +41,7 @@ const ZoomControls = ({ style }: ZoomControlsProps) => {
         icon={<MinusOutlined />}
         title="Zoom out"
         onClick={zoomOut}
-        disabled={isMinZoom}
+        disabled={isMinZoom || isRecording}
       />
     </div>
   );

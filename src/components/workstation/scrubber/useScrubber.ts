@@ -11,6 +11,7 @@ import useDebounced from '../../../hooks/useDebounced';
 import { useTimelineZoom } from '../../../hooks/useTimelineZoom';
 import FrequencyVisualizer from '../../../services/FrequencyVisualizer';
 import {
+  isCountingIn,
   isPlaying,
   isRecording,
   loudness as loudnessSignal,
@@ -111,8 +112,14 @@ export function useScrubber({
     const animate = () => {
       if (!shouldResumeRef.current) {
         const time = audioService.getTransportTime();
-        transportTime.value = time;
-        setScrollPosition(time);
+
+        // During count-in the transport plays lead-in audio but the
+        // timeline stays frozen at the recording position.  Once the
+        // count-in ends, scroll and transportTime resume updating.
+        if (!isCountingIn.value) {
+          transportTime.value = time;
+          setScrollPosition(time);
+        }
 
         const currentLoudness = audioService.mixer.getLoudness();
         loudnessSignal.value = currentLoudness;
@@ -193,6 +200,7 @@ export function useScrubber({
   const handleWheel = (e: ReactWheelEvent) => {
     // Skip scroll handling when Ctrl/Meta+wheel is used for zoom
     if (e.ctrlKey || e.metaKey) return;
+    if (isRecording.value) return;
     pauseForUserScroll();
     debouncedSetTransportTime();
   };
@@ -200,6 +208,7 @@ export function useScrubber({
   const handleTouchMove = () => {
     // Skip scroll handling during pinch-to-zoom
     if (isPinchingRef.current) return;
+    if (isRecording.value) return;
     pauseForUserScroll();
     debouncedSetTransportTime();
   };
@@ -214,11 +223,13 @@ export function useScrubber({
       toggleRewindButton(timelineScrollRef.current.scrollLeft);
     }
 
+    if (isRecording.value) return;
     pauseForUserScroll();
     debouncedSetTransportTime();
   };
 
   const handleStopAndRewind = () => {
+    if (isRecording.value) return;
     stopAndRewindPlayback();
     setScrollPosition(0);
   };

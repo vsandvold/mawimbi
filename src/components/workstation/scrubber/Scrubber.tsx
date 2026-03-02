@@ -3,7 +3,7 @@ import { useSignals } from '@preact/signals-react/runtime';
 import { Button } from 'antd';
 import classNames from 'classnames';
 import { PropsWithChildren } from 'react';
-import { togglePlayback } from '../../../signals/transportSignals';
+import { isRecording, togglePlayback } from '../../../signals/transportSignals';
 import { type Track } from '../../../types/track';
 import ZoomControls from '../ZoomControls';
 import PlasmaPlayhead from './PlasmaPlayhead';
@@ -36,6 +36,7 @@ const Scrubber = (props: ScrubberProps) => {
   } = useScrubber({ drawerHeight, isMixerOpen, pixelsPerSecond, tracks });
 
   const handleTogglePlayback = () => {
+    if (isRecording.value) return;
     togglePlayback();
   };
 

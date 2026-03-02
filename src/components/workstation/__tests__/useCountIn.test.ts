@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { vi } from 'vitest';
 import {
+  isCountingIn,
   isPlaying,
   isRecording,
   resetTransportSignals,
@@ -9,6 +10,8 @@ import { useCountIn } from '../workstationEffects';
 
 const mockPrepareMicrophone = vi.fn().mockResolvedValue(undefined);
 const mockCloseMicrophone = vi.fn();
+const mockGetTransportTime = vi.fn().mockReturnValue(0);
+const mockSetTransportTime = vi.fn();
 
 vi.mock('../../../services/AudioService', () => ({
   default: {
@@ -25,6 +28,8 @@ vi.mock('../../../hooks/useAudioService', () => ({
   useAudioService: () => ({
     prepareMicrophone: mockPrepareMicrophone,
     closeMicrophone: mockCloseMicrophone,
+    getTransportTime: mockGetTransportTime,
+    setTransportTime: mockSetTransportTime,
   }),
 }));
 
@@ -191,4 +196,77 @@ it('returns null when not counting in', () => {
   );
 
   expect(result.current).toBe(null);
+});
+
+it('seeks transport back by count-in duration before starting playback', async () => {
+  mockGetTransportTime.mockReturnValue(5.0);
+  const onComplete = vi.fn();
+
+  renderHook(({ active }) => useCountIn(active, onComplete), {
+    initialProps: { active: true },
+  });
+
+  await act(async () => {});
+
+  // Count-in duration is 4 beats * 500ms = 2s
+  expect(mockSetTransportTime).toHaveBeenCalledWith(3.0);
+});
+
+it('clamps seek-back to zero when transport is near start', async () => {
+  mockGetTransportTime.mockReturnValue(0.5);
+  const onComplete = vi.fn();
+
+  renderHook(({ active }) => useCountIn(active, onComplete), {
+    initialProps: { active: true },
+  });
+
+  await act(async () => {});
+
+  expect(mockSetTransportTime).toHaveBeenCalledWith(0);
+});
+
+it('sets isCountingIn signal during count-in', async () => {
+  const onComplete = vi.fn();
+
+  renderHook(({ active }) => useCountIn(active, onComplete), {
+    initialProps: { active: true },
+  });
+
+  await act(async () => {});
+
+  expect(isCountingIn.value).toBe(true);
+});
+
+it('clears isCountingIn signal after count-in completes', async () => {
+  const onComplete = vi.fn();
+
+  renderHook(({ active }) => useCountIn(active, onComplete), {
+    initialProps: { active: true },
+  });
+
+  await act(async () => {});
+
+  for (let i = 0; i < 4; i++) {
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+  }
+
+  expect(isCountingIn.value).toBe(false);
+});
+
+it('clears isCountingIn signal when cancelled', async () => {
+  const onComplete = vi.fn();
+
+  const { rerender } = renderHook(
+    ({ active }) => useCountIn(active, onComplete),
+    { initialProps: { active: true } },
+  );
+
+  await act(async () => {});
+  expect(isCountingIn.value).toBe(true);
+
+  rerender({ active: false });
+
+  expect(isCountingIn.value).toBe(false);
 });
