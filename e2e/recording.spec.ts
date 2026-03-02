@@ -84,7 +84,8 @@ async function ensureAudioContextRunning(
 
 /**
  * Records audio for the given duration by clicking the Record button
- * to start, waiting, then clicking again to stop.
+ * to start, waiting for the count-in to finish, recording for the
+ * specified duration, then clicking again to stop.
  */
 async function recordAudio(
   page: import('@playwright/test').Page,
@@ -93,6 +94,13 @@ async function recordAudio(
   const recordButton = page.getByTitle('Record');
 
   await recordButton.click();
+
+  // Wait for the count-in overlay to appear, then disappear.
+  // The count-in runs ~2 s (mic preparation + 4 beats × 500 ms).
+  const countIn = page.locator('.count-in');
+  await expect(countIn).toBeVisible({ timeout: 5000 });
+  await expect(countIn).not.toBeVisible({ timeout: 5000 });
+
   await page.waitForTimeout(durationMs);
   await recordButton.click();
 
