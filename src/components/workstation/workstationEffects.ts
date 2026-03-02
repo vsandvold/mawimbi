@@ -54,6 +54,7 @@ export const useCountIn = (
 
     completedRef.current = false;
     let cancelled = false;
+    let playbackTimerId: ReturnType<typeof setTimeout> | null = null;
 
     const run = async () => {
       const msg = message({ key: 'microphone' });
@@ -70,20 +71,39 @@ export const useCountIn = (
         return;
       }
 
-      // Seek transport back so existing tracks play as lead-in during
-      // the count-in. After the 4-beat sequence (~2 s) the transport
-      // arrives at the original position where recording begins.
-      const seekBackTime = Math.max(
-        0,
-        audioService.getTransportTime() - COUNT_IN_DURATION_SEC,
+      // Limit lead-in playback to what is actually available before the
+      // recording position.  When the transport is near the start of the
+      // timeline, playing back a full COUNT_IN_DURATION_SEC would overshoot
+      // the recording position and cause recording to begin too late.
+      const recordingPosition = audioService.getTransportTime();
+      const availableLeadIn = Math.min(
+        recordingPosition,
+        COUNT_IN_DURATION_SEC,
       );
-      audioService.setTransportTime(seekBackTime);
 
-      // Start playback of existing tracks during count-in
       isCountingInSignal.value = true;
-      isPlaying.value = true;
       // Block spacebar and show recording UI during count-in
       isRecordingSignal.value = true;
+
+      if (availableLeadIn > 0) {
+        audioService.setTransportTime(recordingPosition - availableLeadIn);
+
+        const playbackDelayMs =
+          (COUNT_IN_DURATION_SEC - availableLeadIn) * 1000;
+
+        if (playbackDelayMs > 0) {
+          // Delay playback so the transport arrives at the recording
+          // position exactly when the count-in ends
+          playbackTimerId = setTimeout(() => {
+            if (!cancelled) {
+              isPlaying.value = true;
+            }
+          }, playbackDelayMs);
+        } else {
+          // Full lead-in available — start playback immediately
+          isPlaying.value = true;
+        }
+      }
 
       for (let i = 1; i <= COUNT_IN_TOTAL_BEATS; i++) {
         if (cancelled) break;
@@ -106,6 +126,10 @@ export const useCountIn = (
     return () => {
       cancelled = true;
       setCurrentBeat(null);
+
+      if (playbackTimerId !== null) {
+        clearTimeout(playbackTimerId);
+      }
 
       if (!completedRef.current) {
         // Cancelled by user — clean up microphone and playback

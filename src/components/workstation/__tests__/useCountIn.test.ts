@@ -64,7 +64,8 @@ it('prepares microphone when count-in starts', async () => {
   expect(mockPrepareMicrophone).toHaveBeenCalledOnce();
 });
 
-it('sets isPlaying and isRecording signals during count-in', async () => {
+it('sets isPlaying and isRecording signals during count-in with full lead-in', async () => {
+  mockGetTransportTime.mockReturnValue(5.0);
   const onComplete = vi.fn();
 
   renderHook(({ active }) => useCountIn(active, onComplete), {
@@ -196,6 +197,47 @@ it('returns null when not counting in', () => {
   );
 
   expect(result.current).toBe(null);
+});
+
+it('does not start playback when transport is at position 0', async () => {
+  mockGetTransportTime.mockReturnValue(0);
+  const onComplete = vi.fn();
+
+  renderHook(({ active }) => useCountIn(active, onComplete), {
+    initialProps: { active: true },
+  });
+
+  await act(async () => {});
+
+  // At position 0, there is no lead-in audio available.
+  // Playback should not start during count-in.
+  expect(isPlaying.value).toBe(false);
+  expect(isRecording.value).toBe(true);
+  expect(isCountingIn.value).toBe(true);
+});
+
+it('delays playback start when lead-in is shorter than count-in duration', async () => {
+  // Transport at 0.5s — only 0.5s of lead-in available (count-in is 2s)
+  mockGetTransportTime.mockReturnValue(0.5);
+  const onComplete = vi.fn();
+
+  renderHook(({ active }) => useCountIn(active, onComplete), {
+    initialProps: { active: true },
+  });
+
+  await act(async () => {});
+
+  // Playback should not start immediately — it should be delayed
+  // by (2.0 - 0.5) = 1.5s so the transport arrives at 0.5s when
+  // the count-in ends
+  expect(isPlaying.value).toBe(false);
+
+  // Advance past the delay (1500ms)
+  await act(async () => {
+    vi.advanceTimersByTime(1500);
+  });
+
+  expect(isPlaying.value).toBe(true);
 });
 
 it('seeks transport back by count-in duration before starting playback', async () => {
