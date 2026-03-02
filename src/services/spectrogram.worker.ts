@@ -1,19 +1,20 @@
 import { type TrackColor } from '../types/track';
 import {
-  applyLogFrequencyMapping,
-  createDualBandLogMapping,
-} from './logFrequencyMapping';
+  calculateMergeParams,
+  createMergedLogMapping,
+  HIGH_BAND_FFT_SIZE,
+  LOW_BAND_FFT_SIZE,
+  LOW_BAND_SAMPLE_RATE,
+  SPLIT_FREQUENCY,
+} from './dualBandAnalysis';
+import { applyLogFrequencyMapping } from './logFrequencyMapping';
 import { type SpectrogramData } from './OfflineAnalyser';
 import { renderTiles } from './SpectrogramTileRenderer';
 
-const LOW_BAND_FFT_SIZE = 2048;
-const HIGH_BAND_FFT_SIZE = 1024;
 const SMOOTHING_TIME_CONSTANT = 0;
 const MIN_DECIBELS = -80;
 const MAX_DECIBELS = -30;
 const SUSPEND_INTERVAL = 0.025;
-const SPLIT_FREQUENCY = 752;
-const LOW_BAND_SAMPLE_RATE = 5120;
 
 export type AnalyseRequest = {
   id: number;
@@ -110,27 +111,6 @@ async function analyseBand(
 }
 
 /**
- * Computes the merge boundaries for combining low-band and high-band
- * FFT results into a single frequency array.
- */
-export function calculateMergeParams(sampleRate: number) {
-  const lowBinWidth = LOW_BAND_SAMPLE_RATE / LOW_BAND_FFT_SIZE;
-  const highBinWidth = sampleRate / HIGH_BAND_FFT_SIZE;
-  const lowBinCount = Math.ceil(SPLIT_FREQUENCY / lowBinWidth);
-  const highBinStart = Math.ceil(SPLIT_FREQUENCY / highBinWidth);
-  const highBinEnd = HIGH_BAND_FFT_SIZE / 2;
-  const mergedBinCount = lowBinCount + (highBinEnd - highBinStart);
-  return {
-    lowBinWidth,
-    highBinWidth,
-    lowBinCount,
-    highBinStart,
-    highBinEnd,
-    mergedBinCount,
-  };
-}
-
-/**
  * Dual-band FFT analysis producing log-frequency spectrogram frames.
  *
  * Splits the signal at ~752 Hz with separate OfflineAudioContexts:
@@ -168,22 +148,10 @@ export async function analyseToFrames(
     ),
   ]);
 
-  const {
-    lowBinWidth,
-    highBinWidth,
-    lowBinCount,
-    highBinStart,
-    highBinEnd,
-    mergedBinCount,
-  } = calculateMergeParams(sampleRate);
+  const { lowBinCount, highBinStart, highBinEnd, mergedBinCount } =
+    calculateMergeParams(sampleRate);
 
-  const logMapping = createDualBandLogMapping(
-    mergedBinCount,
-    lowBinCount,
-    lowBinWidth,
-    highBinStart,
-    highBinWidth,
-  );
+  const logMapping = createMergedLogMapping(sampleRate);
   const frameCount = Math.min(lowFrames.length, highFrames.length);
   const frequencyFrames: Uint8Array[] = [];
   const mergedData = new Uint8Array(mergedBinCount);

@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
+import { createMergedLogMapping } from '../dualBandAnalysis';
 import OfflineAnalyser, { type SpectrogramData } from '../OfflineAnalyser';
-import { createDualBandLogMapping } from '../logFrequencyMapping';
 
 // OfflineAudioContext is not available in jsdom, so we need a thorough mock
 const mockGetByteFrequencyData = vi.fn();
@@ -852,16 +852,7 @@ describe('analyseToFrames merge logic', () => {
     // Verify the split: output bins mapped entirely from the low band
     // should carry the low band value
     const lowBinCount = 301; // at 44100 Hz
-    const lowBinWidth = 5120 / 2048;
-    const highBinWidth = 44100 / 1024;
-    const highBinStart = Math.ceil(752 / highBinWidth);
-    const logMapping = createDualBandLogMapping(
-      MERGED_BIN_COUNT,
-      lowBinCount,
-      lowBinWidth,
-      highBinStart,
-      highBinWidth,
-    );
+    const logMapping = createMergedLogMapping(44100);
     const firstHighOutputBin = logMapping.findIndex((pool) =>
       pool.some((idx) => idx >= lowBinCount),
     );

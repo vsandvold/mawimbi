@@ -1,9 +1,10 @@
 import { vi } from 'vitest';
 import {
-  createDualBandLogMapping,
-  createLogFrequencyMapping,
-} from '../logFrequencyMapping';
-import { analyseToFrames, calculateMergeParams } from '../spectrogram.worker';
+  calculateMergeParams,
+  createMergedLogMapping,
+} from '../dualBandAnalysis';
+import { createLogFrequencyMapping } from '../logFrequencyMapping';
+import { analyseToFrames } from '../spectrogram.worker';
 
 const LOG_MAPPING_BIN_COUNT = 512;
 
@@ -473,15 +474,7 @@ describe('analyseToFrames', () => {
 
     // Verify the split: output bins mapped entirely from the low band
     // should carry the low band value
-    const { lowBinWidth, highBinWidth, highBinStart } =
-      calculateMergeParams(sampleRate);
-    const logMapping = createDualBandLogMapping(
-      mergedBinCount,
-      lowBinCount,
-      lowBinWidth,
-      highBinStart,
-      highBinWidth,
-    );
+    const logMapping = createMergedLogMapping(sampleRate);
     const firstHighOutputBin = logMapping.findIndex((pool) =>
       pool.some((idx) => idx >= lowBinCount),
     );
