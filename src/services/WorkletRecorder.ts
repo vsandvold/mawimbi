@@ -5,6 +5,11 @@
 // PCM chunks posted from the audio thread. On stop, merges chunks into a
 // single AudioBuffer — no MediaRecorder encoding delay, no variable chunk
 // timing, and sample-accurate start/stop timestamps.
+//
+// Uses the native browser AudioContext directly (not the standardized-audio-
+// context wrapper used by Tone.js). This avoids the node registry lookup
+// error that occurs when connecting standardized-audio-context AudioWorklet
+// nodes. See https://github.com/Tonejs/Tone.js/issues/712.
 
 import { type ProcessorMessage } from './RecordingProcessor';
 
@@ -17,6 +22,7 @@ class WorkletRecorder {
   private chunks: Float32Array[] = [];
   private recording = false;
   private initialized = false;
+  private onStopped: ((buffer: AudioBuffer) => void) | null = null;
 
   constructor(audioContext: AudioContext) {
     this.audioContext = audioContext;
@@ -34,12 +40,16 @@ class WorkletRecorder {
 
   // Returns the AudioWorkletNode so the caller can connect a source to it
   // (e.g., microphone → worklet node).
-  get input(): AudioNode {
+  get input(): AudioWorkletNode {
     if (!this.node) {
       this.node = new AudioWorkletNode(this.audioContext, PROCESSOR_NAME, {
         channelCount: CHANNEL_COUNT,
       });
       this.setupMessageHandler(this.node);
+      // Connect to destination so process() is called on the audio thread.
+      // The processor captures input only and outputs silence, so this is
+      // inaudible.
+      this.node.connect(this.audioContext.destination);
     }
     return this.node;
   }
@@ -69,14 +79,7 @@ class WorkletRecorder {
         return;
       }
 
-      const onStopped = (event: MessageEvent<ProcessorMessage>) => {
-        if (event.data.type !== 'stopped') return;
-        this.node!.port.removeEventListener('message', onStopped);
-        this.recording = false;
-        resolve(this.mergeChunks());
-      };
-
-      this.node.port.addEventListener('message', onStopped);
+      this.onStopped = (buffer: AudioBuffer) => resolve(buffer);
       this.node.port.postMessage({ type: 'stop' });
     });
   }
@@ -86,6 +89,7 @@ class WorkletRecorder {
     this.node = null;
     this.chunks = [];
     this.recording = false;
+    this.onStopped = null;
   }
 
   private ensureNode(): void {
@@ -97,6 +101,13 @@ class WorkletRecorder {
     node.port.onmessage = (event: MessageEvent<ProcessorMessage>) => {
       if (event.data.type === 'chunk') {
         this.chunks.push(event.data.data);
+      } else if (event.data.type === 'stopped') {
+        this.recording = false;
+        const buffer = this.mergeChunks();
+        if (this.onStopped) {
+          this.onStopped(buffer);
+          this.onStopped = null;
+        }
       }
     };
   }

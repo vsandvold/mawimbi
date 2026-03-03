@@ -43,45 +43,32 @@ afterAll(() => {
 type MessageHandler = (event: MessageEvent) => void;
 
 function createMockPort() {
-  const listeners = new Map<string, MessageHandler[]>();
   let onmessageHandler: MessageHandler | null = null;
   return {
     postMessage: vi.fn(),
-    addEventListener: vi.fn((type: string, handler: MessageHandler) => {
-      const handlers = listeners.get(type) ?? [];
-      handlers.push(handler);
-      listeners.set(type, handlers);
-    }),
-    removeEventListener: vi.fn((type: string, handler: MessageHandler) => {
-      const handlers = listeners.get(type) ?? [];
-      listeners.set(
-        type,
-        handlers.filter((h) => h !== handler),
-      );
-    }),
     get onmessage() {
       return onmessageHandler;
     },
     set onmessage(handler: MessageHandler | null) {
       onmessageHandler = handler;
     },
-    // Test helper: simulate a message from the processor
+    // Test helper: simulate a message from the processor.
+    // Only calls the onmessage handler, matching real browser behavior
+    // where setting .onmessage takes precedence over addEventListener.
     _simulateMessage(data: unknown) {
       const event = { data } as MessageEvent;
       if (onmessageHandler) onmessageHandler(event);
-      for (const handler of listeners.get('message') ?? []) {
-        handler(event);
-      }
     },
-    _listeners: listeners,
   };
 }
 
 let mockPort: ReturnType<typeof createMockPort>;
 
 function createMockAudioContext() {
+  mockPort = createMockPort();
   return {
     sampleRate: 44100,
+    destination: {},
     audioWorklet: {
       addModule: vi.fn().mockResolvedValue(undefined),
     },
@@ -92,7 +79,6 @@ function createMockAudioContext() {
 const OriginalAudioWorkletNode = globalThis.AudioWorkletNode;
 
 beforeEach(() => {
-  mockPort = createMockPort();
   // Must be a regular function (not arrow) to support `new` in Vitest v4
   globalThis.AudioWorkletNode = vi.fn().mockImplementation(function () {
     return {

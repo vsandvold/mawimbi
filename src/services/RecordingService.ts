@@ -31,6 +31,7 @@ type Context = {
   decodeAudioData: (arrayBuffer: ArrayBuffer) => Promise<AudioBuffer>;
   lookAhead: number;
   rawContext: AudioContext | OfflineAudioContext;
+  sampleRate: number;
 };
 
 export type OverdubResult = {
@@ -60,6 +61,17 @@ class RecordingService {
 
   private recorder: Tone.Recorder;
   private workletRecorder: WorkletRecorder | null = null;
+  // Native MediaStreamSourceNode used to bridge the microphone stream to the
+  // AudioWorklet recorder. Created on the native AudioContext (bypassing
+  // standardized-audio-context) so the worklet node can be connected without
+  // triggering node registry errors. Cleaned up when recording stops.
+  private nativeSourceNode: MediaStreamAudioSourceNode | null = null;
+  // The actual native browser AudioContext, extracted from Tone.js's
+  // standardized-audio-context wrapper. Needed to create native audio nodes
+  // that can connect to the native AudioWorkletNode without triggering
+  // standardized-audio-context's node registry errors.
+  // See https://github.com/Tonejs/Tone.js/issues/712.
+  private nativeAudioContext: AudioContext | null = null;
   private transport: Transport;
   private context: Context;
   private recordingStartTime: number | null = null;
@@ -190,13 +202,24 @@ class RecordingService {
     try {
       const rawContext = this.context.rawContext as AudioContext;
       if (!rawContext.audioWorklet) return;
-      const wr = new WorkletRecorder(rawContext);
+      // Tone.js v14+ uses standardized-audio-context, whose rawContext is a
+      // wrapper — not the native browser AudioContext. The wrapper's internal
+      // node registry breaks when connecting AudioWorkletNode instances.
+      // Extract the actual native AudioContext via the private _nativeContext
+      // field so all worklet-path nodes are native and bypass the registry.
+      // See https://github.com/Tonejs/Tone.js/issues/712.
+      const nativeCtx =
+        (rawContext as unknown as { _nativeContext?: AudioContext })
+          ._nativeContext ?? rawContext;
+      this.nativeAudioContext = nativeCtx;
+      const wr = new WorkletRecorder(nativeCtx);
       await wr.initialize();
       this.workletRecorder = wr;
     } catch {
       // AudioWorklet not supported or module failed to load — keep using
       // Tone.Recorder as fallback.
       this.workletRecorder = null;
+      this.nativeAudioContext = null;
     }
   }
 
@@ -214,8 +237,18 @@ class RecordingService {
     // Capture transport position before starting
     this.recordingStartTime = this.transport.seconds;
 
-    if (this.workletRecorder) {
-      this.microphone.connect(this.workletRecorder.input);
+    if (this.workletRecorder && this.nativeAudioContext) {
+      // Connect microphone to worklet via a native MediaStreamSourceNode.
+      // Tone.UserMedia exposes its MediaStream as _stream (private). We
+      // create a native source node on the native AudioContext and connect it
+      // to the native AudioWorkletNode, bypassing standardized-audio-context
+      // entirely for the recording path.
+      const stream = (
+        this.microphone.source as unknown as { _stream: MediaStream }
+      )._stream;
+      this.nativeSourceNode =
+        this.nativeAudioContext.createMediaStreamSource(stream);
+      this.nativeSourceNode.connect(this.workletRecorder.input);
       this.workletRecorder.start();
       this.transport.start();
     } else {
@@ -246,6 +279,11 @@ class RecordingService {
 
     if (this.workletRecorder) {
       const audioBuffer = await this.workletRecorder.stop();
+      // Clean up native source node before closing the microphone
+      if (this.nativeSourceNode) {
+        this.nativeSourceNode.disconnect();
+        this.nativeSourceNode = null;
+      }
       this.microphone.close();
 
       // Encode to ArrayBuffer (WAV) for undo/redo and blob URL storage.
