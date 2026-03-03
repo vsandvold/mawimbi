@@ -2,8 +2,6 @@ import { render } from '@testing-library/react';
 import { type ReactNode } from 'react';
 import { vi } from 'vitest';
 import { useFileDropzone } from '../../dropzone/useFileDropzone';
-import { usePlaybackSync } from '../../../hooks/usePlaybackSync';
-import { useTrackSync } from '../../../hooks/useTrackSync';
 import { mockTrack } from '../../../testUtils';
 import Workstation from '../Workstation';
 import {
@@ -17,21 +15,13 @@ vi.mock('../EmptyTimeline', () => ({
   default: () => <div data-testid="empty-timeline"></div>,
 }));
 vi.mock('../Mixer');
-vi.mock('../Scrubber', () => ({
+vi.mock('../scrubber/Scrubber', () => ({
   default: ({ children }: { children: ReactNode }) => (
     <div data-testid="scrubber">{children}</div>
   ),
 }));
 vi.mock('../Timeline', () => ({
   default: () => <div data-testid="regular-timeline"></div>,
-}));
-
-vi.mock('../../../hooks/usePlaybackSync', () => ({
-  usePlaybackSync: vi.fn(),
-}));
-
-vi.mock('../../../hooks/useTrackSync', () => ({
-  useTrackSync: vi.fn(),
 }));
 
 vi.mock('../workstationEffects', () => mockWorkstationEffects());
@@ -89,8 +79,6 @@ it('renders dropzone hidden by default', () => {
 it('uses workstation effect hooks', () => {
   render(<Workstation {...defaultProps} />);
 
-  expect(usePlaybackSync).toHaveBeenCalled();
-  expect(useTrackSync).toHaveBeenCalled();
   expect(useFileDropzone).toHaveBeenCalled();
   expect(useMixerHeight).toHaveBeenCalled();
   expect(useSpacebarPlaybackToggle).toHaveBeenCalled();

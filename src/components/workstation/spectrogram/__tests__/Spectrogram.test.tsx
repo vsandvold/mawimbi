@@ -1,12 +1,16 @@
 import { render, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
+import { signal } from '@preact/signals-react';
 import { useAnimationFrame } from '../../../../hooks/useAnimationFrame';
-import { transportTime } from '../../../../services/PlaybackService';
-import { arm, startRecording } from '../../../../services/RecordingService';
-import { TrackSignalStore } from '../../../../signals/trackSignals';
+import AudioService from '../../../../services/AudioService';
 import { resetAllSignals } from '../../../../signals/__tests__/testUtils';
 import { mockTrack } from '../../../../testUtils';
 import Spectrogram from '../Spectrogram';
+
+const audioService = AudioService.getInstance();
+const playbackService = audioService.playbackService;
+const recordingService = audioService.recordingService;
+const trackService = audioService.trackService;
 
 vi.mock('../../../../hooks/useAnimationFrame', () => ({
   useAnimationFrame: vi.fn(),
@@ -39,7 +43,6 @@ vi.stubGlobal(
 
 const mockAnalyse = vi.fn().mockResolvedValue(undefined);
 const mockGetEntry = vi.fn().mockReturnValue(undefined);
-const mockGetRecordingStartTime = vi.fn().mockReturnValue(0);
 const mockGetVisualizationData = vi.fn().mockReturnValue(new Uint8Array(774));
 
 vi.mock('../../../../services/FrequencyVisualizer', () => ({
@@ -59,16 +62,18 @@ const { mockRetrieveAudioBuffer, mockRetrieveStartTime } = vi.hoisted(() => ({
 
 vi.mock('../../../../hooks/useAudioService', () => ({
   useAudioService: () => ({
-    retrieveAudioBuffer: mockRetrieveAudioBuffer,
-    retrieveStartTime: mockRetrieveStartTime,
     spectrogramCache: {
       analyse: mockAnalyse,
       getEntry: mockGetEntry,
     },
-    microphone: {
-      source: {},
-    },
-    getRecordingStartTime: mockGetRecordingStartTime,
+  }),
+  usePlaybackService: () => playbackService,
+  useRecordingService: () => recordingService,
+  useTrackService: () => ({
+    retrieveAudioBuffer: mockRetrieveAudioBuffer,
+    retrieveStartTime: mockRetrieveStartTime,
+    getSignals: (id: string) => trackService.getSignals(id),
+    mutedTracks: signal([]),
   }),
 }));
 
@@ -86,8 +91,7 @@ beforeEach(() => {
   mockAnalyse.mockClear();
   mockGetEntry.mockReturnValue(undefined);
   mockGetVisualizationData.mockReset().mockReturnValue(new Uint8Array(774));
-  mockGetRecordingStartTime.mockReturnValue(0);
-  TrackSignalStore.create(TRACK_ID);
+  trackService.createSignals(TRACK_ID);
 });
 
 afterEach(() => {
@@ -106,7 +110,7 @@ it('renders a canvas element', () => {
 });
 
 it('renders spectrogram container with correct opacity from volume signal', () => {
-  TrackSignalStore.get(TRACK_ID)!.volume.value = 50;
+  trackService.getSignals(TRACK_ID)!.volume.value = 50;
   const { container } = render(<Spectrogram {...defaultProps} />);
 
   const spectrogram = container.querySelector('.spectrogram');
@@ -121,7 +125,7 @@ it('renders full opacity at volume 100', () => {
 });
 
 it('renders zero opacity at volume 0', () => {
-  TrackSignalStore.get(TRACK_ID)!.volume.value = 0;
+  trackService.getSignals(TRACK_ID)!.volume.value = 0;
   const { container } = render(<Spectrogram {...defaultProps} />);
 
   const spectrogram = container.querySelector('.spectrogram');
@@ -309,10 +313,6 @@ describe('scroll offset for tracks with non-zero start time', () => {
   });
 });
 
-// Live playback overlay (drawLiveColumn) has been removed from the
-// Spectrogram component. The plasma playhead now handles per-frequency
-// visualization at the playhead position.
-
 describe('recording mode', () => {
   const RECORDING_TRACK_ID = '__recording__';
   const recordingTrack = mockTrack({
@@ -328,7 +328,7 @@ describe('recording mode', () => {
   };
 
   beforeEach(() => {
-    TrackSignalStore.create(RECORDING_TRACK_ID);
+    trackService.createSignals(RECORDING_TRACK_ID);
   });
 
   it('renders without crashing in recording mode', () => {
@@ -355,10 +355,9 @@ describe('recording mode', () => {
   });
 
   it('reads visualization data from FrequencyVisualizer during recording', () => {
-    arm();
-    startRecording();
-    transportTime.value = 1.5;
-    mockGetRecordingStartTime.mockReturnValue(0);
+    recordingService.arm();
+    recordingService.startRecording();
+    playbackService.transportTime.value = 1.5;
     mockGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));
 
     const mockCtx = {
@@ -387,10 +386,9 @@ describe('recording mode', () => {
   });
 
   it('offsets container by recording start time during overdub', () => {
-    arm();
-    startRecording();
-    transportTime.value = 5.0;
-    mockGetRecordingStartTime.mockReturnValue(3.0);
+    recordingService.arm();
+    recordingService.startRecording();
+    playbackService.transportTime.value = 5.0;
     mockGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));
 
     const mockCtx = {
@@ -406,6 +404,9 @@ describe('recording mode', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
       mockCtx as unknown as CanvasRenderingContext2D,
     );
+
+    // Spy on getRecordingStartTime to return 3.0
+    vi.spyOn(recordingService, 'getRecordingStartTime').mockReturnValue(3.0);
 
     const { container } = render(<Spectrogram {...recordingProps} />);
 
@@ -421,10 +422,9 @@ describe('recording mode', () => {
   });
 
   it('updates container width based on elapsed recording time', () => {
-    arm();
-    startRecording();
-    transportTime.value = 2.0;
-    mockGetRecordingStartTime.mockReturnValue(0);
+    recordingService.arm();
+    recordingService.startRecording();
+    playbackService.transportTime.value = 2.0;
     mockGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));
 
     const mockCtx = {
@@ -440,6 +440,9 @@ describe('recording mode', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
       mockCtx as unknown as CanvasRenderingContext2D,
     );
+
+    // Recording started at 0
+    vi.spyOn(recordingService, 'getRecordingStartTime').mockReturnValue(0);
 
     const { container } = render(<Spectrogram {...recordingProps} />);
 

@@ -1,29 +1,18 @@
 import { renderHook } from '@testing-library/react';
 import { vi } from 'vitest';
 import { focusedTracks } from '../../../signals/focusSignals';
-import { TrackSignalStore } from '../../../signals/trackSignals';
+import AudioService from '../../../services/AudioService';
 import { resetAllSignals } from '../../../signals/__tests__/testUtils';
 import { useChannelControls } from '../useChannelControls';
 
-vi.mock('../../../hooks/useAudioService', () => ({
-  useAudioService: () => ({
-    mixer: {
-      retrieveChannel: vi.fn().mockReturnValue({
-        mute: false,
-        solo: false,
-        volume: 100,
-        dispose: vi.fn(),
-      }),
-    },
-  }),
-}));
+const trackService = AudioService.getInstance().trackService;
 
 beforeAll(() => {
   vi.useFakeTimers();
 });
 
 beforeEach(() => {
-  TrackSignalStore.create('track-1');
+  trackService.createSignals('track-1');
 });
 
 afterEach(() => {

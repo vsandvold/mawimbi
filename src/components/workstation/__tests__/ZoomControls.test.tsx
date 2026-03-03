@@ -1,6 +1,5 @@
 import { fireEvent, render } from '@testing-library/react';
-import { resetPlaybackService } from '../../../services/PlaybackService';
-import { arm, resetRecordingService } from '../../../services/RecordingService';
+import AudioService from '../../../services/AudioService';
 import {
   MAX_PIXELS_PER_SECOND,
   MIN_PIXELS_PER_SECOND,
@@ -9,10 +8,14 @@ import {
 } from '../../../signals/workstationSignals';
 import ZoomControls from '../ZoomControls';
 
+const audioService = AudioService.getInstance();
+const playbackService = audioService.playbackService;
+const recordingService = audioService.recordingService;
+
 afterEach(() => {
   resetWorkstationSignals();
-  resetPlaybackService();
-  resetRecordingService();
+  playbackService.reset();
+  recordingService.reset();
 });
 
 it('renders zoom in and zoom out buttons', () => {
@@ -55,7 +58,7 @@ it('disables zoom out at minimum zoom', () => {
 });
 
 it('disables both zoom buttons during recording', () => {
-  arm();
+  recordingService.arm();
   const { getByTitle } = render(<ZoomControls />);
 
   expect(getByTitle('Zoom in')).toBeDisabled();

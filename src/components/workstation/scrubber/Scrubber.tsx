@@ -4,10 +4,9 @@ import { Button } from 'antd';
 import classNames from 'classnames';
 import { PropsWithChildren } from 'react';
 import {
-  isActivelyRecording,
-  isCountingIn,
-} from '../../../services/RecordingService';
-import { togglePlayback } from '../../../signals/transportSignals';
+  usePlaybackService,
+  useRecordingService,
+} from '../../../hooks/useAudioService';
 import { type Track } from '../../../types/track';
 import ZoomControls from '../ZoomControls';
 import PlasmaPlayhead from './PlasmaPlayhead';
@@ -24,6 +23,8 @@ type ScrubberProps = PropsWithChildren<{
 
 const Scrubber = (props: ScrubberProps) => {
   useSignals();
+  const playbackService = usePlaybackService();
+  const recordingService = useRecordingService();
   const {
     drawerHeight,
     isMixerOpen,
@@ -47,11 +48,14 @@ const Scrubber = (props: ScrubberProps) => {
   } = useScrubber({ drawerHeight, isMixerOpen, pixelsPerSecond, tracks });
 
   const handleTimelineClick = () => {
-    if (isCountingIn.value || isActivelyRecording()) {
+    if (
+      recordingService.isCountingIn.value ||
+      recordingService.isActivelyRecording()
+    ) {
       onStopRecording();
       return;
     }
-    togglePlayback();
+    playbackService.togglePlayback();
   };
 
   const rewindButtonClass = classNames('scrubber__rewind', {

@@ -2,7 +2,7 @@ import { MinusOutlined, PlusOutlined } from '@ant-design/icons';
 import { useSignals } from '@preact/signals-react/runtime';
 import { Button } from 'antd';
 import { type CSSProperties } from 'react';
-import { isRecording as isRecordingSignal } from '../../signals/transportSignals';
+import { useRecordingService } from '../../hooks/useAudioService';
 import {
   MAX_PIXELS_PER_SECOND,
   MIN_PIXELS_PER_SECOND,
@@ -18,8 +18,9 @@ type ZoomControlsProps = {
 
 const ZoomControls = ({ style }: ZoomControlsProps) => {
   useSignals();
+  const recordingService = useRecordingService();
   const pixelsPerSecond = pixelsPerSecondSignal.value;
-  const isRecording = isRecordingSignal.value;
+  const isRecording = recordingService.isRecording.value;
   const isMaxZoom = pixelsPerSecond >= MAX_PIXELS_PER_SECOND;
   const isMinZoom = pixelsPerSecond <= MIN_PIXELS_PER_SECOND;
 

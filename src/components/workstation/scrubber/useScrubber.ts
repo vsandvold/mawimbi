@@ -6,22 +6,15 @@ import {
   useRef,
   useState,
 } from 'react';
-import { useAudioService } from '../../../hooks/useAudioService';
+import {
+  useAudioService,
+  usePlaybackService,
+  useRecordingService,
+  useTrackService,
+} from '../../../hooks/useAudioService';
 import useDebounced from '../../../hooks/useDebounced';
 import { useTimelineZoom } from '../../../hooks/useTimelineZoom';
 import FrequencyVisualizer from '../../../services/FrequencyVisualizer';
-import {
-  loudness as loudnessSignal,
-  pause,
-  play,
-  rewind,
-  transportTime,
-} from '../../../services/PlaybackService';
-import {
-  isActivelyRecording,
-  isCountingIn,
-} from '../../../services/RecordingService';
-import { isPlaying } from '../../../signals/transportSignals';
 import { type Track } from '../../../types/track';
 import { type PlasmaPlayheadHandle } from './PlasmaPlayhead';
 import { type TrackFrequencyInput } from './plasmaRenderer';
@@ -43,7 +36,11 @@ export function useScrubber({
   pixelsPerSecond,
   tracks,
 }: UseScrubberOptions) {
-  const playing = isPlaying.value;
+  const playbackService = usePlaybackService();
+  const recordingService = useRecordingService();
+  const trackService = useTrackService();
+  const audioService = useAudioService();
+  const playing = playbackService.isPlaying.value;
 
   const [isRewindButtonHidden, setIsRewindButtonHidden] = useState(true);
 
@@ -90,7 +87,6 @@ export function useScrubber({
     [pixelsPerSecond],
   );
 
-  const audioService = useAudioService();
   const visualizerRef = useRef<FrequencyVisualizer | null>(null);
 
   // Create/dispose the FrequencyVisualizer when playback starts/stops.
@@ -115,18 +111,18 @@ export function useScrubber({
 
     const animate = () => {
       if (!shouldResumeRef.current) {
-        const time = audioService.getTransportTime();
+        const time = playbackService.getEngineTime();
 
         // During count-in the transport plays lead-in audio but the
         // timeline stays frozen at the recording position.  Once the
         // count-in ends, scroll and transportTime resume updating.
-        if (!isCountingIn.value) {
-          transportTime.value = time;
+        if (!recordingService.isCountingIn.value) {
+          playbackService.transportTime.value = time;
           setScrollPosition(time);
         }
 
-        const currentLoudness = audioService.mixer.getLoudness();
-        loudnessSignal.value = currentLoudness;
+        const currentLoudness = trackService.mixer.getLoudness();
+        playbackService.loudness.value = currentLoudness;
 
         const frequencyData =
           visualizerRef.current?.getVisualizationData() ?? null;
@@ -148,13 +144,16 @@ export function useScrubber({
         // can momentarily equal clientWidth before new content is laid out.
         // Stopping playback here would freeze transportTime updates and halt
         // the live spectrogram scroll.
-        if (timelineScrollRef.current && !isActivelyRecording()) {
+        if (
+          timelineScrollRef.current &&
+          !recordingService.isActivelyRecording()
+        ) {
           const isEndOfScroll =
             timelineScrollRef.current.scrollLeft +
               timelineScrollRef.current.clientWidth >=
             timelineScrollRef.current.scrollWidth;
           if (isEndOfScroll) {
-            rewind();
+            playbackService.rewind();
             return;
           }
         }
@@ -166,27 +165,28 @@ export function useScrubber({
     rafId = requestAnimationFrame(animate);
 
     return () => cancelAnimationFrame(rafId);
-  }, [playing, audioService, setScrollPosition]);
+    // playbackService, recordingService, trackService are stable refs
+  }, [playing, setScrollPosition]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync scroll position to transportTime when not playing (e.g. after rewind)
   // and render the idle (static line) playhead frame
   useEffect(() => {
     if (!playing) {
-      setScrollPosition(transportTime.peek());
+      setScrollPosition(playbackService.transportTime.peek());
       plasmaRef.current?.renderIdle();
     }
-  }, [playing, setScrollPosition]);
+    // playbackService is a stable ref
+  }, [playing, setScrollPosition]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setTransportTimeFromScroll = () => {
     if (timelineScrollRef.current) {
       const scrollPosition = timelineScrollRef.current.scrollLeft;
       const time = scrollPosition / pixelsPerSecond;
-      transportTime.value = time;
-      audioService.setTransportTime(time);
+      playbackService.seekTo(time);
     }
     if (shouldResumeRef.current) {
       shouldResumeRef.current = false;
-      play();
+      playbackService.play();
     }
   };
 
@@ -197,14 +197,14 @@ export function useScrubber({
   const pauseForUserScroll = () => {
     if (playing && !shouldResumeRef.current) {
       shouldResumeRef.current = true;
-      pause();
+      playbackService.pause();
     }
   };
 
   const handleWheel = (e: ReactWheelEvent) => {
     // Skip scroll handling when Ctrl/Meta+wheel is used for zoom
     if (e.ctrlKey || e.metaKey) return;
-    if (isActivelyRecording()) return;
+    if (recordingService.isActivelyRecording()) return;
     pauseForUserScroll();
     debouncedSetTransportTime();
   };
@@ -212,7 +212,7 @@ export function useScrubber({
   const handleTouchMove = () => {
     // Skip scroll handling during pinch-to-zoom
     if (isPinchingRef.current) return;
-    if (isActivelyRecording()) return;
+    if (recordingService.isActivelyRecording()) return;
     pauseForUserScroll();
     debouncedSetTransportTime();
   };
@@ -227,14 +227,14 @@ export function useScrubber({
       toggleRewindButton(timelineScrollRef.current.scrollLeft);
     }
 
-    if (isActivelyRecording()) return;
+    if (recordingService.isActivelyRecording()) return;
     pauseForUserScroll();
     debouncedSetTransportTime();
   };
 
   const handleStopAndRewind = () => {
-    if (isActivelyRecording()) return;
-    rewind();
+    if (recordingService.isActivelyRecording()) return;
+    playbackService.rewind();
     setScrollPosition(0);
   };
 

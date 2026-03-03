@@ -1,22 +1,11 @@
 import { render } from '@testing-library/react';
 import { vi } from 'vitest';
-import { TrackSignalStore } from '../../../signals/trackSignals';
+import AudioService from '../../../services/AudioService';
 import { resetAllSignals } from '../../../signals/__tests__/testUtils';
 import { mockTrack } from '../../../testUtils';
 import Mixer from '../Mixer';
 
-vi.mock('../../../hooks/useAudioService', () => ({
-  useAudioService: () => ({
-    mixer: {
-      retrieveChannel: vi.fn().mockReturnValue({
-        mute: false,
-        solo: false,
-        volume: 100,
-        dispose: vi.fn(),
-      }),
-    },
-  }),
-}));
+const trackService = AudioService.getInstance().trackService;
 
 const mockProjectDispatch = vi.fn();
 
@@ -33,9 +22,9 @@ it('renders without crashing with empty tracks', () => {
 });
 
 it('renders a channel for each track', () => {
-  TrackSignalStore.create('track-1');
-  TrackSignalStore.create('track-2');
-  TrackSignalStore.create('track-3');
+  trackService.createSignals('track-1');
+  trackService.createSignals('track-2');
+  trackService.createSignals('track-3');
   const tracks = [
     mockTrack({ trackId: 'track-1', index: 0 }),
     mockTrack({ trackId: 'track-2', index: 1 }),
@@ -50,9 +39,9 @@ it('renders a channel for each track', () => {
 });
 
 it('marks channel as muted via mute signal', () => {
-  TrackSignalStore.create('track-1');
-  TrackSignalStore.create('track-2');
-  TrackSignalStore.get('track-1')!.mute.value = true;
+  trackService.createSignals('track-1');
+  trackService.createSignals('track-2');
+  trackService.getSignals('track-1')!.mute.value = true;
 
   const tracks = [
     mockTrack({ trackId: 'track-1', index: 0 }),

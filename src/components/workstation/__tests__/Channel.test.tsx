@@ -1,26 +1,15 @@
 import { fireEvent, render } from '@testing-library/react';
-import { vi } from 'vitest';
+
 import { focusedTracks } from '../../../signals/focusSignals';
-import { TrackSignalStore } from '../../../signals/trackSignals';
+import AudioService from '../../../services/AudioService';
 import { resetAllSignals } from '../../../signals/__tests__/testUtils';
 import { mockTrack } from '../../../testUtils';
 import Channel from '../Channel';
 
-vi.mock('../../../hooks/useAudioService', () => ({
-  useAudioService: () => ({
-    mixer: {
-      retrieveChannel: vi.fn().mockReturnValue({
-        mute: false,
-        solo: false,
-        volume: 100,
-        dispose: vi.fn(),
-      }),
-    },
-  }),
-}));
+const trackService = AudioService.getInstance().trackService;
 
 beforeEach(() => {
-  TrackSignalStore.create('track-1');
+  trackService.createSignals('track-1');
 });
 
 afterEach(() => {
@@ -59,12 +48,12 @@ it('sets mute signal when mute button is clicked', () => {
 
   fireEvent.click(getByTitle('Mute'));
 
-  const signals = TrackSignalStore.get('track-1')!;
+  const signals = trackService.getSignals('track-1')!;
   expect(signals.mute.value).toBe(true);
 });
 
 it('unsets mute signal when mute button is clicked while muted', () => {
-  const signals = TrackSignalStore.get('track-1')!;
+  const signals = trackService.getSignals('track-1')!;
   signals.mute.value = true;
 
   const { getByTitle } = render(<Channel {...defaultProps} />);
@@ -79,12 +68,12 @@ it('sets solo signal when solo button is clicked', () => {
 
   fireEvent.click(getByTitle('Solo'));
 
-  const signals = TrackSignalStore.get('track-1')!;
+  const signals = trackService.getSignals('track-1')!;
   expect(signals.solo.value).toBe(true);
 });
 
 it('unsets solo signal when solo button is clicked while solo', () => {
-  const signals = TrackSignalStore.get('track-1')!;
+  const signals = trackService.getSignals('track-1')!;
   signals.solo.value = true;
 
   const { getByTitle } = render(<Channel {...defaultProps} />);
@@ -95,7 +84,7 @@ it('unsets solo signal when solo button is clicked while solo', () => {
 });
 
 it('applies inverted style when channel is muted via signal', () => {
-  const signals = TrackSignalStore.get('track-1')!;
+  const signals = trackService.getSignals('track-1')!;
   signals.mute.value = true;
 
   const { container } = render(<Channel {...defaultProps} />);
@@ -151,7 +140,7 @@ it('sets opacity to 0 in background color when externally muted', () => {
 });
 
 it('reads volume from signal store', () => {
-  const signals = TrackSignalStore.get('track-1')!;
+  const signals = trackService.getSignals('track-1')!;
   expect(signals.volume.value).toBe(100);
 
   render(<Channel {...defaultProps} />);
