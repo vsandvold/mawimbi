@@ -2,12 +2,20 @@
 //
 // State machine: idle → armed → recording → idle
 //
-// Encapsulates Tone.Recorder and MicrophoneService so the rest of the
-// app interacts with recording through signals and service methods.
+// Supports two recording backends:
+//   1. AudioWorklet-based (WorkletRecorder) — sample-accurate PCM capture on
+//      the audio thread, no MediaRecorder encoding delay.
+//   2. Tone.Recorder (MediaRecorder) — fallback when AudioWorklet is
+//      unavailable or initialization fails.
+//
+// Call initializeWorkletRecorder() once at startup to attempt the worklet
+// path. If it fails, the service silently falls back to Tone.Recorder.
 
 import * as Tone from 'tone';
 import { computed, signal, type ReadonlySignal } from '@preact/signals-react';
 import MicrophoneService from './MicrophoneService';
+import LatencyCompensation from './LatencyCompensation';
+import WorkletRecorder from './WorkletRecorder';
 
 export type RecordingState = 'idle' | 'armed' | 'recording';
 
@@ -48,8 +56,10 @@ class RecordingService {
   };
 
   private readonly microphone: MicrophoneService;
+  readonly latencyCompensation: LatencyCompensation;
 
   private recorder: Tone.Recorder;
+  private workletRecorder: WorkletRecorder | null = null;
   private transport: Transport;
   private context: Context;
   private recordingStartTime: number | null = null;
@@ -59,6 +69,10 @@ class RecordingService {
     this.context = context;
     this.microphone = new MicrophoneService();
     this.recorder = new Tone.Recorder();
+    this.latencyCompensation = new LatencyCompensation(
+      context.rawContext,
+      context.lookAhead,
+    );
     this._isRecording = computed(
       () => this._recordingState.value !== 'idle' || this._isCountingIn.value,
     );
@@ -168,20 +182,48 @@ class RecordingService {
     return this.microphone.source;
   }
 
+  // --- WorkletRecorder initialization ---
+
+  // Attempt to initialize the AudioWorklet-based recorder. Call once at
+  // startup. Falls back to Tone.Recorder silently on failure.
+  async initializeWorkletRecorder(): Promise<void> {
+    try {
+      const rawContext = this.context.rawContext as AudioContext;
+      if (!rawContext.audioWorklet) return;
+      const wr = new WorkletRecorder(rawContext);
+      await wr.initialize();
+      this.workletRecorder = wr;
+    } catch {
+      // AudioWorklet not supported or module failed to load — keep using
+      // Tone.Recorder as fallback.
+      this.workletRecorder = null;
+    }
+  }
+
+  get isWorkletRecorderAvailable(): boolean {
+    return this.workletRecorder !== null;
+  }
+
   // --- Overdub recording ---
 
   async startOverdubRecording(): Promise<void> {
     if (!this.microphone.isOpen) {
       await this.microphone.open();
     }
-    this.microphone.connect(this.recorder);
 
     // Capture transport position before starting
     this.recordingStartTime = this.transport.seconds;
 
-    // Start recorder first (has startup delay), then Transport
-    await this.recorder.start();
-    this.transport.start();
+    if (this.workletRecorder) {
+      this.microphone.connect(this.workletRecorder.input);
+      this.workletRecorder.start();
+      this.transport.start();
+    } else {
+      this.microphone.connect(this.recorder);
+      // Start recorder first (has startup delay), then Transport
+      await this.recorder.start();
+      this.transport.start();
+    }
   }
 
   async stopOverdubRecording(): Promise<OverdubResult> {
@@ -200,18 +242,33 @@ class RecordingService {
     // to the beginning during the async gap.
     this.transport.seconds = startTime;
 
+    const latencyCompensation = this.estimateRoundTripLatency();
+
+    if (this.workletRecorder) {
+      const audioBuffer = await this.workletRecorder.stop();
+      this.microphone.close();
+
+      // Encode to ArrayBuffer (WAV) for undo/redo and blob URL storage.
+      // The WorkletRecorder produces PCM directly — we encode to a raw
+      // interleaved buffer for downstream consumption.
+      const arrayBuffer = this.audioBufferToArrayBuffer(audioBuffer);
+
+      return { audioBuffer, arrayBuffer, startTime, latencyCompensation };
+    }
+
     const blob = await this.recorder.stop();
     this.microphone.close();
 
     const arrayBuffer = await blob.arrayBuffer();
     const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
 
-    const latencyCompensation = this.estimateRoundTripLatency();
-
     return { audioBuffer, arrayBuffer, startTime, latencyCompensation };
   }
 
   isOverdubRecording(): boolean {
+    if (this.workletRecorder) {
+      return this.workletRecorder.state === 'started';
+    }
     return this.recorder.state === 'started';
   }
 
@@ -220,16 +277,7 @@ class RecordingService {
   }
 
   estimateRoundTripLatency(): number {
-    const ctx = this.context.rawContext;
-    const outputLatency =
-      (ctx as AudioContext & { outputLatency?: number }).outputLatency ?? 0;
-    const baseLatency =
-      (ctx as AudioContext & { baseLatency?: number }).baseLatency ?? 0;
-    const lookAhead = this.context.lookAhead;
-    // One render quantum (~2.9ms at 44.1kHz) as a conservative input latency
-    // estimate, per research on Web Audio API latency characteristics
-    const estimatedInputLatency = 128 / ctx.sampleRate;
-    return outputLatency + baseLatency + lookAhead + estimatedInputLatency;
+    return this.latencyCompensation.getTotalCompensation();
   }
 
   // --- Reset ---
@@ -237,6 +285,24 @@ class RecordingService {
   reset(): void {
     this._recordingState.value = 'idle';
     this._isCountingIn.value = false;
+  }
+
+  // Converts an AudioBuffer to a raw ArrayBuffer containing interleaved
+  // Float32 PCM data. Used by the worklet path which produces AudioBuffer
+  // directly (no Blob encoding step).
+  private audioBufferToArrayBuffer(audioBuffer: AudioBuffer): ArrayBuffer {
+    const channels = audioBuffer.numberOfChannels;
+    const length = audioBuffer.length;
+    const interleaved = new Float32Array(length * channels);
+
+    for (let ch = 0; ch < channels; ch++) {
+      const channelData = audioBuffer.getChannelData(ch);
+      for (let i = 0; i < length; i++) {
+        interleaved[i * channels + ch] = channelData[i];
+      }
+    }
+
+    return interleaved.buffer;
   }
 }
 

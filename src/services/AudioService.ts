@@ -42,6 +42,10 @@ class AudioService {
     this.recordingService = new RecordingService(transport, context);
     this.trackService = new TrackService(context);
     this.spectrogramCache = new SpectrogramCache();
+
+    // Attempt to initialize the AudioWorklet-based recorder for
+    // sample-accurate capture. Falls back to Tone.Recorder silently.
+    this.recordingService.initializeWorkletRecorder();
   }
 
   static getInstance(): AudioService {

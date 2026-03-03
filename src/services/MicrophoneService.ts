@@ -1,5 +1,15 @@
 import * as Tone from 'tone';
 
+// Low-latency getUserMedia constraints for recording. Disables browser
+// processing (echo cancellation, noise suppression, AGC) that adds latency
+// and degrades audio quality for music recording.
+export const LOW_LATENCY_CONSTRAINTS: MediaTrackConstraints = {
+  echoCancellation: false,
+  noiseSuppression: false,
+  autoGainControl: false,
+  channelCount: 1,
+};
+
 class MicrophoneService {
   private microphone: Tone.UserMedia;
   private meter: Tone.Meter;
@@ -25,8 +35,8 @@ class MicrophoneService {
     this.microphone.close();
   }
 
-  connect(destination: Tone.ToneAudioNode): void {
-    this.microphone.connect(destination);
+  connect(destination: Tone.ToneAudioNode | AudioNode): void {
+    this.microphone.connect(destination as Tone.ToneAudioNode);
   }
 
   getLoudness(): number {
