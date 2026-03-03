@@ -13,16 +13,16 @@ export function useRecordingService() {
   const service = useContext(AudioServiceContext).recordingService;
 
   return {
-    // --- Reactive state ---
+    // --- Reactive state (getters → lazy signal subscription via signals accessor) ---
 
     get recordingState(): RecordingState {
-      return service.recordingState.value;
+      return service.signals.recordingState.value;
     },
     get isCountingIn(): boolean {
-      return service.isCountingIn.value;
+      return service.signals.isCountingIn.value;
     },
     get isRecording(): boolean {
-      return service.isRecording.value;
+      return service.signals.isRecording.value;
     },
     get isTransportLocked(): boolean {
       return service.isTransportLocked();

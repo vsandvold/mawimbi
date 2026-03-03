@@ -61,8 +61,8 @@ it('sets isPlaying and isRecording signals during count-in with full lead-in', a
 
   await act(async () => {});
 
-  expect(playbackService.isPlaying.value).toBe(true);
-  expect(recordingService.isRecording.value).toBe(true);
+  expect(playbackService.isPlaying).toBe(true);
+  expect(recordingService.isRecording).toBe(true);
 });
 
 it('returns beat numbers 1 through 4', async () => {
@@ -144,8 +144,8 @@ it('cleans up microphone and signals when cancelled', async () => {
   rerender({ active: false });
 
   expect(closeMicSpy).toHaveBeenCalledOnce();
-  expect(playbackService.isPlaying.value).toBe(false);
-  expect(recordingService.isRecording.value).toBe(false);
+  expect(playbackService.isPlaying).toBe(false);
+  expect(recordingService.isRecording).toBe(false);
   expect(onComplete).not.toHaveBeenCalled();
 });
 
@@ -198,9 +198,9 @@ it('does not start playback when transport is at position 0', async () => {
 
   // At position 0, there is no lead-in audio available.
   // Playback should not start during count-in.
-  expect(playbackService.isPlaying.value).toBe(false);
-  expect(recordingService.isRecording.value).toBe(true);
-  expect(recordingService.isCountingIn.value).toBe(true);
+  expect(playbackService.isPlaying).toBe(false);
+  expect(recordingService.isRecording).toBe(true);
+  expect(recordingService.isCountingIn).toBe(true);
 });
 
 it('delays playback start when lead-in is shorter than count-in duration', async () => {
@@ -217,14 +217,14 @@ it('delays playback start when lead-in is shorter than count-in duration', async
   // Playback should not start immediately — it should be delayed
   // by (2.0 - 0.5) = 1.5s so the transport arrives at 0.5s when
   // the count-in ends
-  expect(playbackService.isPlaying.value).toBe(false);
+  expect(playbackService.isPlaying).toBe(false);
 
   // Advance past the delay (1500ms)
   await act(async () => {
     vi.advanceTimersByTime(1500);
   });
 
-  expect(playbackService.isPlaying.value).toBe(true);
+  expect(playbackService.isPlaying).toBe(true);
 });
 
 it('seeks transport back by count-in duration before starting playback', async () => {
@@ -265,7 +265,7 @@ it('sets isCountingIn signal during count-in', async () => {
 
   await act(async () => {});
 
-  expect(recordingService.isCountingIn.value).toBe(true);
+  expect(recordingService.isCountingIn).toBe(true);
 });
 
 it('clears isCountingIn signal after count-in completes', async () => {
@@ -283,7 +283,7 @@ it('clears isCountingIn signal after count-in completes', async () => {
     });
   }
 
-  expect(recordingService.isCountingIn.value).toBe(false);
+  expect(recordingService.isCountingIn).toBe(false);
 });
 
 it('clears isCountingIn signal when cancelled', async () => {
@@ -295,9 +295,9 @@ it('clears isCountingIn signal when cancelled', async () => {
   );
 
   await act(async () => {});
-  expect(recordingService.isCountingIn.value).toBe(true);
+  expect(recordingService.isCountingIn).toBe(true);
 
   rerender({ active: false });
 
-  expect(recordingService.isCountingIn.value).toBe(false);
+  expect(recordingService.isCountingIn).toBe(false);
 });

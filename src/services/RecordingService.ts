@@ -33,9 +33,20 @@ export type OverdubResult = {
 };
 
 class RecordingService {
-  readonly recordingState = signal<RecordingState>('idle');
-  readonly isCountingIn = signal(false);
-  readonly isRecording: ReadonlySignal<boolean>;
+  // --- Private signals (only the service writes these) ---
+
+  private readonly _recordingState = signal<RecordingState>('idle');
+  private readonly _isCountingIn = signal(false);
+  private readonly _isRecording: ReadonlySignal<boolean>;
+
+  // --- Narrow channel for reactive consumers (hooks) ---
+
+  readonly signals: {
+    readonly recordingState: ReadonlySignal<RecordingState>;
+    readonly isCountingIn: ReadonlySignal<boolean>;
+    readonly isRecording: ReadonlySignal<boolean>;
+  };
+
   readonly microphone: MicrophoneUserMedia;
 
   private recorder: Tone.Recorder;
@@ -48,37 +59,56 @@ class RecordingService {
     this.context = context;
     this.microphone = new MicrophoneUserMedia();
     this.recorder = new Tone.Recorder();
-    this.isRecording = computed(
-      () => this.recordingState.value !== 'idle' || this.isCountingIn.value,
+    this._isRecording = computed(
+      () => this._recordingState.value !== 'idle' || this._isCountingIn.value,
     );
+    this.signals = {
+      recordingState: this._recordingState,
+      isCountingIn: this._isCountingIn,
+      isRecording: this._isRecording,
+    };
+  }
+
+  // --- Plain getters for non-reactive consumers (tests, workflows) ---
+
+  get recordingState(): RecordingState {
+    return this._recordingState.value;
+  }
+
+  get isCountingIn(): boolean {
+    return this._isCountingIn.value;
+  }
+
+  get isRecording(): boolean {
+    return this._isRecording.value;
   }
 
   // --- State machine transitions ---
 
   arm(): void {
-    if (this.recordingState.value !== 'idle') return;
-    this.recordingState.value = 'armed';
+    if (this._recordingState.value !== 'idle') return;
+    this._recordingState.value = 'armed';
   }
 
   disarm(): void {
-    if (this.recordingState.value !== 'armed') return;
-    this.recordingState.value = 'idle';
+    if (this._recordingState.value !== 'armed') return;
+    this._recordingState.value = 'idle';
   }
 
   startRecording(): void {
-    if (this.recordingState.value !== 'armed') return;
-    this.recordingState.value = 'recording';
+    if (this._recordingState.value !== 'armed') return;
+    this._recordingState.value = 'recording';
   }
 
   stopRecording(): void {
-    if (this.recordingState.value !== 'recording') return;
-    this.recordingState.value = 'idle';
+    if (this._recordingState.value !== 'recording') return;
+    this._recordingState.value = 'idle';
   }
 
   toggleArm(): void {
-    if (this.recordingState.value === 'idle') {
+    if (this._recordingState.value === 'idle') {
       this.arm();
-    } else if (this.recordingState.value === 'armed') {
+    } else if (this._recordingState.value === 'armed') {
       this.disarm();
     }
     // If recording, toggleArm is a no-op — use stopRecording instead
@@ -87,31 +117,33 @@ class RecordingService {
   // --- Count-in helpers ---
 
   startCountIn(): void {
-    this.isCountingIn.value = true;
+    this._isCountingIn.value = true;
   }
 
   stopCountIn(): void {
-    this.isCountingIn.value = false;
+    this._isCountingIn.value = false;
   }
 
   // --- Derived queries ---
 
   isIdle(): boolean {
-    return this.recordingState.value === 'idle';
+    return this._recordingState.value === 'idle';
   }
 
   isArmed(): boolean {
-    return this.recordingState.value === 'armed';
+    return this._recordingState.value === 'armed';
   }
 
   isActivelyRecording(): boolean {
-    return this.recordingState.value === 'recording';
+    return this._recordingState.value === 'recording';
   }
 
   // True when the transport should be locked from user playback control
   // (during count-in or active recording).
   isTransportLocked(): boolean {
-    return this.recordingState.value === 'recording' || this.isCountingIn.value;
+    return (
+      this._recordingState.value === 'recording' || this._isCountingIn.value
+    );
   }
 
   // --- Microphone management ---
@@ -199,8 +231,8 @@ class RecordingService {
   // --- Reset ---
 
   reset(): void {
-    this.recordingState.value = 'idle';
-    this.isCountingIn.value = false;
+    this._recordingState.value = 'idle';
+    this._isCountingIn.value = false;
   }
 }
 

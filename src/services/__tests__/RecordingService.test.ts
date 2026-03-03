@@ -15,7 +15,7 @@ beforeEach(() => {
 describe('RecordingService', () => {
   describe('initial state', () => {
     it('starts in idle state', () => {
-      expect(service.recordingState.value).toBe('idle');
+      expect(service.recordingState).toBe('idle');
     });
 
     it('reports isIdle as true', () => {
@@ -23,11 +23,11 @@ describe('RecordingService', () => {
     });
 
     it('is not counting in', () => {
-      expect(service.isCountingIn.value).toBe(false);
+      expect(service.isCountingIn).toBe(false);
     });
 
     it('reports isRecording as false', () => {
-      expect(service.isRecording.value).toBe(false);
+      expect(service.isRecording).toBe(false);
     });
   });
 
@@ -35,7 +35,7 @@ describe('RecordingService', () => {
     it('transitions from idle to armed', () => {
       service.arm();
 
-      expect(service.recordingState.value).toBe('armed');
+      expect(service.recordingState).toBe('armed');
       expect(service.isArmed()).toBe(true);
     });
 
@@ -44,7 +44,7 @@ describe('RecordingService', () => {
 
       service.arm();
 
-      expect(service.recordingState.value).toBe('armed');
+      expect(service.recordingState).toBe('armed');
     });
 
     it('is a no-op when recording', () => {
@@ -53,7 +53,7 @@ describe('RecordingService', () => {
 
       service.arm();
 
-      expect(service.recordingState.value).toBe('recording');
+      expect(service.recordingState).toBe('recording');
     });
   });
 
@@ -63,14 +63,14 @@ describe('RecordingService', () => {
 
       service.disarm();
 
-      expect(service.recordingState.value).toBe('idle');
+      expect(service.recordingState).toBe('idle');
       expect(service.isIdle()).toBe(true);
     });
 
     it('is a no-op when idle', () => {
       service.disarm();
 
-      expect(service.recordingState.value).toBe('idle');
+      expect(service.recordingState).toBe('idle');
     });
 
     it('is a no-op when recording', () => {
@@ -79,7 +79,7 @@ describe('RecordingService', () => {
 
       service.disarm();
 
-      expect(service.recordingState.value).toBe('recording');
+      expect(service.recordingState).toBe('recording');
     });
   });
 
@@ -89,14 +89,14 @@ describe('RecordingService', () => {
 
       service.startRecording();
 
-      expect(service.recordingState.value).toBe('recording');
+      expect(service.recordingState).toBe('recording');
       expect(service.isActivelyRecording()).toBe(true);
     });
 
     it('is a no-op when idle', () => {
       service.startRecording();
 
-      expect(service.recordingState.value).toBe('idle');
+      expect(service.recordingState).toBe('idle');
     });
 
     it('is a no-op when already recording', () => {
@@ -105,7 +105,7 @@ describe('RecordingService', () => {
 
       service.startRecording();
 
-      expect(service.recordingState.value).toBe('recording');
+      expect(service.recordingState).toBe('recording');
     });
   });
 
@@ -116,14 +116,14 @@ describe('RecordingService', () => {
 
       service.stopRecording();
 
-      expect(service.recordingState.value).toBe('idle');
+      expect(service.recordingState).toBe('idle');
       expect(service.isIdle()).toBe(true);
     });
 
     it('is a no-op when idle', () => {
       service.stopRecording();
 
-      expect(service.recordingState.value).toBe('idle');
+      expect(service.recordingState).toBe('idle');
     });
 
     it('is a no-op when armed', () => {
@@ -131,7 +131,7 @@ describe('RecordingService', () => {
 
       service.stopRecording();
 
-      expect(service.recordingState.value).toBe('armed');
+      expect(service.recordingState).toBe('armed');
     });
   });
 
@@ -139,7 +139,7 @@ describe('RecordingService', () => {
     it('arms when idle', () => {
       service.toggleArm();
 
-      expect(service.recordingState.value).toBe('armed');
+      expect(service.recordingState).toBe('armed');
     });
 
     it('disarms when armed', () => {
@@ -147,7 +147,7 @@ describe('RecordingService', () => {
 
       service.toggleArm();
 
-      expect(service.recordingState.value).toBe('idle');
+      expect(service.recordingState).toBe('idle');
     });
 
     it('is a no-op when recording', () => {
@@ -156,7 +156,7 @@ describe('RecordingService', () => {
 
       service.toggleArm();
 
-      expect(service.recordingState.value).toBe('recording');
+      expect(service.recordingState).toBe('recording');
     });
   });
 
@@ -164,7 +164,7 @@ describe('RecordingService', () => {
     it('starts count-in', () => {
       service.startCountIn();
 
-      expect(service.isCountingIn.value).toBe(true);
+      expect(service.isCountingIn).toBe(true);
     });
 
     it('stops count-in', () => {
@@ -172,7 +172,7 @@ describe('RecordingService', () => {
 
       service.stopCountIn();
 
-      expect(service.isCountingIn.value).toBe(false);
+      expect(service.isCountingIn).toBe(false);
     });
   });
 
@@ -205,24 +205,24 @@ describe('RecordingService', () => {
     it('is true when armed', () => {
       service.arm();
 
-      expect(service.isRecording.value).toBe(true);
+      expect(service.isRecording).toBe(true);
     });
 
     it('is true when recording', () => {
       service.arm();
       service.startRecording();
 
-      expect(service.isRecording.value).toBe(true);
+      expect(service.isRecording).toBe(true);
     });
 
     it('is true during count-in', () => {
       service.startCountIn();
 
-      expect(service.isRecording.value).toBe(true);
+      expect(service.isRecording).toBe(true);
     });
 
     it('is false when idle and not counting in', () => {
-      expect(service.isRecording.value).toBe(false);
+      expect(service.isRecording).toBe(false);
     });
   });
 
@@ -234,8 +234,8 @@ describe('RecordingService', () => {
 
       service.reset();
 
-      expect(service.recordingState.value).toBe('idle');
-      expect(service.isCountingIn.value).toBe(false);
+      expect(service.recordingState).toBe('idle');
+      expect(service.isCountingIn).toBe(false);
     });
   });
 });

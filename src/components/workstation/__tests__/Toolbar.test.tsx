@@ -97,7 +97,7 @@ it('toggles playback when play/pause button is clicked', () => {
   const playButton = getByTitle('Play');
   fireEvent.click(playButton);
 
-  expect(playbackService.isPlaying.value).toBe(true);
+  expect(playbackService.isPlaying).toBe(true);
 });
 
 it('toggles mixer when mixer show/hide is clicked', () => {
