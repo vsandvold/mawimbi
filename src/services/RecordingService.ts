@@ -22,7 +22,7 @@ type Transport = {
 type Context = {
   decodeAudioData: (arrayBuffer: ArrayBuffer) => Promise<AudioBuffer>;
   lookAhead: number;
-  rawContext: AudioContext;
+  rawContext: AudioContext | OfflineAudioContext;
 };
 
 export type OverdubResult = {
