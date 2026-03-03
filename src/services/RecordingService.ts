@@ -2,12 +2,12 @@
 //
 // State machine: idle → armed → recording → idle
 //
-// Encapsulates Tone.Recorder and MicrophoneUserMedia so the rest of the
+// Encapsulates Tone.Recorder and MicrophoneService so the rest of the
 // app interacts with recording through signals and service methods.
 
 import * as Tone from 'tone';
 import { computed, signal, type ReadonlySignal } from '@preact/signals-react';
-import MicrophoneUserMedia from './MicrophoneUserMedia';
+import MicrophoneService from './MicrophoneService';
 
 export type RecordingState = 'idle' | 'armed' | 'recording';
 
@@ -47,7 +47,7 @@ class RecordingService {
     readonly isRecording: ReadonlySignal<boolean>;
   };
 
-  readonly microphone: MicrophoneUserMedia;
+  private readonly microphone: MicrophoneService;
 
   private recorder: Tone.Recorder;
   private transport: Transport;
@@ -57,7 +57,7 @@ class RecordingService {
   constructor(transport: Transport, context: Context) {
     this.transport = transport;
     this.context = context;
-    this.microphone = new MicrophoneUserMedia();
+    this.microphone = new MicrophoneService();
     this.recorder = new Tone.Recorder();
     this._isRecording = computed(
       () => this._recordingState.value !== 'idle' || this._isCountingIn.value,
@@ -162,6 +162,10 @@ class RecordingService {
 
   getLoudness(): number {
     return this.microphone.getLoudness();
+  }
+
+  getMicrophoneSource(): Tone.ToneAudioNode {
+    return this.microphone.source;
   }
 
   // --- Overdub recording ---

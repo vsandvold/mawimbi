@@ -113,7 +113,7 @@ it('renders plasma playhead canvas in the cursor container', () => {
 });
 
 it('feeds plasma renderer with loudness during playback', () => {
-  vi.spyOn(trackService.mixer, 'getLoudness').mockReturnValue(0.75);
+  vi.spyOn(trackService, 'getLoudness').mockReturnValue(0.75);
 
   let rafCallback: FrameRequestCallback = () => {};
   vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
@@ -129,12 +129,12 @@ it('feeds plasma renderer with loudness during playback', () => {
     rafCallback(0);
   });
 
-  expect(trackService.mixer.getLoudness).toHaveBeenCalled();
+  expect(trackService.getLoudness).toHaveBeenCalled();
 });
 
 it('does not stop playback at end of scroll during recording', () => {
   vi.spyOn(playbackService, 'getEngineTime').mockReturnValue(1.5);
-  vi.spyOn(trackService.mixer, 'getLoudness').mockReturnValue(0);
+  vi.spyOn(trackService, 'getLoudness').mockReturnValue(0);
 
   let rafCallback: FrameRequestCallback = () => {};
   vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
@@ -160,7 +160,7 @@ it('does not stop playback at end of scroll during recording', () => {
 });
 
 it('does not call getLoudness when playback is stopped', () => {
-  const getLoudnessSpy = vi.spyOn(trackService.mixer, 'getLoudness');
+  const getLoudnessSpy = vi.spyOn(trackService, 'getLoudness');
 
   render(<Scrubber {...defaultProps} />);
 
@@ -231,7 +231,7 @@ it('does not rewind when rewind button is clicked during recording', () => {
 
 it('does not update transportTime during count-in', () => {
   vi.spyOn(playbackService, 'getEngineTime').mockReturnValue(3.5);
-  vi.spyOn(trackService.mixer, 'getLoudness').mockReturnValue(0);
+  vi.spyOn(trackService, 'getLoudness').mockReturnValue(0);
 
   let rafCallback: FrameRequestCallback = () => {};
   vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {

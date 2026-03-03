@@ -3,7 +3,7 @@ import * as Tone from 'tone';
 const SMOOTHING = 0.8;
 const POWER_CURVE_EXPONENT = 0.6;
 
-class Mixer {
+class MixerService {
   private audioChannelRepository: AudioChannelRepository;
   private meter: Tone.Meter;
 
@@ -140,4 +140,4 @@ class AudioChannelRepository {
   }
 }
 
-export default Mixer;
+export default MixerService;

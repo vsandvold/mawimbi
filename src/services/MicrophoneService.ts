@@ -1,6 +1,6 @@
 import * as Tone from 'tone';
 
-class MicrophoneUserMedia {
+class MicrophoneService {
   private microphone: Tone.UserMedia;
   private meter: Tone.Meter;
 
@@ -43,4 +43,4 @@ class MicrophoneUserMedia {
   }
 }
 
-export default MicrophoneUserMedia;
+export default MicrophoneService;

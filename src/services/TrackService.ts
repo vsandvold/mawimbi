@@ -1,6 +1,6 @@
 // TrackService — owns track creation, per-track signals, and the mixer.
 //
-// Encapsulates the Mixer (Tone.Player + Tone.Channel chains) and the
+// Encapsulates MixerService (Tone.Player + Tone.Channel chains) and the
 // audio source repository. Per-track volume/mute/solo signals are synced
 // to the mixer channels automatically via effects, so consumers never
 // need to bridge signals to the audio engine themselves.
@@ -14,7 +14,7 @@ import {
   type Signal,
 } from '@preact/signals-react';
 import { LoudnessNormalizer } from './LoudnessNormalizer';
-import Mixer, { type AudioChannel } from './Mixer';
+import MixerService, { type AudioChannel } from './MixerService';
 import { type TrackId } from '../types/track';
 
 export type TrackSignals = {
@@ -44,7 +44,7 @@ type Context = {
 const DEFAULT_VOLUME = 100;
 
 class TrackService {
-  readonly mixer: Mixer;
+  private readonly mixer: MixerService;
 
   // --- Private signals (only the service writes these) ---
 
@@ -68,7 +68,7 @@ class TrackService {
   constructor(context: Context) {
     this.context = context;
     this.audioSourceRepository = new AudioSourceRepository();
-    this.mixer = new Mixer();
+    this.mixer = new MixerService();
     this._mutedTracks = computed(() => {
       // Subscribe to store membership changes
       void this.storeVersion.value;
@@ -222,6 +222,30 @@ class TrackService {
       .reduce((prev, curr) => (prev >= curr ? prev : curr), 0);
   }
 
+  // --- Mixer delegates ---
+
+  getLoudness(): number {
+    return this.mixer.getLoudness();
+  }
+
+  retrieveChannel(trackId: string): AudioChannel | undefined {
+    return this.mixer.retrieveChannel(trackId);
+  }
+
+  // Recreates a mixer channel for a track whose audio source is already
+  // stored (e.g. after undo/redo removes and re-adds a track).
+  recreateChannel(trackId: string): boolean {
+    const source = this.audioSourceRepository.get(trackId);
+    if (!source) return false;
+    this.mixer.createChannel(
+      trackId,
+      source.audioBuffer,
+      source.normalizationGainDb,
+      source.startTime,
+    );
+    return true;
+  }
+
   // --- Cleanup ---
 
   deleteChannel(trackId: string): void {
@@ -283,6 +307,6 @@ class AudioSourceRepository {
   }
 }
 
-export { AudioChannel } from './Mixer';
+export { AudioChannel } from './MixerService';
 
 export default TrackService;
