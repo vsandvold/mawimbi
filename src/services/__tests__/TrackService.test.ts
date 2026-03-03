@@ -230,17 +230,12 @@ describe('TrackService', () => {
       expect(service.getSignals(trackId)).toBeDefined();
     });
 
-    it('creates a mixer channel with normalization gain', async () => {
-      const createChannelSpy = vi.spyOn(service.mixer, 'createChannel');
+    it('creates a mixer channel for the new track', async () => {
       const arrayBuffer = new ArrayBuffer(16);
 
       const { trackId } = await service.createTrack(arrayBuffer);
 
-      expect(createChannelSpy).toHaveBeenCalledWith(
-        trackId,
-        expect.anything(),
-        expect.any(Number),
-      );
+      expect(service.retrieveChannel(trackId)).toBeDefined();
     });
 
     it('stores the blob URL for the track', async () => {

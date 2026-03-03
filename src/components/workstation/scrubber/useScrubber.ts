@@ -119,7 +119,7 @@ export function useScrubber({
           setScrollPosition(time);
         }
 
-        const currentLoudness = trackHook.getMixerLoudness();
+        const currentLoudness = trackHook.getLoudness();
         playback.setLoudness(currentLoudness);
 
         const frequencyData =

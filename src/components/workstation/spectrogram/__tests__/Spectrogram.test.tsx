@@ -109,7 +109,7 @@ vi.mock('../../../../hooks/useRecordingService', () => ({
     startRecording: () => recordingService.startRecording(),
     stopRecording: () => recordingService.stopRecording(),
     getRecordingStartTime: () => recordingService.getRecordingStartTime(),
-    getMicrophoneSource: () => recordingService.microphone.source,
+    getMicrophoneSource: () => recordingService.getMicrophoneSource(),
     reset: () => recordingService.reset(),
   }),
 }));

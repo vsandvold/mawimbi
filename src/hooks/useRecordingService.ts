@@ -52,7 +52,7 @@ export function useRecordingService() {
     prepareMicrophone: () => service.prepareMicrophone(),
     closeMicrophone: () => service.closeMicrophone(),
     getLoudness: () => service.getLoudness(),
-    getMicrophoneSource: () => service.microphone.source,
+    getMicrophoneSource: () => service.getMicrophoneSource(),
 
     // --- Overdub recording ---
 

@@ -69,14 +69,9 @@ export function useTrackService() {
 
     // --- Audio engine ---
 
-    getMixerLoudness: () => service.mixer.getLoudness(),
-    createMixerChannel: (
-      trackId: string,
-      buffer: AudioBuffer,
-      normGainDb: number,
-    ) => service.mixer.createChannel(trackId, buffer, normGainDb),
-    retrieveMixerChannel: (trackId: string) =>
-      service.mixer.retrieveChannel(trackId),
+    getLoudness: () => service.getLoudness(),
+    retrieveChannel: (trackId: string) => service.retrieveChannel(trackId),
+    recreateChannel: (trackId: string) => service.recreateChannel(trackId),
 
     // --- Cleanup ---
 

@@ -1,11 +1,11 @@
 import { vi } from 'vitest';
 import * as Tone from 'tone';
-import MicrophoneUserMedia from '../MicrophoneUserMedia';
+import MicrophoneService from '../MicrophoneService';
 
-let mic: MicrophoneUserMedia;
+let mic: MicrophoneService;
 
 beforeEach(() => {
-  mic = new MicrophoneUserMedia();
+  mic = new MicrophoneService();
 });
 
 describe('constructor', () => {

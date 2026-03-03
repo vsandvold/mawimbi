@@ -55,12 +55,9 @@ The architecture is organized in layers with clear ownership boundaries. Depende
 UI Components & Effects    Read signals for rendering, call service functions for commands,
       │                    coordinate workflows (count-in, recording lifecycle)
       │
-  Sync Hooks               Subscribe to signals via effect(), translate state changes
-      │                    into audio engine calls
+  Bridge Hooks             Call useSignals(), translate service signals into React props
       │
-  Services & Signals       State machines that own and guard their signals
-      │
-  Audio Engine             Tone.js / Web Audio API (imperative, side-effectful)
+  Services & Signals       State machines that own signals and encapsulate audio engine
 ```
 
 ### Design Principles
@@ -73,17 +70,15 @@ These principles guide architectural decisions. Apply them when adding features,
 
 - **Services as state machines.** Services (`PlaybackService`, `RecordingService`) define their own state, transitions, and guards. They reject invalid transitions silently. Components and hooks call service functions (`play()`, `arm()`, `stopRecording()`) rather than manipulating state directly.
 
-- **Sync hooks for signal-to-engine translation.** Services are pure state machines with no audio engine dependency. Sync hooks (`usePlaybackSync`, `useTrackSync`) subscribe to signals via `effect()` and apply state changes to the Tone.js audio engine. They are deliberately simple — they translate, they don't decide.
-
 - **Bridge hooks translate signals to React.** Each signal-owning service has a corresponding bridge hook (`usePlaybackService`, `useRecordingService`, `useTrackService`, `useWorkstation`). The hook calls `useSignals()`, reads from `service.signals.*` via lazy getters, and returns plain values and action callbacks. Components never import signals directly. This keeps the reactive boundary in one place per service and makes signal refactors invisible to components.
 
 - **Workflows coordinate, services don't.** When a user action spans multiple services (e.g., recording stop needs to end the recording, create a track, and pause playback), the workflow hook (`useMicrophone`, `useCountIn`) coordinates those calls in sequence. Services stay focused on their own domain. Don't add a reactive intermediary when a direct function call in the workflow is simpler and more readable.
 
-- **Single responsibility per module.** Each module does one thing. `useMicrophone` manages the full recording lifecycle — starting/stopping the audio engine, creating tracks, transitioning recording state, and pausing playback on completion. `usePlaybackSync` translates playback state to audio engine commands. When a module accumulates unrelated concerns, split it. But don't split a cohesive workflow into pieces just because it touches multiple services — that adds indirection without adding clarity.
+- **Single responsibility per module.** Each module does one thing. `useMicrophone` manages the full recording lifecycle — starting/stopping the audio engine, creating tracks, transitioning recording state, and pausing playback on completion. When a module accumulates unrelated concerns, split it. But don't split a cohesive workflow into pieces just because it touches multiple services — that adds indirection without adding clarity.
 
 - **Encapsulation.** Services expose a public API of functions, plain getters, and a narrow `signals` accessor. Raw writable signals are private. Internal state (like `pendingSeekTime` in PlaybackService) is module-scoped and never exported. Repositories inside services are private. Consumers interact through the defined interface — never by reading `.value` on a signal they obtained outside a bridge hook.
 
-- **Prefer simple over indirect.** A direct call (`pause()`) in a workflow is better than a reactive chain (signal change → effect → service call → another effect → engine call) when the intent is clear and the trigger is already known. Reserve reactive patterns for cases where the producer genuinely shouldn't know about the consumer, such as the sync hooks that decouple services from the audio engine.
+- **Prefer simple over indirect.** A direct call (`pause()`) in a workflow is better than a reactive chain (signal change → effect → service call → another effect → engine call) when the intent is clear and the trigger is already known. Reserve reactive patterns for cases where the producer genuinely shouldn't know about the consumer.
 
 ### Services (`src/services/`)
 
@@ -93,28 +88,30 @@ Services own state as private signals, expose plain getters for non-reactive rea
 - State machine: `stopped → playing ⇄ paused → stopped`
 - Signals owned (private): `playbackState`, `transportTime`, `totalTime`, `loudness`, `isPlaying`
 - Plain getters: `playbackState`, `transportTime`, `totalTime`, `loudness`, `isPlaying`
-- Public API: `play()`, `pause()`, `stop()`, `togglePlayback()`, `rewind()`, `seekTo()`, `consumePendingSeek()`
+- Public API: `play()`, `pause()`, `stop()`, `togglePlayback()`, `rewind()`, `seekTo()`
 - Auto-rewinds when playing from end of timeline
 
-**RecordingService** — Owns the recording state machine and count-in signal.
+**RecordingService** — Owns the recording state machine, count-in signal, and microphone.
 - State machine: `idle → armed → recording → idle`
 - Signals owned (private): `recordingState`, `isCountingIn`, `isRecording`
 - Plain getters: `recordingState`, `isCountingIn`, `isRecording`
-- Public API: `arm()`, `disarm()`, `startRecording()`, `stopRecording()`, `toggleArm()`, `startCountIn()`, `stopCountIn()`, `isTransportLocked()`
+- Encapsulates `MicrophoneService` (private) — Tone.UserMedia wrapper for microphone input
+- Public API: `arm()`, `disarm()`, `startRecording()`, `stopRecording()`, `toggleArm()`, `startCountIn()`, `stopCountIn()`, `isTransportLocked()`, `prepareMicrophone()`, `closeMicrophone()`, `getLoudness()`, `getMicrophoneSource()`
 - The `armed` state models the GarageBand workflow: arm, position, then play to record
 
 **TrackService** — Owns track creation, per-track signals, and the mixer.
 - Signals owned (private): `mutedTracks` (computed from per-track mute/solo)
 - Plain getter: `mutedTracks`
+- Encapsulates `MixerService` (private) — Tone.Player + Tone.Channel chains per track
 - Per-track `volume`/`mute`/`solo` signals are auto-synced to mixer channels via internal effects
-- Public API: `createTrack()`, `createRecordedTrack()`, `getSignals()`, `createSignals()`, `disposeSignals()`
+- Public API: `createTrack()`, `createRecordedTrack()`, `getSignals()`, `createSignals()`, `disposeSignals()`, `getLoudness()`, `retrieveChannel()`, `recreateChannel()`, `deleteChannel()`
 
-**AudioService** — Singleton wrapping Tone.js. Imperative audio engine, no signals.
-- Owns `Mixer` (Tone.Player + Tone.Channel chains per track; mute, solo, volume)
-- Owns `MicrophoneUserMedia` (Tone.UserMedia wrapper for recording)
-- Owns `OfflineAnalyser` (waveform/spectrogram data via offline rendering)
+**AudioService** — Singleton that bootstraps the Tone.js audio context and creates sub-services.
+- Creates and owns: `PlaybackService`, `RecordingService`, `TrackService`, `SpectrogramCache`
+- Configures shared Tone.js context (interactive latency, reduced look-ahead for recording)
+- Static: `startAudio()` (context startup on user gesture), `getInstance()` (singleton access)
 
-Audio flow: upload → decode `AudioBuffer` + create Blob URL → `Mixer.createChannel()` → `Tone.Transport` controls playback → WaveSurfer 7 renders waveform via `load(blobUrl)`.
+Audio flow: upload → decode `AudioBuffer` + create Blob URL → `TrackService.createTrack()` → `Tone.Transport` controls playback.
 
 ### Signals (`src/signals/`)
 
@@ -145,7 +142,7 @@ Bridge hooks are the boundary between the signal-based service layer and React c
 - `src/components/project/` — Project page container, header with file upload
 - `src/components/workstation/` — Core editor: `Timeline`, `Waveform`, `Scrubber`, `Toolbar`, `Mixer`, `Channel`
 - `src/components/dropzone/` — Drag-and-drop file upload
-- `src/hooks/` — Shared hooks and sync hooks
+- `src/hooks/` — Bridge hooks and shared utility hooks
 
 ### Routing
 
@@ -163,14 +160,16 @@ src/
 ├── testUtils.ts                       # Shared test utilities
 │
 ├── services/
+│   ├── AudioService.ts                # Singleton: bootstraps Tone.js context, creates sub-services
 │   ├── PlaybackService.ts             # Playback state machine (stopped/playing/paused); owns playbackState,
 │   │                                  #   transportTime, totalTime, loudness signals
 │   ├── RecordingService.ts            # Recording state machine (idle/armed/recording); owns recordingState,
-│   │                                  #   isCountingIn signals
-│   ├── AudioService.ts                # Singleton Tone.js wrapper: track creation, transport, recording
-│   ├── Mixer.ts                       # Tone.Player + Tone.Channel chain per track; mute/solo/volume
-│   ├── MicrophoneUserMedia.ts         # Tone.UserMedia wrapper + meter for microphone input
-│   └── OfflineAnalyser.ts             # OfflineAudioContext + AnalyserNode for waveform/spectrogram data
+│   │                                  #   isCountingIn signals; encapsulates MicrophoneService
+│   ├── TrackService.ts                # Track creation, per-track signals, audio sources;
+│   │                                  #   encapsulates MixerService
+│   ├── MixerService.ts                # Tone.Player + Tone.Channel chain per track (private to TrackService)
+│   ├── MicrophoneService.ts           # Tone.UserMedia wrapper + meter (private to RecordingService)
+│   └── OfflineAnalyser.ts             # OfflineAudioContext + AnalyserNode for spectrogram data
 │
 ├── signals/
 │   ├── focusSignals.ts                # Focused track IDs: getFocusedTracks(), focusTrack(), signals.focusedTracks
@@ -201,23 +200,22 @@ src/
 │   ├── project/
 │   │   ├── ProjectPage.tsx            # Provides ProjectDispatch context + Fullscreen wrapper
 │   │   ├── ProjectPageHeader.tsx      # Title, file upload button, fullscreen toggle
-│   │   ├── projectPageReducer.ts      # Track list state: ADD_TRACK, MOVE_TRACK, SET_TRACK_MUTE/SOLO/VOLUME
+│   │   ├── projectPageReducer.ts      # Track list state: ADD_TRACK, DELETE_TRACK, MOVE_TRACK
 │   │   ├── projectPageEffects.ts      # useUploadFile (File → AudioService.createTrack), useFullscreen
 │   │   ├── useProjectReducer.tsx      # useReducer wrapper with initial state
 │   │   └── useProjectDispatch.tsx     # Context consumer hook for project dispatch
 │   │
 │   └── workstation/
-│       ├── Workstation.tsx            # Editor layout; wires sync hooks and effect hooks
+│       ├── Workstation.tsx            # Editor layout; wires effect hooks
 │       ├── Toolbar.tsx                # Playback/record/rewind/mixer toggle controls
-│       ├── Timeline.tsx               # Track list: renders Waveform or Spectrogram per track (memoized)
-│       ├── Waveform.tsx               # WaveSurfer.js integration per track
-│       ├── Spectrogram.tsx            # OfflineAnalyser frequency data visualization
-│       ├── Scrubber.tsx               # Playhead indicator + scrubbing interaction
+│       ├── Timeline.tsx               # Track list: renders Spectrogram per track (memoized)
 │       ├── Mixer.tsx                  # @dnd-kit drag-and-drop container for track reordering
 │       ├── Channel.tsx                # Single track controls: mute/solo buttons, volume slider
 │       ├── EmptyTimeline.tsx          # Placeholder shown when no tracks exist
-│       └── workstationEffects.ts      # useSpacebarPlaybackToggle, useCountIn, useMicrophone, useMixerHeight,
-│                                      #   useTotalTime
+│       ├── workstationEffects.ts      # useSpacebarPlaybackToggle, useCountIn, useMicrophone, useMixerHeight,
+│       │                              #   useTotalTime
+│       ├── scrubber/Scrubber.tsx      # Playhead indicator + scrubbing interaction
+│       └── spectrogram/Spectrogram.tsx # Spectrogram frequency data visualization
 │
 └── types/
     └── track.ts                       # Track, TrackColor type definitions
@@ -225,11 +223,8 @@ src/
 
 ## Non-Obvious Patterns
 
-### Pending seek pattern
-`seekTo(time)` sets a module-scoped `pendingSeekTime` and updates the private `_transportTime` signal. `consumePendingSeek()` reads the buffered seek and applies it to the audio engine atomically with the state transition. This avoids race conditions between signal writes and effect execution.
-
 ### Workflow hooks coordinate across services
-`useMicrophone` and `useCountIn` are workflow hooks that coordinate multiple services to complete a user-facing interaction. When recording stops, `useMicrophone` calls `endRecording()` (RecordingService), then `pause()` (PlaybackService), then syncs `transportTime` — all in sequence. This is simpler and more readable than routing through reactive intermediaries. Workflows call service functions directly; they don't introduce signal-to-signal relays.
+`useMicrophone` and `useCountIn` are workflow hooks that coordinate multiple services to complete a user-facing interaction. When recording stops, `useMicrophone` calls `stopRecording()` (RecordingService), then `pause()` (PlaybackService), then syncs `transportTime` — all in sequence. This is simpler and more readable than routing through reactive intermediaries. Workflows call service functions directly; they don't introduce signal-to-signal relays.
 
 ### Project reducer action format is tuple-based
 Actions are `[ACTION_TYPE, payload?]` tuples, **not** `{ type, payload }` objects:
@@ -239,7 +234,7 @@ dispatch(['MOVE_TRACK', { fromIndex, toIndex }]);
 ```
 
 ### Repository pattern inside services
-`AudioService` owns an `AudioSourceRepository` (decoded `AudioBuffer`s); `Mixer` owns an `AudioChannelRepository` (`Tone.Channel` instances). Both are private and accessed only through their parent service.
+`TrackService` owns an `AudioSourceRepository` (decoded `AudioBuffer`s); `MixerService` owns an `AudioChannelRepository` (`Tone.Channel` instances). Both are private and accessed only through their parent service.
 
 ### Mixer displays tracks in reverse order
 `Mixer.tsx` reverses the track array for visual stacking. Drag-and-drop indices are converted back before dispatching `MOVE_TRACK`, so callers always deal with logical (non-reversed) indices.
@@ -256,7 +251,7 @@ dispatch(['MOVE_TRACK', { fromIndex, toIndex }]);
 `useEffect`/`useCallback` deps arrays intentionally omit `audioService` and `dispatch` refs with inline comments. These are stable across renders; adding them would cause spurious re-runs.
 
 ### Volume slider uses dB conversion
-Channel volume (slider 0–100) is converted to decibels: `20 * Math.log((value + 1) / 101)`. This is applied inside `Mixer.setVolume()`, not in the component.
+Channel volume (slider 0–100) is converted to decibels: `20 * Math.log((value + 1) / 101)`. This is applied inside `AudioChannel.volume` (in MixerService), not in the component.
 
 ### Throttle vs. debounce in Channel
 - Volume slider → `useThrottled(100ms)` — limits audio engine calls while dragging
@@ -266,7 +261,7 @@ Channel volume (slider 0–100) is converted to decibels: `20 * Math.log((value 
 `OfflineAnalyser` auto-detects API support at runtime: uses `OfflineAudioContext.suspend()` if available, otherwise falls back to `ScriptProcessorNode`. This is why `browserSupport.tsx` exists as a context.
 
 ### @dnd-kit is PointerSensor only
-`Mixer` registers only `PointerSensor` (not `MouseSensor` or `TouchSensor`). This is intentional to unify pointer events across devices.
+`Mixer.tsx` registers only `PointerSensor` (not `MouseSensor` or `TouchSensor`). This is intentional to unify pointer events across devices.
 
 ### Signal access pattern
 Every signal owner (service or signal module) provides three tiers of access:

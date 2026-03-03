@@ -1,11 +1,11 @@
 import { vi } from 'vitest';
 import * as Tone from 'tone';
-import Mixer, { AudioChannel } from '../Mixer';
+import MixerService, { AudioChannel } from '../MixerService';
 
-let mixer: Mixer;
+let mixer: MixerService;
 
 beforeEach(() => {
-  mixer = new Mixer();
+  mixer = new MixerService();
 });
 
 describe('constructor', () => {

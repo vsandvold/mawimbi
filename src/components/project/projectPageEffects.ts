@@ -56,14 +56,8 @@ export const useTrackSideEffects = (tracks: Track[]) => {
           const initialVolume = trackHook.retrieveInitialVolume(track.trackId);
           trackHook.createSignals(track.trackId, initialVolume);
         }
-        if (!trackHook.retrieveMixerChannel(track.trackId)) {
-          const buffer = trackHook.retrieveAudioBuffer(track.trackId);
-          if (buffer) {
-            const normGainDb = trackHook.retrieveNormalizationGainDb(
-              track.trackId,
-            );
-            trackHook.createMixerChannel(track.trackId, buffer, normGainDb);
-          }
+        if (!trackHook.retrieveChannel(track.trackId)) {
+          trackHook.recreateChannel(track.trackId);
         }
       }
     }
