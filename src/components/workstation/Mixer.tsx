@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useSignals } from '@preact/signals-react/runtime';
-import { mutedTracks as mutedTracksSignal } from '../../signals/trackSignals';
+import { useTrackService } from '../../hooks/useAudioService';
 import { type Track, type TrackId } from '../../types/track';
 import { MOVE_TRACK } from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
@@ -25,12 +25,13 @@ type MixerProps = {
 
 const Mixer = ({ tracks }: MixerProps) => {
   useSignals();
+  const trackService = useTrackService();
   const projectDispatch = useProjectDispatch();
   const sensors = useSensors(useSensor(PointerSensor));
 
   const reversedTracks = tracks.slice().reverse();
   const reversedIds = reversedTracks.map((t) => t.trackId);
-  const mutedTracks = mutedTracksSignal.value;
+  const mutedTracks = trackService.mutedTracks.value;
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;

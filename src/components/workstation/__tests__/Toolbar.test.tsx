@@ -1,14 +1,11 @@
 import { fireEvent, render } from '@testing-library/react';
 import { vi } from 'vitest';
-import { play, resetPlaybackService } from '../../../services/PlaybackService';
-import {
-  arm,
-  resetRecordingService,
-  startCountIn,
-  startRecording,
-} from '../../../services/RecordingService';
-import { isPlaying } from '../../../signals/transportSignals';
+import AudioService from '../../../services/AudioService';
 import Toolbar from '../Toolbar';
+
+const audioService = AudioService.getInstance();
+const playbackService = audioService.playbackService;
+const recordingService = audioService.recordingService;
 
 const mockToggleMixer = vi.fn();
 const mockToggleRecording = vi.fn();
@@ -21,8 +18,8 @@ const defaultProps = {
 };
 
 afterEach(() => {
-  resetPlaybackService();
-  resetRecordingService();
+  playbackService.reset();
+  recordingService.reset();
 });
 
 it('renders all buttons', () => {
@@ -63,7 +60,7 @@ it('renders play icon when stopped', () => {
 });
 
 it('renders pause icon when playing', () => {
-  play();
+  playbackService.play();
 
   const { getByTitle } = render(<Toolbar {...defaultProps} />);
 
@@ -100,7 +97,7 @@ it('toggles playback when play/pause button is clicked', () => {
   const playButton = getByTitle('Play');
   fireEvent.click(playButton);
 
-  expect(isPlaying.value).toBe(true);
+  expect(playbackService.isPlaying.value).toBe(true);
 });
 
 it('toggles mixer when mixer show/hide is clicked', () => {
@@ -115,9 +112,9 @@ it('toggles mixer when mixer show/hide is clicked', () => {
 });
 
 it('disables play/pause button while recording', () => {
-  play();
-  arm();
-  startRecording();
+  playbackService.play();
+  recordingService.arm();
+  recordingService.startRecording();
 
   const { getByTitle } = render(<Toolbar {...defaultProps} />);
 
@@ -125,7 +122,7 @@ it('disables play/pause button while recording', () => {
 });
 
 it('disables play/pause button during count-in', () => {
-  startCountIn();
+  recordingService.startCountIn();
 
   const { getByTitle } = render(<Toolbar {...defaultProps} />);
 
@@ -133,7 +130,7 @@ it('disables play/pause button during count-in', () => {
 });
 
 it('keeps record button enabled during count-in for cancellation', () => {
-  startCountIn();
+  recordingService.startCountIn();
 
   const { getByTitle } = render(<Toolbar {...defaultProps} />);
 
@@ -147,7 +144,7 @@ it('disables rewind button when stopped', () => {
 });
 
 it('enables rewind button when playing', () => {
-  play();
+  playbackService.play();
 
   const { getByTitle } = render(<Toolbar {...defaultProps} />);
 

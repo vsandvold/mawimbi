@@ -1,19 +1,13 @@
 import { isInaccessible } from '@testing-library/dom';
 import { act, fireEvent, render } from '@testing-library/react';
+import * as Tone from 'tone';
 import AudioService from '../../../../services/AudioService';
-import {
-  play,
-  resetPlaybackService,
-  transportTime,
-} from '../../../../services/PlaybackService';
-import {
-  arm,
-  resetRecordingService,
-  startCountIn,
-  startRecording,
-} from '../../../../services/RecordingService';
-import { isPlaying } from '../../../../signals/transportSignals';
 import Scrubber from '../Scrubber';
+
+const audioService = AudioService.getInstance();
+const playbackService = audioService.playbackService;
+const recordingService = audioService.recordingService;
+const trackService = audioService.trackService;
 
 const defaultProps = {
   drawerHeight: 0,
@@ -24,8 +18,9 @@ const defaultProps = {
 };
 
 afterEach(() => {
-  resetPlaybackService();
-  resetRecordingService();
+  playbackService.reset();
+  recordingService.reset();
+  Tone.getTransport().seconds = 0;
 });
 
 it('hides rewind button at start of playback', () => {
@@ -39,7 +34,7 @@ it('hides rewind button at start of playback', () => {
 });
 
 it('shows rewind button when playback has progressed', () => {
-  transportTime.value = 100;
+  playbackService.transportTime.value = 100;
 
   const { getByTitle } = render(<Scrubber {...defaultProps} />);
 
@@ -52,27 +47,27 @@ it('shows rewind button when playback has progressed', () => {
 });
 
 it('stops and rewinds playback when rewind button is clicked', () => {
-  play();
-  transportTime.value = 5.0;
+  playbackService.play();
+  playbackService.transportTime.value = 5.0;
 
   const { getByTitle } = render(<Scrubber {...defaultProps} />);
 
   const rewindButton = getByTitle('Rewind');
   fireEvent.click(rewindButton);
 
-  expect(isPlaying.value).toBe(false);
-  expect(transportTime.value).toBe(0);
+  expect(playbackService.isPlaying.value).toBe(false);
+  expect(playbackService.transportTime.value).toBe(0);
 });
 
 it('pauses playback when timeline is scrolled while playing', () => {
-  play();
+  playbackService.play();
 
   const { container } = render(<Scrubber {...defaultProps} />);
 
   const timeline = container.querySelector('.scrubber__timeline')!;
   fireEvent.scroll(timeline);
 
-  expect(isPlaying.value).toBe(false);
+  expect(playbackService.isPlaying.value).toBe(false);
 });
 
 it('does not pause playback when timeline is scrolled while paused', () => {
@@ -81,7 +76,7 @@ it('does not pause playback when timeline is scrolled while paused', () => {
   const timeline = container.querySelector('.scrubber__timeline')!;
   fireEvent.scroll(timeline);
 
-  expect(isPlaying.value).toBe(false);
+  expect(playbackService.isPlaying.value).toBe(false);
 });
 
 it('transforms timeline vertical scale when drawer is open', () => {
@@ -118,8 +113,7 @@ it('renders plasma playhead canvas in the cursor container', () => {
 });
 
 it('feeds plasma renderer with loudness during playback', () => {
-  const audioService = AudioService.getInstance();
-  vi.spyOn(audioService.mixer, 'getLoudness').mockReturnValue(0.75);
+  vi.spyOn(trackService.mixer, 'getLoudness').mockReturnValue(0.75);
 
   let rafCallback: FrameRequestCallback = () => {};
   vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
@@ -127,7 +121,7 @@ it('feeds plasma renderer with loudness during playback', () => {
     return 1;
   });
 
-  play();
+  playbackService.play();
 
   render(<Scrubber {...defaultProps} />);
 
@@ -135,13 +129,12 @@ it('feeds plasma renderer with loudness during playback', () => {
     rafCallback(0);
   });
 
-  expect(audioService.mixer.getLoudness).toHaveBeenCalled();
+  expect(trackService.mixer.getLoudness).toHaveBeenCalled();
 });
 
 it('does not stop playback at end of scroll during recording', () => {
-  const audioService = AudioService.getInstance();
-  vi.spyOn(audioService, 'getTransportTime').mockReturnValue(1.5);
-  vi.spyOn(audioService.mixer, 'getLoudness').mockReturnValue(0);
+  vi.spyOn(playbackService, 'getEngineTime').mockReturnValue(1.5);
+  vi.spyOn(trackService.mixer, 'getLoudness').mockReturnValue(0);
 
   let rafCallback: FrameRequestCallback = () => {};
   vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
@@ -149,9 +142,9 @@ it('does not stop playback at end of scroll during recording', () => {
     return 1;
   });
 
-  play();
-  arm();
-  startRecording();
+  playbackService.play();
+  recordingService.arm();
+  recordingService.startRecording();
 
   render(<Scrubber {...defaultProps} />);
 
@@ -162,13 +155,12 @@ it('does not stop playback at end of scroll during recording', () => {
     rafCallback(0);
   });
 
-  expect(isPlaying.value).toBe(true);
-  expect(transportTime.value).toBe(1.5);
+  expect(playbackService.isPlaying.value).toBe(true);
+  expect(playbackService.transportTime.value).toBe(1.5);
 });
 
 it('does not call getLoudness when playback is stopped', () => {
-  const audioService = AudioService.getInstance();
-  const getLoudnessSpy = vi.spyOn(audioService.mixer, 'getLoudness');
+  const getLoudnessSpy = vi.spyOn(trackService.mixer, 'getLoudness');
 
   render(<Scrubber {...defaultProps} />);
 
@@ -176,9 +168,9 @@ it('does not call getLoudness when playback is stopped', () => {
 });
 
 it('stops recording when timeline is clicked during recording', () => {
-  play();
-  arm();
-  startRecording();
+  playbackService.play();
+  recordingService.arm();
+  recordingService.startRecording();
   const onStopRecording = vi.fn();
 
   const { container } = render(
@@ -189,14 +181,14 @@ it('stops recording when timeline is clicked during recording', () => {
   fireEvent.click(timeline);
 
   expect(onStopRecording).toHaveBeenCalledOnce();
-  expect(isPlaying.value).toBe(true);
+  expect(playbackService.isPlaying.value).toBe(true);
 });
 
 it('cancels count-in when timeline is clicked during count-in', () => {
-  play();
-  arm();
-  startRecording();
-  startCountIn();
+  playbackService.play();
+  recordingService.arm();
+  recordingService.startRecording();
+  recordingService.startCountIn();
   const onStopRecording = vi.fn();
 
   const { container } = render(
@@ -207,40 +199,39 @@ it('cancels count-in when timeline is clicked during count-in', () => {
   fireEvent.click(timeline);
 
   expect(onStopRecording).toHaveBeenCalledOnce();
-  expect(isPlaying.value).toBe(true);
+  expect(playbackService.isPlaying.value).toBe(true);
 });
 
 it('does not pause playback when timeline is scrolled during recording', () => {
-  play();
-  arm();
-  startRecording();
+  playbackService.play();
+  recordingService.arm();
+  recordingService.startRecording();
 
   const { container } = render(<Scrubber {...defaultProps} />);
 
   const timeline = container.querySelector('.scrubber__timeline')!;
   fireEvent.scroll(timeline);
 
-  expect(isPlaying.value).toBe(true);
+  expect(playbackService.isPlaying.value).toBe(true);
 });
 
 it('does not rewind when rewind button is clicked during recording', () => {
-  play();
-  arm();
-  startRecording();
-  transportTime.value = 5.0;
+  playbackService.play();
+  recordingService.arm();
+  recordingService.startRecording();
+  playbackService.transportTime.value = 5.0;
 
   const { getByTitle } = render(<Scrubber {...defaultProps} />);
 
   fireEvent.click(getByTitle('Rewind'));
 
-  expect(isPlaying.value).toBe(true);
-  expect(transportTime.value).toBe(5.0);
+  expect(playbackService.isPlaying.value).toBe(true);
+  expect(playbackService.transportTime.value).toBe(5.0);
 });
 
 it('does not update transportTime during count-in', () => {
-  const audioService = AudioService.getInstance();
-  vi.spyOn(audioService, 'getTransportTime').mockReturnValue(3.5);
-  vi.spyOn(audioService.mixer, 'getLoudness').mockReturnValue(0);
+  vi.spyOn(playbackService, 'getEngineTime').mockReturnValue(3.5);
+  vi.spyOn(trackService.mixer, 'getLoudness').mockReturnValue(0);
 
   let rafCallback: FrameRequestCallback = () => {};
   vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
@@ -248,11 +239,11 @@ it('does not update transportTime during count-in', () => {
     return 1;
   });
 
-  transportTime.value = 5.0;
-  play();
-  arm();
-  startRecording();
-  startCountIn();
+  playbackService.transportTime.value = 5.0;
+  playbackService.play();
+  recordingService.arm();
+  recordingService.startRecording();
+  recordingService.startCountIn();
 
   render(<Scrubber {...defaultProps} />);
 
@@ -262,5 +253,5 @@ it('does not update transportTime during count-in', () => {
 
   // transportTime should stay at the pre-count-in value, not update
   // to the current transport position (3.5) during count-in
-  expect(transportTime.value).toBe(5.0);
+  expect(playbackService.transportTime.value).toBe(5.0);
 });

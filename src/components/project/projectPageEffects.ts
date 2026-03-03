@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { useAudioService } from '../../hooks/useAudioService';
-import { TrackSignalStore } from '../../signals/trackSignals';
+import { useTrackService } from '../../hooks/useAudioService';
 import {
   FullScreenHandle,
   useFullScreenHandle,
@@ -10,7 +9,7 @@ import { type Track } from '../../types/track';
 import { ADD_TRACK, type ProjectAction } from './projectPageReducer';
 
 export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
-  const audioService = useAudioService();
+  const trackService = useTrackService();
 
   const uploadFile = useCallback(
     (file: File) => {
@@ -21,10 +20,9 @@ export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
       reader.onerror = () => msg.error(fileName);
       reader.onload = () => {
         const arrayBuffer = reader.result as ArrayBuffer;
-        audioService
+        trackService
           .createTrack(arrayBuffer)
-          .then(({ trackId, initialVolume }) => {
-            TrackSignalStore.create(trackId, initialVolume);
+          .then(({ trackId }) => {
             dispatch([ADD_TRACK, { trackId, fileName }]);
             msg.success(fileName);
           })
@@ -35,14 +33,14 @@ export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
       msg.loading(fileName);
       reader.readAsArrayBuffer(file);
     },
-    [audioService, dispatch],
+    [trackService, dispatch],
   );
 
   return uploadFile;
 };
 
 export const useTrackSideEffects = (tracks: Track[]) => {
-  const audioService = useAudioService();
+  const trackService = useTrackService();
   const previousTracksRef = useRef<Track[]>([]);
 
   useEffect(() => {
@@ -53,19 +51,19 @@ export const useTrackSideEffects = (tracks: Track[]) => {
     // Tracks restored via undo/redo — recreate signals and mixer channels
     for (const track of tracks) {
       if (!prevIds.has(track.trackId)) {
-        if (!TrackSignalStore.get(track.trackId)) {
-          const initialVolume = audioService.retrieveInitialVolume(
+        if (!trackService.getSignals(track.trackId)) {
+          const initialVolume = trackService.retrieveInitialVolume(
             track.trackId,
           );
-          TrackSignalStore.create(track.trackId, initialVolume);
+          trackService.createSignals(track.trackId, initialVolume);
         }
-        if (!audioService.mixer.retrieveChannel(track.trackId)) {
-          const buffer = audioService.retrieveAudioBuffer(track.trackId);
+        if (!trackService.mixer.retrieveChannel(track.trackId)) {
+          const buffer = trackService.retrieveAudioBuffer(track.trackId);
           if (buffer) {
-            const normGainDb = audioService.retrieveNormalizationGainDb(
+            const normGainDb = trackService.retrieveNormalizationGainDb(
               track.trackId,
             );
-            audioService.mixer.createChannel(track.trackId, buffer, normGainDb);
+            trackService.mixer.createChannel(track.trackId, buffer, normGainDb);
           }
         }
       }
@@ -74,13 +72,13 @@ export const useTrackSideEffects = (tracks: Track[]) => {
     // Tracks removed via undo/redo — dispose signals and mixer channels
     for (const track of previousTracks) {
       if (!currIds.has(track.trackId)) {
-        TrackSignalStore.dispose(track.trackId);
-        audioService.mixer.deleteChannel(track.trackId);
+        trackService.disposeSignals(track.trackId);
+        trackService.deleteChannel(track.trackId);
       }
     }
 
     previousTracksRef.current = tracks;
-  }, [tracks, audioService]);
+  }, [tracks, trackService]);
 };
 
 export const useFullscreen = () => {

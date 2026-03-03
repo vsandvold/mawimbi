@@ -1,12 +1,12 @@
 import { useEffect, useRef } from 'react';
 import { useAnimationFrame } from '../../../hooks/useAnimationFrame';
-import { useAudioService } from '../../../hooks/useAudioService';
+import {
+  usePlaybackService,
+  useRecordingService,
+  useTrackService,
+} from '../../../hooks/useAudioService';
 import { useTrackVolume } from '../../../hooks/useTrackVolume';
 import FrequencyVisualizer from '../../../services/FrequencyVisualizer';
-import {
-  isRecording as isRecordingSignal,
-  transportTime,
-} from '../../../signals/transportSignals';
 import { type Track } from '../../../types/track';
 import RecordingBuffer from './RecordingBuffer';
 import './Spectrogram.css';
@@ -35,16 +35,18 @@ const Spectrogram = ({
 
   const { trackId, color } = track;
 
-  const audioService = useAudioService();
+  const playbackService = usePlaybackService();
+  const recordingService = useRecordingService();
+  const trackService = useTrackService();
   const audioBuffer = isRecordingTrack
     ? undefined
-    : audioService.retrieveAudioBuffer(trackId);
+    : trackService.retrieveAudioBuffer(trackId);
 
   const entry = useSpectrogramCache(trackId, audioBuffer, color);
 
   const startTime = isRecordingTrack
     ? 0
-    : (audioService.retrieveStartTime(trackId) ?? 0);
+    : (trackService.retrieveStartTime(trackId) ?? 0);
 
   const duration = audioBuffer?.duration ?? 0;
 
@@ -60,7 +62,7 @@ const Spectrogram = ({
   useEffect(() => {
     if (isRecordingTrack) {
       const visualizer = new FrequencyVisualizer(
-        audioService.microphone.source,
+        recordingService.microphone.source,
       );
       visualizerRef.current = visualizer;
       recordingBufferRef.current = new RecordingBuffer(
@@ -73,7 +75,7 @@ const Spectrogram = ({
       visualizerRef.current = null;
       recordingBufferRef.current = null;
     };
-  }, [isRecordingTrack, color, audioService]);
+  }, [isRecordingTrack, color, recordingService]);
 
   // Draw visible tiles on each animation frame
   useAnimationFrame(() => {
@@ -87,7 +89,8 @@ const Spectrogram = ({
         container,
         recordingBufferRef.current,
         visualizerRef.current,
-        audioService,
+        recordingService,
+        playbackService,
         pixelsPerSecond,
         height,
       );
@@ -138,15 +141,19 @@ function drawRecordingFrame(
   container: HTMLDivElement,
   buffer: RecordingBuffer | null,
   visualizer: FrequencyVisualizer | null,
-  audioService: ReturnType<typeof useAudioService>,
+  recordingService: ReturnType<typeof useRecordingService>,
+  playbackService: ReturnType<typeof usePlaybackService>,
   pixelsPerSecond: number,
   height: number,
 ): void {
   if (!buffer || !visualizer) return;
 
-  const recording = isRecordingSignal.value;
-  const recordingStartTime = audioService.getRecordingStartTime();
-  const elapsed = Math.max(0, transportTime.value - recordingStartTime);
+  const recording = recordingService.isRecording.value;
+  const recordingStartTime = recordingService.getRecordingStartTime();
+  const elapsed = Math.max(
+    0,
+    playbackService.transportTime.value - recordingStartTime,
+  );
   const contentWidth = elapsed * pixelsPerSecond;
 
   // Update container width and offset directly to avoid React re-renders

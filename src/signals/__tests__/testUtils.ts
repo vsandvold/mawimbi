@@ -1,11 +1,12 @@
-import { TrackSignalStore } from '../trackSignals';
-import { resetTransportSignals } from '../transportSignals';
+import AudioService from '../../services/AudioService';
 import { resetFocusSignals } from '../focusSignals';
 import { resetWorkstationSignals } from '../workstationSignals';
 
 export function resetAllSignals(): void {
-  TrackSignalStore.reset();
-  resetTransportSignals();
+  const audioService = AudioService.getInstance();
+  audioService.playbackService.reset();
+  audioService.recordingService.reset();
+  audioService.trackService.reset();
   resetFocusSignals();
   resetWorkstationSignals();
 }

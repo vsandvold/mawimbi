@@ -1,37 +1,12 @@
 import { act, renderHook } from '@testing-library/react';
 import { vi } from 'vitest';
-import {
-  isCountingIn,
-  isPlaying,
-  isRecording,
-  resetTransportSignals,
-} from '../../../signals/transportSignals';
+import * as Tone from 'tone';
+import AudioService from '../../../services/AudioService';
 import { useCountIn } from '../workstationEffects';
 
-const mockPrepareMicrophone = vi.fn().mockResolvedValue(undefined);
-const mockCloseMicrophone = vi.fn();
-const mockGetTransportTime = vi.fn().mockReturnValue(0);
-const mockSetTransportTime = vi.fn();
-
-vi.mock('../../../services/AudioService', () => ({
-  default: {
-    getInstance: vi.fn().mockReturnValue({
-      startPlayback: vi.fn(),
-      pausePlayback: vi.fn(),
-      setTransportTime: vi.fn(),
-      mixer: { getMutedChannels: vi.fn().mockReturnValue([]) },
-    }),
-  },
-}));
-
-vi.mock('../../../hooks/useAudioService', () => ({
-  useAudioService: () => ({
-    prepareMicrophone: mockPrepareMicrophone,
-    closeMicrophone: mockCloseMicrophone,
-    getTransportTime: mockGetTransportTime,
-    setTransportTime: mockSetTransportTime,
-  }),
-}));
+const audioService = AudioService.getInstance();
+const playbackService = audioService.playbackService;
+const recordingService = audioService.recordingService;
 
 vi.mock('../../message', () => ({
   default: () => ({
@@ -42,13 +17,25 @@ vi.mock('../../message', () => ({
   }),
 }));
 
+let prepareMicSpy: ReturnType<typeof vi.spyOn>;
+let closeMicSpy: ReturnType<typeof vi.spyOn>;
+
 beforeEach(() => {
   vi.useFakeTimers();
+  prepareMicSpy = vi
+    .spyOn(recordingService, 'prepareMicrophone')
+    .mockResolvedValue(undefined);
+  closeMicSpy = vi
+    .spyOn(recordingService, 'closeMicrophone')
+    .mockImplementation(() => {});
 });
 
 afterEach(() => {
-  resetTransportSignals();
+  playbackService.reset();
+  recordingService.reset();
+  Tone.getTransport().seconds = 0;
   vi.clearAllMocks();
+  vi.restoreAllMocks();
   vi.useRealTimers();
 });
 
@@ -61,11 +48,11 @@ it('prepares microphone when count-in starts', async () => {
 
   await act(async () => {});
 
-  expect(mockPrepareMicrophone).toHaveBeenCalledOnce();
+  expect(prepareMicSpy).toHaveBeenCalledOnce();
 });
 
 it('sets isPlaying and isRecording signals during count-in with full lead-in', async () => {
-  mockGetTransportTime.mockReturnValue(5.0);
+  Tone.getTransport().seconds = 5.0;
   const onComplete = vi.fn();
 
   renderHook(({ active }) => useCountIn(active, onComplete), {
@@ -74,8 +61,8 @@ it('sets isPlaying and isRecording signals during count-in with full lead-in', a
 
   await act(async () => {});
 
-  expect(isPlaying.value).toBe(true);
-  expect(isRecording.value).toBe(true);
+  expect(playbackService.isPlaying.value).toBe(true);
+  expect(recordingService.isRecording.value).toBe(true);
 });
 
 it('returns beat numbers 1 through 4', async () => {
@@ -156,9 +143,9 @@ it('cleans up microphone and signals when cancelled', async () => {
   // Cancel during count-in
   rerender({ active: false });
 
-  expect(mockCloseMicrophone).toHaveBeenCalledOnce();
-  expect(isPlaying.value).toBe(false);
-  expect(isRecording.value).toBe(false);
+  expect(closeMicSpy).toHaveBeenCalledOnce();
+  expect(playbackService.isPlaying.value).toBe(false);
+  expect(recordingService.isRecording.value).toBe(false);
   expect(onComplete).not.toHaveBeenCalled();
 });
 
@@ -185,7 +172,7 @@ it('does not clean up microphone when count-in completes normally', async () => 
   rerender({ active: false });
 
   // Microphone should NOT be closed — recording will take it over
-  expect(mockCloseMicrophone).not.toHaveBeenCalled();
+  expect(closeMicSpy).not.toHaveBeenCalled();
 });
 
 it('returns null when not counting in', () => {
@@ -200,7 +187,7 @@ it('returns null when not counting in', () => {
 });
 
 it('does not start playback when transport is at position 0', async () => {
-  mockGetTransportTime.mockReturnValue(0);
+  Tone.getTransport().seconds = 0;
   const onComplete = vi.fn();
 
   renderHook(({ active }) => useCountIn(active, onComplete), {
@@ -211,14 +198,14 @@ it('does not start playback when transport is at position 0', async () => {
 
   // At position 0, there is no lead-in audio available.
   // Playback should not start during count-in.
-  expect(isPlaying.value).toBe(false);
-  expect(isRecording.value).toBe(true);
-  expect(isCountingIn.value).toBe(true);
+  expect(playbackService.isPlaying.value).toBe(false);
+  expect(recordingService.isRecording.value).toBe(true);
+  expect(recordingService.isCountingIn.value).toBe(true);
 });
 
 it('delays playback start when lead-in is shorter than count-in duration', async () => {
   // Transport at 0.5s — only 0.5s of lead-in available (count-in is 2s)
-  mockGetTransportTime.mockReturnValue(0.5);
+  Tone.getTransport().seconds = 0.5;
   const onComplete = vi.fn();
 
   renderHook(({ active }) => useCountIn(active, onComplete), {
@@ -230,18 +217,19 @@ it('delays playback start when lead-in is shorter than count-in duration', async
   // Playback should not start immediately — it should be delayed
   // by (2.0 - 0.5) = 1.5s so the transport arrives at 0.5s when
   // the count-in ends
-  expect(isPlaying.value).toBe(false);
+  expect(playbackService.isPlaying.value).toBe(false);
 
   // Advance past the delay (1500ms)
   await act(async () => {
     vi.advanceTimersByTime(1500);
   });
 
-  expect(isPlaying.value).toBe(true);
+  expect(playbackService.isPlaying.value).toBe(true);
 });
 
 it('seeks transport back by count-in duration before starting playback', async () => {
-  mockGetTransportTime.mockReturnValue(5.0);
+  Tone.getTransport().seconds = 5.0;
+  const setEngineTimeSpy = vi.spyOn(playbackService, 'setEngineTime');
   const onComplete = vi.fn();
 
   renderHook(({ active }) => useCountIn(active, onComplete), {
@@ -251,11 +239,12 @@ it('seeks transport back by count-in duration before starting playback', async (
   await act(async () => {});
 
   // Count-in duration is 4 beats * 500ms = 2s
-  expect(mockSetTransportTime).toHaveBeenCalledWith(3.0);
+  expect(setEngineTimeSpy).toHaveBeenCalledWith(3.0);
 });
 
 it('clamps seek-back to zero when transport is near start', async () => {
-  mockGetTransportTime.mockReturnValue(0.5);
+  Tone.getTransport().seconds = 0.5;
+  const setEngineTimeSpy = vi.spyOn(playbackService, 'setEngineTime');
   const onComplete = vi.fn();
 
   renderHook(({ active }) => useCountIn(active, onComplete), {
@@ -264,7 +253,7 @@ it('clamps seek-back to zero when transport is near start', async () => {
 
   await act(async () => {});
 
-  expect(mockSetTransportTime).toHaveBeenCalledWith(0);
+  expect(setEngineTimeSpy).toHaveBeenCalledWith(0);
 });
 
 it('sets isCountingIn signal during count-in', async () => {
@@ -276,7 +265,7 @@ it('sets isCountingIn signal during count-in', async () => {
 
   await act(async () => {});
 
-  expect(isCountingIn.value).toBe(true);
+  expect(recordingService.isCountingIn.value).toBe(true);
 });
 
 it('clears isCountingIn signal after count-in completes', async () => {
@@ -294,7 +283,7 @@ it('clears isCountingIn signal after count-in completes', async () => {
     });
   }
 
-  expect(isCountingIn.value).toBe(false);
+  expect(recordingService.isCountingIn.value).toBe(false);
 });
 
 it('clears isCountingIn signal when cancelled', async () => {
@@ -306,9 +295,9 @@ it('clears isCountingIn signal when cancelled', async () => {
   );
 
   await act(async () => {});
-  expect(isCountingIn.value).toBe(true);
+  expect(recordingService.isCountingIn.value).toBe(true);
 
   rerender({ active: false });
 
-  expect(isCountingIn.value).toBe(false);
+  expect(recordingService.isCountingIn.value).toBe(false);
 });
