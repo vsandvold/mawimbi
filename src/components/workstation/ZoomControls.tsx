@@ -1,15 +1,8 @@
 import { MinusOutlined, PlusOutlined } from '@ant-design/icons';
-import { useSignals } from '@preact/signals-react/runtime';
 import { Button } from 'antd';
 import { type CSSProperties } from 'react';
-import { useRecordingService } from '../../hooks/useAudioService';
-import {
-  MAX_PIXELS_PER_SECOND,
-  MIN_PIXELS_PER_SECOND,
-  pixelsPerSecond as pixelsPerSecondSignal,
-  zoomIn,
-  zoomOut,
-} from '../../signals/workstationSignals';
+import { useRecordingService } from '../../hooks/useRecordingService';
+import { useWorkstation } from '../../hooks/useWorkstation';
 import './ZoomControls.css';
 
 type ZoomControlsProps = {
@@ -17,12 +10,8 @@ type ZoomControlsProps = {
 };
 
 const ZoomControls = ({ style }: ZoomControlsProps) => {
-  useSignals();
-  const recordingService = useRecordingService();
-  const pixelsPerSecond = pixelsPerSecondSignal.value;
-  const isRecording = recordingService.isRecording.value;
-  const isMaxZoom = pixelsPerSecond >= MAX_PIXELS_PER_SECOND;
-  const isMinZoom = pixelsPerSecond <= MIN_PIXELS_PER_SECOND;
+  const { isRecording } = useRecordingService();
+  const { isMaxZoom, isMinZoom, zoomIn, zoomOut } = useWorkstation();
 
   return (
     <div className="zoom-controls" style={style}>

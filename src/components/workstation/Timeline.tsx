@@ -1,11 +1,7 @@
-import { useSignals } from '@preact/signals-react/runtime';
 import classNames from 'classnames';
 import { useContainerHeight } from '../../hooks/useContainerHeight';
-import { focusedTracks as focusedTracksSignal } from '../../signals/focusSignals';
-import {
-  useRecordingService,
-  useTrackService,
-} from '../../hooks/useAudioService';
+import { useRecordingService } from '../../hooks/useRecordingService';
+import { useTrackService } from '../../hooks/useTrackService';
 import { type Track, type TrackColor, type TrackId } from '../../types/track';
 import Spectrogram from './spectrogram/Spectrogram';
 import './Timeline.css';
@@ -23,14 +19,9 @@ const Timeline = ({
   recordingColor,
   tracks,
 }: TimelineProps) => {
-  useSignals();
-  const recordingService = useRecordingService();
-  const trackService = useTrackService();
+  const { isRecording } = useRecordingService();
+  const { mutedTracks, focusedTracks } = useTrackService();
   const { containerRef, height } = useContainerHeight();
-
-  const focusedTracks = focusedTracksSignal.value;
-  const mutedTracks = trackService.mutedTracks.value;
-  const isRecording = recordingService.isRecording.value;
 
   const recordingTrack: Track = {
     trackId: RECORDING_TRACK_ID,

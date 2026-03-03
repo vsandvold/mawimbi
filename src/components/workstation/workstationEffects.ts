@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import {
-  usePlaybackService,
-  useRecordingService,
-  useTrackService,
-} from '../../hooks/useAudioService';
+import { usePlaybackService } from '../../hooks/usePlaybackService';
+import { useRecordingService } from '../../hooks/useRecordingService';
+import { useTrackService } from '../../hooks/useTrackService';
 import { useContainerHeight } from '../../hooks/useContainerHeight';
 import useKeypress from '../../hooks/useKeypress';
 import message from '../message';
@@ -20,14 +18,14 @@ const COUNT_IN_DURATION_SEC =
   (COUNT_IN_TOTAL_BEATS * COUNT_IN_BEAT_INTERVAL) / 1000;
 
 export const useSpacebarPlaybackToggle = () => {
-  const playbackService = usePlaybackService();
-  const recordingService = useRecordingService();
+  const playback = usePlaybackService();
+  const recording = useRecordingService();
   useKeypress(
     () => {
       // Prevent spacebar from toggling playback when the transport is
       // locked by the recording lifecycle (count-in or active recording).
-      if (!recordingService.isTransportLocked()) {
-        playbackService.togglePlayback();
+      if (!recording.isTransportLocked) {
+        playback.togglePlayback();
       }
     },
     { targetKey: ' ' },
@@ -38,8 +36,8 @@ export const useCountIn = (
   isCountingIn: boolean,
   onComplete: () => void,
 ): number | null => {
-  const playbackService = usePlaybackService();
-  const recordingService = useRecordingService();
+  const playback = usePlaybackService();
+  const recording = useRecordingService();
   const [currentBeat, setCurrentBeat] = useState<number | null>(null);
   const completedRef = useRef(false);
 
@@ -57,14 +55,14 @@ export const useCountIn = (
       const msg = message({ key: 'microphone' });
 
       try {
-        await recordingService.prepareMicrophone();
+        await recording.prepareMicrophone();
       } catch {
         msg.error('Microphone access failed');
         return;
       }
 
       if (cancelled) {
-        recordingService.closeMicrophone();
+        recording.closeMicrophone();
         return;
       }
 
@@ -72,18 +70,18 @@ export const useCountIn = (
       // recording position.  When the transport is near the start of the
       // timeline, playing back a full COUNT_IN_DURATION_SEC would overshoot
       // the recording position and cause recording to begin too late.
-      const recordingPosition = playbackService.getEngineTime();
+      const recordingPosition = playback.getEngineTime();
       const availableLeadIn = Math.min(
         recordingPosition,
         COUNT_IN_DURATION_SEC,
       );
 
-      recordingService.startCountIn();
+      recording.startCountIn();
       // Block spacebar and show recording UI during count-in
-      recordingService.startRecording();
+      recording.startRecording();
 
       if (availableLeadIn > 0) {
-        playbackService.setEngineTime(recordingPosition - availableLeadIn);
+        playback.setEngineTime(recordingPosition - availableLeadIn);
 
         const playbackDelayMs =
           (COUNT_IN_DURATION_SEC - availableLeadIn) * 1000;
@@ -93,12 +91,12 @@ export const useCountIn = (
           // position exactly when the count-in ends
           playbackTimerId = setTimeout(() => {
             if (!cancelled) {
-              playbackService.play();
+              playback.play();
             }
           }, playbackDelayMs);
         } else {
           // Full lead-in available — start playback immediately
-          playbackService.play();
+          playback.play();
         }
       }
 
@@ -112,7 +110,7 @@ export const useCountIn = (
 
       if (!cancelled) {
         completedRef.current = true;
-        recordingService.stopCountIn();
+        recording.stopCountIn();
         setCurrentBeat(null);
         onComplete();
       }
@@ -130,37 +128,38 @@ export const useCountIn = (
 
       if (!completedRef.current) {
         // Cancelled by user — clean up microphone and playback
-        recordingService.closeMicrophone();
-        recordingService.stopCountIn();
-        playbackService.pause();
-        recordingService.stopRecording();
+        recording.closeMicrophone();
+        recording.stopCountIn();
+        playback.pause();
+        recording.stopRecording();
       }
     };
-    // Service refs are stable across renders
+    // Hook objects reference stable service singletons via getters
   }, [isCountingIn]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return currentBeat;
 };
 
 export const useTotalTime = (tracks: Track[]) => {
-  const playbackService = usePlaybackService();
-  const trackService = useTrackService();
+  const playback = usePlaybackService();
+  const trackHook = useTrackService();
   useEffect(() => {
-    playbackService.totalTime.value = trackService.getTotalTime();
-  }, [tracks, playbackService, trackService]);
+    playback.setTotalTime(trackHook.getTotalTime());
+    // Hook objects reference stable service singletons via getters
+  }, [tracks]); // eslint-disable-line react-hooks/exhaustive-deps
 };
 
 export const useMicrophone = (isRecording: boolean) => {
-  const playbackService = usePlaybackService();
-  const recordingService = useRecordingService();
-  const trackService = useTrackService();
+  const playback = usePlaybackService();
+  const recording = useRecordingService();
+  const trackHook = useTrackService();
   const projectDispatch = useProjectDispatch();
   useEffect(() => {
     const msg = message({ key: 'microphone' });
 
     const startRecording = async () => {
       try {
-        await recordingService.startOverdubRecording();
+        await recording.startOverdubRecording();
         msg.success('Recording started');
       } catch {
         msg.error('Recording failed');
@@ -168,13 +167,13 @@ export const useMicrophone = (isRecording: boolean) => {
     };
 
     const stopRecording = async () => {
-      if (!recordingService.isOverdubRecording()) {
+      if (!recording.isOverdubRecording()) {
         return;
       }
       try {
         const { audioBuffer, arrayBuffer, startTime, latencyCompensation } =
-          await recordingService.stopOverdubRecording();
-        const { trackId } = trackService.createRecordedTrack(
+          await recording.stopOverdubRecording();
+        const { trackId } = trackHook.createRecordedTrack(
           audioBuffer,
           arrayBuffer,
           startTime,
@@ -184,15 +183,15 @@ export const useMicrophone = (isRecording: boolean) => {
           ADD_TRACK,
           { trackId, fileName: RECORDING_FILE_NAME },
         ]);
-        recordingService.stopRecording();
+        recording.stopRecording();
         // Pause at current position so the user can immediately press
         // play to hear the recording in context (standard DAW behavior).
-        playbackService.pause();
-        playbackService.transportTime.value = playbackService.getEngineTime();
+        playback.pause();
+        playback.setTransportTime(playback.getEngineTime());
         msg.success('Recording stopped');
       } catch {
-        recordingService.stopRecording();
-        playbackService.pause();
+        recording.stopRecording();
+        playback.pause();
         msg.error('Recording failed');
       }
     };
@@ -202,7 +201,7 @@ export const useMicrophone = (isRecording: boolean) => {
     } else {
       stopRecording();
     }
-    // Service refs are stable across renders
+    // Hook objects reference stable service singletons via getters
   }, [isRecording]); // eslint-disable-line react-hooks/exhaustive-deps
 };
 

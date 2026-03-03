@@ -1,20 +1,17 @@
-import { useSignals } from '@preact/signals-react/runtime';
-import { focusTrack, unfocusTrack } from '../../signals/focusSignals';
-import { useTrackService } from '../../hooks/useAudioService';
+import { useTrackService } from '../../hooks/useTrackService';
 import { type TrackId } from '../../types/track';
 
 const DEFAULT_VOLUME = 100;
 
 export function useChannelControls(trackId: TrackId) {
-  useSignals();
-  const trackService = useTrackService();
-  const trackSignals = trackService.getSignals(trackId);
+  const trackHook = useTrackService();
+  const trackSignals = trackHook.getSignals(trackId);
   const volume = trackSignals?.volume.value ?? DEFAULT_VOLUME;
   const mute = trackSignals?.mute.value ?? false;
   const solo = trackSignals?.solo.value ?? false;
 
   const startFocus = () => {
-    focusTrack(trackId);
+    trackHook.focusTrack(trackId);
   };
 
   const updateVolume = (value: number) => {
@@ -25,7 +22,7 @@ export function useChannelControls(trackId: TrackId) {
   };
 
   const commitVolume = () => {
-    unfocusTrack(trackId);
+    trackHook.unfocusTrack(trackId);
   };
 
   const updateMute = () => {

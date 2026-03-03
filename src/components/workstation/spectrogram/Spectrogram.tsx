@@ -1,10 +1,8 @@
 import { useEffect, useRef } from 'react';
 import { useAnimationFrame } from '../../../hooks/useAnimationFrame';
-import {
-  usePlaybackService,
-  useRecordingService,
-  useTrackService,
-} from '../../../hooks/useAudioService';
+import { usePlaybackService } from '../../../hooks/usePlaybackService';
+import { useRecordingService } from '../../../hooks/useRecordingService';
+import { useTrackService } from '../../../hooks/useTrackService';
 import { useTrackVolume } from '../../../hooks/useTrackVolume';
 import FrequencyVisualizer from '../../../services/FrequencyVisualizer';
 import { type Track } from '../../../types/track';
@@ -35,18 +33,18 @@ const Spectrogram = ({
 
   const { trackId, color } = track;
 
-  const playbackService = usePlaybackService();
-  const recordingService = useRecordingService();
-  const trackService = useTrackService();
+  const playback = usePlaybackService();
+  const recording = useRecordingService();
+  const trackHook = useTrackService();
   const audioBuffer = isRecordingTrack
     ? undefined
-    : trackService.retrieveAudioBuffer(trackId);
+    : trackHook.retrieveAudioBuffer(trackId);
 
   const entry = useSpectrogramCache(trackId, audioBuffer, color);
 
   const startTime = isRecordingTrack
     ? 0
-    : (trackService.retrieveStartTime(trackId) ?? 0);
+    : (trackHook.retrieveStartTime(trackId) ?? 0);
 
   const duration = audioBuffer?.duration ?? 0;
 
@@ -62,7 +60,7 @@ const Spectrogram = ({
   useEffect(() => {
     if (isRecordingTrack) {
       const visualizer = new FrequencyVisualizer(
-        recordingService.microphone.source,
+        recording.getMicrophoneSource(),
       );
       visualizerRef.current = visualizer;
       recordingBufferRef.current = new RecordingBuffer(
@@ -75,7 +73,8 @@ const Spectrogram = ({
       visualizerRef.current = null;
       recordingBufferRef.current = null;
     };
-  }, [isRecordingTrack, color, recordingService]);
+    // Hook objects reference stable service singletons via getters
+  }, [isRecordingTrack, color]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Draw visible tiles on each animation frame
   useAnimationFrame(() => {
@@ -89,8 +88,8 @@ const Spectrogram = ({
         container,
         recordingBufferRef.current,
         visualizerRef.current,
-        recordingService,
-        playbackService,
+        recording,
+        playback,
         pixelsPerSecond,
         height,
       );
@@ -141,19 +140,16 @@ function drawRecordingFrame(
   container: HTMLDivElement,
   buffer: RecordingBuffer | null,
   visualizer: FrequencyVisualizer | null,
-  recordingService: ReturnType<typeof useRecordingService>,
-  playbackService: ReturnType<typeof usePlaybackService>,
+  recordingHook: ReturnType<typeof useRecordingService>,
+  playbackHook: ReturnType<typeof usePlaybackService>,
   pixelsPerSecond: number,
   height: number,
 ): void {
   if (!buffer || !visualizer) return;
 
-  const recording = recordingService.isRecording.value;
-  const recordingStartTime = recordingService.getRecordingStartTime();
-  const elapsed = Math.max(
-    0,
-    playbackService.transportTime.value - recordingStartTime,
-  );
+  const isRecActive = recordingHook.isRecording;
+  const recordingStartTime = recordingHook.getRecordingStartTime();
+  const elapsed = Math.max(0, playbackHook.transportTime - recordingStartTime);
   const contentWidth = elapsed * pixelsPerSecond;
 
   // Update container width and offset directly to avoid React re-renders
@@ -161,7 +157,7 @@ function drawRecordingFrame(
   container.style.marginLeft = `${recordingStartTime * pixelsPerSecond}px`;
 
   // Accumulate a new frame while recording is active
-  if (recording) {
+  if (isRecActive) {
     const frequencyData = visualizer.getVisualizationData();
     buffer.addFrame(frequencyData);
   }

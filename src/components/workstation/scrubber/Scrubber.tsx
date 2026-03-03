@@ -1,12 +1,9 @@
 import { StepBackwardOutlined } from '@ant-design/icons';
-import { useSignals } from '@preact/signals-react/runtime';
 import { Button } from 'antd';
 import classNames from 'classnames';
 import { PropsWithChildren } from 'react';
-import {
-  usePlaybackService,
-  useRecordingService,
-} from '../../../hooks/useAudioService';
+import { usePlaybackService } from '../../../hooks/usePlaybackService';
+import { useRecordingService } from '../../../hooks/useRecordingService';
 import { type Track } from '../../../types/track';
 import ZoomControls from '../ZoomControls';
 import PlasmaPlayhead from './PlasmaPlayhead';
@@ -22,9 +19,8 @@ type ScrubberProps = PropsWithChildren<{
 }>;
 
 const Scrubber = (props: ScrubberProps) => {
-  useSignals();
-  const playbackService = usePlaybackService();
-  const recordingService = useRecordingService();
+  const playback = usePlaybackService();
+  const recording = useRecordingService();
   const {
     drawerHeight,
     isMixerOpen,
@@ -48,14 +44,11 @@ const Scrubber = (props: ScrubberProps) => {
   } = useScrubber({ drawerHeight, isMixerOpen, pixelsPerSecond, tracks });
 
   const handleTimelineClick = () => {
-    if (
-      recordingService.isCountingIn.value ||
-      recordingService.isActivelyRecording()
-    ) {
+    if (recording.isCountingIn || recording.isActivelyRecording) {
       onStopRecording();
       return;
     }
-    playbackService.togglePlayback();
+    playback.togglePlayback();
   };
 
   const rewindButtonClass = classNames('scrubber__rewind', {

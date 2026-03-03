@@ -11,8 +11,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { useSignals } from '@preact/signals-react/runtime';
-import { useTrackService } from '../../hooks/useAudioService';
+import { useTrackService } from '../../hooks/useTrackService';
 import { type Track, type TrackId } from '../../types/track';
 import { MOVE_TRACK } from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
@@ -24,14 +23,12 @@ type MixerProps = {
 };
 
 const Mixer = ({ tracks }: MixerProps) => {
-  useSignals();
-  const trackService = useTrackService();
+  const { mutedTracks } = useTrackService();
   const projectDispatch = useProjectDispatch();
   const sensors = useSensors(useSensor(PointerSensor));
 
   const reversedTracks = tracks.slice().reverse();
   const reversedIds = reversedTracks.map((t) => t.trackId);
-  const mutedTracks = trackService.mutedTracks.value;
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;

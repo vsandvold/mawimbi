@@ -1,8 +1,7 @@
-import { useSignals } from '@preact/signals-react/runtime';
 import classNames from 'classnames';
 import { useCallback, useState } from 'react';
-import { useRecordingService } from '../../hooks/useAudioService';
-import { pixelsPerSecond as pixelsPerSecondSignal } from '../../signals/workstationSignals';
+import { useRecordingService } from '../../hooks/useRecordingService';
+import { useWorkstation } from '../../hooks/useWorkstation';
 import { type Track, type TrackColor } from '../../types/track';
 import CountIn from './CountIn';
 import Dropzone from '../dropzone/Dropzone';
@@ -28,16 +27,14 @@ type WorkstationProps = {
 };
 
 const Workstation = (props: WorkstationProps) => {
-  useSignals();
-  const recordingService = useRecordingService();
+  const recording = useRecordingService();
+  const { pixelsPerSecond } = useWorkstation();
   const [isMixerOpen, setIsMixerOpen] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [isCountingIn, setIsCountingIn] = useState(false);
 
   const { recordingColor, tracks, uploadFile } = props;
   const hasTracks = tracks.length > 0;
-
-  const pixelsPerSecond = pixelsPerSecondSignal.value;
 
   const { mixerContainerRef, mixerHeight } = useMixerHeight();
   const { isDragActive, isDragAccept, isDragReject, rootProps, inputProps } =
@@ -62,7 +59,7 @@ const Workstation = (props: WorkstationProps) => {
       setIsRecording(false);
     } else {
       // Arm the recording service, then start count-in
-      recordingService.arm();
+      recording.arm();
       setIsCountingIn(true);
     }
   };
@@ -79,13 +76,13 @@ const Workstation = (props: WorkstationProps) => {
   // Use the recording state machine signal (not local state) so the
   // timeline stays visible during the async stop-recording transition
   // until the new track is added.
-  const isRecordingActive = recordingService.recordingState.value !== 'idle';
+  const isRecordingActive = recording.recordingState !== 'idle';
   const showTimeline =
     hasTracks ||
     isRecording ||
     isCountingIn ||
     isRecordingActive ||
-    recordingService.isCountingIn.value;
+    recording.isCountingIn;
 
   const editorMixerClass = classNames('editor__mixer', {
     'editor__mixer--closed': !isMixerOpen,
