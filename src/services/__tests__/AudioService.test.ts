@@ -77,6 +77,21 @@ describe('startAudio', () => {
     expect(Tone.context.state).toBe('running');
   });
 
+  it('removes the click listener after the first click', async () => {
+    const el = document.createElement('div');
+    const spy = vi.spyOn(el, 'addEventListener');
+
+    const promise = AudioService.startAudio(
+      el as unknown as Window & typeof globalThis,
+    );
+    el.dispatchEvent(new Event('click'));
+    await promise;
+
+    expect(spy).toHaveBeenCalledWith('click', expect.any(Function), {
+      once: true,
+    });
+  });
+
   it('rejects when Tone.start() fails', async () => {
     vi.mocked(Tone.start).mockImplementationOnce(() =>
       Promise.reject(new Error('not allowed')),
@@ -88,6 +103,6 @@ describe('startAudio', () => {
     );
     el.dispatchEvent(new Event('click'));
 
-    await expect(promise).rejects.toBeUndefined();
+    await expect(promise).rejects.toThrow('not allowed');
   });
 });

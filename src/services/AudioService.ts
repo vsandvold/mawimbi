@@ -16,18 +16,14 @@ import SpectrogramCache from './SpectrogramCache';
 // with many concurrent players (Tone.js issue #711).
 const RECORDING_LOOK_AHEAD = 0.05;
 
-type AudioContextStarter = {
-  resolve: () => void;
-  reject: () => void;
-};
-
-function startAudioContext(this: AudioContextStarter, event: Event): void {
+function startAudioContext(
+  resolve: () => void,
+  reject: () => void,
+  event: Event,
+): void {
   event.preventDefault();
   event.stopPropagation();
-  Tone.start()
-    .then(() => this.resolve())
-    .catch(() => this.reject());
-  window.removeEventListener('click', startAudioContext);
+  Tone.start().then(resolve).catch(reject);
 }
 
 class AudioService {
@@ -71,7 +67,8 @@ class AudioService {
     return new Promise((resolve, reject) => {
       clickElement.addEventListener(
         'click',
-        startAudioContext.bind({ resolve, reject }),
+        (event) => startAudioContext(resolve, reject, event),
+        { once: true },
       );
     });
   }
