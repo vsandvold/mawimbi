@@ -46,7 +46,7 @@ describe('sub-services', () => {
 
   it('creates a TrackService', () => {
     expect(audioService.trackService).toBeDefined();
-    expect(audioService.trackService.mutedTracks.value).toEqual([]);
+    expect(audioService.trackService.mutedTracks).toEqual([]);
   });
 
   it('creates a SpectrogramCache', () => {

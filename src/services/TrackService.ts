@@ -45,7 +45,16 @@ const DEFAULT_VOLUME = 100;
 
 class TrackService {
   readonly mixer: Mixer;
-  readonly mutedTracks: ReadonlySignal<TrackId[]>;
+
+  // --- Private signals (only the service writes these) ---
+
+  private readonly _mutedTracks: ReadonlySignal<TrackId[]>;
+
+  // --- Narrow channel for reactive consumers (hooks) ---
+
+  readonly signals: {
+    readonly mutedTracks: ReadonlySignal<TrackId[]>;
+  };
 
   private context: Context;
   private audioSourceRepository: AudioSourceRepository;
@@ -60,7 +69,7 @@ class TrackService {
     this.context = context;
     this.audioSourceRepository = new AudioSourceRepository();
     this.mixer = new Mixer();
-    this.mutedTracks = computed(() => {
+    this._mutedTracks = computed(() => {
       // Subscribe to store membership changes
       void this.storeVersion.value;
 
@@ -71,6 +80,15 @@ class TrackService {
         return s.mute.value || (hasSolo && !s.solo.value);
       });
     });
+    this.signals = {
+      mutedTracks: this._mutedTracks,
+    };
+  }
+
+  // --- Plain getter for non-reactive consumers (tests, workflows) ---
+
+  get mutedTracks(): TrackId[] {
+    return this._mutedTracks.value;
   }
 
   // --- Track creation ---

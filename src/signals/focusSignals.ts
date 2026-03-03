@@ -1,18 +1,28 @@
-import { signal } from '@preact/signals-react';
+import { signal, type ReadonlySignal } from '@preact/signals-react';
 import { type TrackId } from '../types/track';
 
-export const focusedTracks = signal<TrackId[]>([]);
+const _focusedTracks = signal<TrackId[]>([]);
+
+// Narrow channel for reactive consumers (hooks)
+export const signals = {
+  focusedTracks: _focusedTracks as ReadonlySignal<TrackId[]>,
+};
+
+// Plain getter for non-reactive consumers (tests, workflows)
+export function getFocusedTracks(): TrackId[] {
+  return _focusedTracks.value;
+}
 
 export function focusTrack(trackId: TrackId): void {
-  if (!focusedTracks.value.includes(trackId)) {
-    focusedTracks.value = [...focusedTracks.value, trackId];
+  if (!_focusedTracks.value.includes(trackId)) {
+    _focusedTracks.value = [..._focusedTracks.value, trackId];
   }
 }
 
 export function unfocusTrack(trackId: TrackId): void {
-  focusedTracks.value = focusedTracks.value.filter((id) => id !== trackId);
+  _focusedTracks.value = _focusedTracks.value.filter((id) => id !== trackId);
 }
 
 export function resetFocusSignals(): void {
-  focusedTracks.value = [];
+  _focusedTracks.value = [];
 }

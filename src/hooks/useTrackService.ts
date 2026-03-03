@@ -7,7 +7,7 @@ import { useSignals } from '@preact/signals-react/runtime';
 import { useContext } from 'react';
 import { AudioServiceContext } from './useAudioService';
 import {
-  focusedTracks as focusedTracksSignal,
+  signals as focusSignals,
   focusTrack,
   unfocusTrack,
 } from '../signals/focusSignals';
@@ -18,13 +18,13 @@ export function useTrackService() {
   const service = useContext(AudioServiceContext).trackService;
 
   return {
-    // --- Reactive state ---
+    // --- Reactive state (getters → lazy signal subscription via signals accessor) ---
 
     get mutedTracks(): TrackId[] {
-      return service.mutedTracks.value;
+      return service.signals.mutedTracks.value;
     },
     get focusedTracks(): TrackId[] {
-      return focusedTracksSignal.value;
+      return focusSignals.focusedTracks.value;
     },
 
     // --- Focus actions ---

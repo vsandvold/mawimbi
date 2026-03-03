@@ -120,7 +120,7 @@ vi.mock('../../../../hooks/useTrackService', () => ({
     retrieveStartTime: mockRetrieveStartTime,
     getSignals: (id: string) => trackService.getSignals(id),
     get mutedTracks() {
-      return trackService.mutedTracks.value;
+      return trackService.signals.mutedTracks.value;
     },
   }),
 }));

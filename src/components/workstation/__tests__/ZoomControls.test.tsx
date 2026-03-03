@@ -3,7 +3,8 @@ import AudioService from '../../../services/AudioService';
 import {
   MAX_PIXELS_PER_SECOND,
   MIN_PIXELS_PER_SECOND,
-  pixelsPerSecond,
+  getPixelsPerSecond,
+  setZoom,
   resetWorkstationSignals,
 } from '../../../signals/workstationSignals';
 import ZoomControls from '../ZoomControls';
@@ -26,32 +27,32 @@ it('renders zoom in and zoom out buttons', () => {
 });
 
 it('increases zoom when zoom in is clicked', () => {
-  const before = pixelsPerSecond.value;
+  const before = getPixelsPerSecond();
   const { getByTitle } = render(<ZoomControls />);
 
   fireEvent.click(getByTitle('Zoom in'));
 
-  expect(pixelsPerSecond.value).toBeGreaterThan(before);
+  expect(getPixelsPerSecond()).toBeGreaterThan(before);
 });
 
 it('decreases zoom when zoom out is clicked', () => {
-  const before = pixelsPerSecond.value;
+  const before = getPixelsPerSecond();
   const { getByTitle } = render(<ZoomControls />);
 
   fireEvent.click(getByTitle('Zoom out'));
 
-  expect(pixelsPerSecond.value).toBeLessThan(before);
+  expect(getPixelsPerSecond()).toBeLessThan(before);
 });
 
 it('disables zoom in at maximum zoom', () => {
-  pixelsPerSecond.value = MAX_PIXELS_PER_SECOND;
+  setZoom(MAX_PIXELS_PER_SECOND);
   const { getByTitle } = render(<ZoomControls />);
 
   expect(getByTitle('Zoom in')).toBeDisabled();
 });
 
 it('disables zoom out at minimum zoom', () => {
-  pixelsPerSecond.value = MIN_PIXELS_PER_SECOND;
+  setZoom(MIN_PIXELS_PER_SECOND);
   const { getByTitle } = render(<ZoomControls />);
 
   expect(getByTitle('Zoom out')).toBeDisabled();

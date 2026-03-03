@@ -1,6 +1,6 @@
 import { renderHook } from '@testing-library/react';
 import { vi } from 'vitest';
-import { focusedTracks } from '../../../signals/focusSignals';
+import { getFocusedTracks } from '../../../signals/focusSignals';
 import AudioService from '../../../services/AudioService';
 import { resetAllSignals } from '../../../signals/__tests__/testUtils';
 import { useChannelControls } from '../useChannelControls';
@@ -31,7 +31,7 @@ describe('useChannelControls', () => {
 
       result.current.updateVolume(80);
 
-      expect(focusedTracks.value).toContain('track-1');
+      expect(getFocusedTracks()).toContain('track-1');
     });
 
     it('keeps track focused after volume stops changing', () => {
@@ -41,7 +41,7 @@ describe('useChannelControls', () => {
 
       vi.advanceTimersByTime(250);
 
-      expect(focusedTracks.value).toContain('track-1');
+      expect(getFocusedTracks()).toContain('track-1');
     });
   });
 
@@ -52,7 +52,7 @@ describe('useChannelControls', () => {
       result.current.updateVolume(80);
       result.current.commitVolume();
 
-      expect(focusedTracks.value).not.toContain('track-1');
+      expect(getFocusedTracks()).not.toContain('track-1');
     });
   });
 });

@@ -1,9 +1,9 @@
 import {
   MAX_PIXELS_PER_SECOND,
   MIN_PIXELS_PER_SECOND,
-  pixelsPerSecond,
-  resetWorkstationSignals,
+  getPixelsPerSecond,
   setZoom,
+  resetWorkstationSignals,
   zoomIn,
   zoomOut,
 } from '../workstationSignals';
@@ -14,37 +14,37 @@ afterEach(() => {
 
 describe('zoomIn', () => {
   it('increases pixelsPerSecond', () => {
-    const before = pixelsPerSecond.value;
+    const before = getPixelsPerSecond();
 
     zoomIn();
 
-    expect(pixelsPerSecond.value).toBeGreaterThan(before);
+    expect(getPixelsPerSecond()).toBeGreaterThan(before);
   });
 
   it('clamps at maximum', () => {
-    pixelsPerSecond.value = MAX_PIXELS_PER_SECOND;
+    setZoom(MAX_PIXELS_PER_SECOND);
 
     zoomIn();
 
-    expect(pixelsPerSecond.value).toBe(MAX_PIXELS_PER_SECOND);
+    expect(getPixelsPerSecond()).toBe(MAX_PIXELS_PER_SECOND);
   });
 });
 
 describe('zoomOut', () => {
   it('decreases pixelsPerSecond', () => {
-    const before = pixelsPerSecond.value;
+    const before = getPixelsPerSecond();
 
     zoomOut();
 
-    expect(pixelsPerSecond.value).toBeLessThan(before);
+    expect(getPixelsPerSecond()).toBeLessThan(before);
   });
 
   it('clamps at minimum', () => {
-    pixelsPerSecond.value = MIN_PIXELS_PER_SECOND;
+    setZoom(MIN_PIXELS_PER_SECOND);
 
     zoomOut();
 
-    expect(pixelsPerSecond.value).toBe(MIN_PIXELS_PER_SECOND);
+    expect(getPixelsPerSecond()).toBe(MIN_PIXELS_PER_SECOND);
   });
 });
 
@@ -52,18 +52,18 @@ describe('setZoom', () => {
   it('sets pixelsPerSecond to the given value', () => {
     setZoom(400);
 
-    expect(pixelsPerSecond.value).toBe(400);
+    expect(getPixelsPerSecond()).toBe(400);
   });
 
   it('clamps below minimum', () => {
     setZoom(10);
 
-    expect(pixelsPerSecond.value).toBe(MIN_PIXELS_PER_SECOND);
+    expect(getPixelsPerSecond()).toBe(MIN_PIXELS_PER_SECOND);
   });
 
   it('clamps above maximum', () => {
     setZoom(2000);
 
-    expect(pixelsPerSecond.value).toBe(MAX_PIXELS_PER_SECOND);
+    expect(getPixelsPerSecond()).toBe(MAX_PIXELS_PER_SECOND);
   });
 });

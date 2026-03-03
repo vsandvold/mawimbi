@@ -131,14 +131,14 @@ describe('TrackService', () => {
 
   describe('mutedTracks computed signal', () => {
     it('returns empty array when no tracks exist', () => {
-      expect(service.mutedTracks.value).toEqual([]);
+      expect(service.mutedTracks).toEqual([]);
     });
 
     it('returns empty array when no tracks are muted or soloed', () => {
       service.createSignals('track-1');
       service.createSignals('track-2');
 
-      expect(service.mutedTracks.value).toEqual([]);
+      expect(service.mutedTracks).toEqual([]);
     });
 
     it('includes muted tracks', () => {
@@ -146,7 +146,7 @@ describe('TrackService', () => {
       service.createSignals('track-2');
       service.getSignals('track-1')!.mute.value = true;
 
-      expect(service.mutedTracks.value).toEqual(['track-1']);
+      expect(service.mutedTracks).toEqual(['track-1']);
     });
 
     it('mutes non-solo tracks when any track is soloed', () => {
@@ -155,7 +155,7 @@ describe('TrackService', () => {
       service.createSignals('track-3');
       service.getSignals('track-1')!.solo.value = true;
 
-      expect(service.mutedTracks.value).toEqual(['track-2', 'track-3']);
+      expect(service.mutedTracks).toEqual(['track-2', 'track-3']);
     });
 
     it('mutes a track that is both muted and soloed', () => {
@@ -165,7 +165,7 @@ describe('TrackService', () => {
       service.getSignals('track-1')!.solo.value = true;
 
       // track-1 is muted (mute overrides solo), track-2 is muted (no solo)
-      expect(service.mutedTracks.value).toEqual(['track-1', 'track-2']);
+      expect(service.mutedTracks).toEqual(['track-1', 'track-2']);
     });
 
     it('handles multiple soloed tracks', () => {
@@ -176,22 +176,22 @@ describe('TrackService', () => {
       service.getSignals('track-2')!.solo.value = true;
 
       // Only track-3 is muted (not soloed while others are)
-      expect(service.mutedTracks.value).toEqual(['track-3']);
+      expect(service.mutedTracks).toEqual(['track-3']);
     });
 
     it('updates when track signals change', () => {
       service.createSignals('track-1');
       service.createSignals('track-2');
 
-      expect(service.mutedTracks.value).toEqual([]);
+      expect(service.mutedTracks).toEqual([]);
 
       service.getSignals('track-1')!.mute.value = true;
 
-      expect(service.mutedTracks.value).toEqual(['track-1']);
+      expect(service.mutedTracks).toEqual(['track-1']);
 
       service.getSignals('track-1')!.mute.value = false;
 
-      expect(service.mutedTracks.value).toEqual([]);
+      expect(service.mutedTracks).toEqual([]);
     });
 
     it('updates when tracks are added or removed', () => {
@@ -199,16 +199,16 @@ describe('TrackService', () => {
       service.getSignals('track-1')!.solo.value = true;
 
       // Only track-1 is soloed, no other tracks to mute
-      expect(service.mutedTracks.value).toEqual([]);
+      expect(service.mutedTracks).toEqual([]);
 
       service.createSignals('track-2');
 
       // Now track-2 should be muted (not soloed while track-1 is)
-      expect(service.mutedTracks.value).toEqual(['track-2']);
+      expect(service.mutedTracks).toEqual(['track-2']);
 
       service.disposeSignals('track-2');
 
-      expect(service.mutedTracks.value).toEqual([]);
+      expect(service.mutedTracks).toEqual([]);
     });
   });
 
