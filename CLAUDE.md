@@ -52,13 +52,13 @@ Prettier runs automatically on pre-commit via Husky + lint-staged (ESLint --fix 
 The architecture is organized in layers with clear ownership boundaries. Dependencies point downward.
 
 ```
-UI Components & Effects    Read signals for rendering, call service functions for commands,
-      │                    coordinate workflows (count-in, recording lifecycle)
+UI Components & Effects    Call bridge hooks for reactive state, call service functions
+      │                    for commands, coordinate workflows (count-in, recording lifecycle)
       │
-  Sync Hooks               Subscribe to signals via effect(), translate state changes
-      │                    into audio engine calls
+  Bridge Hooks             Translate service signals into plain React-consumable values
+      │                    via useSignals() + lazy getters
       │
-  Services & Signals       State machines that own and guard their signals
+  Services & Signals       State machines that own and guard their private signals
       │
   Audio Engine             Tone.js / Web Audio API (imperative, side-effectful)
 ```
@@ -73,17 +73,15 @@ These principles guide architectural decisions. Apply them when adding features,
 
 - **Services as state machines.** Services (`PlaybackService`, `RecordingService`) define their own state, transitions, and guards. They reject invalid transitions silently. Components and hooks call service functions (`play()`, `arm()`, `stopRecording()`) rather than manipulating state directly.
 
-- **Sync hooks for signal-to-engine translation.** Services are pure state machines with no audio engine dependency. Sync hooks (`usePlaybackSync`, `useTrackSync`) subscribe to signals via `effect()` and apply state changes to the Tone.js audio engine. They are deliberately simple — they translate, they don't decide.
-
 - **Bridge hooks translate signals to React.** Each signal-owning service has a corresponding bridge hook (`usePlaybackService`, `useRecordingService`, `useTrackService`, `useWorkstation`). The hook calls `useSignals()`, reads from `service.signals.*` via lazy getters, and returns plain values and action callbacks. Components never import signals directly. This keeps the reactive boundary in one place per service and makes signal refactors invisible to components.
 
 - **Workflows coordinate, services don't.** When a user action spans multiple services (e.g., recording stop needs to end the recording, create a track, and pause playback), the workflow hook (`useMicrophone`, `useCountIn`) coordinates those calls in sequence. Services stay focused on their own domain. Don't add a reactive intermediary when a direct function call in the workflow is simpler and more readable.
 
-- **Single responsibility per module.** Each module does one thing. `useMicrophone` manages the full recording lifecycle — starting/stopping the audio engine, creating tracks, transitioning recording state, and pausing playback on completion. `usePlaybackSync` translates playback state to audio engine commands. When a module accumulates unrelated concerns, split it. But don't split a cohesive workflow into pieces just because it touches multiple services — that adds indirection without adding clarity.
+- **Single responsibility per module.** Each module does one thing. `useMicrophone` manages the full recording lifecycle — starting/stopping the audio engine, creating tracks, transitioning recording state, and pausing playback on completion. `usePlaybackService` bridges PlaybackService signals to React components. When a module accumulates unrelated concerns, split it. But don't split a cohesive workflow into pieces just because it touches multiple services — that adds indirection without adding clarity.
 
 - **Encapsulation.** Services expose a public API of functions, plain getters, and a narrow `signals` accessor. Raw writable signals are private. Internal state (like `pendingSeekTime` in PlaybackService) is module-scoped and never exported. Repositories inside services are private. Consumers interact through the defined interface — never by reading `.value` on a signal they obtained outside a bridge hook.
 
-- **Prefer simple over indirect.** A direct call (`pause()`) in a workflow is better than a reactive chain (signal change → effect → service call → another effect → engine call) when the intent is clear and the trigger is already known. Reserve reactive patterns for cases where the producer genuinely shouldn't know about the consumer, such as the sync hooks that decouple services from the audio engine.
+- **Prefer simple over indirect.** A direct call (`pause()`) in a workflow is better than a reactive chain (signal change → effect → service call → another effect → engine call) when the intent is clear and the trigger is already known. Reserve reactive patterns for cases where the producer genuinely shouldn't know about the consumer.
 
 ### Services (`src/services/`)
 
@@ -145,7 +143,7 @@ Bridge hooks are the boundary between the signal-based service layer and React c
 - `src/components/project/` — Project page container, header with file upload
 - `src/components/workstation/` — Core editor: `Timeline`, `Waveform`, `Scrubber`, `Toolbar`, `Mixer`, `Channel`
 - `src/components/dropzone/` — Drag-and-drop file upload
-- `src/hooks/` — Shared hooks and sync hooks
+- `src/hooks/` — Bridge hooks and shared hooks
 
 ### Routing
 
@@ -163,11 +161,12 @@ src/
 ├── testUtils.ts                       # Shared test utilities
 │
 ├── services/
-│   ├── PlaybackService.ts             # Playback state machine (stopped/playing/paused); owns playbackState,
-│   │                                  #   transportTime, totalTime, loudness signals
-│   ├── RecordingService.ts            # Recording state machine (idle/armed/recording); owns recordingState,
-│   │                                  #   isCountingIn signals
-│   ├── AudioService.ts                # Singleton Tone.js wrapper: track creation, transport, recording
+│   ├── PlaybackService.ts             # Playback state machine (stopped/playing/paused); private signals +
+│   │                                  #   plain getters + signals accessor
+│   ├── RecordingService.ts            # Recording state machine (idle/armed/recording); private signals +
+│   │                                  #   plain getters + signals accessor
+│   ├── TrackService.ts                # Track creation, per-track signals (volume/mute/solo), mixer sync
+│   ├── AudioService.ts                # Singleton Tone.js wrapper: transport, recording, offline analysis
 │   ├── Mixer.ts                       # Tone.Player + Tone.Channel chain per track; mute/solo/volume
 │   ├── MicrophoneUserMedia.ts         # Tone.UserMedia wrapper + meter for microphone input
 │   └── OfflineAnalyser.ts             # OfflineAudioContext + AnalyserNode for waveform/spectrogram data
@@ -201,13 +200,13 @@ src/
 │   ├── project/
 │   │   ├── ProjectPage.tsx            # Provides ProjectDispatch context + Fullscreen wrapper
 │   │   ├── ProjectPageHeader.tsx      # Title, file upload button, fullscreen toggle
-│   │   ├── projectPageReducer.ts      # Track list state: ADD_TRACK, MOVE_TRACK, SET_TRACK_MUTE/SOLO/VOLUME
+│   │   ├── projectPageReducer.ts      # Track list state: ADD_TRACK, DELETE_TRACK, MOVE_TRACK
 │   │   ├── projectPageEffects.ts      # useUploadFile (File → AudioService.createTrack), useFullscreen
 │   │   ├── useProjectReducer.tsx      # useReducer wrapper with initial state
 │   │   └── useProjectDispatch.tsx     # Context consumer hook for project dispatch
 │   │
 │   └── workstation/
-│       ├── Workstation.tsx            # Editor layout; wires sync hooks and effect hooks
+│       ├── Workstation.tsx            # Editor layout; wires bridge hooks and effect hooks
 │       ├── Toolbar.tsx                # Playback/record/rewind/mixer toggle controls
 │       ├── Timeline.tsx               # Track list: renders Waveform or Spectrogram per track (memoized)
 │       ├── Waveform.tsx               # WaveSurfer.js integration per track
