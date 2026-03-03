@@ -1,0 +1,86 @@
+// useTrackService — React hook that bridges TrackService signals to components.
+//
+// Provides reactive track state (mutedTracks, focusedTracks) and callbacks
+// for track creation, signal management, and audio retrieval.
+
+import { useSignals } from '@preact/signals-react/runtime';
+import { useContext } from 'react';
+import { AudioServiceContext } from './useAudioService';
+import {
+  focusedTracks as focusedTracksSignal,
+  focusTrack,
+  unfocusTrack,
+} from '../signals/focusSignals';
+import { type TrackId } from '../types/track';
+
+export function useTrackService() {
+  useSignals();
+  const service = useContext(AudioServiceContext).trackService;
+
+  return {
+    // --- Reactive state ---
+
+    get mutedTracks(): TrackId[] {
+      return service.mutedTracks.value;
+    },
+    get focusedTracks(): TrackId[] {
+      return focusedTracksSignal.value;
+    },
+
+    // --- Focus actions ---
+
+    focusTrack,
+    unfocusTrack,
+
+    // --- Track creation ---
+
+    createTrack: (arrayBuffer: ArrayBuffer) => service.createTrack(arrayBuffer),
+    createRecordedTrack: (
+      audioBuffer: AudioBuffer,
+      arrayBuffer: ArrayBuffer,
+      startTime: number,
+      latencyCompensation: number,
+    ) =>
+      service.createRecordedTrack(
+        audioBuffer,
+        arrayBuffer,
+        startTime,
+        latencyCompensation,
+      ),
+
+    // --- Signal management ---
+
+    getSignals: (trackId: TrackId) => service.getSignals(trackId),
+    createSignals: (trackId: TrackId, initialVolume?: number) =>
+      service.createSignals(trackId, initialVolume),
+    disposeSignals: (trackId: TrackId) => service.disposeSignals(trackId),
+
+    // --- Track data retrieval ---
+
+    retrieveAudioBuffer: (trackId: string) =>
+      service.retrieveAudioBuffer(trackId),
+    retrieveBlobUrl: (trackId: string) => service.retrieveBlobUrl(trackId),
+    retrieveNormalizationGainDb: (trackId: string) =>
+      service.retrieveNormalizationGainDb(trackId),
+    retrieveInitialVolume: (trackId: string) =>
+      service.retrieveInitialVolume(trackId),
+    retrieveStartTime: (trackId: string) => service.retrieveStartTime(trackId),
+    getTotalTime: () => service.getTotalTime(),
+
+    // --- Audio engine ---
+
+    getMixerLoudness: () => service.mixer.getLoudness(),
+    createMixerChannel: (
+      trackId: string,
+      buffer: AudioBuffer,
+      normGainDb: number,
+    ) => service.mixer.createChannel(trackId, buffer, normGainDb),
+    retrieveMixerChannel: (trackId: string) =>
+      service.mixer.retrieveChannel(trackId),
+
+    // --- Cleanup ---
+
+    deleteChannel: (trackId: string) => service.deleteChannel(trackId),
+    reset: () => service.reset(),
+  };
+}

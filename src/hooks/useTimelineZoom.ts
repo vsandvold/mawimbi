@@ -1,13 +1,14 @@
 import { type RefObject, useEffect, useRef } from 'react';
-import { useRecordingService } from './useAudioService';
-import { pixelsPerSecond, setZoom } from '../signals/workstationSignals';
+import { useRecordingService } from './useRecordingService';
+import { useWorkstation } from './useWorkstation';
 
 const WHEEL_ZOOM_FACTOR = 0.05;
 
 export function useTimelineZoom(ref: RefObject<HTMLDivElement | null>): {
   isPinchingRef: RefObject<boolean>;
 } {
-  const recordingService = useRecordingService();
+  const recording = useRecordingService();
+  const workstation = useWorkstation();
   const isPinchingRef = useRef(false);
   const initialDistanceRef = useRef(0);
   const initialPPSRef = useRef(0);
@@ -17,13 +18,13 @@ export function useTimelineZoom(ref: RefObject<HTMLDivElement | null>): {
     if (!element) return;
 
     const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length === 2 && !recordingService.isRecording.value) {
+      if (e.touches.length === 2 && !recording.isRecording) {
         isPinchingRef.current = true;
         initialDistanceRef.current = getTouchDistance(
           e.touches[0],
           e.touches[1],
         );
-        initialPPSRef.current = pixelsPerSecond.value;
+        initialPPSRef.current = workstation.pixelsPerSecond;
       }
     };
 
@@ -32,7 +33,7 @@ export function useTimelineZoom(ref: RefObject<HTMLDivElement | null>): {
         e.preventDefault();
         const distance = getTouchDistance(e.touches[0], e.touches[1]);
         const scale = distance / initialDistanceRef.current;
-        setZoom(initialPPSRef.current * scale);
+        workstation.setZoom(initialPPSRef.current * scale);
       }
     };
 
@@ -41,11 +42,11 @@ export function useTimelineZoom(ref: RefObject<HTMLDivElement | null>): {
     };
 
     const handleWheel = (e: WheelEvent) => {
-      if ((e.ctrlKey || e.metaKey) && !recordingService.isRecording.value) {
+      if ((e.ctrlKey || e.metaKey) && !recording.isRecording) {
         e.preventDefault();
         const direction = e.deltaY > 0 ? -1 : 1;
         const factor = 1 + direction * WHEEL_ZOOM_FACTOR;
-        setZoom(pixelsPerSecond.value * factor);
+        workstation.setZoom(workstation.pixelsPerSecond * factor);
       }
     };
 
@@ -60,7 +61,8 @@ export function useTimelineZoom(ref: RefObject<HTMLDivElement | null>): {
       element.removeEventListener('touchend', handleTouchEnd);
       element.removeEventListener('wheel', handleWheel);
     };
-  }, [ref, recordingService]);
+    // Hook objects reference stable service singletons via getters
+  }, [ref]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { isPinchingRef };
 }

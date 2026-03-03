@@ -6,13 +6,10 @@ import Icon, {
   StepBackwardOutlined,
 } from '@ant-design/icons';
 import { Button } from 'antd';
-import { useSignals } from '@preact/signals-react/runtime';
 import classNames from 'classnames';
 import ControlSvg from '../../icons/control.svg?react';
-import {
-  usePlaybackService,
-  useRecordingService,
-} from '../../hooks/useAudioService';
+import { usePlaybackService } from '../../hooks/usePlaybackService';
+import { useRecordingService } from '../../hooks/useRecordingService';
 import './Toolbar.css';
 
 type ToolbarProps = {
@@ -23,15 +20,10 @@ type ToolbarProps = {
 };
 
 const Toolbar = (props: ToolbarProps) => {
-  useSignals();
-  const playbackService = usePlaybackService();
-  const recordingService = useRecordingService();
+  const { isPlaying, isStopped, rewind, togglePlayback } = usePlaybackService();
+  const { isTransportLocked, recordingState } = useRecordingService();
   const { isMixerOpen, isEmpty, onToggleMixer, onToggleRecording } = props;
-  const isPlaying = playbackService.isPlaying.value;
-  const locked = recordingService.isTransportLocked();
-  const recState = recordingService.recordingState.value;
-  const isRecordActive = recState !== 'idle';
-  const isStopped = playbackService.playbackState.value === 'stopped';
+  const isRecordActive = recordingState !== 'idle';
 
   const mixerIconClass = classNames({ 'show-mixer': isMixerOpen });
   const mixerIcon = <Icon component={ControlSvg} className={mixerIconClass} />;
@@ -55,8 +47,8 @@ const Toolbar = (props: ToolbarProps) => {
       className="button"
       icon={<StepBackwardOutlined />}
       title="Rewind"
-      onClick={() => playbackService.rewind()}
-      disabled={isEmpty || locked || isStopped}
+      onClick={rewind}
+      disabled={isEmpty || isTransportLocked || isStopped}
     />
   );
 
@@ -67,8 +59,8 @@ const Toolbar = (props: ToolbarProps) => {
       className="button"
       icon={isPlaying ? <PauseOutlined /> : <CaretRightOutlined />}
       title={isPlaying ? 'Pause' : 'Play'}
-      onClick={() => playbackService.togglePlayback()}
-      disabled={isEmpty || locked}
+      onClick={togglePlayback}
+      disabled={isEmpty || isTransportLocked}
     />
   );
 

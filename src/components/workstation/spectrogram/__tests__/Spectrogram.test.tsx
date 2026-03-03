@@ -1,6 +1,5 @@
 import { render, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
-import { signal } from '@preact/signals-react';
 import { useAnimationFrame } from '../../../../hooks/useAnimationFrame';
 import AudioService from '../../../../services/AudioService';
 import { resetAllSignals } from '../../../../signals/__tests__/testUtils';
@@ -67,13 +66,66 @@ vi.mock('../../../../hooks/useAudioService', () => ({
       getEntry: mockGetEntry,
     },
   }),
-  usePlaybackService: () => playbackService,
-  useRecordingService: () => recordingService,
+}));
+
+vi.mock('../../../../hooks/usePlaybackService', () => ({
+  usePlaybackService: () => ({
+    get isPlaying() {
+      return playbackService.isPlaying.value;
+    },
+    get transportTime() {
+      return playbackService.transportTime.value;
+    },
+    get playbackState() {
+      return playbackService.playbackState.value;
+    },
+    play: () => playbackService.play(),
+    pause: () => playbackService.pause(),
+    rewind: () => playbackService.rewind(),
+    togglePlayback: () => playbackService.togglePlayback(),
+    seekTo: (t: number) => playbackService.seekTo(t),
+    getEngineTime: () => playbackService.getEngineTime(),
+    setTransportTime: (t: number) => {
+      playbackService.transportTime.value = t;
+    },
+    setLoudness: (v: number) => {
+      playbackService.loudness.value = v;
+    },
+    reset: () => playbackService.reset(),
+  }),
+}));
+
+vi.mock('../../../../hooks/useRecordingService', () => ({
+  useRecordingService: () => ({
+    get isRecording() {
+      return recordingService.isRecording.value;
+    },
+    get isCountingIn() {
+      return recordingService.isCountingIn.value;
+    },
+    get isActivelyRecording() {
+      return recordingService.isActivelyRecording();
+    },
+    get recordingState() {
+      return recordingService.recordingState.value;
+    },
+    arm: () => recordingService.arm(),
+    startRecording: () => recordingService.startRecording(),
+    stopRecording: () => recordingService.stopRecording(),
+    getRecordingStartTime: () => recordingService.getRecordingStartTime(),
+    getMicrophoneSource: () => recordingService.microphone.source,
+    reset: () => recordingService.reset(),
+  }),
+}));
+
+vi.mock('../../../../hooks/useTrackService', () => ({
   useTrackService: () => ({
     retrieveAudioBuffer: mockRetrieveAudioBuffer,
     retrieveStartTime: mockRetrieveStartTime,
     getSignals: (id: string) => trackService.getSignals(id),
-    mutedTracks: signal([]),
+    get mutedTracks() {
+      return trackService.mutedTracks.value;
+    },
   }),
 }));
 

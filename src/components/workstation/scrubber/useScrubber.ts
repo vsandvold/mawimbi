@@ -6,12 +6,10 @@ import {
   useRef,
   useState,
 } from 'react';
-import {
-  useAudioService,
-  usePlaybackService,
-  useRecordingService,
-  useTrackService,
-} from '../../../hooks/useAudioService';
+import { useAudioService } from '../../../hooks/useAudioService';
+import { usePlaybackService } from '../../../hooks/usePlaybackService';
+import { useRecordingService } from '../../../hooks/useRecordingService';
+import { useTrackService } from '../../../hooks/useTrackService';
 import useDebounced from '../../../hooks/useDebounced';
 import { useTimelineZoom } from '../../../hooks/useTimelineZoom';
 import FrequencyVisualizer from '../../../services/FrequencyVisualizer';
@@ -36,11 +34,11 @@ export function useScrubber({
   pixelsPerSecond,
   tracks,
 }: UseScrubberOptions) {
-  const playbackService = usePlaybackService();
-  const recordingService = useRecordingService();
-  const trackService = useTrackService();
+  const playback = usePlaybackService();
+  const recording = useRecordingService();
+  const trackHook = useTrackService();
   const audioService = useAudioService();
-  const playing = playbackService.isPlaying.value;
+  const playing = playback.isPlaying;
 
   const [isRewindButtonHidden, setIsRewindButtonHidden] = useState(true);
 
@@ -111,18 +109,18 @@ export function useScrubber({
 
     const animate = () => {
       if (!shouldResumeRef.current) {
-        const time = playbackService.getEngineTime();
+        const time = playback.getEngineTime();
 
         // During count-in the transport plays lead-in audio but the
         // timeline stays frozen at the recording position.  Once the
         // count-in ends, scroll and transportTime resume updating.
-        if (!recordingService.isCountingIn.value) {
-          playbackService.transportTime.value = time;
+        if (!recording.isCountingIn) {
+          playback.setTransportTime(time);
           setScrollPosition(time);
         }
 
-        const currentLoudness = trackService.mixer.getLoudness();
-        playbackService.loudness.value = currentLoudness;
+        const currentLoudness = trackHook.getMixerLoudness();
+        playback.setLoudness(currentLoudness);
 
         const frequencyData =
           visualizerRef.current?.getVisualizationData() ?? null;
@@ -144,16 +142,13 @@ export function useScrubber({
         // can momentarily equal clientWidth before new content is laid out.
         // Stopping playback here would freeze transportTime updates and halt
         // the live spectrogram scroll.
-        if (
-          timelineScrollRef.current &&
-          !recordingService.isActivelyRecording()
-        ) {
+        if (timelineScrollRef.current && !recording.isActivelyRecording) {
           const isEndOfScroll =
             timelineScrollRef.current.scrollLeft +
               timelineScrollRef.current.clientWidth >=
             timelineScrollRef.current.scrollWidth;
           if (isEndOfScroll) {
-            playbackService.rewind();
+            playback.rewind();
             return;
           }
         }
@@ -165,28 +160,28 @@ export function useScrubber({
     rafId = requestAnimationFrame(animate);
 
     return () => cancelAnimationFrame(rafId);
-    // playbackService, recordingService, trackService are stable refs
+    // Hook objects reference stable service singletons via getters
   }, [playing, setScrollPosition]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync scroll position to transportTime when not playing (e.g. after rewind)
   // and render the idle (static line) playhead frame
   useEffect(() => {
     if (!playing) {
-      setScrollPosition(playbackService.transportTime.peek());
+      setScrollPosition(playback.transportTime);
       plasmaRef.current?.renderIdle();
     }
-    // playbackService is a stable ref
+    // Hook objects reference stable service singletons via getters
   }, [playing, setScrollPosition]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setTransportTimeFromScroll = () => {
     if (timelineScrollRef.current) {
       const scrollPosition = timelineScrollRef.current.scrollLeft;
       const time = scrollPosition / pixelsPerSecond;
-      playbackService.seekTo(time);
+      playback.seekTo(time);
     }
     if (shouldResumeRef.current) {
       shouldResumeRef.current = false;
-      playbackService.play();
+      playback.play();
     }
   };
 
@@ -197,14 +192,14 @@ export function useScrubber({
   const pauseForUserScroll = () => {
     if (playing && !shouldResumeRef.current) {
       shouldResumeRef.current = true;
-      playbackService.pause();
+      playback.pause();
     }
   };
 
   const handleWheel = (e: ReactWheelEvent) => {
     // Skip scroll handling when Ctrl/Meta+wheel is used for zoom
     if (e.ctrlKey || e.metaKey) return;
-    if (recordingService.isActivelyRecording()) return;
+    if (recording.isActivelyRecording) return;
     pauseForUserScroll();
     debouncedSetTransportTime();
   };
@@ -212,7 +207,7 @@ export function useScrubber({
   const handleTouchMove = () => {
     // Skip scroll handling during pinch-to-zoom
     if (isPinchingRef.current) return;
-    if (recordingService.isActivelyRecording()) return;
+    if (recording.isActivelyRecording) return;
     pauseForUserScroll();
     debouncedSetTransportTime();
   };
@@ -227,14 +222,14 @@ export function useScrubber({
       toggleRewindButton(timelineScrollRef.current.scrollLeft);
     }
 
-    if (recordingService.isActivelyRecording()) return;
+    if (recording.isActivelyRecording) return;
     pauseForUserScroll();
     debouncedSetTransportTime();
   };
 
   const handleStopAndRewind = () => {
-    if (recordingService.isActivelyRecording()) return;
-    playbackService.rewind();
+    if (recording.isActivelyRecording) return;
+    playback.rewind();
     setScrollPosition(0);
   };
 
