@@ -56,6 +56,13 @@ vi.mock('tone', () => {
     decodeAudioData: vi.fn().mockResolvedValue({}),
     lookAhead: 0.05,
     sampleRate: 44100,
+    destination: {},
+    addAudioWorkletModule: vi.fn().mockResolvedValue(undefined),
+    createAudioWorkletNode: vi.fn().mockReturnValue({
+      port: { postMessage: vi.fn(), onmessage: null },
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+    }),
     rawContext: {
       outputLatency: 0.01,
       baseLatency: 0.005,

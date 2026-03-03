@@ -96,6 +96,7 @@ Services own state as private signals, expose plain getters for non-reactive rea
 - Signals owned (private): `recordingState`, `isCountingIn`, `isRecording`
 - Plain getters: `recordingState`, `isCountingIn`, `isRecording`
 - Encapsulates `MicrophoneService` (private) — Tone.UserMedia wrapper for microphone input
+- Encapsulates `WorkletRecorder` (private) — AudioWorklet-based PCM capture; falls back to `Tone.Recorder` if unavailable
 - Public API: `arm()`, `disarm()`, `startRecording()`, `stopRecording()`, `toggleArm()`, `startCountIn()`, `stopCountIn()`, `isTransportLocked()`, `prepareMicrophone()`, `closeMicrophone()`, `getLoudness()`, `getMicrophoneSource()`
 - The `armed` state models the GarageBand workflow: arm, position, then play to record
 
@@ -169,6 +170,9 @@ src/
 │   │                                  #   encapsulates MixerService
 │   ├── MixerService.ts                # Tone.Player + Tone.Channel chain per track (private to TrackService)
 │   ├── MicrophoneService.ts           # Tone.UserMedia wrapper + meter (private to RecordingService)
+│   ├── WorkletRecorder.ts             # Main-thread wrapper for AudioWorklet PCM capture
+│   ├── RecordingProcessor.ts          # AudioWorkletProcessor: captures PCM chunks on audio thread
+│   ├── LatencyCompensation.ts         # Round-trip latency estimation for recording alignment
 │   └── OfflineAnalyser.ts             # OfflineAudioContext + AnalyserNode for spectrogram data
 │
 ├── signals/
@@ -262,6 +266,15 @@ Channel volume (slider 0–100) is converted to decibels: `20 * Math.log((value 
 
 ### @dnd-kit is PointerSensor only
 `Mixer.tsx` registers only `PointerSensor` (not `MouseSensor` or `TouchSensor`). This is intentional to unify pointer events across devices.
+
+### Tone.js context is not the native AudioContext
+Tone.js v14+ uses `standardized-audio-context`, which wraps the native browser `AudioContext` in a proxy that maintains an internal node registry. `Tone.getContext().rawContext` returns this **wrapper**, not the native `AudioContext`. The wrapper's `instanceof AudioContext` check returns `false`.
+
+This wrapper breaks `AudioWorkletNode` connections — calling `.connect()` between a wrapper-created node and a native node triggers a "value with the given key could not be found" error from the internal registry ([Tone.js #712](https://github.com/Tonejs/Tone.js/issues/712)).
+
+The worklet recording path (`WorkletRecorder`, `RecordingProcessor`) bypasses this entirely by extracting the actual native `AudioContext` via `rawContext._nativeContext` (a private field on the standardized-audio-context wrapper). All nodes in the worklet chain — `MediaStreamSourceNode`, `AudioWorkletNode`, and `destination` — are created on the native context. This avoids the registry and keeps the recording path fully native. The `_nativeContext` extraction happens once in `RecordingService.initializeWorkletRecorder()` and is stored for reuse during recording.
+
+If `_nativeContext` is unavailable (e.g., the context is already native), the code falls back to using `rawContext` directly. If worklet initialization fails entirely, `RecordingService` silently falls back to `Tone.Recorder` (MediaRecorder-based).
 
 ### Signal access pattern
 Every signal owner (service or signal module) provides three tiers of access:
