@@ -39,11 +39,11 @@ describe('useSpacebarPlaybackToggle', () => {
   it('toggles playback with spacebar', () => {
     renderHook(() => useSpacebarPlaybackToggle());
 
-    expect(playbackService.isPlaying.value).toBe(false);
+    expect(playbackService.isPlaying).toBe(false);
 
     fireEvent.keyUp(window, { key: ' ', code: 'Space' });
 
-    expect(playbackService.isPlaying.value).toBe(true);
+    expect(playbackService.isPlaying).toBe(true);
   });
 
   it('does not toggle playback with spacebar while recording', () => {
@@ -54,7 +54,7 @@ describe('useSpacebarPlaybackToggle', () => {
 
     fireEvent.keyUp(window, { key: ' ', code: 'Space' });
 
-    expect(playbackService.isPlaying.value).toBe(false);
+    expect(playbackService.isPlaying).toBe(false);
   });
 });
 
@@ -124,7 +124,7 @@ describe('useMicrophone', () => {
     rerender({ isRec: false });
     await act(async () => {});
 
-    expect(recordingService.recordingState.value).toBe('idle');
+    expect(recordingService.recordingState).toBe('idle');
   });
 
   it('does not start playback when recording starts', async () => {
@@ -135,7 +135,7 @@ describe('useMicrophone', () => {
     await act(async () => {});
 
     // Count-in handles playback start, not useMicrophone
-    expect(playbackService.isPlaying.value).toBe(false);
+    expect(playbackService.isPlaying).toBe(false);
   });
 
   it('pauses at current position when recording stops', async () => {
@@ -150,7 +150,7 @@ describe('useMicrophone', () => {
     rerender({ isRec: false });
     await act(async () => {});
 
-    expect(playbackService.isPlaying.value).toBe(false);
-    expect(playbackService.transportTime.value).toBe(5.0);
+    expect(playbackService.isPlaying).toBe(false);
+    expect(playbackService.transportTime).toBe(5.0);
   });
 });

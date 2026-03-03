@@ -34,7 +34,7 @@ it('hides rewind button at start of playback', () => {
 });
 
 it('shows rewind button when playback has progressed', () => {
-  playbackService.transportTime.value = 100;
+  playbackService.setTransportTime(100);
 
   const { getByTitle } = render(<Scrubber {...defaultProps} />);
 
@@ -48,15 +48,15 @@ it('shows rewind button when playback has progressed', () => {
 
 it('stops and rewinds playback when rewind button is clicked', () => {
   playbackService.play();
-  playbackService.transportTime.value = 5.0;
+  playbackService.setTransportTime(5.0);
 
   const { getByTitle } = render(<Scrubber {...defaultProps} />);
 
   const rewindButton = getByTitle('Rewind');
   fireEvent.click(rewindButton);
 
-  expect(playbackService.isPlaying.value).toBe(false);
-  expect(playbackService.transportTime.value).toBe(0);
+  expect(playbackService.isPlaying).toBe(false);
+  expect(playbackService.transportTime).toBe(0);
 });
 
 it('pauses playback when timeline is scrolled while playing', () => {
@@ -67,7 +67,7 @@ it('pauses playback when timeline is scrolled while playing', () => {
   const timeline = container.querySelector('.scrubber__timeline')!;
   fireEvent.scroll(timeline);
 
-  expect(playbackService.isPlaying.value).toBe(false);
+  expect(playbackService.isPlaying).toBe(false);
 });
 
 it('does not pause playback when timeline is scrolled while paused', () => {
@@ -76,7 +76,7 @@ it('does not pause playback when timeline is scrolled while paused', () => {
   const timeline = container.querySelector('.scrubber__timeline')!;
   fireEvent.scroll(timeline);
 
-  expect(playbackService.isPlaying.value).toBe(false);
+  expect(playbackService.isPlaying).toBe(false);
 });
 
 it('transforms timeline vertical scale when drawer is open', () => {
@@ -155,8 +155,8 @@ it('does not stop playback at end of scroll during recording', () => {
     rafCallback(0);
   });
 
-  expect(playbackService.isPlaying.value).toBe(true);
-  expect(playbackService.transportTime.value).toBe(1.5);
+  expect(playbackService.isPlaying).toBe(true);
+  expect(playbackService.transportTime).toBe(1.5);
 });
 
 it('does not call getLoudness when playback is stopped', () => {
@@ -181,7 +181,7 @@ it('stops recording when timeline is clicked during recording', () => {
   fireEvent.click(timeline);
 
   expect(onStopRecording).toHaveBeenCalledOnce();
-  expect(playbackService.isPlaying.value).toBe(true);
+  expect(playbackService.isPlaying).toBe(true);
 });
 
 it('cancels count-in when timeline is clicked during count-in', () => {
@@ -199,7 +199,7 @@ it('cancels count-in when timeline is clicked during count-in', () => {
   fireEvent.click(timeline);
 
   expect(onStopRecording).toHaveBeenCalledOnce();
-  expect(playbackService.isPlaying.value).toBe(true);
+  expect(playbackService.isPlaying).toBe(true);
 });
 
 it('does not pause playback when timeline is scrolled during recording', () => {
@@ -212,21 +212,21 @@ it('does not pause playback when timeline is scrolled during recording', () => {
   const timeline = container.querySelector('.scrubber__timeline')!;
   fireEvent.scroll(timeline);
 
-  expect(playbackService.isPlaying.value).toBe(true);
+  expect(playbackService.isPlaying).toBe(true);
 });
 
 it('does not rewind when rewind button is clicked during recording', () => {
   playbackService.play();
   recordingService.arm();
   recordingService.startRecording();
-  playbackService.transportTime.value = 5.0;
+  playbackService.setTransportTime(5.0);
 
   const { getByTitle } = render(<Scrubber {...defaultProps} />);
 
   fireEvent.click(getByTitle('Rewind'));
 
-  expect(playbackService.isPlaying.value).toBe(true);
-  expect(playbackService.transportTime.value).toBe(5.0);
+  expect(playbackService.isPlaying).toBe(true);
+  expect(playbackService.transportTime).toBe(5.0);
 });
 
 it('does not update transportTime during count-in', () => {
@@ -239,7 +239,7 @@ it('does not update transportTime during count-in', () => {
     return 1;
   });
 
-  playbackService.transportTime.value = 5.0;
+  playbackService.setTransportTime(5.0);
   playbackService.play();
   recordingService.arm();
   recordingService.startRecording();
@@ -253,5 +253,5 @@ it('does not update transportTime during count-in', () => {
 
   // transportTime should stay at the pre-count-in value, not update
   // to the current transport position (3.5) during count-in
-  expect(playbackService.transportTime.value).toBe(5.0);
+  expect(playbackService.transportTime).toBe(5.0);
 });

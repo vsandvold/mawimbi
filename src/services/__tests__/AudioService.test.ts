@@ -36,17 +36,17 @@ describe('singleton', () => {
 describe('sub-services', () => {
   it('creates a PlaybackService', () => {
     expect(audioService.playbackService).toBeDefined();
-    expect(audioService.playbackService.playbackState.value).toBe('stopped');
+    expect(audioService.playbackService.playbackState).toBe('stopped');
   });
 
   it('creates a RecordingService', () => {
     expect(audioService.recordingService).toBeDefined();
-    expect(audioService.recordingService.recordingState.value).toBe('idle');
+    expect(audioService.recordingService.recordingState).toBe('idle');
   });
 
   it('creates a TrackService', () => {
     expect(audioService.trackService).toBeDefined();
-    expect(audioService.trackService.mutedTracks.value).toEqual([]);
+    expect(audioService.trackService.mutedTracks).toEqual([]);
   });
 
   it('creates a SpectrogramCache', () => {

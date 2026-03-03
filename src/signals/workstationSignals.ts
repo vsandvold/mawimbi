@@ -1,26 +1,36 @@
-import { signal } from '@preact/signals-react';
+import { signal, type ReadonlySignal } from '@preact/signals-react';
 
 const DEFAULT_PIXELS_PER_SECOND = 200;
 export const MIN_PIXELS_PER_SECOND = 50;
 export const MAX_PIXELS_PER_SECOND = 800;
 const ZOOM_STEP_FACTOR = 1.5;
 
-export const pixelsPerSecond = signal(DEFAULT_PIXELS_PER_SECOND);
+const _pixelsPerSecond = signal(DEFAULT_PIXELS_PER_SECOND);
+
+// Narrow channel for reactive consumers (hooks)
+export const signals = {
+  pixelsPerSecond: _pixelsPerSecond as ReadonlySignal<number>,
+};
+
+// Plain getter for non-reactive consumers (tests, workflows)
+export function getPixelsPerSecond(): number {
+  return _pixelsPerSecond.value;
+}
 
 export function zoomIn(): void {
-  pixelsPerSecond.value = clampZoom(pixelsPerSecond.value * ZOOM_STEP_FACTOR);
+  _pixelsPerSecond.value = clampZoom(_pixelsPerSecond.value * ZOOM_STEP_FACTOR);
 }
 
 export function zoomOut(): void {
-  pixelsPerSecond.value = clampZoom(pixelsPerSecond.value / ZOOM_STEP_FACTOR);
+  _pixelsPerSecond.value = clampZoom(_pixelsPerSecond.value / ZOOM_STEP_FACTOR);
 }
 
 export function setZoom(value: number): void {
-  pixelsPerSecond.value = clampZoom(value);
+  _pixelsPerSecond.value = clampZoom(value);
 }
 
 export function resetWorkstationSignals(): void {
-  pixelsPerSecond.value = DEFAULT_PIXELS_PER_SECOND;
+  _pixelsPerSecond.value = DEFAULT_PIXELS_PER_SECOND;
 }
 
 function clampZoom(value: number): number {

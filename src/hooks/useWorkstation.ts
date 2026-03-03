@@ -7,7 +7,7 @@ import { useSignals } from '@preact/signals-react/runtime';
 import {
   MAX_PIXELS_PER_SECOND,
   MIN_PIXELS_PER_SECOND,
-  pixelsPerSecond as pixelsPerSecondSignal,
+  signals as workstationSignals,
   zoomIn,
   zoomOut,
   setZoom,
@@ -17,16 +17,16 @@ export function useWorkstation() {
   useSignals();
 
   return {
-    // --- Reactive state ---
+    // --- Reactive state (getters → lazy signal subscription via signals accessor) ---
 
     get pixelsPerSecond(): number {
-      return pixelsPerSecondSignal.value;
+      return workstationSignals.pixelsPerSecond.value;
     },
     get isMaxZoom(): boolean {
-      return pixelsPerSecondSignal.value >= MAX_PIXELS_PER_SECOND;
+      return workstationSignals.pixelsPerSecond.value >= MAX_PIXELS_PER_SECOND;
     },
     get isMinZoom(): boolean {
-      return pixelsPerSecondSignal.value <= MIN_PIXELS_PER_SECOND;
+      return workstationSignals.pixelsPerSecond.value <= MIN_PIXELS_PER_SECOND;
     },
 
     // --- Actions ---

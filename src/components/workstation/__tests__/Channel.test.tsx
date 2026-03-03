@@ -1,6 +1,6 @@
 import { fireEvent, render } from '@testing-library/react';
 
-import { focusedTracks } from '../../../signals/focusSignals';
+import { getFocusedTracks } from '../../../signals/focusSignals';
 import AudioService from '../../../services/AudioService';
 import { resetAllSignals } from '../../../signals/__tests__/testUtils';
 import { mockTrack } from '../../../testUtils';
@@ -155,5 +155,5 @@ it('focuses track when volume slider is clicked without moving', () => {
   const volumeSlider = container.querySelector('.channel__volume')!;
   fireEvent.pointerDown(volumeSlider);
 
-  expect(focusedTracks.value).toContain('track-1');
+  expect(getFocusedTracks()).toContain('track-1');
 });

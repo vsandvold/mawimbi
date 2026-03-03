@@ -15,23 +15,23 @@ beforeEach(() => {
 describe('PlaybackService', () => {
   describe('initial state', () => {
     it('starts in stopped state', () => {
-      expect(service.playbackState.value).toBe('stopped');
+      expect(service.playbackState).toBe('stopped');
     });
 
     it('has transportTime at 0', () => {
-      expect(service.transportTime.value).toBe(0);
+      expect(service.transportTime).toBe(0);
     });
 
     it('has totalTime at 0', () => {
-      expect(service.totalTime.value).toBe(0);
+      expect(service.totalTime).toBe(0);
     });
 
     it('has loudness at 0', () => {
-      expect(service.loudness.value).toBe(0);
+      expect(service.loudness).toBe(0);
     });
 
     it('reports isPlaying as false', () => {
-      expect(service.isPlaying.value).toBe(false);
+      expect(service.isPlaying).toBe(false);
     });
   });
 
@@ -39,8 +39,8 @@ describe('PlaybackService', () => {
     it('transitions from stopped to playing', () => {
       service.play();
 
-      expect(service.playbackState.value).toBe('playing');
-      expect(service.isPlaying.value).toBe(true);
+      expect(service.playbackState).toBe('playing');
+      expect(service.isPlaying).toBe(true);
     });
 
     it('calls transport.start()', () => {
@@ -64,38 +64,38 @@ describe('PlaybackService', () => {
 
       service.play();
 
-      expect(service.playbackState.value).toBe('playing');
+      expect(service.playbackState).toBe('playing');
     });
 
     it('rewinds when playing from end of timeline', () => {
-      service.transportTime.value = 10.0;
-      service.totalTime.value = 10.0;
+      service.setTransportTime(10.0);
+      service.setTotalTime(10.0);
 
       service.play();
 
-      expect(service.transportTime.value).toBe(0);
+      expect(service.transportTime).toBe(0);
       expect(Tone.getTransport().seconds).toBe(0);
-      expect(service.isPlaying.value).toBe(true);
+      expect(service.isPlaying).toBe(true);
     });
 
     it('handles end-of-playback comparison with toFixed(1) rounding', () => {
-      service.transportTime.value = 10.04;
-      service.totalTime.value = 10.0;
+      service.setTransportTime(10.04);
+      service.setTotalTime(10.0);
 
       service.play();
 
-      expect(service.transportTime.value).toBe(0);
-      expect(service.isPlaying.value).toBe(true);
+      expect(service.transportTime).toBe(0);
+      expect(service.isPlaying).toBe(true);
     });
 
     it('does not restart when not quite at end of playback', () => {
-      service.transportTime.value = 9.8;
-      service.totalTime.value = 10.0;
+      service.setTransportTime(9.8);
+      service.setTotalTime(10.0);
 
       service.play();
 
-      expect(service.transportTime.value).toBe(9.8);
-      expect(service.isPlaying.value).toBe(true);
+      expect(service.transportTime).toBe(9.8);
+      expect(service.isPlaying).toBe(true);
     });
   });
 
@@ -105,7 +105,7 @@ describe('PlaybackService', () => {
 
       service.pause();
 
-      expect(service.playbackState.value).toBe('paused');
+      expect(service.playbackState).toBe('paused');
       expect(service.isPaused()).toBe(true);
     });
 
@@ -120,7 +120,7 @@ describe('PlaybackService', () => {
     it('is a no-op when stopped', () => {
       service.pause();
 
-      expect(service.playbackState.value).toBe('stopped');
+      expect(service.playbackState).toBe('stopped');
     });
 
     it('is a no-op when already paused', () => {
@@ -140,7 +140,7 @@ describe('PlaybackService', () => {
 
       service.stop();
 
-      expect(service.playbackState.value).toBe('stopped');
+      expect(service.playbackState).toBe('stopped');
       expect(service.isStopped()).toBe(true);
     });
 
@@ -158,7 +158,7 @@ describe('PlaybackService', () => {
 
       service.stop();
 
-      expect(service.playbackState.value).toBe('stopped');
+      expect(service.playbackState).toBe('stopped');
     });
 
     it('is a no-op when already stopped', () => {
@@ -172,7 +172,7 @@ describe('PlaybackService', () => {
     it('starts playback when stopped', () => {
       service.togglePlayback();
 
-      expect(service.isPlaying.value).toBe(true);
+      expect(service.isPlaying).toBe(true);
     });
 
     it('pauses playback when playing', () => {
@@ -180,31 +180,31 @@ describe('PlaybackService', () => {
 
       service.togglePlayback();
 
-      expect(service.isPlaying.value).toBe(false);
-      expect(service.playbackState.value).toBe('paused');
+      expect(service.isPlaying).toBe(false);
+      expect(service.playbackState).toBe('paused');
     });
 
     it('restarts from beginning when at end of playback', () => {
-      service.transportTime.value = 10.0;
-      service.totalTime.value = 10.0;
+      service.setTransportTime(10.0);
+      service.setTotalTime(10.0);
 
       service.togglePlayback();
 
-      expect(service.isPlaying.value).toBe(true);
-      expect(service.transportTime.value).toBe(0);
+      expect(service.isPlaying).toBe(true);
+      expect(service.transportTime).toBe(0);
     });
   });
 
   describe('rewind', () => {
     it('stops playback and rewinds to beginning', () => {
       service.play();
-      service.transportTime.value = 5.0;
+      service.setTransportTime(5.0);
 
       service.rewind();
 
-      expect(service.isPlaying.value).toBe(false);
-      expect(service.playbackState.value).toBe('stopped');
-      expect(service.transportTime.value).toBe(0);
+      expect(service.isPlaying).toBe(false);
+      expect(service.playbackState).toBe('stopped');
+      expect(service.transportTime).toBe(0);
       expect(Tone.getTransport().seconds).toBe(0);
     });
   });
@@ -213,7 +213,7 @@ describe('PlaybackService', () => {
     it('updates both transportTime signal and engine time', () => {
       service.seekTo(5.0);
 
-      expect(service.transportTime.value).toBe(5.0);
+      expect(service.transportTime).toBe(5.0);
       expect(Tone.getTransport().seconds).toBe(5.0);
     });
   });
@@ -235,16 +235,16 @@ describe('PlaybackService', () => {
   describe('reset', () => {
     it('resets all state to defaults', () => {
       service.play();
-      service.transportTime.value = 99;
-      service.totalTime.value = 120;
-      service.loudness.value = -6;
+      service.setTransportTime(99);
+      service.setTotalTime(120);
+      service.setLoudness(-6);
 
       service.reset();
 
-      expect(service.playbackState.value).toBe('stopped');
-      expect(service.transportTime.value).toBe(0);
-      expect(service.totalTime.value).toBe(0);
-      expect(service.loudness.value).toBe(0);
+      expect(service.playbackState).toBe('stopped');
+      expect(service.transportTime).toBe(0);
+      expect(service.totalTime).toBe(0);
+      expect(service.loudness).toBe(0);
     });
   });
 });

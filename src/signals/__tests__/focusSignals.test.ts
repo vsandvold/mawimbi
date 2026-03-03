@@ -1,5 +1,5 @@
 import {
-  focusedTracks,
+  getFocusedTracks,
   focusTrack,
   unfocusTrack,
   resetFocusSignals,
@@ -12,7 +12,7 @@ afterEach(() => {
 describe('focusSignals', () => {
   describe('initial values', () => {
     it('has empty focusedTracks', () => {
-      expect(focusedTracks.value).toEqual([]);
+      expect(getFocusedTracks()).toEqual([]);
     });
   });
 
@@ -20,21 +20,21 @@ describe('focusSignals', () => {
     it('adds a track to focusedTracks', () => {
       focusTrack('track-1');
 
-      expect(focusedTracks.value).toEqual(['track-1']);
+      expect(getFocusedTracks()).toEqual(['track-1']);
     });
 
     it('adds multiple tracks', () => {
       focusTrack('track-1');
       focusTrack('track-2');
 
-      expect(focusedTracks.value).toEqual(['track-1', 'track-2']);
+      expect(getFocusedTracks()).toEqual(['track-1', 'track-2']);
     });
 
     it('does not add duplicate tracks', () => {
       focusTrack('track-1');
       focusTrack('track-1');
 
-      expect(focusedTracks.value).toEqual(['track-1']);
+      expect(getFocusedTracks()).toEqual(['track-1']);
     });
   });
 
@@ -45,7 +45,7 @@ describe('focusSignals', () => {
 
       unfocusTrack('track-1');
 
-      expect(focusedTracks.value).toEqual(['track-2']);
+      expect(getFocusedTracks()).toEqual(['track-2']);
     });
 
     it('handles unfocusing a track that is not focused', () => {
@@ -53,7 +53,7 @@ describe('focusSignals', () => {
 
       unfocusTrack('track-2');
 
-      expect(focusedTracks.value).toEqual(['track-1']);
+      expect(getFocusedTracks()).toEqual(['track-1']);
     });
   });
 
@@ -64,7 +64,7 @@ describe('focusSignals', () => {
 
       resetFocusSignals();
 
-      expect(focusedTracks.value).toEqual([]);
+      expect(getFocusedTracks()).toEqual([]);
     });
   });
 });

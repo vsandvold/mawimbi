@@ -19,25 +19,25 @@ export function usePlaybackService() {
   const service = useContext(AudioServiceContext).playbackService;
 
   return {
-    // --- Reactive state (getters → lazy signal subscription) ---
+    // --- Reactive state (getters → lazy signal subscription via signals accessor) ---
 
     get playbackState(): PlaybackState {
-      return service.playbackState.value;
+      return service.signals.playbackState.value;
     },
     get isPlaying(): boolean {
-      return service.isPlaying.value;
+      return service.signals.isPlaying.value;
     },
     get isStopped(): boolean {
-      return service.playbackState.value === 'stopped';
+      return service.signals.playbackState.value === 'stopped';
     },
     get transportTime(): number {
-      return service.transportTime.value;
+      return service.signals.transportTime.value;
     },
     get totalTime(): number {
-      return service.totalTime.value;
+      return service.signals.totalTime.value;
     },
     get loudness(): number {
-      return service.loudness.value;
+      return service.signals.loudness.value;
     },
 
     // --- State machine transitions ---
@@ -53,15 +53,9 @@ export function usePlaybackService() {
 
     getEngineTime: () => service.getEngineTime(),
     setEngineTime: (time: number) => service.setEngineTime(time),
-    setTransportTime: (time: number) => {
-      service.transportTime.value = time;
-    },
-    setTotalTime: (time: number) => {
-      service.totalTime.value = time;
-    },
-    setLoudness: (value: number) => {
-      service.loudness.value = value;
-    },
+    setTransportTime: (time: number) => service.setTransportTime(time),
+    setTotalTime: (time: number) => service.setTotalTime(time),
+    setLoudness: (value: number) => service.setLoudness(value),
 
     // --- Reset ---
 

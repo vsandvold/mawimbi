@@ -71,13 +71,13 @@ vi.mock('../../../../hooks/useAudioService', () => ({
 vi.mock('../../../../hooks/usePlaybackService', () => ({
   usePlaybackService: () => ({
     get isPlaying() {
-      return playbackService.isPlaying.value;
+      return playbackService.signals.isPlaying.value;
     },
     get transportTime() {
-      return playbackService.transportTime.value;
+      return playbackService.signals.transportTime.value;
     },
     get playbackState() {
-      return playbackService.playbackState.value;
+      return playbackService.signals.playbackState.value;
     },
     play: () => playbackService.play(),
     pause: () => playbackService.pause(),
@@ -85,12 +85,8 @@ vi.mock('../../../../hooks/usePlaybackService', () => ({
     togglePlayback: () => playbackService.togglePlayback(),
     seekTo: (t: number) => playbackService.seekTo(t),
     getEngineTime: () => playbackService.getEngineTime(),
-    setTransportTime: (t: number) => {
-      playbackService.transportTime.value = t;
-    },
-    setLoudness: (v: number) => {
-      playbackService.loudness.value = v;
-    },
+    setTransportTime: (t: number) => playbackService.setTransportTime(t),
+    setLoudness: (v: number) => playbackService.setLoudness(v),
     reset: () => playbackService.reset(),
   }),
 }));
@@ -98,16 +94,16 @@ vi.mock('../../../../hooks/usePlaybackService', () => ({
 vi.mock('../../../../hooks/useRecordingService', () => ({
   useRecordingService: () => ({
     get isRecording() {
-      return recordingService.isRecording.value;
+      return recordingService.signals.isRecording.value;
     },
     get isCountingIn() {
-      return recordingService.isCountingIn.value;
+      return recordingService.signals.isCountingIn.value;
     },
     get isActivelyRecording() {
       return recordingService.isActivelyRecording();
     },
     get recordingState() {
-      return recordingService.recordingState.value;
+      return recordingService.signals.recordingState.value;
     },
     arm: () => recordingService.arm(),
     startRecording: () => recordingService.startRecording(),
@@ -124,7 +120,7 @@ vi.mock('../../../../hooks/useTrackService', () => ({
     retrieveStartTime: mockRetrieveStartTime,
     getSignals: (id: string) => trackService.getSignals(id),
     get mutedTracks() {
-      return trackService.mutedTracks.value;
+      return trackService.signals.mutedTracks.value;
     },
   }),
 }));
@@ -409,7 +405,7 @@ describe('recording mode', () => {
   it('reads visualization data from FrequencyVisualizer during recording', () => {
     recordingService.arm();
     recordingService.startRecording();
-    playbackService.transportTime.value = 1.5;
+    playbackService.setTransportTime(1.5);
     mockGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));
 
     const mockCtx = {
@@ -440,7 +436,7 @@ describe('recording mode', () => {
   it('offsets container by recording start time during overdub', () => {
     recordingService.arm();
     recordingService.startRecording();
-    playbackService.transportTime.value = 5.0;
+    playbackService.setTransportTime(5.0);
     mockGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));
 
     const mockCtx = {
@@ -476,7 +472,7 @@ describe('recording mode', () => {
   it('updates container width based on elapsed recording time', () => {
     recordingService.arm();
     recordingService.startRecording();
-    playbackService.transportTime.value = 2.0;
+    playbackService.setTransportTime(2.0);
     mockGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));
 
     const mockCtx = {

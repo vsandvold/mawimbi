@@ -19,48 +19,103 @@ type Transport = {
 };
 
 class PlaybackService {
-  readonly playbackState = signal<PlaybackState>('stopped');
-  readonly transportTime = signal(0);
-  readonly totalTime = signal(0);
-  readonly loudness = signal(0);
-  readonly isPlaying: ReadonlySignal<boolean>;
+  // --- Private signals (only the service writes these) ---
+
+  private readonly _playbackState = signal<PlaybackState>('stopped');
+  private readonly _transportTime = signal(0);
+  private readonly _totalTime = signal(0);
+  private readonly _loudness = signal(0);
+  private readonly _isPlaying: ReadonlySignal<boolean>;
+
+  // --- Narrow channel for reactive consumers (hooks) ---
+
+  readonly signals: {
+    readonly playbackState: ReadonlySignal<PlaybackState>;
+    readonly transportTime: ReadonlySignal<number>;
+    readonly totalTime: ReadonlySignal<number>;
+    readonly loudness: ReadonlySignal<number>;
+    readonly isPlaying: ReadonlySignal<boolean>;
+  };
 
   private transport: Transport;
 
   constructor(transport: Transport) {
     this.transport = transport;
-    this.isPlaying = computed(() => this.playbackState.value === 'playing');
+    this._isPlaying = computed(() => this._playbackState.value === 'playing');
+    this.signals = {
+      playbackState: this._playbackState,
+      transportTime: this._transportTime,
+      totalTime: this._totalTime,
+      loudness: this._loudness,
+      isPlaying: this._isPlaying,
+    };
+  }
+
+  // --- Plain getters for non-reactive consumers (tests, workflows) ---
+
+  get playbackState(): PlaybackState {
+    return this._playbackState.value;
+  }
+
+  get transportTime(): number {
+    return this._transportTime.value;
+  }
+
+  get totalTime(): number {
+    return this._totalTime.value;
+  }
+
+  get loudness(): number {
+    return this._loudness.value;
+  }
+
+  get isPlaying(): boolean {
+    return this._isPlaying.value;
+  }
+
+  // --- Setters for values that external code needs to update ---
+
+  setTransportTime(time: number): void {
+    this._transportTime.value = time;
+  }
+
+  setTotalTime(time: number): void {
+    this._totalTime.value = time;
+  }
+
+  setLoudness(value: number): void {
+    this._loudness.value = value;
   }
 
   // --- State machine transitions (with integrated transport control) ---
 
   play(): void {
-    const state = this.playbackState.value;
+    const state = this._playbackState.value;
     if (state === 'playing') return;
 
     if (state === 'stopped' && this.isAtEndOfTimeline()) {
-      this.transportTime.value = 0;
+      this._transportTime.value = 0;
       this.transport.seconds = 0;
     }
 
-    this.playbackState.value = 'playing';
+    this._playbackState.value = 'playing';
     this.transport.start();
   }
 
   pause(): void {
-    if (this.playbackState.value !== 'playing') return;
-    this.playbackState.value = 'paused';
+    if (this._playbackState.value !== 'playing') return;
+    this._playbackState.value = 'paused';
     this.transport.pause();
   }
 
   stop(): void {
-    if (this.playbackState.value === 'stopped') return;
-    this.playbackState.value = 'stopped';
+    if (this._playbackState.value === 'stopped') return;
+    this._playbackState.value = 'stopped';
     this.transport.stop();
   }
 
   togglePlayback(): void {
-    if (this.playbackState.value === 'playing') {
+    if (this._playbackState.value === 'playing') {
       this.pause();
     } else {
       this.play();
@@ -70,12 +125,12 @@ class PlaybackService {
   rewind(): void {
     this.transport.stop();
     this.transport.seconds = 0;
-    this.playbackState.value = 'stopped';
-    this.transportTime.value = 0;
+    this._playbackState.value = 'stopped';
+    this._transportTime.value = 0;
   }
 
   seekTo(time: number): void {
-    this.transportTime.value = time;
+    this._transportTime.value = time;
     this.transport.seconds = time;
   }
 
@@ -92,26 +147,26 @@ class PlaybackService {
   // --- Derived queries ---
 
   isPaused(): boolean {
-    return this.playbackState.value === 'paused';
+    return this._playbackState.value === 'paused';
   }
 
   isStopped(): boolean {
-    return this.playbackState.value === 'stopped';
+    return this._playbackState.value === 'stopped';
   }
 
   // --- Reset (used in tests and when navigating away) ---
 
   reset(): void {
-    this.playbackState.value = 'stopped';
-    this.transportTime.value = 0;
-    this.totalTime.value = 0;
-    this.loudness.value = 0;
+    this._playbackState.value = 'stopped';
+    this._transportTime.value = 0;
+    this._totalTime.value = 0;
+    this._loudness.value = 0;
   }
 
   private isAtEndOfTimeline(): boolean {
     return (
-      this.transportTime.value.toFixed(1) === this.totalTime.value.toFixed(1) &&
-      this.totalTime.value > 0
+      this._transportTime.value.toFixed(1) ===
+        this._totalTime.value.toFixed(1) && this._totalTime.value > 0
     );
   }
 }
