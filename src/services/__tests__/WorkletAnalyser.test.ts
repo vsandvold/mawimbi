@@ -154,6 +154,144 @@ describe('WorkletAnalyser', () => {
     });
   });
 
+  describe('frequency analysis', () => {
+    it('has default frequencyBinCount of fftSize/2', () => {
+      const analyser = new WorkletAnalyser(createMockAudioContext());
+
+      expect(analyser.frequencyBinCount).toBe(1024);
+      expect(analyser.fftSize).toBe(2048);
+    });
+
+    it('has default dB range', () => {
+      const analyser = new WorkletAnalyser(createMockAudioContext());
+
+      expect(analyser.minDecibels).toBe(-100);
+      expect(analyser.maxDecibels).toBe(-30);
+    });
+
+    describe('enableFrequencyAnalysis', () => {
+      it('sends configure command to processor', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        void analyser.input;
+
+        analyser.enableFrequencyAnalysis();
+
+        expect(mockPort.postMessage).toHaveBeenCalledWith({
+          type: 'configure',
+          frequencyAnalysis: true,
+          fftSize: 2048,
+          minDecibels: -100,
+          maxDecibels: -30,
+        });
+      });
+
+      it('accepts custom fftSize', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        void analyser.input;
+
+        analyser.enableFrequencyAnalysis({ fftSize: 1024 });
+
+        expect(analyser.fftSize).toBe(1024);
+        expect(analyser.frequencyBinCount).toBe(512);
+        expect(mockPort.postMessage).toHaveBeenCalledWith(
+          expect.objectContaining({ fftSize: 1024 }),
+        );
+      });
+
+      it('accepts custom dB range', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        void analyser.input;
+
+        analyser.enableFrequencyAnalysis({
+          minDecibels: -80,
+          maxDecibels: -20,
+        });
+
+        expect(analyser.minDecibels).toBe(-80);
+        expect(analyser.maxDecibels).toBe(-20);
+      });
+    });
+
+    describe('disableFrequencyAnalysis', () => {
+      it('sends disable command to processor', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        void analyser.input;
+        analyser.enableFrequencyAnalysis();
+        mockPort.postMessage.mockClear();
+
+        analyser.disableFrequencyAnalysis();
+
+        expect(mockPort.postMessage).toHaveBeenCalledWith({
+          type: 'configure',
+          frequencyAnalysis: false,
+        });
+      });
+    });
+
+    describe('getByteFrequencyData', () => {
+      it('returns false when frequency analysis is not enabled', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        const output = new Uint8Array(1024);
+
+        expect(analyser.getByteFrequencyData(output)).toBe(false);
+      });
+
+      it('returns true after enabling and receiving data', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        void analyser.input;
+        analyser.enableFrequencyAnalysis();
+
+        const bins = new Uint8Array(1024);
+        bins[0] = 200;
+        bins[1] = 150;
+        mockPort._simulateMessage({ type: 'frequencyData', bins });
+
+        const output = new Uint8Array(1024);
+        expect(analyser.getByteFrequencyData(output)).toBe(true);
+        expect(output[0]).toBe(200);
+        expect(output[1]).toBe(150);
+      });
+
+      it('returns zeros before any frequency data arrives', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        void analyser.input;
+        analyser.enableFrequencyAnalysis();
+
+        const output = new Uint8Array(1024);
+        expect(analyser.getByteFrequencyData(output)).toBe(true);
+        expect(output[0]).toBe(0);
+      });
+
+      it('copies only as many bins as the output array can hold', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        void analyser.input;
+        analyser.enableFrequencyAnalysis();
+
+        const bins = new Uint8Array(1024);
+        bins[0] = 100;
+        bins[511] = 50;
+        mockPort._simulateMessage({ type: 'frequencyData', bins });
+
+        const smallOutput = new Uint8Array(256);
+        analyser.getByteFrequencyData(smallOutput);
+
+        expect(smallOutput[0]).toBe(100);
+        // Bin 511 is beyond the output size, so it shouldn't appear
+        expect(smallOutput[255]).toBe(0);
+      });
+
+      it('returns false after disabling frequency analysis', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        void analyser.input;
+        analyser.enableFrequencyAnalysis();
+        analyser.disableFrequencyAnalysis();
+
+        const output = new Uint8Array(1024);
+        expect(analyser.getByteFrequencyData(output)).toBe(false);
+      });
+    });
+  });
+
   describe('dispose', () => {
     it('disconnects the node', () => {
       const analyser = new WorkletAnalyser(createMockAudioContext());
@@ -175,6 +313,17 @@ describe('WorkletAnalyser', () => {
       analyser.dispose();
 
       expect(analyser.getLoudness()).toBe(0);
+    });
+
+    it('clears frequency data', () => {
+      const analyser = new WorkletAnalyser(createMockAudioContext());
+      void analyser.input;
+      analyser.enableFrequencyAnalysis();
+
+      analyser.dispose();
+
+      const output = new Uint8Array(1024);
+      expect(analyser.getByteFrequencyData(output)).toBe(false);
     });
   });
 });
