@@ -1,5 +1,6 @@
 import * as Tone from 'tone';
 import RecordingService from '../RecordingService';
+import type WorkletAnalyser from '../WorkletAnalyser';
 
 let service: RecordingService;
 
@@ -287,6 +288,26 @@ describe('RecordingService', () => {
 
       expect(service.recordingState).toBe('idle');
       expect(service.isCountingIn).toBe(false);
+    });
+  });
+
+  describe('useWorkletAnalyser', () => {
+    it('delegates getLoudness to WorkletAnalyser after upgrade', () => {
+      const analyser = {
+        input: {
+          connect: vi.fn(),
+          disconnect: vi.fn(),
+        } as unknown as AudioNode,
+        getLoudness: vi.fn().mockReturnValue(0.75),
+        getRawRms: vi.fn().mockReturnValue(0.6),
+        initialize: vi.fn().mockResolvedValue(undefined),
+        dispose: vi.fn(),
+      } as unknown as WorkletAnalyser;
+
+      service.useWorkletAnalyser(analyser);
+
+      expect(service.getLoudness()).toBe(0.6);
+      expect(analyser.getRawRms).toHaveBeenCalled();
     });
   });
 
