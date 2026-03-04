@@ -50,6 +50,10 @@ class MicrophoneService {
     this.microphone.connect(analyser.input as unknown as Tone.ToneAudioNode);
   }
 
+  getWorkletAnalyser(): WorkletAnalyser | null {
+    return this.workletAnalyser;
+  }
+
   getLoudness(): number {
     if (this.workletAnalyser) {
       return this.workletAnalyser.getRawRms();

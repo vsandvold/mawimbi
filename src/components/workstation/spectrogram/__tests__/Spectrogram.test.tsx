@@ -111,6 +111,7 @@ vi.mock('../../../../hooks/useRecordingService', () => ({
     getRecordingStartTime: () => recordingService.getRecordingStartTime(),
     isOverdubRecording: () => recordingService.isOverdubRecording(),
     getMicrophoneSource: () => recordingService.getMicrophoneSource(),
+    getWorkletAnalyser: () => recordingService.getWorkletAnalyser(),
     reset: () => recordingService.reset(),
   }),
 }));
