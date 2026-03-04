@@ -34,11 +34,63 @@ vi.mock('tone', () => ({
   },
 }));
 
+// Track created AudioWorkletNodes for worklet dual-band tests
+const createdWorkletNodes: Array<{
+  port: { postMessage: ReturnType<typeof vi.fn>; onmessage: unknown };
+  connect: ReturnType<typeof vi.fn>;
+  disconnect: ReturnType<typeof vi.fn>;
+}> = [];
+
+const OriginalAudioWorkletNode = globalThis.AudioWorkletNode;
+
+beforeEach(() => {
+  createdWorkletNodes.length = 0;
+  globalThis.AudioWorkletNode = vi.fn().mockImplementation(function () {
+    const node = {
+      port: { postMessage: vi.fn(), onmessage: null as unknown },
+      connect: vi.fn(),
+      disconnect: vi.fn(),
+    };
+    createdWorkletNodes.push(node);
+    return node;
+  }) as unknown as typeof AudioWorkletNode;
+});
+
+afterEach(() => {
+  globalThis.AudioWorkletNode = OriginalAudioWorkletNode;
+});
+
 function createMockSource() {
   return {
     context: {
       rawContext: {
         sampleRate: 44100,
+        _nativeContext: {
+          sampleRate: 44100,
+          audioWorklet: { addModule: vi.fn().mockResolvedValue(undefined) },
+          createBiquadFilter: vi.fn(() => ({
+            type: '',
+            frequency: { value: 0 },
+            connect: vi.fn(),
+            disconnect: vi.fn(),
+          })),
+          createAnalyser: vi.fn(() => ({
+            fftSize: 0,
+            smoothingTimeConstant: 0,
+            minDecibels: 0,
+            maxDecibels: 0,
+            frequencyBinCount: 512,
+            connect: vi.fn(),
+            disconnect: vi.fn(),
+            getByteFrequencyData: vi.fn(),
+          })),
+          createGain: vi.fn(() => ({
+            gain: { value: 0 },
+            connect: vi.fn(),
+            disconnect: vi.fn(),
+          })),
+          destination: {},
+        },
         createBiquadFilter: vi.fn(() => ({
           type: '',
           frequency: { value: 0 },
@@ -75,9 +127,7 @@ function createMockWorkletAnalyser(
     getLoudness: vi.fn().mockReturnValue(0),
     getRawRms: vi.fn().mockReturnValue(0),
     getByteFrequencyData: vi.fn().mockReturnValue(true),
-    getDualBandFrequencyData: vi.fn().mockReturnValue(true),
     enableFrequencyAnalysis: vi.fn(),
-    enableDualBandFrequencyAnalysis: vi.fn(),
     disableFrequencyAnalysis: vi.fn(),
     initialize: vi.fn().mockResolvedValue(undefined),
     dispose: vi.fn(),
@@ -92,24 +142,6 @@ function createMockWorkletAnalyser(
     },
     get maxDecibels() {
       return -30;
-    },
-    get sampleRate() {
-      return 44100;
-    },
-    get dualBandEnabled() {
-      return false;
-    },
-    get lowFftSize() {
-      return 16384;
-    },
-    get highFftSize() {
-      return 1024;
-    },
-    get lowFrequencyBinCount() {
-      return 8192;
-    },
-    get highFrequencyBinCount() {
-      return 512;
     },
     ...overrides,
   } as unknown as WorkletAnalyser;
@@ -226,7 +258,7 @@ describe('FrequencyVisualizer', () => {
   });
 
   describe('worklet path (dual-band)', () => {
-    it('enables dual-band frequency analysis on the WorkletAnalyser', () => {
+    it('creates two AudioWorkletNodes for the two bands', () => {
       const analyser = createMockWorkletAnalyser();
       const source = createMockSource();
 
@@ -235,15 +267,10 @@ describe('FrequencyVisualizer', () => {
         dualBand: true,
       });
 
-      expect(analyser.enableDualBandFrequencyAnalysis).toHaveBeenCalledWith({
-        lowFftSize: 16384,
-        highFftSize: 1024,
-        minDecibels: -80,
-        maxDecibels: -30,
-      });
+      expect(createdWorkletNodes.length).toBe(2);
     });
 
-    it('does not enable single-band frequency analysis', () => {
+    it('does not use the provided workletAnalyser for frequency analysis', () => {
       const analyser = createMockWorkletAnalyser();
       const source = createMockSource();
 
@@ -253,6 +280,100 @@ describe('FrequencyVisualizer', () => {
       });
 
       expect(analyser.enableFrequencyAnalysis).not.toHaveBeenCalled();
+    });
+
+    it('creates biquad filters on the native context', () => {
+      const analyser = createMockWorkletAnalyser();
+      const source = createMockSource();
+
+      new FrequencyVisualizer(source as never, {
+        workletAnalyser: analyser,
+        dualBand: true,
+      });
+
+      const nativeCtx = source.context.rawContext._nativeContext;
+      expect(nativeCtx.createBiquadFilter).toHaveBeenCalledTimes(2);
+    });
+
+    it('connects source to both biquad filters', () => {
+      const analyser = createMockWorkletAnalyser();
+      const source = createMockSource();
+
+      new FrequencyVisualizer(source as never, {
+        workletAnalyser: analyser,
+        dualBand: true,
+      });
+
+      expect(source.connect).toHaveBeenCalledTimes(2);
+    });
+
+    it('connects each filter to its worklet analyser input', () => {
+      const analyser = createMockWorkletAnalyser();
+      const source = createMockSource();
+
+      new FrequencyVisualizer(source as never, {
+        workletAnalyser: analyser,
+        dualBand: true,
+      });
+
+      const nativeCtx = source.context.rawContext._nativeContext;
+      const filters = nativeCtx.createBiquadFilter.mock.results;
+      expect(filters[0].value.connect).toHaveBeenCalled();
+      expect(filters[1].value.connect).toHaveBeenCalled();
+    });
+
+    it('configures the low-band worklet with large FFT', () => {
+      const analyser = createMockWorkletAnalyser();
+      const source = createMockSource();
+
+      new FrequencyVisualizer(source as never, {
+        workletAnalyser: analyser,
+        dualBand: true,
+      });
+
+      // The low-band worklet should receive a configure command with
+      // frequencyAnalysis: true and a large FFT size
+      const lowNode = createdWorkletNodes[0];
+      const configCalls = lowNode.port.postMessage.mock.calls;
+      const freqConfig = configCalls.find(
+        (c: unknown[]) =>
+          (c[0] as { frequencyAnalysis?: boolean }).frequencyAnalysis === true,
+      );
+      expect(freqConfig).toBeDefined();
+      expect((freqConfig![0] as { fftSize: number }).fftSize).toBe(16384);
+    });
+
+    it('configures the high-band worklet with small FFT', () => {
+      const analyser = createMockWorkletAnalyser();
+      const source = createMockSource();
+
+      new FrequencyVisualizer(source as never, {
+        workletAnalyser: analyser,
+        dualBand: true,
+      });
+
+      const highNode = createdWorkletNodes[1];
+      const configCalls = highNode.port.postMessage.mock.calls;
+      const freqConfig = configCalls.find(
+        (c: unknown[]) =>
+          (c[0] as { frequencyAnalysis?: boolean }).frequencyAnalysis === true,
+      );
+      expect(freqConfig).toBeDefined();
+      expect((freqConfig![0] as { fftSize: number }).fftSize).toBe(1024);
+    });
+
+    it('does not create native AnalyserNodes or gain nodes', () => {
+      const analyser = createMockWorkletAnalyser();
+      const source = createMockSource();
+
+      new FrequencyVisualizer(source as never, {
+        workletAnalyser: analyser,
+        dualBand: true,
+      });
+
+      const nativeCtx = source.context.rawContext._nativeContext;
+      expect(nativeCtx.createAnalyser).not.toHaveBeenCalled();
+      expect(nativeCtx.createGain).not.toHaveBeenCalled();
     });
 
     it('sets frequencyBinCount to the default output size', () => {
@@ -280,35 +401,10 @@ describe('FrequencyVisualizer', () => {
       expect(viz.frequencyBinCount).toBe(256);
     });
 
-    it('reads dual-band frequency data from WorkletAnalyser', () => {
-      const analyser = createMockWorkletAnalyser();
-      const source = createMockSource();
-      const viz = new FrequencyVisualizer(source as never, {
-        workletAnalyser: analyser,
-        dualBand: true,
-      });
-
-      viz.getVisualizationData();
-
-      expect(analyser.getDualBandFrequencyData).toHaveBeenCalled();
-    });
-
-    it('does not read single-band data', () => {
-      const analyser = createMockWorkletAnalyser();
-      const source = createMockSource();
-      const viz = new FrequencyVisualizer(source as never, {
-        workletAnalyser: analyser,
-        dualBand: true,
-      });
-
-      viz.getVisualizationData();
-
-      expect(analyser.getByteFrequencyData).not.toHaveBeenCalled();
-    });
-
     it('returns a Uint8Array of the configured size', () => {
       const analyser = createMockWorkletAnalyser();
       const source = createMockSource();
+
       const viz = new FrequencyVisualizer(source as never, {
         workletAnalyser: analyser,
         dualBand: true,
@@ -321,35 +417,7 @@ describe('FrequencyVisualizer', () => {
       expect(result.length).toBe(256);
     });
 
-    it('does not create native AnalyserNodes or filters', () => {
-      const analyser = createMockWorkletAnalyser();
-      const source = createMockSource();
-
-      new FrequencyVisualizer(source as never, {
-        workletAnalyser: analyser,
-        dualBand: true,
-      });
-
-      expect(source.context.rawContext.createAnalyser).not.toHaveBeenCalled();
-      expect(
-        source.context.rawContext.createBiquadFilter,
-      ).not.toHaveBeenCalled();
-      expect(source.context.rawContext.createGain).not.toHaveBeenCalled();
-    });
-
-    it('does not connect source node', () => {
-      const analyser = createMockWorkletAnalyser();
-      const source = createMockSource();
-
-      new FrequencyVisualizer(source as never, {
-        workletAnalyser: analyser,
-        dualBand: true,
-      });
-
-      expect(source.connect).not.toHaveBeenCalled();
-    });
-
-    it('disables frequency analysis on dispose', () => {
+    it('disconnects filters and disposes worklet analysers on dispose', () => {
       const analyser = createMockWorkletAnalyser();
       const source = createMockSource();
       const viz = new FrequencyVisualizer(source as never, {
@@ -359,7 +427,16 @@ describe('FrequencyVisualizer', () => {
 
       viz.dispose();
 
-      expect(analyser.disableFrequencyAnalysis).toHaveBeenCalled();
+      const nativeCtx = source.context.rawContext._nativeContext;
+      const filters = nativeCtx.createBiquadFilter.mock.results;
+      for (const { value } of filters) {
+        expect(value.disconnect).toHaveBeenCalled();
+      }
+
+      // Both worklet nodes should be disconnected
+      for (const node of createdWorkletNodes) {
+        expect(node.disconnect).toHaveBeenCalled();
+      }
     });
   });
 

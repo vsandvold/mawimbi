@@ -10,24 +10,16 @@
 // a Cooley-Tukey radix-2 FFT, and posts byte-scaled magnitude bins
 // (0–255, matching AnalyserNode.getByteFrequencyData conventions).
 //
-// Dual-band mode splits analysis into two independent FFTs: a large one
-// for fine low-frequency resolution and a small one for the high band.
-// Enable with dualBand: true and specify lowFftSize / highFftSize.
-//
 // Message protocol:
 //   Processor → Main:  { type: 'loudness', rms: number }
 //   Processor → Main:  { type: 'frequencyData', bins: Uint8Array }
-//   Processor → Main:  { type: 'lowFrequencyData', bins: Uint8Array }
-//   Processor → Main:  { type: 'highFrequencyData', bins: Uint8Array }
 //   Main → Processor:  { type: 'configure', ... }
 
 import { createHannWindow, fft, magnitudeToBytes } from './fft';
 
 export type AnalysisMessage =
   | { type: 'loudness'; rms: number }
-  | { type: 'frequencyData'; bins: Uint8Array }
-  | { type: 'lowFrequencyData'; bins: Uint8Array }
-  | { type: 'highFrequencyData'; bins: Uint8Array };
+  | { type: 'frequencyData'; bins: Uint8Array };
 
 export type AnalysisCommand = {
   type: 'configure';
@@ -36,9 +28,6 @@ export type AnalysisCommand = {
   fftSize?: number;
   minDecibels?: number;
   maxDecibels?: number;
-  dualBand?: boolean;
-  lowFftSize?: number;
-  highFftSize?: number;
 };
 
 // Exponential moving average coefficient. Higher values = smoother but
@@ -53,29 +42,6 @@ const REPORT_INTERVAL = 8;
 const DEFAULT_FFT_SIZE = 2048;
 const DEFAULT_MIN_DECIBELS = -100;
 const DEFAULT_MAX_DECIBELS = -30;
-
-// Per-band FFT state, shared by single-band and dual-band paths.
-type BandState = {
-  fftSize: number;
-  ringBuffer: Float32Array;
-  ringWritePos: number;
-  hannWindow: Float32Array;
-  hopSize: number;
-  samplesUntilFft: number;
-};
-
-function createBandState(fftSize: number): BandState {
-  return {
-    fftSize,
-    ringBuffer: new Float32Array(fftSize),
-    ringWritePos: 0,
-    hannWindow: createHannWindow(fftSize),
-    // 75% overlap: hop = fftSize / 4
-    hopSize: fftSize / 4,
-    // Fill the ring buffer before the first FFT
-    samplesUntilFft: fftSize,
-  };
-}
 
 class AnalysisProcessor extends AudioWorkletProcessor {
   private smoothing = DEFAULT_SMOOTHING;
@@ -92,11 +58,6 @@ class AnalysisProcessor extends AudioWorkletProcessor {
   private hannWindow: Float32Array | null = null;
   private samplesUntilFft = 0;
   private hopSize = 0;
-
-  // Dual-band state
-  private dualBandEnabled = false;
-  private lowBand: BandState | null = null;
-  private highBand: BandState | null = null;
 
   constructor() {
     super();
@@ -135,9 +96,7 @@ class AnalysisProcessor extends AudioWorkletProcessor {
     }
 
     // Frequency analysis: accumulate samples and run FFT when ready
-    if (this.dualBandEnabled && this.lowBand && this.highBand) {
-      this.accumulateAndAnalyseDualBand(channelData);
-    } else if (this.frequencyEnabled && this.ringBuffer) {
+    if (this.frequencyEnabled && this.ringBuffer) {
       this.accumulateAndAnalyse(channelData);
     }
 
@@ -155,42 +114,6 @@ class AnalysisProcessor extends AudioWorkletProcessor {
       this.maxDecibels = cmd.maxDecibels;
     }
 
-    // Dual-band mode
-    if (cmd.dualBand !== undefined) {
-      this.dualBandEnabled = cmd.dualBand;
-      if (cmd.dualBand) {
-        // Disable single-band when switching to dual-band
-        this.frequencyEnabled = false;
-        this.ringBuffer = null;
-      } else {
-        // Disable dual-band
-        this.lowBand = null;
-        this.highBand = null;
-      }
-    }
-
-    if (this.dualBandEnabled) {
-      const lowChanged =
-        cmd.lowFftSize !== undefined &&
-        cmd.lowFftSize !== this.lowBand?.fftSize;
-      const highChanged =
-        cmd.highFftSize !== undefined &&
-        cmd.highFftSize !== this.highBand?.fftSize;
-
-      if (!this.lowBand || lowChanged) {
-        this.lowBand = createBandState(
-          cmd.lowFftSize ?? this.lowBand?.fftSize ?? DEFAULT_FFT_SIZE,
-        );
-      }
-      if (!this.highBand || highChanged) {
-        this.highBand = createBandState(
-          cmd.highFftSize ?? this.highBand?.fftSize ?? DEFAULT_FFT_SIZE,
-        );
-      }
-      return;
-    }
-
-    // Single-band mode
     const fftSizeChanged =
       cmd.fftSize !== undefined && cmd.fftSize !== this.fftSize;
     if (fftSizeChanged) {
@@ -259,59 +182,6 @@ class AnalysisProcessor extends AudioWorkletProcessor {
 
     this.port.postMessage(
       { type: 'frequencyData', bins } satisfies AnalysisMessage,
-      [bins.buffer],
-    );
-  }
-
-  // --- Dual-band analysis ---
-
-  private accumulateAndAnalyseDualBand(channelData: Float32Array): void {
-    this.accumulateBand(channelData, this.lowBand!, 'lowFrequencyData');
-    this.accumulateBand(channelData, this.highBand!, 'highFrequencyData');
-  }
-
-  private accumulateBand(
-    channelData: Float32Array,
-    band: BandState,
-    messageType: 'lowFrequencyData' | 'highFrequencyData',
-  ): void {
-    const { fftSize, ringBuffer, hannWindow } = band;
-
-    // Write incoming samples into the ring buffer
-    for (let i = 0; i < channelData.length; i++) {
-      ringBuffer[band.ringWritePos] = channelData[i];
-      band.ringWritePos = (band.ringWritePos + 1) % fftSize;
-    }
-
-    band.samplesUntilFft -= channelData.length;
-    if (band.samplesUntilFft > 0) return;
-
-    // Reset countdown for next FFT
-    band.samplesUntilFft += band.hopSize;
-
-    // Windowed FFT
-    const real = new Float32Array(fftSize);
-    const imag = new Float32Array(fftSize);
-
-    for (let i = 0; i < fftSize; i++) {
-      const idx = (band.ringWritePos + i) % fftSize;
-      real[i] = ringBuffer[idx] * hannWindow[i];
-    }
-
-    fft(real, imag);
-
-    const bins = new Uint8Array(fftSize / 2);
-    magnitudeToBytes(
-      real,
-      imag,
-      fftSize,
-      this.minDecibels,
-      this.maxDecibels,
-      bins,
-    );
-
-    this.port.postMessage(
-      { type: messageType, bins } satisfies AnalysisMessage,
       [bins.buffer],
     );
   }
