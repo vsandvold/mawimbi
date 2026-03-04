@@ -80,24 +80,24 @@ export const useCountIn = (
       // Block spacebar and show recording UI during count-in
       recording.startRecording();
 
-      if (availableLeadIn > 0) {
-        playback.setEngineTime(recordingPosition - availableLeadIn);
+      playback.setEngineTime(recordingPosition - availableLeadIn);
 
-        const playbackDelayMs =
-          (COUNT_IN_DURATION_SEC - availableLeadIn) * 1000;
+      const playbackDelayMs = (COUNT_IN_DURATION_SEC - availableLeadIn) * 1000;
 
-        if (playbackDelayMs > 0) {
-          // Delay playback so the transport arrives at the recording
-          // position exactly when the count-in ends
-          playbackTimerId = setTimeout(() => {
-            if (!cancelled) {
-              playback.play();
-            }
-          }, playbackDelayMs);
-        } else {
-          // Full lead-in available — start playback immediately
-          playback.play();
-        }
+      if (playbackDelayMs > 0) {
+        // Delay playback so the transport arrives at the recording
+        // position exactly when the count-in ends.  When there is no
+        // lead-in (position 0), the full count-in duration elapses
+        // before playback starts, ensuring the scrubber animation
+        // loop and live spectrogram activate when recording begins.
+        playbackTimerId = setTimeout(() => {
+          if (!cancelled) {
+            playback.play();
+          }
+        }, playbackDelayMs);
+      } else {
+        // Full lead-in available — start playback immediately
+        playback.play();
       }
 
       for (let i = 1; i <= COUNT_IN_TOTAL_BEATS; i++) {

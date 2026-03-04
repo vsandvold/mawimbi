@@ -186,7 +186,7 @@ it('returns null when not counting in', () => {
   expect(result.current).toBe(null);
 });
 
-it('does not start playback when transport is at position 0', async () => {
+it('does not start playback during count-in when transport is at position 0', async () => {
   Tone.getTransport().seconds = 0;
   const onComplete = vi.fn();
 
@@ -201,6 +201,32 @@ it('does not start playback when transport is at position 0', async () => {
   expect(playbackService.isPlaying).toBe(false);
   expect(recordingService.isRecording).toBe(true);
   expect(recordingService.isCountingIn).toBe(true);
+});
+
+it('starts playback when count-in completes at position 0', async () => {
+  Tone.getTransport().seconds = 0;
+  const onComplete = vi.fn();
+
+  renderHook(({ active }) => useCountIn(active, onComplete), {
+    initialProps: { active: true },
+  });
+
+  await act(async () => {});
+
+  // During count-in, playback should not be started yet
+  expect(playbackService.isPlaying).toBe(false);
+
+  // Advance through all 4 beats (4 * 500ms = 2000ms)
+  for (let i = 0; i < 4; i++) {
+    await act(async () => {
+      vi.advanceTimersByTime(500);
+    });
+  }
+
+  // After count-in completes, playback should have started so the
+  // scrubber animation loop runs and the live spectrogram renders
+  expect(playbackService.isPlaying).toBe(true);
+  expect(onComplete).toHaveBeenCalledOnce();
 });
 
 it('delays playback start when lead-in is shorter than count-in duration', async () => {
