@@ -39,14 +39,7 @@ export function useTrackService() {
       audioBuffer: AudioBuffer,
       arrayBuffer: ArrayBuffer,
       startTime: number,
-      latencyCompensation: number,
-    ) =>
-      service.createRecordedTrack(
-        audioBuffer,
-        arrayBuffer,
-        startTime,
-        latencyCompensation,
-      ),
+    ) => service.createRecordedTrack(audioBuffer, arrayBuffer, startTime),
 
     // --- Signal management ---
 

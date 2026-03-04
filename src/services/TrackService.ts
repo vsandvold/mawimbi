@@ -122,7 +122,6 @@ class TrackService {
     audioBuffer: AudioBuffer,
     arrayBuffer: ArrayBuffer,
     startTime: number,
-    latencyCompensation: number,
   ): TrackCreationResult {
     const trackId = uuidv4();
     const blob = new Blob([arrayBuffer], { type: 'audio/*' });
@@ -132,14 +131,11 @@ class TrackService {
     const initialVolume =
       LoudnessNormalizer.gainToInitialVolume(normalizationGainDb);
 
-    // The audioOffset trims latency from the beginning of the recording.
-    // The startTime positions the track at the correct transport position.
     this.mixer.createChannel(
       trackId,
       audioBuffer,
       normalizationGainDb,
       startTime,
-      latencyCompensation,
     );
     this.audioSourceRepository.add({
       id: trackId,
