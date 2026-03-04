@@ -61,9 +61,14 @@ class AudioService {
       const nativeCtx =
         (rawContext as unknown as { _nativeContext?: AudioContext })
           ._nativeContext ?? rawContext;
-      const analyser = new WorkletAnalyser(nativeCtx);
-      await analyser.initialize();
-      this.trackService.useWorkletAnalyser(analyser);
+
+      const mixerAnalyser = new WorkletAnalyser(nativeCtx);
+      await mixerAnalyser.initialize();
+      this.trackService.useWorkletAnalyser(mixerAnalyser);
+
+      const micAnalyser = new WorkletAnalyser(nativeCtx);
+      await micAnalyser.initialize();
+      this.recordingService.useWorkletAnalyser(micAnalyser);
     } catch {
       // AudioWorklet not supported or module failed to load — keep using
       // Tone.Meter as fallback.

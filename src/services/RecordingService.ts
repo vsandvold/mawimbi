@@ -16,6 +16,7 @@ import { computed, signal, type ReadonlySignal } from '@preact/signals-react';
 import MicrophoneService from './MicrophoneService';
 import LatencyCompensation from './LatencyCompensation';
 import WorkletRecorder from './WorkletRecorder';
+import type WorkletAnalyser from './WorkletAnalyser';
 
 export type RecordingState = 'idle' | 'armed' | 'recording';
 
@@ -183,6 +184,10 @@ class RecordingService {
     if (this.microphone.isOpen) {
       this.microphone.close();
     }
+  }
+
+  useWorkletAnalyser(analyser: WorkletAnalyser): void {
+    this.microphone.useWorkletAnalyser(analyser);
   }
 
   getLoudness(): number {
