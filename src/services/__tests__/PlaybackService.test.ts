@@ -6,6 +6,11 @@ let service: PlaybackService;
 beforeEach(() => {
   const transport = Tone.getTransport();
   transport.seconds = 0;
+  Object.defineProperty(transport, 'state', {
+    value: 'stopped',
+    writable: true,
+    configurable: true,
+  });
   vi.mocked(transport.start).mockClear();
   vi.mocked(transport.stop).mockClear();
   vi.mocked(transport.pause).mockClear();
@@ -55,6 +60,17 @@ describe('PlaybackService', () => {
 
       service.play();
 
+      expect(Tone.getTransport().start).not.toHaveBeenCalled();
+    });
+
+    it('skips transport.start() when transport is already started', () => {
+      // Simulate RecordingService having already started the transport
+      // (e.g. via startOverdubRecording) before play() is called.
+      (Tone.getTransport() as unknown as { state: string }).state = 'started';
+
+      service.play();
+
+      expect(service.isPlaying).toBe(true);
       expect(Tone.getTransport().start).not.toHaveBeenCalled();
     });
 

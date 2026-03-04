@@ -112,6 +112,67 @@ it('renders plasma playhead canvas in the cursor container', () => {
   expect(canvas?.tagName).toBe('CANVAS');
 });
 
+it('renders idle playhead after cursor container is resized', () => {
+  // Override the no-op ResizeObserver stub to capture the callback
+  let resizeCallback: ResizeObserverCallback | undefined;
+  const OriginalResizeObserver = globalThis.ResizeObserver;
+  globalThis.ResizeObserver = class MockResizeObserver {
+    constructor(cb: ResizeObserverCallback) {
+      resizeCallback = cb;
+    }
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+
+  // Mock getContext to return a minimal context so renderIdle can draw
+  const originalGetContext = HTMLCanvasElement.prototype.getContext;
+  const getContextSpy = vi.fn().mockReturnValue({
+    clearRect: vi.fn(),
+    fillRect: vi.fn(),
+    fillStyle: '',
+    beginPath: vi.fn(),
+    moveTo: vi.fn(),
+    lineTo: vi.fn(),
+    stroke: vi.fn(),
+    strokeStyle: '',
+    lineWidth: 0,
+    globalAlpha: 1,
+    shadowBlur: 0,
+    shadowColor: '',
+    createLinearGradient: vi.fn().mockReturnValue({
+      addColorStop: vi.fn(),
+    }),
+  });
+  HTMLCanvasElement.prototype.getContext = getContextSpy;
+
+  try {
+    const { container } = render(<Scrubber {...defaultProps} />);
+
+    const canvas = container.querySelector(
+      '.plasma-playhead',
+    ) as HTMLCanvasElement;
+    expect(canvas).toBeInTheDocument();
+
+    // Clear the getContext calls from mounting
+    getContextSpy.mockClear();
+
+    // Simulate the ResizeObserver firing (container gains height)
+    act(() => {
+      resizeCallback?.(
+        [{ contentRect: { height: 400 } }] as unknown as ResizeObserverEntry[],
+        {} as ResizeObserver,
+      );
+    });
+
+    // renderIdle should have been called, which calls getContext to draw
+    expect(getContextSpy).toHaveBeenCalled();
+  } finally {
+    globalThis.ResizeObserver = OriginalResizeObserver;
+    HTMLCanvasElement.prototype.getContext = originalGetContext;
+  }
+});
+
 it('feeds plasma renderer with loudness during playback', () => {
   vi.spyOn(trackService, 'getLoudness').mockReturnValue(0.75);
 

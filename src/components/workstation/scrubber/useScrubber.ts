@@ -64,6 +64,13 @@ export function useScrubber({
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         plasmaRef.current?.resize(entry.contentRect.height);
+        // Redraw the idle playhead after the canvas height changes.
+        // The initial renderIdle() call in the playing-sync effect fires
+        // before the ResizeObserver has set the canvas height, so the
+        // first frame is drawn into a zero-height canvas.  Re-rendering
+        // here ensures the playhead is visible as soon as layout resolves.
+        // During playback the animation loop immediately overwrites this.
+        plasmaRef.current?.renderIdle();
       }
     });
     observer.observe(el);

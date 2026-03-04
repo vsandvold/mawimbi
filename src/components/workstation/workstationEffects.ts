@@ -99,6 +99,11 @@ export const useCountIn = (
           playback.play();
         }
       }
+      // When availableLeadIn is 0 (recording from position 0), playback
+      // is NOT started here.  useMicrophone calls playback.play() after
+      // startOverdubRecording() so the scrubber animation loop activates
+      // without advancing the transport before the recording start time
+      // is captured.
 
       for (let i = 1; i <= COUNT_IN_TOTAL_BEATS; i++) {
         if (cancelled) break;
@@ -160,6 +165,12 @@ export const useMicrophone = (isRecording: boolean) => {
     const startRecording = async () => {
       try {
         await recording.startOverdubRecording();
+        // Ensure the playback state machine transitions to 'playing' so
+        // the scrubber animation loop starts.  When recording from
+        // position 0, useCountIn does not call play() (no lead-in), so
+        // this is the first play() call.  When lead-in was available,
+        // play() was already called and this is a no-op.
+        playback.play();
         msg.success('Recording started');
       } catch {
         msg.error('Recording failed');
