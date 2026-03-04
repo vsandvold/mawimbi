@@ -147,9 +147,17 @@ function drawRecordingFrame(
 ): void {
   if (!buffer || !visualizer) return;
 
-  const isRecActive = recordingHook.isRecording;
+  const isRecActive = recordingHook.isOverdubRecording();
   const recordingStartTime = recordingHook.getRecordingStartTime();
-  const elapsed = Math.max(0, playbackHook.transportTime - recordingStartTime);
+  // Read engine time directly instead of the transportTime signal.
+  // The signal is updated by the Scrubber animation loop which only runs
+  // when playbackState is 'playing'. During the first recording from
+  // position 0, playback.play() is never called (no count-in lead-in),
+  // so the signal stays at 0 even though the transport is running.
+  const elapsed = Math.max(
+    0,
+    playbackHook.getEngineTime() - recordingStartTime,
+  );
   const contentWidth = elapsed * pixelsPerSecond;
 
   // Update container width and offset directly to avoid React re-renders

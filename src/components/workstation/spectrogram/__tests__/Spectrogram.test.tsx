@@ -109,6 +109,7 @@ vi.mock('../../../../hooks/useRecordingService', () => ({
     startRecording: () => recordingService.startRecording(),
     stopRecording: () => recordingService.stopRecording(),
     getRecordingStartTime: () => recordingService.getRecordingStartTime(),
+    isOverdubRecording: () => recordingService.isOverdubRecording(),
     getMicrophoneSource: () => recordingService.getMicrophoneSource(),
     reset: () => recordingService.reset(),
   }),
@@ -402,10 +403,11 @@ describe('recording mode', () => {
     expect(spectrogram).toHaveStyle({ width: '0px' });
   });
 
-  it('reads visualization data from FrequencyVisualizer during recording', () => {
+  it('reads visualization data from FrequencyVisualizer during overdub recording', () => {
     recordingService.arm();
     recordingService.startRecording();
-    playbackService.setTransportTime(1.5);
+    vi.spyOn(playbackService, 'getEngineTime').mockReturnValue(1.5);
+    vi.spyOn(recordingService, 'isOverdubRecording').mockReturnValue(true);
     mockGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));
 
     const mockCtx = {
@@ -436,7 +438,8 @@ describe('recording mode', () => {
   it('offsets container by recording start time during overdub', () => {
     recordingService.arm();
     recordingService.startRecording();
-    playbackService.setTransportTime(5.0);
+    vi.spyOn(playbackService, 'getEngineTime').mockReturnValue(5.0);
+    vi.spyOn(recordingService, 'isOverdubRecording').mockReturnValue(true);
     mockGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));
 
     const mockCtx = {
@@ -453,7 +456,6 @@ describe('recording mode', () => {
       mockCtx as unknown as CanvasRenderingContext2D,
     );
 
-    // Spy on getRecordingStartTime to return 3.0
     vi.spyOn(recordingService, 'getRecordingStartTime').mockReturnValue(3.0);
 
     const { container } = render(<Spectrogram {...recordingProps} />);
@@ -469,10 +471,19 @@ describe('recording mode', () => {
     vi.restoreAllMocks();
   });
 
-  it('updates container width based on elapsed recording time', () => {
+  it('renders live spectrogram using engine time even when transport signal is stale', () => {
+    // Simulates the first-recording bug: the Scrubber animation loop only
+    // runs when playbackState is 'playing', but during the first recording
+    // from position 0 playback.play() is never called (no count-in lead-in).
+    // The transportTime signal stays at 0 while the transport engine is
+    // actually advancing.  The spectrogram must read the engine time
+    // directly so it renders regardless of the signal state.
+
     recordingService.arm();
     recordingService.startRecording();
-    playbackService.setTransportTime(2.0);
+    // Do NOT call playbackService.setTransportTime() — signal stays at 0
+    vi.spyOn(playbackService, 'getEngineTime').mockReturnValue(2.0);
+    vi.spyOn(recordingService, 'isOverdubRecording').mockReturnValue(true);
     mockGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));
 
     const mockCtx = {
@@ -489,7 +500,42 @@ describe('recording mode', () => {
       mockCtx as unknown as CanvasRenderingContext2D,
     );
 
-    // Recording started at 0
+    vi.spyOn(recordingService, 'getRecordingStartTime').mockReturnValue(0);
+
+    const { container } = render(<Spectrogram {...recordingProps} />);
+
+    const calls = vi.mocked(useAnimationFrame).mock.calls;
+    const callback = calls[calls.length - 1]?.[0];
+    callback?.();
+
+    const spectrogram = container.querySelector('.spectrogram');
+    // elapsed = getEngineTime() - 0 = 2.0, width = 2.0 * 200 = 400
+    expect(spectrogram).toHaveStyle({ width: '400px' });
+
+    vi.restoreAllMocks();
+  });
+
+  it('updates container width based on elapsed recording time', () => {
+    recordingService.arm();
+    recordingService.startRecording();
+    vi.spyOn(playbackService, 'getEngineTime').mockReturnValue(2.0);
+    vi.spyOn(recordingService, 'isOverdubRecording').mockReturnValue(true);
+    mockGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));
+
+    const mockCtx = {
+      clearRect: vi.fn(),
+      drawImage: vi.fn(),
+      fillRect: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      globalCompositeOperation: 'source-over' as string,
+      fillStyle: '' as string,
+      canvas: { width: 800, height: 128 },
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+      mockCtx as unknown as CanvasRenderingContext2D,
+    );
+
     vi.spyOn(recordingService, 'getRecordingStartTime').mockReturnValue(0);
 
     const { container } = render(<Spectrogram {...recordingProps} />);
