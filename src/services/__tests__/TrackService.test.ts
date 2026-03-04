@@ -331,14 +331,13 @@ describe('TrackService', () => {
   });
 
   describe('createRecordedTrack', () => {
-    it('creates a track with start time and latency compensation', () => {
+    it('creates a track with the given start time', () => {
       const audioBuffer = mockAudioBuffer({ duration: 5.0 });
 
       const { trackId, initialVolume } = service.createRecordedTrack(
         audioBuffer,
         new ArrayBuffer(16),
         3.0,
-        0.05,
       );
 
       expect(trackId).toBeDefined();
@@ -353,7 +352,6 @@ describe('TrackService', () => {
         audioBuffer,
         new ArrayBuffer(16),
         0,
-        0.05,
       );
 
       expect(service.getSignals(trackId)).toBeDefined();
@@ -362,7 +360,7 @@ describe('TrackService', () => {
     it('includes recorded track in total time calculation', () => {
       const audioBuffer = mockAudioBuffer({ duration: 5.0 });
 
-      service.createRecordedTrack(audioBuffer, new ArrayBuffer(16), 8.0, 0.05);
+      service.createRecordedTrack(audioBuffer, new ArrayBuffer(16), 8.0);
 
       // Total = startTime (8) + duration (5) = 13
       expect(service.getTotalTime()).toBe(13.0);

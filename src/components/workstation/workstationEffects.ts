@@ -171,13 +171,12 @@ export const useMicrophone = (isRecording: boolean) => {
         return;
       }
       try {
-        const { audioBuffer, arrayBuffer, startTime, latencyCompensation } =
+        const { audioBuffer, arrayBuffer, startTime } =
           await recording.stopOverdubRecording();
         const { trackId } = trackHook.createRecordedTrack(
           audioBuffer,
           arrayBuffer,
           startTime,
-          latencyCompensation,
         );
         projectDispatch([
           ADD_TRACK,

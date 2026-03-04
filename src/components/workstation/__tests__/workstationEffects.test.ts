@@ -68,7 +68,6 @@ describe('useMicrophone', () => {
       audioBuffer: {} as AudioBuffer,
       arrayBuffer: new ArrayBuffer(16),
       startTime: 0,
-      latencyCompensation: 0.05,
     });
     vi.spyOn(recordingService, 'isOverdubRecording').mockReturnValue(true);
 
@@ -103,7 +102,6 @@ describe('useMicrophone', () => {
       expect.anything(),
       expect.anything(),
       0,
-      0.05,
     );
     expect(mockProjectDispatch).toHaveBeenCalledWith([
       'ADD_TRACK',

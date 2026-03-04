@@ -38,7 +38,6 @@ export type OverdubResult = {
   audioBuffer: AudioBuffer;
   arrayBuffer: ArrayBuffer;
   startTime: number;
-  latencyCompensation: number;
 };
 
 class RecordingService {
@@ -275,10 +274,10 @@ class RecordingService {
     // to the beginning during the async gap.
     this.transport.seconds = startTime;
 
-    const latencyCompensation = this.estimateRoundTripLatency();
+    const compensation = this.latencyCompensation.getTotalCompensation();
 
     if (this.workletRecorder) {
-      const audioBuffer = await this.workletRecorder.stop();
+      const rawBuffer = await this.workletRecorder.stop();
       // Clean up native source node before closing the microphone
       if (this.nativeSourceNode) {
         this.nativeSourceNode.disconnect();
@@ -286,21 +285,38 @@ class RecordingService {
       }
       this.microphone.close();
 
-      // Encode to ArrayBuffer (WAV) for undo/redo and blob URL storage.
-      // The WorkletRecorder produces PCM directly — we encode to a raw
-      // interleaved buffer for downstream consumption.
+      // Trim leading latency samples so the recording aligns with the
+      // transport timeline. Without this, the overdub is shifted forward
+      // by the round-trip latency (output + base + look-ahead + input).
+      const audioBuffer = this.latencyCompensation.trimBuffer(
+        rawBuffer,
+        compensation,
+      );
       const arrayBuffer = this.audioBufferToArrayBuffer(audioBuffer);
 
-      return { audioBuffer, arrayBuffer, startTime, latencyCompensation };
+      return { audioBuffer, arrayBuffer, startTime };
     }
 
     const blob = await this.recorder.stop();
     this.microphone.close();
 
-    const arrayBuffer = await blob.arrayBuffer();
-    const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
+    const rawArrayBuffer = await blob.arrayBuffer();
+    const rawBuffer = await this.context.decodeAudioData(rawArrayBuffer);
 
-    return { audioBuffer, arrayBuffer, startTime, latencyCompensation };
+    // Trim leading latency samples so the recording aligns with the
+    // transport timeline.
+    const audioBuffer = this.latencyCompensation.trimBuffer(
+      rawBuffer,
+      compensation,
+    );
+    // Re-encode from the trimmed buffer when trimming occurred, otherwise
+    // keep the original encoded bytes.
+    const arrayBuffer =
+      audioBuffer !== rawBuffer
+        ? this.audioBufferToArrayBuffer(audioBuffer)
+        : rawArrayBuffer;
+
+    return { audioBuffer, arrayBuffer, startTime };
   }
 
   isOverdubRecording(): boolean {
