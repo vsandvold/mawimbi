@@ -9,6 +9,10 @@
 // Optionally provides frequency-domain analysis (FFT on the audio
 // thread), replacing AnalyserNode.getByteFrequencyData(). Enable with
 // enableFrequencyAnalysis() after initialization.
+//
+// Dual-band mode runs two independent FFTs (large for low band, small
+// for high band) on the audio thread and posts results separately.
+// Enable with enableDualBandFrequencyAnalysis().
 
 import {
   type AnalysisCommand,
@@ -29,11 +33,18 @@ class WorkletAnalyser {
   private smoothing: number;
   private initialized = false;
 
-  // Frequency analysis state
+  // Single-band frequency analysis state
   private _fftSize: number;
   private _minDecibels: number;
   private _maxDecibels: number;
   private currentBins: Uint8Array | null = null;
+
+  // Dual-band frequency analysis state
+  private _dualBandEnabled = false;
+  private _lowFftSize = 0;
+  private _highFftSize = 0;
+  private currentLowBins: Uint8Array | null = null;
+  private currentHighBins: Uint8Array | null = null;
 
   constructor(audioContext: AudioContext, smoothing = DEFAULT_SMOOTHING) {
     this.audioContext = audioContext;
@@ -99,6 +110,32 @@ class WorkletAnalyser {
     return this._maxDecibels;
   }
 
+  get sampleRate(): number {
+    return this.audioContext.sampleRate;
+  }
+
+  // --- Dual-band getters ---
+
+  get dualBandEnabled(): boolean {
+    return this._dualBandEnabled;
+  }
+
+  get lowFftSize(): number {
+    return this._lowFftSize;
+  }
+
+  get highFftSize(): number {
+    return this._highFftSize;
+  }
+
+  get lowFrequencyBinCount(): number {
+    return this._lowFftSize / 2;
+  }
+
+  get highFrequencyBinCount(): number {
+    return this._highFftSize / 2;
+  }
+
   /**
    * Enables frequency-domain analysis on the audio thread.
    *
@@ -117,9 +154,41 @@ class WorkletAnalyser {
     if (options?.maxDecibels !== undefined)
       this._maxDecibels = options.maxDecibels;
 
+    this._dualBandEnabled = false;
+    this.currentLowBins = null;
+    this.currentHighBins = null;
     this.currentBins = new Uint8Array(this._fftSize / 2);
 
     this.sendFrequencyConfig();
+  }
+
+  /**
+   * Enables dual-band frequency analysis on the audio thread.
+   *
+   * Runs two independent FFTs: a large one (lowFftSize) for fine
+   * low-frequency resolution and a small one (highFftSize) for the
+   * high band. Results are posted independently as
+   * 'lowFrequencyData' and 'highFrequencyData' messages.
+   */
+  enableDualBandFrequencyAnalysis(options: {
+    lowFftSize: number;
+    highFftSize: number;
+    minDecibels?: number;
+    maxDecibels?: number;
+  }): void {
+    this._lowFftSize = options.lowFftSize;
+    this._highFftSize = options.highFftSize;
+    if (options.minDecibels !== undefined)
+      this._minDecibels = options.minDecibels;
+    if (options.maxDecibels !== undefined)
+      this._maxDecibels = options.maxDecibels;
+
+    this._dualBandEnabled = true;
+    this.currentBins = null;
+    this.currentLowBins = new Uint8Array(options.lowFftSize / 2);
+    this.currentHighBins = new Uint8Array(options.highFftSize / 2);
+
+    this.sendDualBandConfig();
   }
 
   /**
@@ -128,11 +197,15 @@ class WorkletAnalyser {
    */
   disableFrequencyAnalysis(): void {
     this.currentBins = null;
+    this.currentLowBins = null;
+    this.currentHighBins = null;
+    this._dualBandEnabled = false;
 
     if (this.node) {
       this.node.port.postMessage({
         type: 'configure',
         frequencyAnalysis: false,
+        dualBand: false,
       } satisfies AnalysisCommand);
     }
   }
@@ -153,11 +226,29 @@ class WorkletAnalyser {
     return true;
   }
 
+  /**
+   * Copies the latest dual-band frequency data into the provided arrays.
+   *
+   * Returns false if dual-band analysis is not enabled.
+   */
+  getDualBandFrequencyData(
+    lowOutput: Uint8Array,
+    highOutput: Uint8Array,
+  ): boolean {
+    if (!this.currentLowBins || !this.currentHighBins) return false;
+    lowOutput.set(this.currentLowBins.subarray(0, lowOutput.length));
+    highOutput.set(this.currentHighBins.subarray(0, highOutput.length));
+    return true;
+  }
+
   dispose(): void {
     this.node?.disconnect();
     this.node = null;
     this.currentRms = 0;
     this.currentBins = null;
+    this.currentLowBins = null;
+    this.currentHighBins = null;
+    this._dualBandEnabled = false;
   }
 
   private sendFrequencyConfig(): void {
@@ -166,7 +257,21 @@ class WorkletAnalyser {
     this.node.port.postMessage({
       type: 'configure',
       frequencyAnalysis: true,
+      dualBand: false,
       fftSize: this._fftSize,
+      minDecibels: this._minDecibels,
+      maxDecibels: this._maxDecibels,
+    } satisfies AnalysisCommand);
+  }
+
+  private sendDualBandConfig(): void {
+    if (!this.node) return;
+
+    this.node.port.postMessage({
+      type: 'configure',
+      dualBand: true,
+      lowFftSize: this._lowFftSize,
+      highFftSize: this._highFftSize,
       minDecibels: this._minDecibels,
       maxDecibels: this._maxDecibels,
     } satisfies AnalysisCommand);
@@ -179,6 +284,20 @@ class WorkletAnalyser {
       } else if (event.data.type === 'frequencyData' && this.currentBins) {
         this.currentBins.set(
           event.data.bins.subarray(0, this.currentBins.length),
+        );
+      } else if (
+        event.data.type === 'lowFrequencyData' &&
+        this.currentLowBins
+      ) {
+        this.currentLowBins.set(
+          event.data.bins.subarray(0, this.currentLowBins.length),
+        );
+      } else if (
+        event.data.type === 'highFrequencyData' &&
+        this.currentHighBins
+      ) {
+        this.currentHighBins.set(
+          event.data.bins.subarray(0, this.currentHighBins.length),
         );
       }
     };

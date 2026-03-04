@@ -75,7 +75,9 @@ function createMockWorkletAnalyser(
     getLoudness: vi.fn().mockReturnValue(0),
     getRawRms: vi.fn().mockReturnValue(0),
     getByteFrequencyData: vi.fn().mockReturnValue(true),
+    getDualBandFrequencyData: vi.fn().mockReturnValue(true),
     enableFrequencyAnalysis: vi.fn(),
+    enableDualBandFrequencyAnalysis: vi.fn(),
     disableFrequencyAnalysis: vi.fn(),
     initialize: vi.fn().mockResolvedValue(undefined),
     dispose: vi.fn(),
@@ -91,12 +93,30 @@ function createMockWorkletAnalyser(
     get maxDecibels() {
       return -30;
     },
+    get sampleRate() {
+      return 44100;
+    },
+    get dualBandEnabled() {
+      return false;
+    },
+    get lowFftSize() {
+      return 16384;
+    },
+    get highFftSize() {
+      return 1024;
+    },
+    get lowFrequencyBinCount() {
+      return 8192;
+    },
+    get highFrequencyBinCount() {
+      return 512;
+    },
     ...overrides,
   } as unknown as WorkletAnalyser;
 }
 
 describe('FrequencyVisualizer', () => {
-  describe('worklet path', () => {
+  describe('worklet path (single-band)', () => {
     it('enables frequency analysis on the WorkletAnalyser', () => {
       const analyser = createMockWorkletAnalyser();
       const source = createMockSource();
@@ -201,10 +221,145 @@ describe('FrequencyVisualizer', () => {
       });
 
       viz.dispose();
-      // After dispose, workletAnalyser is nulled — falls through to
-      // dual-band path which has no initialized nodes, so this verifies
-      // the worklet path is fully torn down.
       expect(analyser.disableFrequencyAnalysis).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('worklet path (dual-band)', () => {
+    it('enables dual-band frequency analysis on the WorkletAnalyser', () => {
+      const analyser = createMockWorkletAnalyser();
+      const source = createMockSource();
+
+      new FrequencyVisualizer(source as never, {
+        workletAnalyser: analyser,
+        dualBand: true,
+      });
+
+      expect(analyser.enableDualBandFrequencyAnalysis).toHaveBeenCalledWith({
+        lowFftSize: 16384,
+        highFftSize: 1024,
+        minDecibels: -80,
+        maxDecibels: -30,
+      });
+    });
+
+    it('does not enable single-band frequency analysis', () => {
+      const analyser = createMockWorkletAnalyser();
+      const source = createMockSource();
+
+      new FrequencyVisualizer(source as never, {
+        workletAnalyser: analyser,
+        dualBand: true,
+      });
+
+      expect(analyser.enableFrequencyAnalysis).not.toHaveBeenCalled();
+    });
+
+    it('sets frequencyBinCount to the default output size', () => {
+      const analyser = createMockWorkletAnalyser();
+      const source = createMockSource();
+
+      const viz = new FrequencyVisualizer(source as never, {
+        workletAnalyser: analyser,
+        dualBand: true,
+      });
+
+      expect(viz.frequencyBinCount).toBe(512);
+    });
+
+    it('uses custom frequencyBinCount when provided', () => {
+      const analyser = createMockWorkletAnalyser();
+      const source = createMockSource();
+
+      const viz = new FrequencyVisualizer(source as never, {
+        workletAnalyser: analyser,
+        dualBand: true,
+        frequencyBinCount: 256,
+      });
+
+      expect(viz.frequencyBinCount).toBe(256);
+    });
+
+    it('reads dual-band frequency data from WorkletAnalyser', () => {
+      const analyser = createMockWorkletAnalyser();
+      const source = createMockSource();
+      const viz = new FrequencyVisualizer(source as never, {
+        workletAnalyser: analyser,
+        dualBand: true,
+      });
+
+      viz.getVisualizationData();
+
+      expect(analyser.getDualBandFrequencyData).toHaveBeenCalled();
+    });
+
+    it('does not read single-band data', () => {
+      const analyser = createMockWorkletAnalyser();
+      const source = createMockSource();
+      const viz = new FrequencyVisualizer(source as never, {
+        workletAnalyser: analyser,
+        dualBand: true,
+      });
+
+      viz.getVisualizationData();
+
+      expect(analyser.getByteFrequencyData).not.toHaveBeenCalled();
+    });
+
+    it('returns a Uint8Array of the configured size', () => {
+      const analyser = createMockWorkletAnalyser();
+      const source = createMockSource();
+      const viz = new FrequencyVisualizer(source as never, {
+        workletAnalyser: analyser,
+        dualBand: true,
+        frequencyBinCount: 256,
+      });
+
+      const result = viz.getVisualizationData();
+
+      expect(result).toBeInstanceOf(Uint8Array);
+      expect(result.length).toBe(256);
+    });
+
+    it('does not create native AnalyserNodes or filters', () => {
+      const analyser = createMockWorkletAnalyser();
+      const source = createMockSource();
+
+      new FrequencyVisualizer(source as never, {
+        workletAnalyser: analyser,
+        dualBand: true,
+      });
+
+      expect(source.context.rawContext.createAnalyser).not.toHaveBeenCalled();
+      expect(
+        source.context.rawContext.createBiquadFilter,
+      ).not.toHaveBeenCalled();
+      expect(source.context.rawContext.createGain).not.toHaveBeenCalled();
+    });
+
+    it('does not connect source node', () => {
+      const analyser = createMockWorkletAnalyser();
+      const source = createMockSource();
+
+      new FrequencyVisualizer(source as never, {
+        workletAnalyser: analyser,
+        dualBand: true,
+      });
+
+      expect(source.connect).not.toHaveBeenCalled();
+    });
+
+    it('disables frequency analysis on dispose', () => {
+      const analyser = createMockWorkletAnalyser();
+      const source = createMockSource();
+      const viz = new FrequencyVisualizer(source as never, {
+        workletAnalyser: analyser,
+        dualBand: true,
+      });
+
+      viz.dispose();
+
+      expect(analyser.disableFrequencyAnalysis).toHaveBeenCalled();
     });
   });
 
@@ -272,7 +427,7 @@ describe('FrequencyVisualizer', () => {
     });
   });
 
-  describe('dual-band path', () => {
+  describe('dual-band path (native)', () => {
     it('creates two AnalyserNodes and two filters when dualBand is true', () => {
       const source = createMockSource();
 
@@ -290,7 +445,6 @@ describe('FrequencyVisualizer', () => {
 
       new FrequencyVisualizer(source as never, { dualBand: true });
 
-      // Source is connected to both lowpass and highpass filters
       expect(source.connect).toHaveBeenCalledTimes(2);
     });
 
@@ -343,6 +497,10 @@ describe('FrequencyVisualizer', () => {
       const workletViz = new FrequencyVisualizer(source as never, {
         workletAnalyser: analyser,
       });
+      const workletDualBandViz = new FrequencyVisualizer(source as never, {
+        workletAnalyser: createMockWorkletAnalyser(),
+        dualBand: true,
+      });
       const singleViz = new FrequencyVisualizer(source as never);
       const dualBandViz = new FrequencyVisualizer(source as never, {
         dualBand: true,
@@ -350,6 +508,9 @@ describe('FrequencyVisualizer', () => {
 
       expect(workletViz.frequencyBinCount).toBe(singleViz.frequencyBinCount);
       expect(singleViz.frequencyBinCount).toBe(dualBandViz.frequencyBinCount);
+      expect(dualBandViz.frequencyBinCount).toBe(
+        workletDualBandViz.frequencyBinCount,
+      );
     });
 
     it('produces the same output array length regardless of analysis path', () => {
@@ -359,26 +520,37 @@ describe('FrequencyVisualizer', () => {
       const workletViz = new FrequencyVisualizer(source as never, {
         workletAnalyser: analyser,
       });
+      const workletDualBandViz = new FrequencyVisualizer(source as never, {
+        workletAnalyser: createMockWorkletAnalyser(),
+        dualBand: true,
+      });
       const singleViz = new FrequencyVisualizer(source as never);
       const dualBandViz = new FrequencyVisualizer(source as never, {
         dualBand: true,
       });
 
-      const workletData = workletViz.getVisualizationData();
-      const singleData = singleViz.getVisualizationData();
-      const dualBandData = dualBandViz.getVisualizationData();
-
-      expect(workletData.length).toBe(singleData.length);
-      expect(singleData.length).toBe(dualBandData.length);
+      expect(workletViz.getVisualizationData().length).toBe(
+        singleViz.getVisualizationData().length,
+      );
+      expect(singleViz.getVisualizationData().length).toBe(
+        dualBandViz.getVisualizationData().length,
+      );
+      expect(dualBandViz.getVisualizationData().length).toBe(
+        workletDualBandViz.getVisualizationData().length,
+      );
     });
 
     it('respects custom frequencyBinCount across all paths', () => {
       const source = createMockSource();
-      const analyser = createMockWorkletAnalyser();
       const customBinCount = 256;
 
       const workletViz = new FrequencyVisualizer(source as never, {
-        workletAnalyser: analyser,
+        workletAnalyser: createMockWorkletAnalyser(),
+        frequencyBinCount: customBinCount,
+      });
+      const workletDualBandViz = new FrequencyVisualizer(source as never, {
+        workletAnalyser: createMockWorkletAnalyser(),
+        dualBand: true,
         frequencyBinCount: customBinCount,
       });
       const singleViz = new FrequencyVisualizer(source as never, {
@@ -390,6 +562,9 @@ describe('FrequencyVisualizer', () => {
       });
 
       expect(workletViz.getVisualizationData().length).toBe(customBinCount);
+      expect(workletDualBandViz.getVisualizationData().length).toBe(
+        customBinCount,
+      );
       expect(singleViz.getVisualizationData().length).toBe(customBinCount);
       expect(dualBandViz.getVisualizationData().length).toBe(customBinCount);
     });

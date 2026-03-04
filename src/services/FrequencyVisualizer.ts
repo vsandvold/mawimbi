@@ -1,19 +1,23 @@
 /**
  * Live frequency visualization service.
  *
- * Three analysis paths, selected by constructor options:
+ * Four analysis paths, selected by constructor options:
  *
- * 1. **WorkletAnalyser** (preferred) — FFT runs on the audio thread via
- *    AudioWorkletProcessor, eliminating main-thread contention. Receives
- *    uniform frequency bins and applies log-frequency mapping on the main
- *    thread. Selected when `workletAnalyser` is provided.
+ * 1. **WorkletAnalyser + dual-band** — two FFTs on the audio thread
+ *    (large for low band, small for high band), merged and mapped on
+ *    the main thread. Best low-frequency resolution with no main-thread
+ *    FFT cost. Selected when both `workletAnalyser` and `dualBand` are set.
  *
- * 2. **Dual-band AnalyserNode** — splits the signal at ~752 Hz via biquad
- *    filters, runs separate FFTs for the low and high bands, merges them,
- *    and applies a dual-band log-frequency mapping. Selected when
- *    `dualBand: true` and no worklet is available.
+ * 2. **WorkletAnalyser** — single FFT on the audio thread via
+ *    AudioWorkletProcessor, with log-frequency mapping on the main
+ *    thread. Selected when `workletAnalyser` is provided without `dualBand`.
  *
- * 3. **Single AnalyserNode** (default fallback) — one AnalyserNode with a
+ * 3. **Dual-band AnalyserNode** — splits the signal at ~752 Hz via biquad
+ *    filters, runs separate FFTs for the low and high bands on the main
+ *    thread, merges them, and applies a dual-band log-frequency mapping.
+ *    Selected when `dualBand: true` without a worklet.
+ *
+ * 4. **Single AnalyserNode** (default fallback) — one AnalyserNode with a
  *    standard log-frequency mapping. Simplest path with lower CPU cost.
  *    Selected when no worklet is provided and `dualBand` is false.
  *
@@ -59,11 +63,22 @@ type FrequencyVisualizerOptions = {
 class FrequencyVisualizer {
   readonly frequencyBinCount: number;
 
-  // Worklet path state
+  // Worklet path state (single-band)
   private workletAnalyser: WorkletAnalyser | null = null;
   private workletData: Uint8Array<ArrayBuffer> | null = null;
   private workletOutput: Uint8Array<ArrayBuffer> | null = null;
   private workletLogMapping: number[][] | null = null;
+
+  // Worklet dual-band path state
+  private workletDualBand = false;
+  private workletLowData: Uint8Array<ArrayBuffer> | null = null;
+  private workletHighData: Uint8Array<ArrayBuffer> | null = null;
+  private workletMergedData: Uint8Array<ArrayBuffer> | null = null;
+  private workletDualBandOutput: Uint8Array<ArrayBuffer> | null = null;
+  private workletDualBandMapping: number[][] | null = null;
+  private workletLowBinCount = 0;
+  private workletHighBinStart = 0;
+  private workletHighBinEnd = 0;
 
   // Single-analyser path state
   private singleAnalyser: AnalyserNode | null = null;
@@ -98,7 +113,10 @@ class FrequencyVisualizer {
     const outputBinCount = opts.frequencyBinCount ?? DEFAULT_OUTPUT_BIN_COUNT;
     this.frequencyBinCount = outputBinCount;
 
-    if (opts.workletAnalyser) {
+    if (opts.workletAnalyser && opts.dualBand) {
+      this.workletAnalyser = opts.workletAnalyser;
+      this.initializeWorkletDualBandPath(opts.workletAnalyser, outputBinCount);
+    } else if (opts.workletAnalyser) {
       this.workletAnalyser = opts.workletAnalyser;
       this.initializeWorkletPath(opts.workletAnalyser, outputBinCount);
     } else if (opts.dualBand) {
@@ -109,6 +127,9 @@ class FrequencyVisualizer {
   }
 
   getVisualizationData(): Uint8Array {
+    if (this.workletDualBand && this.workletAnalyser) {
+      return this.getWorkletDualBandVisualizationData();
+    }
     if (this.workletAnalyser && this.workletData && this.workletOutput) {
       return this.getWorkletVisualizationData();
     }
@@ -125,6 +146,12 @@ class FrequencyVisualizer {
       this.workletData = null;
       this.workletOutput = null;
       this.workletLogMapping = null;
+      this.workletDualBand = false;
+      this.workletLowData = null;
+      this.workletHighData = null;
+      this.workletMergedData = null;
+      this.workletDualBandOutput = null;
+      this.workletDualBandMapping = null;
       return;
     }
 
@@ -144,7 +171,7 @@ class FrequencyVisualizer {
     this.muter?.disconnect();
   }
 
-  // --- Worklet path ---
+  // --- Worklet path (single-band) ---
 
   private initializeWorkletPath(
     analyser: WorkletAnalyser,
@@ -173,6 +200,70 @@ class FrequencyVisualizer {
       this.workletOutput!,
     );
     return this.workletOutput!;
+  }
+
+  // --- Worklet path (dual-band) ---
+
+  private initializeWorkletDualBandPath(
+    analyser: WorkletAnalyser,
+    outputBinCount: number,
+  ): void {
+    analyser.enableDualBandFrequencyAnalysis({
+      lowFftSize: LOW_FFT_SIZE,
+      highFftSize: HIGH_FFT_SIZE,
+      minDecibels: MIN_DECIBELS,
+      maxDecibels: MAX_DECIBELS,
+    });
+
+    this.workletDualBand = true;
+
+    const sampleRate = analyser.sampleRate;
+    const lowBinWidth = sampleRate / LOW_FFT_SIZE;
+    const highBinWidth = sampleRate / HIGH_FFT_SIZE;
+    this.workletLowBinCount = Math.ceil(SPLIT_FREQUENCY / lowBinWidth);
+    this.workletHighBinStart = Math.ceil(SPLIT_FREQUENCY / highBinWidth);
+    this.workletHighBinEnd = HIGH_FFT_SIZE / 2;
+    const mergedBinCount =
+      this.workletLowBinCount +
+      (this.workletHighBinEnd - this.workletHighBinStart);
+
+    this.workletDualBandMapping = createDualBandLogMapping(
+      mergedBinCount,
+      this.workletLowBinCount,
+      lowBinWidth,
+      this.workletHighBinStart,
+      highBinWidth,
+      outputBinCount,
+    );
+
+    this.workletLowData = new Uint8Array(analyser.lowFrequencyBinCount);
+    this.workletHighData = new Uint8Array(analyser.highFrequencyBinCount);
+    this.workletMergedData = new Uint8Array(mergedBinCount);
+    this.workletDualBandOutput = new Uint8Array(outputBinCount);
+  }
+
+  private getWorkletDualBandVisualizationData(): Uint8Array {
+    this.workletAnalyser!.getDualBandFrequencyData(
+      this.workletLowData!,
+      this.workletHighData!,
+    );
+
+    for (let i = 0; i < this.workletLowBinCount; i++) {
+      this.workletMergedData![i] = this.workletLowData![i];
+    }
+    for (let i = this.workletHighBinStart; i < this.workletHighBinEnd; i++) {
+      this.workletMergedData![
+        this.workletLowBinCount + i - this.workletHighBinStart
+      ] = this.workletHighData![i];
+    }
+
+    applyLogFrequencyMapping(
+      this.workletMergedData!,
+      this.workletDualBandMapping!,
+      this.workletDualBandOutput!,
+    );
+
+    return this.workletDualBandOutput!;
   }
 
   // --- Single-analyser path ---

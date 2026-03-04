@@ -179,6 +179,7 @@ describe('WorkletAnalyser', () => {
         expect(mockPort.postMessage).toHaveBeenCalledWith({
           type: 'configure',
           frequencyAnalysis: true,
+          dualBand: false,
           fftSize: 2048,
           minDecibels: -100,
           maxDecibels: -30,
@@ -224,6 +225,7 @@ describe('WorkletAnalyser', () => {
         expect(mockPort.postMessage).toHaveBeenCalledWith({
           type: 'configure',
           frequencyAnalysis: false,
+          dualBand: false,
         });
       });
     });
@@ -292,6 +294,180 @@ describe('WorkletAnalyser', () => {
     });
   });
 
+  describe('dual-band frequency analysis', () => {
+    it('exposes sampleRate from the audio context', () => {
+      const analyser = new WorkletAnalyser(createMockAudioContext());
+
+      expect(analyser.sampleRate).toBe(44100);
+    });
+
+    it('is not dual-band by default', () => {
+      const analyser = new WorkletAnalyser(createMockAudioContext());
+
+      expect(analyser.dualBandEnabled).toBe(false);
+    });
+
+    describe('enableDualBandFrequencyAnalysis', () => {
+      it('sends dual-band configure command to processor', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        void analyser.input;
+
+        analyser.enableDualBandFrequencyAnalysis({
+          lowFftSize: 16384,
+          highFftSize: 1024,
+        });
+
+        expect(mockPort.postMessage).toHaveBeenCalledWith({
+          type: 'configure',
+          dualBand: true,
+          lowFftSize: 16384,
+          highFftSize: 1024,
+          minDecibels: -100,
+          maxDecibels: -30,
+        });
+      });
+
+      it('sets dualBandEnabled to true', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        void analyser.input;
+
+        analyser.enableDualBandFrequencyAnalysis({
+          lowFftSize: 16384,
+          highFftSize: 1024,
+        });
+
+        expect(analyser.dualBandEnabled).toBe(true);
+      });
+
+      it('exposes low and high FFT sizes', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        void analyser.input;
+
+        analyser.enableDualBandFrequencyAnalysis({
+          lowFftSize: 16384,
+          highFftSize: 1024,
+        });
+
+        expect(analyser.lowFftSize).toBe(16384);
+        expect(analyser.highFftSize).toBe(1024);
+        expect(analyser.lowFrequencyBinCount).toBe(8192);
+        expect(analyser.highFrequencyBinCount).toBe(512);
+      });
+
+      it('accepts custom dB range', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        void analyser.input;
+
+        analyser.enableDualBandFrequencyAnalysis({
+          lowFftSize: 16384,
+          highFftSize: 1024,
+          minDecibels: -80,
+          maxDecibels: -20,
+        });
+
+        expect(analyser.minDecibels).toBe(-80);
+        expect(analyser.maxDecibels).toBe(-20);
+      });
+
+      it('clears single-band bins when switching to dual-band', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        void analyser.input;
+
+        analyser.enableFrequencyAnalysis();
+        analyser.enableDualBandFrequencyAnalysis({
+          lowFftSize: 16384,
+          highFftSize: 1024,
+        });
+
+        const output = new Uint8Array(1024);
+        expect(analyser.getByteFrequencyData(output)).toBe(false);
+      });
+    });
+
+    describe('getDualBandFrequencyData', () => {
+      it('returns false when dual-band is not enabled', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        const low = new Uint8Array(8192);
+        const high = new Uint8Array(512);
+
+        expect(analyser.getDualBandFrequencyData(low, high)).toBe(false);
+      });
+
+      it('returns true after enabling', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        void analyser.input;
+        analyser.enableDualBandFrequencyAnalysis({
+          lowFftSize: 16384,
+          highFftSize: 1024,
+        });
+
+        const low = new Uint8Array(8192);
+        const high = new Uint8Array(512);
+        expect(analyser.getDualBandFrequencyData(low, high)).toBe(true);
+      });
+
+      it('copies low-band data from processor messages', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        void analyser.input;
+        analyser.enableDualBandFrequencyAnalysis({
+          lowFftSize: 16384,
+          highFftSize: 1024,
+        });
+
+        const lowBins = new Uint8Array(8192);
+        lowBins[0] = 200;
+        lowBins[100] = 150;
+        mockPort._simulateMessage({ type: 'lowFrequencyData', bins: lowBins });
+
+        const low = new Uint8Array(8192);
+        const high = new Uint8Array(512);
+        analyser.getDualBandFrequencyData(low, high);
+
+        expect(low[0]).toBe(200);
+        expect(low[100]).toBe(150);
+      });
+
+      it('copies high-band data from processor messages', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        void analyser.input;
+        analyser.enableDualBandFrequencyAnalysis({
+          lowFftSize: 16384,
+          highFftSize: 1024,
+        });
+
+        const highBins = new Uint8Array(512);
+        highBins[0] = 180;
+        highBins[50] = 120;
+        mockPort._simulateMessage({
+          type: 'highFrequencyData',
+          bins: highBins,
+        });
+
+        const low = new Uint8Array(8192);
+        const high = new Uint8Array(512);
+        analyser.getDualBandFrequencyData(low, high);
+
+        expect(high[0]).toBe(180);
+        expect(high[50]).toBe(120);
+      });
+
+      it('returns false after disabling frequency analysis', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        void analyser.input;
+        analyser.enableDualBandFrequencyAnalysis({
+          lowFftSize: 16384,
+          highFftSize: 1024,
+        });
+        analyser.disableFrequencyAnalysis();
+
+        const low = new Uint8Array(8192);
+        const high = new Uint8Array(512);
+        expect(analyser.getDualBandFrequencyData(low, high)).toBe(false);
+        expect(analyser.dualBandEnabled).toBe(false);
+      });
+    });
+  });
+
   describe('dispose', () => {
     it('disconnects the node', () => {
       const analyser = new WorkletAnalyser(createMockAudioContext());
@@ -324,6 +500,22 @@ describe('WorkletAnalyser', () => {
 
       const output = new Uint8Array(1024);
       expect(analyser.getByteFrequencyData(output)).toBe(false);
+    });
+
+    it('clears dual-band frequency data', () => {
+      const analyser = new WorkletAnalyser(createMockAudioContext());
+      void analyser.input;
+      analyser.enableDualBandFrequencyAnalysis({
+        lowFftSize: 16384,
+        highFftSize: 1024,
+      });
+
+      analyser.dispose();
+
+      const low = new Uint8Array(8192);
+      const high = new Uint8Array(512);
+      expect(analyser.getDualBandFrequencyData(low, high)).toBe(false);
+      expect(analyser.dualBandEnabled).toBe(false);
     });
   });
 });
