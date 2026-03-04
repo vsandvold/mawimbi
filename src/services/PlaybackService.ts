@@ -99,7 +99,14 @@ class PlaybackService {
     }
 
     this._playbackState.value = 'playing';
-    this.transport.start();
+    // Skip starting the transport if it is already running.  During
+    // recording, startOverdubRecording() starts the transport before
+    // play() is called so the recording start time is captured at the
+    // correct position.  Calling transport.start() again would restart
+    // the clock and shift the recording alignment.
+    if (this.transport.state !== 'started') {
+      this.transport.start();
+    }
   }
 
   pause(): void {

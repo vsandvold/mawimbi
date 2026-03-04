@@ -203,7 +203,7 @@ it('does not start playback during count-in when transport is at position 0', as
   expect(recordingService.isCountingIn).toBe(true);
 });
 
-it('starts playback when count-in completes at position 0', async () => {
+it('does not start playback after count-in completes at position 0', async () => {
   Tone.getTransport().seconds = 0;
   const onComplete = vi.fn();
 
@@ -213,9 +213,6 @@ it('starts playback when count-in completes at position 0', async () => {
 
   await act(async () => {});
 
-  // During count-in, playback should not be started yet
-  expect(playbackService.isPlaying).toBe(false);
-
   // Advance through all 4 beats (4 * 500ms = 2000ms)
   for (let i = 0; i < 4; i++) {
     await act(async () => {
@@ -223,9 +220,10 @@ it('starts playback when count-in completes at position 0', async () => {
     });
   }
 
-  // After count-in completes, playback should have started so the
-  // scrubber animation loop runs and the live spectrogram renders
-  expect(playbackService.isPlaying).toBe(true);
+  // At position 0 there is no lead-in, so useCountIn does not call
+  // play().  useMicrophone is responsible for starting playback after
+  // startOverdubRecording() captures the recording start time.
+  expect(playbackService.isPlaying).toBe(false);
   expect(onComplete).toHaveBeenCalledOnce();
 });
 

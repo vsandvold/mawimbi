@@ -125,15 +125,19 @@ describe('useMicrophone', () => {
     expect(recordingService.recordingState).toBe('idle');
   });
 
-  it('does not start playback when recording starts', async () => {
+  it('starts playback after overdub recording begins', async () => {
     renderHook(({ isRec }: { isRec: boolean }) => useMicrophone(isRec), {
       initialProps: { isRec: true },
     });
 
     await act(async () => {});
 
-    // Count-in handles playback start, not useMicrophone
-    expect(playbackService.isPlaying).toBe(false);
+    // useMicrophone calls play() after startOverdubRecording() so the
+    // scrubber animation loop activates.  When recording from position 0,
+    // useCountIn does not call play() (no lead-in), so this is the first
+    // play() call.  When lead-in was available, play() was already called
+    // by useCountIn and this is a no-op.
+    expect(playbackService.isPlaying).toBe(true);
   });
 
   it('pauses at current position when recording stops', async () => {
