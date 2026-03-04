@@ -190,6 +190,10 @@ class RecordingService {
     this.microphone.useWorkletAnalyser(analyser);
   }
 
+  getWorkletAnalyser(): WorkletAnalyser | null {
+    return this.microphone.getWorkletAnalyser();
+  }
+
   getLoudness(): number {
     return this.microphone.getLoudness();
   }

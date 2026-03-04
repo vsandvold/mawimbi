@@ -59,8 +59,10 @@ const Spectrogram = ({
   // Create/dispose recording buffer and visualizer when entering/leaving recording mode
   useEffect(() => {
     if (isRecordingTrack) {
+      const workletAnalyser = recording.getWorkletAnalyser() ?? undefined;
       const visualizer = new FrequencyVisualizer(
         recording.getMicrophoneSource(),
+        workletAnalyser,
       );
       visualizerRef.current = visualizer;
       recordingBufferRef.current = new RecordingBuffer(

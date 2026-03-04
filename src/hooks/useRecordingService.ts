@@ -53,6 +53,7 @@ export function useRecordingService() {
     closeMicrophone: () => service.closeMicrophone(),
     getLoudness: () => service.getLoudness(),
     getMicrophoneSource: () => service.getMicrophoneSource(),
+    getWorkletAnalyser: () => service.getWorkletAnalyser(),
 
     // --- Overdub recording ---
 
