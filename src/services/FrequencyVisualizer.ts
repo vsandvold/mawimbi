@@ -1,17 +1,21 @@
 /**
  * Live frequency visualization service.
  *
- * Two analysis paths:
+ * Three analysis paths, selected by constructor options:
  *
  * 1. **WorkletAnalyser** (preferred) — FFT runs on the audio thread via
  *    AudioWorkletProcessor, eliminating main-thread contention. Receives
  *    uniform frequency bins and applies log-frequency mapping on the main
- *    thread.
+ *    thread. Selected when `workletAnalyser` is provided.
  *
- * 2. **Dual-band AnalyserNode** (fallback) — splits the signal at ~752 Hz
- *    via biquad filters, runs separate FFTs for the low and high bands,
- *    merges them, and applies a dual-band log-frequency mapping. Used when
- *    AudioWorklet is unavailable.
+ * 2. **Dual-band AnalyserNode** — splits the signal at ~752 Hz via biquad
+ *    filters, runs separate FFTs for the low and high bands, merges them,
+ *    and applies a dual-band log-frequency mapping. Selected when
+ *    `dualBand: true` and no worklet is available.
+ *
+ * 3. **Single AnalyserNode** (default fallback) — one AnalyserNode with a
+ *    standard log-frequency mapping. Simplest path with lower CPU cost.
+ *    Selected when no worklet is provided and `dualBand` is false.
  *
  * Consumers receive a ready-to-render Uint8Array (0–255) — no analysis
  * details leak outside this module.
@@ -41,20 +45,31 @@ const HIGH_FFT_SIZE = 1024;
 // on the main thread.
 const WORKLET_FFT_SIZE = 2048;
 
-// Standard output resolution for all analysis paths. Both the worklet and
-// dual-band paths map their internal frequency bins to this fixed count,
-// so consumers always receive the same number of bins regardless of which
-// analysis method is active.
-const OUTPUT_BIN_COUNT = 512;
+// Single-analyser FFT size. 2048 matches the worklet path resolution.
+const SINGLE_FFT_SIZE = 2048;
+
+const DEFAULT_OUTPUT_BIN_COUNT = 512;
+
+type FrequencyVisualizerOptions = {
+  workletAnalyser?: WorkletAnalyser;
+  frequencyBinCount?: number;
+  dualBand?: boolean;
+};
 
 class FrequencyVisualizer {
-  readonly frequencyBinCount = OUTPUT_BIN_COUNT;
+  readonly frequencyBinCount: number;
 
   // Worklet path state
   private workletAnalyser: WorkletAnalyser | null = null;
   private workletData: Uint8Array<ArrayBuffer> | null = null;
   private workletOutput: Uint8Array<ArrayBuffer> | null = null;
   private workletLogMapping: number[][] | null = null;
+
+  // Single-analyser path state
+  private singleAnalyser: AnalyserNode | null = null;
+  private singleData: Uint8Array<ArrayBuffer> | null = null;
+  private singleOutput: Uint8Array<ArrayBuffer> | null = null;
+  private singleLogMapping: number[][] | null = null;
 
   // Dual-band fallback state
   private lowFilter: BiquadFilterNode | null = null;
@@ -72,18 +87,33 @@ class FrequencyVisualizer {
   private highBinStart = 0;
   private highBinEnd = 0;
 
-  constructor(source: Tone.ToneAudioNode, workletAnalyser?: WorkletAnalyser) {
-    if (workletAnalyser) {
-      this.workletAnalyser = workletAnalyser;
-      this.initializeWorkletPath(workletAnalyser);
+  constructor(source: Tone.ToneAudioNode, options?: FrequencyVisualizerOptions);
+  /** @deprecated Use options object instead. */
+  constructor(source: Tone.ToneAudioNode, workletAnalyser?: WorkletAnalyser);
+  constructor(
+    source: Tone.ToneAudioNode,
+    optionsOrAnalyser?: FrequencyVisualizerOptions | WorkletAnalyser,
+  ) {
+    const opts = normalizeOptions(optionsOrAnalyser);
+    const outputBinCount = opts.frequencyBinCount ?? DEFAULT_OUTPUT_BIN_COUNT;
+    this.frequencyBinCount = outputBinCount;
+
+    if (opts.workletAnalyser) {
+      this.workletAnalyser = opts.workletAnalyser;
+      this.initializeWorkletPath(opts.workletAnalyser, outputBinCount);
+    } else if (opts.dualBand) {
+      this.initializeDualBandPath(source, outputBinCount);
     } else {
-      this.initializeDualBandPath(source);
+      this.initializeSingleAnalyserPath(source, outputBinCount);
     }
   }
 
   getVisualizationData(): Uint8Array {
     if (this.workletAnalyser && this.workletData && this.workletOutput) {
       return this.getWorkletVisualizationData();
+    }
+    if (this.singleAnalyser && this.singleData && this.singleOutput) {
+      return this.getSingleAnalyserVisualizationData();
     }
     return this.getDualBandVisualizationData();
   }
@@ -98,6 +128,15 @@ class FrequencyVisualizer {
       return;
     }
 
+    if (this.singleAnalyser) {
+      this.singleAnalyser.disconnect();
+      this.singleAnalyser = null;
+      this.singleData = null;
+      this.singleOutput = null;
+      this.singleLogMapping = null;
+      return;
+    }
+
     this.lowFilter?.disconnect();
     this.highFilter?.disconnect();
     this.lowAnalyser?.disconnect();
@@ -107,7 +146,10 @@ class FrequencyVisualizer {
 
   // --- Worklet path ---
 
-  private initializeWorkletPath(analyser: WorkletAnalyser): void {
+  private initializeWorkletPath(
+    analyser: WorkletAnalyser,
+    outputBinCount: number,
+  ): void {
     analyser.enableFrequencyAnalysis({
       fftSize: WORKLET_FFT_SIZE,
       minDecibels: MIN_DECIBELS,
@@ -116,10 +158,10 @@ class FrequencyVisualizer {
 
     const inputBinCount = analyser.frequencyBinCount;
     this.workletData = new Uint8Array(inputBinCount);
-    this.workletOutput = new Uint8Array(OUTPUT_BIN_COUNT);
+    this.workletOutput = new Uint8Array(outputBinCount);
     this.workletLogMapping = createLogFrequencyMapping(
       inputBinCount,
-      OUTPUT_BIN_COUNT,
+      outputBinCount,
     );
   }
 
@@ -133,9 +175,48 @@ class FrequencyVisualizer {
     return this.workletOutput!;
   }
 
+  // --- Single-analyser path ---
+
+  private initializeSingleAnalyserPath(
+    source: Tone.ToneAudioNode,
+    outputBinCount: number,
+  ): void {
+    const toneCtx = source.context ?? Tone.context;
+    const ctx = toneCtx.rawContext as AudioContext;
+
+    this.singleAnalyser = ctx.createAnalyser();
+    this.singleAnalyser.fftSize = SINGLE_FFT_SIZE;
+    this.singleAnalyser.smoothingTimeConstant = SMOOTHING;
+    this.singleAnalyser.minDecibels = MIN_DECIBELS;
+    this.singleAnalyser.maxDecibels = MAX_DECIBELS;
+
+    source.connect(this.singleAnalyser as unknown as AudioNode);
+
+    const inputBinCount = this.singleAnalyser.frequencyBinCount;
+    this.singleData = new Uint8Array(inputBinCount);
+    this.singleOutput = new Uint8Array(outputBinCount);
+    this.singleLogMapping = createLogFrequencyMapping(
+      inputBinCount,
+      outputBinCount,
+    );
+  }
+
+  private getSingleAnalyserVisualizationData(): Uint8Array {
+    this.singleAnalyser!.getByteFrequencyData(this.singleData!);
+    applyLogFrequencyMapping(
+      this.singleData!,
+      this.singleLogMapping!,
+      this.singleOutput!,
+    );
+    return this.singleOutput!;
+  }
+
   // --- Dual-band fallback ---
 
-  private initializeDualBandPath(source: Tone.ToneAudioNode): void {
+  private initializeDualBandPath(
+    source: Tone.ToneAudioNode,
+    outputBinCount: number,
+  ): void {
     const toneCtx = source.context ?? Tone.context;
     const ctx = toneCtx.rawContext as AudioContext;
     const sampleRate = ctx.sampleRate;
@@ -189,13 +270,13 @@ class FrequencyVisualizer {
       lowBinWidth,
       this.highBinStart,
       highBinWidth,
-      OUTPUT_BIN_COUNT,
+      outputBinCount,
     );
 
     this.lowData = new Uint8Array(this.lowAnalyser.frequencyBinCount);
     this.highData = new Uint8Array(this.highAnalyser.frequencyBinCount);
     this.mergedData = new Uint8Array(mergedBinCount);
-    this.outputData = new Uint8Array(OUTPUT_BIN_COUNT);
+    this.outputData = new Uint8Array(outputBinCount);
   }
 
   private getDualBandVisualizationData(): Uint8Array {
@@ -218,6 +299,17 @@ class FrequencyVisualizer {
 
     return this.outputData!;
   }
+}
+
+function normalizeOptions(
+  arg?: FrequencyVisualizerOptions | WorkletAnalyser,
+): FrequencyVisualizerOptions {
+  if (!arg) return {};
+  // Detect WorkletAnalyser by duck-typing its characteristic method
+  if ('enableFrequencyAnalysis' in arg) {
+    return { workletAnalyser: arg as WorkletAnalyser };
+  }
+  return arg as FrequencyVisualizerOptions;
 }
 
 export default FrequencyVisualizer;

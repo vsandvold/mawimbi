@@ -62,7 +62,7 @@ const Spectrogram = ({
       const workletAnalyser = recording.getWorkletAnalyser() ?? undefined;
       const visualizer = new FrequencyVisualizer(
         recording.getMicrophoneSource(),
-        workletAnalyser,
+        { workletAnalyser, dualBand: true },
       );
       visualizerRef.current = visualizer;
       recordingBufferRef.current = new RecordingBuffer(
