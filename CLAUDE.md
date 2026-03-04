@@ -320,3 +320,7 @@ Vitest + React Testing Library. Test setup (`setupTests.ts`) globally mocks:
 
 Tests read service state through plain getters (`service.playbackState`, `getFocusedTracks()`, `getPixelsPerSecond()`), not through `.signals.*.value`. This keeps tests decoupled from signal internals and makes assertions more readable.
 
+## Pull Requests
+
+After all tasks are done — code changes committed and pushed — create a pull request using `gh pr create --repo vsandvold/mawimbi`. Target the `master` branch. Include a summary of what changed and a test plan in the PR body.
+
