@@ -324,3 +324,10 @@ Tests read service state through plain getters (`service.playbackState`, `getFoc
 
 After all tasks are done — code changes committed and pushed — create a pull request using `gh pr create --repo vsandvold/mawimbi`. Target the `master` branch. Include a summary of what changed and a test plan in the PR body.
 
+## Issue Updates
+
+When working on a GitHub issue, comment on the issue after completing work. Use `gh issue comment <number> --repo vsandvold/mawimbi`. The comment should include:
+
+1. **What was done** — summarize the changes made (files modified, new APIs, patterns followed)
+2. **Recommended next steps** — list concrete follow-up tasks that remain, numbered to show suggested order
+

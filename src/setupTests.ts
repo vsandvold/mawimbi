@@ -26,6 +26,7 @@ vi.mock('tone', () => {
   function makeNode() {
     return {
       connect: vi.fn().mockReturnThis(),
+      disconnect: vi.fn().mockReturnThis(),
       chain: vi.fn().mockReturnThis(),
       sync: vi.fn().mockReturnThis(),
       start: vi.fn().mockReturnThis(),

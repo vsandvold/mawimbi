@@ -10,6 +10,7 @@ import PlaybackService from './PlaybackService';
 import RecordingService from './RecordingService';
 import TrackService from './TrackService';
 import SpectrogramCache from './SpectrogramCache';
+import WorkletAnalyser from './WorkletAnalyser';
 
 // Reduce scheduling lookahead from the default 0.1s to 0.05s for lower
 // recording latency while keeping enough headroom to avoid scheduling glitches
@@ -46,6 +47,27 @@ class AudioService {
     // Attempt to initialize the AudioWorklet-based recorder for
     // sample-accurate capture. Falls back to Tone.Recorder silently.
     this.recordingService.initializeWorkletRecorder();
+
+    // Attempt to initialize the AudioWorklet-based loudness analyser.
+    // Replaces Tone.Meter on the destination for lower-latency metering.
+    // Falls back to Tone.Meter silently if AudioWorklet is unavailable.
+    this.initializeWorkletAnalyser();
+  }
+
+  private async initializeWorkletAnalyser(): Promise<void> {
+    try {
+      const rawContext = Tone.context.rawContext as AudioContext;
+      if (!rawContext.audioWorklet) return;
+      const nativeCtx =
+        (rawContext as unknown as { _nativeContext?: AudioContext })
+          ._nativeContext ?? rawContext;
+      const analyser = new WorkletAnalyser(nativeCtx);
+      await analyser.initialize();
+      this.trackService.useWorkletAnalyser(analyser);
+    } catch {
+      // AudioWorklet not supported or module failed to load — keep using
+      // Tone.Meter as fallback.
+    }
   }
 
   static getInstance(): AudioService {

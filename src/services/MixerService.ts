@@ -1,4 +1,5 @@
 import * as Tone from 'tone';
+import type WorkletAnalyser from './WorkletAnalyser';
 
 const SMOOTHING = 0.8;
 const POWER_CURVE_EXPONENT = 0.6;
@@ -6,6 +7,7 @@ const POWER_CURVE_EXPONENT = 0.6;
 class MixerService {
   private audioChannelRepository: AudioChannelRepository;
   private meter: Tone.Meter;
+  private workletAnalyser: WorkletAnalyser | null = null;
 
   constructor() {
     this.audioChannelRepository = new AudioChannelRepository();
@@ -13,7 +15,19 @@ class MixerService {
     Tone.getDestination().connect(this.meter);
   }
 
+  // Replace Tone.Meter with a WorkletAnalyser for loudness metering.
+  // Call after the analyser has been initialized (module loaded).
+  // Re-routes the destination connection from Tone.Meter to the worklet.
+  useWorkletAnalyser(analyser: WorkletAnalyser): void {
+    Tone.getDestination().disconnect(this.meter);
+    this.workletAnalyser = analyser;
+    Tone.getDestination().connect(analyser.input);
+  }
+
   getLoudness(): number {
+    if (this.workletAnalyser) {
+      return this.workletAnalyser.getLoudness();
+    }
     const value = this.meter.getValue();
     const clamped = typeof value === 'number' ? Math.max(0, value) : 0;
     return Math.pow(clamped, POWER_CURVE_EXPONENT);

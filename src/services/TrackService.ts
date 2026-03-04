@@ -15,6 +15,7 @@ import {
 } from '@preact/signals-react';
 import { LoudnessNormalizer } from './LoudnessNormalizer';
 import MixerService, { type AudioChannel } from './MixerService';
+import type WorkletAnalyser from './WorkletAnalyser';
 import { type TrackId } from '../types/track';
 
 export type TrackSignals = {
@@ -219,6 +220,10 @@ class TrackService {
   }
 
   // --- Mixer delegates ---
+
+  useWorkletAnalyser(analyser: WorkletAnalyser): void {
+    this.mixer.useWorkletAnalyser(analyser);
+  }
 
   getLoudness(): number {
     return this.mixer.getLoudness();
