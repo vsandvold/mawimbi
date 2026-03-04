@@ -1,6 +1,17 @@
 import { vi } from 'vitest';
 import * as Tone from 'tone';
 import MixerService, { AudioChannel } from '../MixerService';
+import type WorkletAnalyser from '../WorkletAnalyser';
+
+function createMockWorkletAnalyser(loudness = 0): WorkletAnalyser {
+  return {
+    input: { connect: vi.fn(), disconnect: vi.fn() } as unknown as AudioNode,
+    getLoudness: vi.fn().mockReturnValue(loudness),
+    getRawRms: vi.fn().mockReturnValue(0),
+    initialize: vi.fn().mockResolvedValue(undefined),
+    dispose: vi.fn(),
+  } as unknown as WorkletAnalyser;
+}
 
 let mixer: MixerService;
 
@@ -57,6 +68,38 @@ describe('getLoudness', () => {
     meterInstance.getValue.mockReturnValue([0.5, 0.6] as unknown as number);
 
     expect(mixer.getLoudness()).toBe(0);
+  });
+});
+
+describe('useWorkletAnalyser', () => {
+  it('disconnects Tone.Meter and connects WorkletAnalyser to destination', () => {
+    const analyser = createMockWorkletAnalyser();
+    const destination = vi.mocked(Tone.getDestination).mock.results[0].value;
+    const meterInstance = vi.mocked(Tone.Meter).mock.results[0].value;
+
+    mixer.useWorkletAnalyser(analyser);
+
+    expect(destination.disconnect).toHaveBeenCalledWith(meterInstance);
+    expect(destination.connect).toHaveBeenCalledWith(analyser.input);
+  });
+
+  it('delegates getLoudness to WorkletAnalyser after upgrade', () => {
+    const analyser = createMockWorkletAnalyser(0.75);
+
+    mixer.useWorkletAnalyser(analyser);
+
+    expect(mixer.getLoudness()).toBe(0.75);
+    expect(analyser.getLoudness).toHaveBeenCalled();
+  });
+
+  it('does not call Tone.Meter after upgrade', () => {
+    const analyser = createMockWorkletAnalyser(0.5);
+    const meterInstance = vi.mocked(Tone.Meter).mock.results[0].value;
+
+    mixer.useWorkletAnalyser(analyser);
+    mixer.getLoudness();
+
+    expect(meterInstance.getValue).not.toHaveBeenCalled();
   });
 });
 
