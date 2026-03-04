@@ -13,21 +13,30 @@
  * output bin `i`. Low-frequency output bins map to a single input bin
  * (expanding the low range); high-frequency output bins pool multiple
  * input bins (compressing the high range).
+ *
+ * When `outputBinCount` differs from `inputBinCount`, the log curve is
+ * scaled so the output spans the full input range at the requested
+ * resolution.
  */
 export function createLogFrequencyMapping(
-  frequencyBinCount: number,
+  inputBinCount: number,
+  outputBinCount: number = inputBinCount,
 ): number[][] {
-  const mapping: number[][] = new Array(frequencyBinCount);
+  const mapping: number[][] = new Array(outputBinCount);
   const lower = 1;
-  const upper = frequencyBinCount + 1;
+  const upper = inputBinCount + 1;
   const b = Math.log(lower / upper) / (lower - upper);
-  for (let i = 0; i < frequencyBinCount; i++) {
-    const logIdx = Math.trunc(Math.exp(b * i)) - 1;
+  const scale = inputBinCount / outputBinCount;
+  for (let i = 0; i < outputBinCount; i++) {
+    const logIdx = Math.min(
+      Math.trunc(Math.exp(b * i * scale)) - 1,
+      inputBinCount - 1,
+    );
     mapping[i] = [logIdx];
   }
-  for (let i = 0; i < frequencyBinCount - 1; i++) {
+  for (let i = 0; i < outputBinCount - 1; i++) {
     const df = mapping[i + 1][0] - mapping[i][0];
-    if (df === 1) {
+    if (df <= 1) {
       continue;
     }
     for (let j = 1; j <= df; j++) {
@@ -55,6 +64,7 @@ export function createDualBandLogMapping(
   lowBinWidth: number,
   highBinStart: number,
   highBinWidth: number,
+  outputBinCount: number = mergedBinCount,
 ): number[][] {
   const freq = new Float64Array(mergedBinCount);
   for (let i = 0; i < lowBinCount; i++) {
@@ -69,10 +79,10 @@ export function createDualBandLogMapping(
   const logMin = Math.log(minFreq);
   const logMax = Math.log(maxFreq);
 
-  const mapping: number[][] = new Array(mergedBinCount);
+  const mapping: number[][] = new Array(outputBinCount);
 
-  for (let i = 0; i < mergedBinCount; i++) {
-    const t = i / (mergedBinCount - 1);
+  for (let i = 0; i < outputBinCount; i++) {
+    const t = i / (outputBinCount - 1);
     const targetFreq = Math.exp(logMin + t * (logMax - logMin));
 
     let lo = 0;
@@ -93,7 +103,7 @@ export function createDualBandLogMapping(
     mapping[i] = [closest];
   }
 
-  for (let i = 0; i < mergedBinCount - 1; i++) {
+  for (let i = 0; i < outputBinCount - 1; i++) {
     const df = mapping[i + 1][0] - mapping[i][0];
     if (df <= 1) continue;
     for (let j = 1; j <= df; j++) {

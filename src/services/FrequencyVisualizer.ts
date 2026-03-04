@@ -41,8 +41,14 @@ const HIGH_FFT_SIZE = 1024;
 // on the main thread.
 const WORKLET_FFT_SIZE = 2048;
 
+// Standard output resolution for all analysis paths. Both the worklet and
+// dual-band paths map their internal frequency bins to this fixed count,
+// so consumers always receive the same number of bins regardless of which
+// analysis method is active.
+const OUTPUT_BIN_COUNT = 512;
+
 class FrequencyVisualizer {
-  readonly frequencyBinCount: number;
+  readonly frequencyBinCount = OUTPUT_BIN_COUNT;
 
   // Worklet path state
   private workletAnalyser: WorkletAnalyser | null = null;
@@ -70,9 +76,8 @@ class FrequencyVisualizer {
     if (workletAnalyser) {
       this.workletAnalyser = workletAnalyser;
       this.initializeWorkletPath(workletAnalyser);
-      this.frequencyBinCount = workletAnalyser.frequencyBinCount;
     } else {
-      this.frequencyBinCount = this.initializeDualBandPath(source);
+      this.initializeDualBandPath(source);
     }
   }
 
@@ -109,10 +114,13 @@ class FrequencyVisualizer {
       maxDecibels: MAX_DECIBELS,
     });
 
-    const binCount = analyser.frequencyBinCount;
-    this.workletData = new Uint8Array(binCount);
-    this.workletOutput = new Uint8Array(binCount);
-    this.workletLogMapping = createLogFrequencyMapping(binCount);
+    const inputBinCount = analyser.frequencyBinCount;
+    this.workletData = new Uint8Array(inputBinCount);
+    this.workletOutput = new Uint8Array(OUTPUT_BIN_COUNT);
+    this.workletLogMapping = createLogFrequencyMapping(
+      inputBinCount,
+      OUTPUT_BIN_COUNT,
+    );
   }
 
   private getWorkletVisualizationData(): Uint8Array {
@@ -127,7 +135,7 @@ class FrequencyVisualizer {
 
   // --- Dual-band fallback ---
 
-  private initializeDualBandPath(source: Tone.ToneAudioNode): number {
+  private initializeDualBandPath(source: Tone.ToneAudioNode): void {
     const toneCtx = source.context ?? Tone.context;
     const ctx = toneCtx.rawContext as AudioContext;
     const sampleRate = ctx.sampleRate;
@@ -181,14 +189,13 @@ class FrequencyVisualizer {
       lowBinWidth,
       this.highBinStart,
       highBinWidth,
+      OUTPUT_BIN_COUNT,
     );
 
     this.lowData = new Uint8Array(this.lowAnalyser.frequencyBinCount);
     this.highData = new Uint8Array(this.highAnalyser.frequencyBinCount);
     this.mergedData = new Uint8Array(mergedBinCount);
-    this.outputData = new Uint8Array(mergedBinCount);
-
-    return mergedBinCount;
+    this.outputData = new Uint8Array(OUTPUT_BIN_COUNT);
   }
 
   private getDualBandVisualizationData(): Uint8Array {

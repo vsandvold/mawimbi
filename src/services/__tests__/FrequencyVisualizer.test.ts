@@ -110,13 +110,13 @@ describe('FrequencyVisualizer', () => {
       });
     });
 
-    it('sets frequencyBinCount from WorkletAnalyser', () => {
+    it('sets frequencyBinCount to the standard output size', () => {
       const analyser = createMockWorkletAnalyser();
       const source = createMockSource();
 
       const viz = new FrequencyVisualizer(source as never, analyser);
 
-      expect(viz.frequencyBinCount).toBe(1024);
+      expect(viz.frequencyBinCount).toBe(512);
     });
 
     it('reads frequency data from WorkletAnalyser', () => {
@@ -129,7 +129,7 @@ describe('FrequencyVisualizer', () => {
       expect(analyser.getByteFrequencyData).toHaveBeenCalled();
     });
 
-    it('returns a Uint8Array of the correct size', () => {
+    it('returns a Uint8Array of the standard output size', () => {
       const analyser = createMockWorkletAnalyser();
       const source = createMockSource();
       const viz = new FrequencyVisualizer(source as never, analyser);
@@ -137,7 +137,7 @@ describe('FrequencyVisualizer', () => {
       const result = viz.getVisualizationData();
 
       expect(result).toBeInstanceOf(Uint8Array);
-      expect(result.length).toBe(1024);
+      expect(result.length).toBe(512);
     });
 
     it('does not create native AnalyserNodes', () => {
@@ -185,6 +185,29 @@ describe('FrequencyVisualizer', () => {
     });
   });
 
+  it('produces the same frequencyBinCount regardless of analysis path', () => {
+    const source = createMockSource();
+    const analyser = createMockWorkletAnalyser();
+
+    const workletViz = new FrequencyVisualizer(source as never, analyser);
+    const dualBandViz = new FrequencyVisualizer(source as never);
+
+    expect(workletViz.frequencyBinCount).toBe(dualBandViz.frequencyBinCount);
+  });
+
+  it('produces the same output array length regardless of analysis path', () => {
+    const source = createMockSource();
+    const analyser = createMockWorkletAnalyser();
+
+    const workletViz = new FrequencyVisualizer(source as never, analyser);
+    const dualBandViz = new FrequencyVisualizer(source as never);
+
+    const workletData = workletViz.getVisualizationData();
+    const dualBandData = dualBandViz.getVisualizationData();
+
+    expect(workletData.length).toBe(dualBandData.length);
+  });
+
   describe('dual-band fallback', () => {
     it('creates AnalyserNodes when no WorkletAnalyser is provided', () => {
       const source = createMockSource();
@@ -207,17 +230,12 @@ describe('FrequencyVisualizer', () => {
       expect(source.connect).toHaveBeenCalledTimes(2);
     });
 
-    it('sets frequencyBinCount from merged dual-band bins', () => {
+    it('sets frequencyBinCount to the standard output size', () => {
       const source = createMockSource();
 
       const viz = new FrequencyVisualizer(source as never);
 
-      // With 44100 Hz sample rate:
-      // lowBinCount = ceil(752 / (44100/16384)) = ceil(752/2.693) = 280
-      // highBinStart = ceil(752 / (44100/1024)) = ceil(752/43.066) = 18
-      // highBinEnd = 512
-      // mergedBinCount = 280 + (512 - 18) = 774
-      expect(viz.frequencyBinCount).toBe(774);
+      expect(viz.frequencyBinCount).toBe(512);
     });
 
     it('disconnects all nodes on dispose', () => {
