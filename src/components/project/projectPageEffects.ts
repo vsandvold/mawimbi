@@ -1,12 +1,23 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTrackService } from '../../hooks/useTrackService';
+import useDebounced from '../../hooks/useDebounced';
+import {
+  loadProject,
+  saveProject,
+  type StoredProject,
+} from '../../services/ProjectStorageService';
 import {
   FullScreenHandle,
   useFullScreenHandle,
 } from '../fullscreen/Fullscreen';
 import message from '../message';
 import { type Track } from '../../types/track';
-import { ADD_TRACK, type ProjectAction } from './projectPageReducer';
+import {
+  ADD_TRACK,
+  type ProjectAction,
+  type ProjectState,
+} from './projectPageReducer';
+import { createInitialState } from './useProjectReducer';
 
 export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
   const trackHook = useTrackService();
@@ -73,6 +84,94 @@ export const useTrackSideEffects = (tracks: Track[]) => {
     previousTracksRef.current = tracks;
     // Hook callbacks reference stable service singletons
   }, [tracks]); // eslint-disable-line react-hooks/exhaustive-deps
+};
+
+function toStoredProject(state: ProjectState): StoredProject {
+  const now = Date.now();
+  return {
+    id: state.id,
+    title: state.title,
+    tracks: state.tracks,
+    nextColorId: state.nextColorId,
+    nextIndex: state.nextIndex,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function fromStoredProject(stored: StoredProject): ProjectState {
+  return {
+    id: stored.id,
+    title: stored.title,
+    tracks: stored.tracks,
+    nextColorId: stored.nextColorId,
+    nextIndex: stored.nextIndex,
+  };
+}
+
+export const useLoadProject = (id: string): ProjectState | null => {
+  const [initialState, setInitialState] = useState<ProjectState | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    loadProject(id).then((stored) => {
+      if (cancelled) return;
+
+      if (stored) {
+        setInitialState(fromStoredProject(stored));
+      } else {
+        const newState = createInitialState(id);
+        saveProject(toStoredProject(newState));
+        setInitialState(newState);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  return initialState;
+};
+
+const AUTO_SAVE_DEBOUNCE_MS = 250;
+
+export const useAutoSave = (state: ProjectState) => {
+  const createdAtRef = useRef<number | null>(null);
+
+  // Capture createdAt from the initial save so subsequent saves preserve it
+  useEffect(() => {
+    loadProject(state.id).then((stored) => {
+      if (stored) {
+        createdAtRef.current = stored.createdAt;
+      }
+    });
+    // Only run on mount
+  }, [state.id]);
+
+  const save = useDebounced(
+    () => {
+      const stored = toStoredProject(state);
+      if (createdAtRef.current) {
+        stored.createdAt = createdAtRef.current;
+      }
+      saveProject(stored);
+    },
+    { timeoutMs: AUTO_SAVE_DEBOUNCE_MS },
+  );
+
+  // Skip the initial render — useLoadProject already saves new projects
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    save();
+    // save is stable (useMemo in useDebounced)
+  }, [state, save]);
 };
 
 export const useFullscreen = () => {

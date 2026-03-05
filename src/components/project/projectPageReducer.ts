@@ -3,6 +3,7 @@ import { type Track, type TrackColor, type TrackId } from '../../types/track';
 export type { Track, TrackColor, TrackId };
 
 export type ProjectState = {
+  id: string;
   nextColorId: number;
   nextIndex: number;
   title: string;
