@@ -150,6 +150,57 @@ describe('PlaybackService', () => {
     });
   });
 
+  describe('auto-stop at end of timeline', () => {
+    it('stops playback when transport time reaches the end', () => {
+      service.setTotalTime(10.0);
+      service.play();
+
+      service.setTransportTime(10.0);
+
+      expect(service.playbackState).toBe('stopped');
+      expect(service.isPlaying).toBe(false);
+    });
+
+    it('preserves transport time at the end position', () => {
+      service.setTotalTime(10.0);
+      service.play();
+
+      service.setTransportTime(10.0);
+
+      expect(service.transportTime).toBe(10.0);
+    });
+
+    it('pauses the transport engine to preserve position', () => {
+      service.setTotalTime(10.0);
+      service.play();
+      vi.mocked(Tone.getTransport().pause).mockClear();
+
+      service.setTransportTime(10.0);
+
+      expect(Tone.getTransport().pause).toHaveBeenCalledTimes(1);
+      expect(Tone.getTransport().stop).not.toHaveBeenCalled();
+    });
+
+    it('does not auto-stop when not playing', () => {
+      service.setTotalTime(10.0);
+
+      service.setTransportTime(10.0);
+
+      expect(service.playbackState).toBe('stopped');
+      expect(Tone.getTransport().pause).not.toHaveBeenCalled();
+    });
+
+    it('handles toFixed(1) rounding at end of timeline', () => {
+      service.setTotalTime(10.0);
+      service.play();
+
+      service.setTransportTime(10.04);
+
+      expect(service.playbackState).toBe('stopped');
+      expect(service.transportTime).toBe(10.04);
+    });
+  });
+
   describe('stop', () => {
     it('transitions from playing to stopped', () => {
       service.play();
