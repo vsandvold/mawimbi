@@ -3,6 +3,7 @@ import { useTrackService } from '../../hooks/useTrackService';
 import useDebounced from '../../hooks/useDebounced';
 import {
   deleteAudioData,
+  deleteSpectrogramData,
   loadAudioData,
   loadProject,
   saveAudioData,
@@ -239,6 +240,7 @@ export const useDeleteTrackAudio = (tracks: Track[]) => {
     for (const track of previousTracks) {
       if (!currIds.has(track.trackId)) {
         deleteAudioData(track.trackId);
+        deleteSpectrogramData(track.trackId);
       }
     }
 

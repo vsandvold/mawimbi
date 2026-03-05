@@ -59,11 +59,17 @@ const { mockRetrieveAudioBuffer, mockRetrieveStartTime } = vi.hoisted(() => ({
   mockRetrieveStartTime: vi.fn().mockReturnValue(0),
 }));
 
+vi.mock('../../../../services/ProjectStorageService', () => ({
+  loadSpectrogramData: vi.fn().mockResolvedValue(null),
+  saveSpectrogramData: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('../../../../hooks/useAudioService', () => ({
   useAudioService: () => ({
     spectrogramCache: {
       analyse: mockAnalyse,
       getEntry: mockGetEntry,
+      restore: vi.fn(),
     },
   }),
 }));
