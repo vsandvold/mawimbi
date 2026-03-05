@@ -8,20 +8,20 @@ test.describe('visual regression', () => {
   });
 
   test('project page - empty', async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     await page.waitForSelector('text=Upload');
     await expect(page).toHaveScreenshot('project-empty.png');
   });
 
   test('project page - header', async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     const header = page.locator('.page__header');
     await expect(header).toBeVisible();
     await expect(header).toHaveScreenshot('project-header.png');
   });
 
   test('project page - toolbar', async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     const toolbar = page.locator('.toolbar');
     await expect(toolbar).toBeVisible();
     await expect(toolbar).toHaveScreenshot('toolbar.png');
@@ -52,7 +52,7 @@ test.describe('dark theme properties', () => {
   test('toolbar buttons use custom white color, not antd link blue', async ({
     page,
   }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     const button = page.locator('.toolbar .button').first();
     await expect(button).toBeVisible();
     const color = await button.evaluate(
@@ -63,7 +63,7 @@ test.describe('dark theme properties', () => {
   });
 
   test('header has zero padding', async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     const header = page.locator('.page__header');
     await expect(header).toBeVisible();
     const padding = await header.evaluate(
@@ -76,7 +76,7 @@ test.describe('dark theme properties', () => {
   test('project page header inner container has correct padding', async ({
     page,
   }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     const headerInner = page.locator('.project-page-header');
     await expect(headerInner).toBeVisible();
     const padding = await headerInner.evaluate(
@@ -87,7 +87,7 @@ test.describe('dark theme properties', () => {
   });
 
   test('project page header title has correct font size', async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     const title = page.locator('.project-page-header__title');
     await expect(title).toBeVisible();
     const fontSize = await title.evaluate(

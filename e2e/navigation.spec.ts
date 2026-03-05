@@ -12,9 +12,9 @@ test.describe('Navigation', () => {
     await expect(page.getByRole('heading', { name: 'Mawimbi' })).toBeVisible();
   });
 
-  test('project page is accessible at /project', async ({ page }) => {
-    await page.goto('/project');
-    await expect(page).toHaveURL('/project');
+  test('project page is accessible at /project/:id', async ({ page }) => {
+    await page.goto('/project/test-id');
+    await expect(page).toHaveURL('/project/test-id');
     await expect(
       page.getByText('Start recording, or upload some audio files')
     ).toBeVisible();

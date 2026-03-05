@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 test.describe('Project page', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
   });
 
   test.describe('header', () => {
@@ -16,7 +16,9 @@ test.describe('Project page', () => {
       // Navigate from home so there is history to go back to
       await page.goto('/');
       await page.getByRole('button', { name: 'Create Project' }).click();
-      await expect(page).toHaveURL('/project');
+      await expect(page).toHaveURL(
+        /\/project\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/
+      );
       await page.getByRole('button', { name: 'Back', exact: true }).click();
       await expect(page).toHaveURL('/');
     });
@@ -75,7 +77,7 @@ test.describe('Project page overflow menu', () => {
   test('shows fullscreen option when overflow menu is opened', async ({
     page,
   }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     await page.locator('.overflow-button').click();
     await expect(page.getByText('Enter Full Screen')).toBeVisible();
   });

@@ -111,7 +111,7 @@ test.describe('Mixer channel reordering', () => {
     await page.addInitScript(() => {
       Math.random = () => 0;
     });
-    await page.goto('/project');
+    await page.goto('/project/test-id');
 
     // Upload two tracks
     await uploadAudioFile(page, SHORT_AUDIO);
@@ -139,7 +139,7 @@ test.describe('Mixer channel reordering', () => {
     await page.addInitScript(() => {
       Math.random = () => 0;
     });
-    await page.goto('/project');
+    await page.goto('/project/test-id');
 
     // Dismiss the fullscreen overlay shown on touch-capable devices
     await page.getByText('Dismiss').click();
