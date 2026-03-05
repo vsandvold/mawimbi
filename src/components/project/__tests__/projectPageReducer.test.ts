@@ -12,6 +12,7 @@ import {
 } from '../projectPageReducer';
 
 const createState = (tracks: Track[] = []): ProjectState => ({
+  id: 'test-project-id',
   nextColorId: 0,
   nextIndex: tracks.length,
   title: 'Test Project',

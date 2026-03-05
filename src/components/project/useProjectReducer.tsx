@@ -8,18 +8,19 @@ import {
   COLOR_PALETTE,
 } from './projectPageReducer';
 
-const initialState: ProjectState = {
-  nextColorId: Math.floor(Math.random() * Math.floor(COLOR_PALETTE.length)),
-  nextIndex: 0,
-  title: 'New Project',
-  tracks: [],
-};
+export function createInitialState(id: string): ProjectState {
+  return {
+    id,
+    nextColorId: Math.floor(Math.random() * Math.floor(COLOR_PALETTE.length)),
+    nextIndex: 0,
+    title: 'New Project',
+    tracks: [],
+  };
+}
 
-const useProjectReducer = (): [
-  ProjectState,
-  React.Dispatch<ProjectAction>,
-  UndoControls,
-] => {
+const useProjectReducer = (
+  initialState: ProjectState,
+): [ProjectState, React.Dispatch<ProjectAction>, UndoControls] => {
   return useUndoReducer(projectReducer, initialState, reverseProjectAction);
 };
 
