@@ -77,6 +77,9 @@ class PlaybackService {
 
   setTransportTime(time: number): void {
     this._transportTime.value = time;
+    if (this._playbackState.value === 'playing' && this.isAtEndOfTimeline()) {
+      this.stopAtEndOfTimeline();
+    }
   }
 
   setTotalTime(time: number): void {
@@ -168,6 +171,14 @@ class PlaybackService {
     this._transportTime.value = 0;
     this._totalTime.value = 0;
     this._loudness.value = 0;
+  }
+
+  // Stops playback at the end of the timeline without rewinding.
+  // Uses transport.pause() instead of transport.stop() to preserve
+  // the current position, so the scrubber stays at the end.
+  private stopAtEndOfTimeline(): void {
+    this._playbackState.value = 'stopped';
+    this.transport.pause();
   }
 
   private isAtEndOfTimeline(): boolean {
