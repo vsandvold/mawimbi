@@ -1,11 +1,15 @@
 // InstrumentClassificationService — owns instrument classification state.
 //
-// Wraps Transformers.js zero-shot audio classification to detect the
-// instrument in an audio track. Results are cached by TrackId and
-// exposed as a signal for reactive consumers.
+// Delegates inference to a Web Worker to keep the main thread responsive.
+// The worker handles pipeline loading (with stale-while-revalidate model
+// caching via the Cache API) and audio preprocessing. If the worker fails,
+// the service falls back to main-thread inference.
+//
+// Signal ownership and per-track caching remain on the main thread.
 
 import { signal, type ReadonlySignal } from '@preact/signals-react';
 import type { TrackId } from '../types/track';
+import { type ClassifyResponse } from './classification.worker';
 
 export type ClassificationState = 'idle' | 'classifying' | 'done' | 'error';
 
@@ -18,6 +22,8 @@ type ClassificationEntry = {
   state: ClassificationState;
   result?: ClassificationResult;
 };
+
+export type InstrumentLabel = (typeof CANDIDATE_LABELS)[number];
 
 const CANDIDATE_LABELS = [
   'vocals',
@@ -32,8 +38,6 @@ const CANDIDATE_LABELS = [
   'percussion',
 ] as const;
 
-export type InstrumentLabel = (typeof CANDIDATE_LABELS)[number];
-
 // Sample rate expected by the CLAP model
 const MODEL_SAMPLE_RATE = 48_000;
 
@@ -41,6 +45,11 @@ type Pipeline = (
   audio: Float32Array,
   labels: string[],
 ) => Promise<Array<{ label: string; score: number }>>;
+
+type PendingRequest = {
+  resolve: (result: ClassificationResult) => void;
+  reject: (error: Error) => void;
+};
 
 class InstrumentClassificationService {
   // --- Private signals (only the service writes these) ---
@@ -57,9 +66,15 @@ class InstrumentClassificationService {
     >;
   };
 
+  private cache = new Map<TrackId, ClassificationEntry>();
+  private worker: Worker | null = null;
+  private workerFailed = false;
+  private nextMessageId = 0;
+  private pendingRequests = new Map<number, PendingRequest>();
+
+  // Main-thread fallback state
   private pipeline: Pipeline | null = null;
   private pipelinePromise: Promise<Pipeline> | null = null;
-  private cache = new Map<TrackId, ClassificationEntry>();
 
   constructor() {
     this.signals = {
@@ -94,29 +109,117 @@ class InstrumentClassificationService {
     this.setEntry(trackId, { state: 'classifying' });
 
     try {
-      const classifierPipeline = await this.loadPipeline();
-      const monoSamples = downmixToMono(audioBuffer, MODEL_SAMPLE_RATE);
-      const results = await classifierPipeline(monoSamples, [
-        ...CANDIDATE_LABELS,
-      ]);
+      const result = this.workerFailed
+        ? await this.classifyOnMainThread(audioBuffer)
+        : await this.classifyInWorker(audioBuffer);
 
-      const top = results.reduce((best, current) =>
-        current.score > best.score ? current : best,
-      );
-
-      const result: ClassificationResult = {
-        label: top.label,
-        score: top.score,
-      };
       this.setEntry(trackId, { state: 'done', result });
-      return top.label;
+      return result.label;
     } catch {
+      // If the worker failed for the first time, try the main-thread fallback
+      if (!this.workerFailed) {
+        this.workerFailed = true;
+        try {
+          const result = await this.classifyOnMainThread(audioBuffer);
+          this.setEntry(trackId, { state: 'done', result });
+          return result.label;
+        } catch {
+          // Main thread also failed — fall through to error
+        }
+      }
       this.setEntry(trackId, { state: 'error' });
       throw new Error(`Classification failed for track ${trackId}`);
     }
   }
 
-  // --- Pipeline management ---
+  // --- Worker-based inference ---
+
+  private classifyInWorker(
+    audioBuffer: AudioBuffer,
+  ): Promise<ClassificationResult> {
+    const worker = this.getWorker();
+    const id = this.nextMessageId++;
+
+    const channelData: Float32Array[] = [];
+    const transferables: Transferable[] = [];
+    for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) {
+      const copy = new Float32Array(audioBuffer.getChannelData(ch));
+      channelData.push(copy);
+      transferables.push(copy.buffer);
+    }
+
+    return new Promise((resolve, reject) => {
+      this.pendingRequests.set(id, { resolve, reject });
+      worker.postMessage(
+        {
+          id,
+          type: 'classify',
+          channelData,
+          sampleRate: audioBuffer.sampleRate,
+          length: audioBuffer.length,
+        },
+        transferables,
+      );
+    });
+  }
+
+  private getWorker(): Worker {
+    if (!this.worker) {
+      this.worker = new Worker(
+        new URL('./classification.worker.ts', import.meta.url),
+        { type: 'module' },
+      );
+      this.worker.onmessage = (event: MessageEvent<ClassifyResponse>) => {
+        const { id, type } = event.data;
+        const pending = this.pendingRequests.get(id);
+        if (!pending) return;
+        this.pendingRequests.delete(id);
+
+        if (type === 'error') {
+          pending.reject(new Error(event.data.message));
+        } else {
+          pending.resolve({
+            label: event.data.label,
+            score: event.data.score,
+          });
+        }
+      };
+      this.worker.onerror = () => {
+        this.workerFailed = true;
+        this.rejectAllPending(
+          new Error(
+            'Classification worker failed; falling back to main thread',
+          ),
+        );
+      };
+    }
+    return this.worker;
+  }
+
+  private rejectAllPending(error: Error): void {
+    for (const pending of this.pendingRequests.values()) {
+      pending.reject(error);
+    }
+    this.pendingRequests.clear();
+  }
+
+  // --- Main-thread fallback ---
+
+  private async classifyOnMainThread(
+    audioBuffer: AudioBuffer,
+  ): Promise<ClassificationResult> {
+    const classifierPipeline = await this.loadPipeline();
+    const monoSamples = downmixToMono(audioBuffer, MODEL_SAMPLE_RATE);
+    const results = await classifierPipeline(monoSamples, [
+      ...CANDIDATE_LABELS,
+    ]);
+
+    const top = results.reduce((best, current) =>
+      current.score > best.score ? current : best,
+    );
+
+    return { label: top.label, score: top.score };
+  }
 
   private async loadPipeline(): Promise<Pipeline> {
     if (this.pipeline) return this.pipeline;
@@ -168,7 +271,7 @@ class InstrumentClassificationService {
   }
 }
 
-// --- Audio utilities ---
+// --- Audio utilities (main-thread fallback) ---
 
 function downmixToMono(
   audioBuffer: AudioBuffer,
@@ -178,7 +281,6 @@ function downmixToMono(
   const sourceSampleRate = audioBuffer.sampleRate;
   const sourceLength = audioBuffer.length;
 
-  // Downmix to mono by averaging all channels
   const mono = new Float32Array(sourceLength);
   for (let ch = 0; ch < numberOfChannels; ch++) {
     const channelData = audioBuffer.getChannelData(ch);
@@ -187,7 +289,6 @@ function downmixToMono(
     }
   }
 
-  // Resample if needed
   if (sourceSampleRate === targetSampleRate) {
     return mono;
   }
