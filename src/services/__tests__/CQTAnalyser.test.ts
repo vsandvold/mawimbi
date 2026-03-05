@@ -7,6 +7,7 @@ import {
   HOP_SECONDS,
   magnitudeToByte,
   MAX_DECIBELS,
+  MAX_KERNEL_HOPS,
   MIN_DECIBELS,
   MIN_FREQUENCY,
   mixToMono,
@@ -67,12 +68,14 @@ describe('computeKernel', () => {
     expect(lowBin.length).toBeGreaterThan(highBin.length);
   });
 
-  it('kernel length matches Q-factor formula', () => {
+  it('kernel length matches Q-factor formula capped at max kernel hops', () => {
     const kernel = computeKernel(SAMPLE_RATE);
+    const maxKernelLength = kernel.hopSize * MAX_KERNEL_HOPS;
 
     for (let k = 0; k < kernel.numberBins; k++) {
       const freq = MIN_FREQUENCY * 2 ** (k / BINS_PER_OCTAVE);
-      const expectedLength = Math.ceil((Q_FACTOR * SAMPLE_RATE) / freq);
+      const uncappedLength = Math.ceil((Q_FACTOR * SAMPLE_RATE) / freq);
+      const expectedLength = Math.min(uncappedLength, maxKernelLength);
       expect(kernel.bins[k].length).toBe(expectedLength);
       expect(kernel.bins[k].cosValues).toHaveLength(expectedLength);
       expect(kernel.bins[k].sinValues).toHaveLength(expectedLength);
@@ -249,7 +252,9 @@ describe('analyseCQT', () => {
       if (midFrame[i] > midFrame[peakBin]) peakBin = i;
     }
 
-    expect(Math.abs(peakBin - expectedBin)).toBeLessThanOrEqual(1);
+    // Wider tolerance than the 440 Hz test because 200 Hz falls in the
+    // kernel-capped range where frequency resolution is reduced.
+    expect(Math.abs(peakBin - expectedBin)).toBeLessThanOrEqual(3);
   });
 
   it('handles multi-channel audio by mixing to mono', () => {
@@ -270,6 +275,23 @@ describe('analyseCQT', () => {
       result.frequencyFrames[Math.floor(result.frequencyFrames.length / 2)];
     const hasNonZero = midFrame.some((v) => v > 0);
     expect(hasNonZero).toBe(true);
+  });
+});
+
+describe('temporal smearing', () => {
+  it('caps kernel lengths to prevent cone-shaped transient artifacts', () => {
+    const kernel = computeKernel(SAMPLE_RATE);
+    const hopSize = kernel.hopSize;
+
+    // Without a kernel length cap, the lowest-frequency bin at 32.7 Hz has a
+    // kernel of ~46,000 samples (~1 second), causing transients to smear
+    // across ~40 frames and form visible cone shapes in the spectrogram.
+    // Kernel lengths should be capped so no bin spreads beyond a few hops.
+    const maxAllowedLength = hopSize * 4;
+
+    for (const bin of kernel.bins) {
+      expect(bin.length).toBeLessThanOrEqual(maxAllowedLength);
+    }
   });
 });
 
