@@ -109,11 +109,18 @@ class FrequencyVisualizer {
     const outputBinCount = opts.frequencyBinCount ?? DEFAULT_OUTPUT_BIN_COUNT;
     this.frequencyBinCount = outputBinCount;
 
+    const toneCtx = source.context ?? Tone.context;
+    const sampleRate = (toneCtx.rawContext as AudioContext).sampleRate;
+
     if (opts.workletAnalyser && opts.dualBand) {
       this.initializeWorkletDualBandPath(source, outputBinCount);
     } else if (opts.workletAnalyser) {
       this.workletAnalyser = opts.workletAnalyser;
-      this.initializeWorkletPath(opts.workletAnalyser, outputBinCount);
+      this.initializeWorkletPath(
+        opts.workletAnalyser,
+        outputBinCount,
+        sampleRate,
+      );
     } else if (opts.dualBand) {
       this.initializeDualBandPath(source, outputBinCount);
     } else {
@@ -178,6 +185,7 @@ class FrequencyVisualizer {
   private initializeWorkletPath(
     analyser: WorkletAnalyser,
     outputBinCount: number,
+    sampleRate: number,
   ): void {
     analyser.enableFrequencyAnalysis({
       fftSize: WORKLET_FFT_SIZE,
@@ -186,11 +194,13 @@ class FrequencyVisualizer {
     });
 
     const inputBinCount = analyser.frequencyBinCount;
+    const binWidth = sampleRate / WORKLET_FFT_SIZE;
     this.workletData = new Uint8Array(inputBinCount);
     this.workletOutput = new Uint8Array(outputBinCount);
     this.workletLogMapping = createLogFrequencyMapping(
       inputBinCount,
       outputBinCount,
+      binWidth,
     );
   }
 
@@ -323,11 +333,13 @@ class FrequencyVisualizer {
     source.connect(this.singleAnalyser as unknown as AudioNode);
 
     const inputBinCount = this.singleAnalyser.frequencyBinCount;
+    const binWidth = ctx.sampleRate / SINGLE_FFT_SIZE;
     this.singleData = new Uint8Array(inputBinCount);
     this.singleOutput = new Uint8Array(outputBinCount);
     this.singleLogMapping = createLogFrequencyMapping(
       inputBinCount,
       outputBinCount,
+      binWidth,
     );
   }
 

@@ -6,6 +6,8 @@
  * human pitch perception.
  */
 
+import { REFERENCE_MIN_FREQUENCY } from './dualBandAnalysis';
+
 /**
  * Creates a mapping from output (log-spaced) bins to input (linear) bins.
  *
@@ -14,14 +16,29 @@
  * (expanding the low range); high-frequency output bins pool multiple
  * input bins (compressing the high range).
  *
- * Uses the same true logarithmic frequency scale as
- * `createDualBandLogMapping`: output bins are spaced so that equal visual
- * distances correspond to equal musical intervals. Bin 0 (DC) is skipped;
- * the mapping spans from input bin 1 to input bin `inputBinCount - 1`.
+ * When `binWidth` is provided, the mapping uses actual frequencies and
+ * the shared `REFERENCE_MIN_FREQUENCY` anchor, producing output that
+ * aligns with `createDualBandLogMapping` — the same frequency maps to
+ * the same output bin position regardless of FFT size. Output bins below
+ * the FFT's resolution clamp to the lowest input bin.
+ *
+ * Without `binWidth`, the mapping spans bin indices 1 to
+ * `inputBinCount - 1` on a log scale (legacy behaviour).
  */
 export function createLogFrequencyMapping(
   inputBinCount: number,
   outputBinCount: number = inputBinCount,
+  binWidth?: number,
+): number[][] {
+  if (binWidth !== undefined) {
+    return createFrequencyAwareMapping(inputBinCount, outputBinCount, binWidth);
+  }
+  return createBinIndexMapping(inputBinCount, outputBinCount);
+}
+
+function createBinIndexMapping(
+  inputBinCount: number,
+  outputBinCount: number,
 ): number[][] {
   const logMin = 0; // ln(1) — first non-DC bin
   const logMax = Math.log(inputBinCount - 1);
@@ -47,15 +64,49 @@ export function createLogFrequencyMapping(
     mapping[i] = [Math.min(closest, inputBinCount - 1)];
   }
 
-  for (let i = 0; i < outputBinCount - 1; i++) {
-    const df = mapping[i + 1][0] - mapping[i][0];
-    if (df <= 1) {
-      continue;
+  poolConsecutiveBins(mapping);
+  return mapping;
+}
+
+function createFrequencyAwareMapping(
+  inputBinCount: number,
+  outputBinCount: number,
+  binWidth: number,
+): number[][] {
+  const minFreq = Math.min(REFERENCE_MIN_FREQUENCY, binWidth);
+  const maxFreq = (inputBinCount - 1) * binWidth;
+  const logMin = Math.log(minFreq);
+  const logMax = Math.log(maxFreq);
+
+  const mapping: number[][] = new Array(outputBinCount);
+
+  for (let i = 0; i < outputBinCount; i++) {
+    const t = i / (outputBinCount - 1);
+    const targetFreq = Math.exp(logMin + t * (logMax - logMin));
+
+    // Convert target frequency to bin index, clamping to [1, inputBinCount-1]
+    const targetBin = targetFreq / binWidth;
+    const clampedTarget = Math.max(1, Math.min(targetBin, inputBinCount - 1));
+
+    let lo = 1;
+    let hi = inputBinCount - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (mid < clampedTarget) lo = mid + 1;
+      else hi = mid;
     }
-    for (let j = 1; j <= df; j++) {
-      mapping[i].push(mapping[i][0] + j);
+    let closest = lo;
+    if (
+      lo > 1 &&
+      Math.abs(clampedTarget - (lo - 1)) < Math.abs(lo - clampedTarget)
+    ) {
+      closest = lo - 1;
     }
+
+    mapping[i] = [closest];
   }
+
+  poolConsecutiveBins(mapping);
   return mapping;
 }
 
@@ -67,6 +118,9 @@ export function createLogFrequencyMapping(
  * band has much finer frequency resolution than the high band, so a mapping
  * based purely on bin index would incorrectly over-expand the low-frequency
  * region and compress the high-frequency region.
+ *
+ * Uses `REFERENCE_MIN_FREQUENCY` as the lower bound of the log scale,
+ * ensuring consistent output positions across all analysis modes.
  *
  * Each entry `mapping[i]` is an array of merged-bin indices that feed into
  * output bin `i`, using the same pooling convention as the uniform version.
@@ -87,7 +141,8 @@ export function createDualBandLogMapping(
     freq[i] = (highBinStart + (i - lowBinCount)) * highBinWidth;
   }
 
-  const minFreq = freq[1] || lowBinWidth;
+  const naturalMin = freq[1] || lowBinWidth;
+  const minFreq = Math.min(REFERENCE_MIN_FREQUENCY, naturalMin);
   const maxFreq = freq[mergedBinCount - 1];
   const logMin = Math.log(minFreq);
   const logMax = Math.log(maxFreq);
@@ -116,15 +171,18 @@ export function createDualBandLogMapping(
     mapping[i] = [closest];
   }
 
-  for (let i = 0; i < outputBinCount - 1; i++) {
+  poolConsecutiveBins(mapping);
+  return mapping;
+}
+
+function poolConsecutiveBins(mapping: number[][]): void {
+  for (let i = 0; i < mapping.length - 1; i++) {
     const df = mapping[i + 1][0] - mapping[i][0];
     if (df <= 1) continue;
     for (let j = 1; j <= df; j++) {
       mapping[i].push(mapping[i][0] + j);
     }
   }
-
-  return mapping;
 }
 
 /**

@@ -4,6 +4,11 @@ import {
   createDualBandLogMapping,
   createLogFrequencyMapping,
 } from '../logFrequencyMapping';
+import {
+  calculateMergeParams,
+  REFERENCE_MIN_FREQUENCY,
+  SPLIT_FREQUENCY,
+} from '../dualBandAnalysis';
 import { fft, magnitudeToBytes } from '../fft';
 
 /**
@@ -135,7 +140,7 @@ describe('logFrequencyMapping', () => {
 
       const peakPositions: number[] = [];
       for (const freq of testFrequencies) {
-        const minFreq = BIN_WIDTH;
+        const minFreq = Math.min(REFERENCE_MIN_FREQUENCY, BIN_WIDTH);
         const maxFreq = (INPUT_BIN_COUNT - 1) * BIN_WIDTH;
         const t =
           (Math.log(freq) - Math.log(minFreq)) /
@@ -188,10 +193,11 @@ describe('logFrequencyMapping', () => {
       expect(cv).toBeLessThan(0.15);
     });
 
-    it('both mappings place the same tone at the same output bin', () => {
-      const uniformMapping = createLogFrequencyMapping(
+    it('frequency-aware single-band and dual-band place the same tone at the same output bin', () => {
+      const singleMapping = createLogFrequencyMapping(
         INPUT_BIN_COUNT,
         OUTPUT_BIN_COUNT,
+        BIN_WIDTH,
       );
       const dualBandMapping = createDualBandLogMapping(
         INPUT_BIN_COUNT,
@@ -202,7 +208,7 @@ describe('logFrequencyMapping', () => {
         OUTPUT_BIN_COUNT,
       );
 
-      const rev1 = buildReverseMap(uniformMapping);
+      const rev1 = buildReverseMap(singleMapping);
       const rev2 = buildReverseMap(dualBandMapping);
 
       // Check that semitone frequencies map to the same output bin in both.
@@ -214,7 +220,7 @@ describe('logFrequencyMapping', () => {
         const out2 = rev2.get(inputBin)!;
         expect(
           Math.abs(out1 - out2),
-          `${freq} Hz (bin ${inputBin}): uniform=${out1} vs dual-band=${out2}`,
+          `${freq} Hz (bin ${inputBin}): single=${out1} vs dual-band=${out2}`,
         ).toBeLessThanOrEqual(2);
       }
     });
@@ -253,6 +259,133 @@ describe('logFrequencyMapping', () => {
       const mapping = createDualBandLogMapping(800, 300, 2.5, 18, 43.07, 512);
       for (let i = 1; i < mapping.length; i++) {
         expect(mapping[i][0]).toBeGreaterThanOrEqual(mapping[i - 1][0]);
+      }
+    });
+  });
+
+  describe('single-band and dual-band frequency alignment', () => {
+    const SAMPLE_RATE = 44100;
+    const OUTPUT_BIN_COUNT = 512;
+
+    // Single-band parameters (FrequencyVisualizer without dualBand)
+    const SINGLE_FFT_SIZE = 2048;
+    const SINGLE_BIN_WIDTH = SAMPLE_RATE / SINGLE_FFT_SIZE;
+    const SINGLE_INPUT_BIN_COUNT = SINGLE_FFT_SIZE / 2;
+
+    /**
+     * Finds the fractional position (0–1) of a frequency in a mapping,
+     * where 0 = lowest output bin and 1 = highest.
+     */
+    function findFractionalPosition(
+      mapping: number[][],
+      inputBin: number,
+    ): number {
+      const outputBin = mapping.findIndex((pool) => pool.includes(inputBin));
+      if (outputBin === -1) return -1;
+      return outputBin / (mapping.length - 1);
+    }
+
+    function createOfflineSpectrogramMapping() {
+      const {
+        mergedBinCount,
+        lowBinCount,
+        lowBinWidth,
+        highBinStart,
+        highBinWidth,
+      } = calculateMergeParams(SAMPLE_RATE);
+
+      return {
+        mapping: createDualBandLogMapping(
+          mergedBinCount,
+          lowBinCount,
+          lowBinWidth,
+          highBinStart,
+          highBinWidth,
+        ),
+        lowBinCount,
+        lowBinWidth,
+        highBinStart,
+        highBinWidth,
+      };
+    }
+
+    /**
+     * Converts a frequency to its merged bin index in the offline
+     * spectrogram. Low-band frequencies use lowBinWidth; high-band
+     * frequencies are offset into the merged array.
+     */
+    function toMergedBin(
+      freq: number,
+      lowBinCount: number,
+      lowBinWidth: number,
+      highBinStart: number,
+      highBinWidth: number,
+    ): number {
+      if (freq < SPLIT_FREQUENCY) {
+        return Math.round(freq / lowBinWidth);
+      }
+      const highBin = Math.round(freq / highBinWidth);
+      return lowBinCount + (highBin - highBinStart);
+    }
+
+    it('single-band with binWidth aligns with offline spectrogram for A440', () => {
+      const singleMapping = createLogFrequencyMapping(
+        SINGLE_INPUT_BIN_COUNT,
+        OUTPUT_BIN_COUNT,
+        SINGLE_BIN_WIDTH,
+      );
+
+      const offline = createOfflineSpectrogramMapping();
+
+      const singleA440Bin = Math.round(440 / SINGLE_BIN_WIDTH);
+      const singleFraction = findFractionalPosition(
+        singleMapping,
+        singleA440Bin,
+      );
+
+      const offlineA440Bin = toMergedBin(
+        440,
+        offline.lowBinCount,
+        offline.lowBinWidth,
+        offline.highBinStart,
+        offline.highBinWidth,
+      );
+      const offlineFraction = findFractionalPosition(
+        offline.mapping,
+        offlineA440Bin,
+      );
+
+      // Both should place A440 within 5% of each other
+      expect(Math.abs(singleFraction - offlineFraction)).toBeLessThan(0.05);
+    });
+
+    it('single-band with binWidth aligns with dual-band across octaves', () => {
+      const singleMapping = createLogFrequencyMapping(
+        SINGLE_INPUT_BIN_COUNT,
+        OUTPUT_BIN_COUNT,
+        SINGLE_BIN_WIDTH,
+      );
+
+      const offline = createOfflineSpectrogramMapping();
+      const frequencies = [110, 220, 440, 880, 1760, 3520, 7040];
+
+      for (const freq of frequencies) {
+        const singleBin = Math.round(freq / SINGLE_BIN_WIDTH);
+        const offlineBin = toMergedBin(
+          freq,
+          offline.lowBinCount,
+          offline.lowBinWidth,
+          offline.highBinStart,
+          offline.highBinWidth,
+        );
+
+        const singlePos = findFractionalPosition(singleMapping, singleBin);
+        const offlinePos = findFractionalPosition(offline.mapping, offlineBin);
+
+        expect(
+          Math.abs(singlePos - offlinePos),
+          `${freq} Hz: single=${singlePos.toFixed(3)} vs offline=${offlinePos.toFixed(3)}`,
+        ).toBeLessThan(0.05);
       }
     });
   });
