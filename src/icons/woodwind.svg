@@ -1,0 +1,13 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Clarinet/flute: long tube with tone holes and bell -->
+  <rect x="464" y="96" width="96" height="704" rx="48" fill="currentColor"/>
+  <!-- Tone holes -->
+  <circle cx="512" cy="256" r="24" fill="currentColor" stroke="currentColor" stroke-width="16"/>
+  <circle cx="512" cy="368" r="24" fill="currentColor" stroke="currentColor" stroke-width="16"/>
+  <circle cx="512" cy="480" r="24" fill="currentColor" stroke="currentColor" stroke-width="16"/>
+  <circle cx="512" cy="592" r="24" fill="currentColor" stroke="currentColor" stroke-width="16"/>
+  <!-- Mouthpiece -->
+  <path d="M480 96l32-48 32 48" fill="currentColor"/>
+  <!-- Bell flare -->
+  <path d="M464 800q0 128 48 128t48-128" fill="currentColor"/>
+</svg>

@@ -1,0 +1,5 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Microphone: capsule head + stand -->
+  <rect x="384" y="128" width="256" height="384" rx="128" fill="currentColor"/>
+  <path d="M320 448v64c0 106 86 192 192 192s192-86 192-192v-64h64v64c0 132-100 240-224 254v130h128v64H352v-64h128V766C356 752 256 644 256 512v-64h64z" fill="currentColor"/>
+</svg>

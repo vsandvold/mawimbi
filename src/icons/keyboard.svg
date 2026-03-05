@@ -1,0 +1,15 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Piano keys -->
+  <rect x="128" y="256" width="768" height="512" rx="32" fill="none" stroke="currentColor" stroke-width="64"/>
+  <!-- White key separators -->
+  <rect x="256" y="256" width="8" height="512" fill="currentColor"/>
+  <rect x="384" y="256" width="8" height="512" fill="currentColor"/>
+  <rect x="512" y="256" width="8" height="512" fill="currentColor"/>
+  <rect x="640" y="256" width="8" height="512" fill="currentColor"/>
+  <rect x="768" y="256" width="8" height="512" fill="currentColor"/>
+  <!-- Black keys -->
+  <rect x="216" y="256" width="72" height="288" rx="4" fill="currentColor"/>
+  <rect x="352" y="256" width="72" height="288" rx="4" fill="currentColor"/>
+  <rect x="608" y="256" width="72" height="288" rx="4" fill="currentColor"/>
+  <rect x="736" y="256" width="72" height="288" rx="4" fill="currentColor"/>
+</svg>

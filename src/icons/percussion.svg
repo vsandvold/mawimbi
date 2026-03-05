@@ -1,0 +1,9 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Maracas / percussion shaker -->
+  <!-- Left maraca -->
+  <circle cx="352" cy="320" r="144" fill="currentColor"/>
+  <rect x="328" y="464" width="48" height="384" rx="24" fill="currentColor"/>
+  <!-- Right maraca -->
+  <circle cx="672" cy="320" r="144" fill="currentColor"/>
+  <rect x="648" y="464" width="48" height="384" rx="24" fill="currentColor"/>
+</svg>
