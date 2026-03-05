@@ -1,12 +1,15 @@
 import {
   CustomerServiceOutlined,
+  LoadingOutlined,
   MenuOutlined,
   SoundOutlined,
 } from '@ant-design/icons';
 import { Button, Slider } from 'antd';
 import classNames from 'classnames';
+import { useClassificationService } from '../../hooks/useClassificationService';
 import { type Track } from '../../types/track';
 import './Channel.css';
+import { getInstrumentIcon } from './instrumentIcons';
 import { useChannelControls } from './useChannelControls';
 
 type ChannelProps = {
@@ -31,6 +34,11 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
     updateSolo,
   } = useChannelControls(trackId);
 
+  const { getClassification, getClassificationState } =
+    useClassificationService();
+  const classificationState = getClassificationState(trackId);
+  const instrument = getClassification(trackId)?.label ?? track.instrument;
+
   const { r, g, b } = color;
   const channelOpacity = isMuted ? 0 : convertToOpacity(volume);
   const isInverted = channelOpacity < 0.5 || mute;
@@ -45,7 +53,15 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
         backgroundColor: channelColor,
       }}
     >
-      <div className="channel__swipe"></div>
+      <div className="channel__swipe">
+        <div className="channel__instrument">
+          {classificationState === 'classifying' ? (
+            <LoadingOutlined />
+          ) : (
+            instrument !== undefined && getInstrumentIcon(instrument)
+          )}
+        </div>
+      </div>
       <div className="channel__solo">
         <Button
           className={classNames('channel-button', {

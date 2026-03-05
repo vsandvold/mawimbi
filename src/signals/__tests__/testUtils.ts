@@ -7,6 +7,7 @@ export function resetAllSignals(): void {
   audioService.playbackService.reset();
   audioService.recordingService.reset();
   audioService.trackService.reset();
+  audioService.classificationService.reset();
   resetFocusSignals();
   resetWorkstationSignals();
 }
