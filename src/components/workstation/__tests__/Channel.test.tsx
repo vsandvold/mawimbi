@@ -9,10 +9,14 @@ import Channel from '../Channel';
 
 const mockGetClassification = vi.fn().mockReturnValue(undefined);
 const mockGetClassificationState = vi.fn().mockReturnValue('idle');
+let mockDownloadProgress: number | null = null;
 
 vi.mock('../../../hooks/useClassificationService', () => ({
   useClassificationService: () => ({
     classifications: new Map(),
+    get downloadProgress() {
+      return mockDownloadProgress;
+    },
     getClassification: mockGetClassification,
     getClassificationState: mockGetClassificationState,
     removeClassification: vi.fn(),
@@ -24,6 +28,7 @@ const trackService = AudioService.getInstance().trackService;
 
 beforeEach(() => {
   trackService.createSignals('track-1');
+  mockDownloadProgress = null;
 });
 
 afterEach(() => {
@@ -218,4 +223,38 @@ it('prefers service classification over track instrument prop', () => {
 
   const instrumentDiv = container.querySelector('.channel__instrument');
   expect(instrumentDiv?.querySelector('[role="img"]')).toBeInTheDocument();
+});
+
+it('shows download progress percentage when model is downloading', () => {
+  mockGetClassificationState.mockReturnValue('classifying');
+  mockDownloadProgress = 45;
+
+  const { container } = render(<Channel {...defaultProps} />);
+
+  const progressEl = container.querySelector('.channel__download-progress');
+  expect(progressEl).toBeInTheDocument();
+  expect(progressEl?.textContent).toBe('45%');
+});
+
+it('shows loading spinner when classifying without download', () => {
+  mockGetClassificationState.mockReturnValue('classifying');
+  mockDownloadProgress = null;
+
+  const { container } = render(<Channel {...defaultProps} />);
+
+  const progressEl = container.querySelector('.channel__download-progress');
+  expect(progressEl).not.toBeInTheDocument();
+
+  const instrumentDiv = container.querySelector('.channel__instrument');
+  expect(instrumentDiv?.querySelector('[role="img"]')).toBeInTheDocument();
+});
+
+it('sets title attribute with download progress', () => {
+  mockGetClassificationState.mockReturnValue('classifying');
+  mockDownloadProgress = 72;
+
+  const { container } = render(<Channel {...defaultProps} />);
+
+  const instrumentDiv = container.querySelector('.channel__instrument');
+  expect(instrumentDiv).toHaveAttribute('title', 'Downloading model: 72%');
 });

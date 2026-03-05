@@ -1,9 +1,9 @@
 // Classification worker — runs Transformers.js pipeline loading and
 // inference off the main thread to keep the UI responsive.
 //
-// Uses the AST (Audio Spectrogram Transformer) model for audio
-// classification into AudioSet labels. Label-to-instrument mapping
-// happens on the main thread (InstrumentClassificationService).
+// Uses the CLAP (Contrastive Language-Audio Pretraining) model for
+// zero-shot audio classification. Candidate labels matching the app's
+// instrument categories are passed directly — no AudioSet mapping needed.
 //
 // Implements stale-while-revalidate model caching:
 // 1. If model files exist in Cache API, load from cache only (fast path)
@@ -13,13 +13,14 @@
 // Audio preprocessing (downmix + resample) also runs here to avoid
 // blocking the main thread with CPU-intensive sample manipulation.
 
+import { CANDIDATE_LABELS } from './instrumentLabels';
 import { isModelCached, revalidateCache } from './ModelCache';
 
-const MODEL_ID = 'Xenova/ast-finetuned-audioset-10-10-0.4593';
-const TASK = 'audio-classification';
+const MODEL_ID = 'Xenova/clap-htsat-unfused';
+const TASK = 'zero-shot-audio-classification';
 
-// AST model expects 16 kHz mono audio
-const MODEL_SAMPLE_RATE = 16_000;
+// CLAP model expects 48 kHz mono audio
+const MODEL_SAMPLE_RATE = 48_000;
 
 export type ClassifyRequest = {
   id: number;
@@ -32,6 +33,13 @@ export type ClassifyRequest = {
 export type ClassifyResponse =
   | { id: number; type: 'result'; label: string; score: number }
   | { id: number; type: 'error'; message: string };
+
+export type DownloadProgressMessage = {
+  type: 'download-progress';
+  progress: number;
+};
+
+export type WorkerMessage = ClassifyResponse | DownloadProgressMessage;
 
 type Classifier = (
   audio: Float32Array,
@@ -50,6 +58,33 @@ async function loadPipeline(): Promise<Classifier> {
   return classifier;
 }
 
+// --- Download progress tracking ---
+
+// Tracks per-file download progress to compute an overall percentage.
+// Each file reports its own 0–100 progress; the overall progress is the
+// average across all files currently being downloaded.
+const fileProgress = new Map<string, number>();
+
+function handleProgress(event: {
+  status: string;
+  file?: string;
+  progress?: number;
+}): void {
+  if (event.status !== 'progress' || !event.file || event.progress == null)
+    return;
+
+  fileProgress.set(event.file, event.progress);
+
+  let total = 0;
+  for (const p of fileProgress.values()) total += p;
+  const overall = Math.round(total / fileProgress.size);
+
+  workerSelf.postMessage({
+    type: 'download-progress',
+    progress: overall,
+  } satisfies DownloadProgressMessage);
+}
+
 async function initializePipeline(): Promise<Classifier> {
   console.log('[classification:worker] Loading model pipeline...');
   const { pipeline, env } = await import('@huggingface/transformers');
@@ -63,7 +98,7 @@ async function initializePipeline(): Promise<Classifier> {
       env.allowRemoteModels = false;
       const pipe = await pipeline(TASK, MODEL_ID, {
         device: 'wasm',
-        dtype: 'q4',
+        dtype: 'q8',
       });
 
       // Cache hit — revalidate in background for next session
@@ -89,7 +124,8 @@ async function initializePipeline(): Promise<Classifier> {
   env.allowRemoteModels = true;
   const pipe = await pipeline(TASK, MODEL_ID, {
     device: 'wasm',
-    dtype: 'q4',
+    dtype: 'q8',
+    progress_callback: handleProgress,
   });
   console.log('[classification:worker] Model loaded from network');
   return createClassifier(pipe);
@@ -98,7 +134,7 @@ async function initializePipeline(): Promise<Classifier> {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function createClassifier(pipe: any): Classifier {
   return async (audio: Float32Array) => {
-    const output = (await pipe(audio, { top_k: 1 })) as Array<{
+    const output = (await pipe(audio, CANDIDATE_LABELS)) as Array<{
       label: string;
       score: number;
     }>;

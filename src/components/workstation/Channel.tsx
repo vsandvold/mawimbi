@@ -34,10 +34,12 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
     updateSolo,
   } = useChannelControls(trackId);
 
-  const { getClassification, getClassificationState } =
+  const { getClassification, getClassificationState, downloadProgress } =
     useClassificationService();
   const classificationState = getClassificationState(trackId);
   const instrument = getClassification(trackId)?.label ?? track.instrument;
+  const isDownloading =
+    classificationState === 'classifying' && downloadProgress !== null;
 
   const { r, g, b } = color;
   const channelOpacity = isMuted ? 0 : convertToOpacity(volume);
@@ -53,9 +55,20 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
         backgroundColor: channelColor,
       }}
     >
-      <div className="channel__instrument">
+      <div
+        className="channel__instrument"
+        title={
+          isDownloading ? `Downloading model: ${downloadProgress}%` : undefined
+        }
+      >
         {classificationState === 'classifying' ? (
-          <LoadingOutlined />
+          isDownloading ? (
+            <span className="channel__download-progress">
+              {downloadProgress}%
+            </span>
+          ) : (
+            <LoadingOutlined />
+          )
         ) : (
           instrument !== undefined && getInstrumentIcon(instrument)
         )}
