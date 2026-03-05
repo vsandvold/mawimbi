@@ -53,7 +53,7 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
         backgroundColor: channelColor,
       }}
     >
-      <div className="channel__swipe">
+      <div className="channel__instrument">
         {classificationState === 'classifying' ? (
           <LoadingOutlined />
         ) : (

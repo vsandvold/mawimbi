@@ -4,7 +4,7 @@
   transition: background-color 0.1s;
 }
 
-.channel__swipe {
+.channel__instrument {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -15,7 +15,7 @@
   margin: -4px 8px -4px -8px;
 }
 
-.channel--inverted .channel__swipe {
+.channel--inverted .channel__instrument {
   color: rgba(255, 255, 255, 0.65);
 }
 

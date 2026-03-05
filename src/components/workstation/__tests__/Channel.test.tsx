@@ -172,30 +172,30 @@ it('focuses track when volume slider is clicked without moving', () => {
   expect(getFocusedTracks()).toContain('track-1');
 });
 
-it('shows no icon in swipe div when classification is idle and no instrument prop', () => {
+it('shows no icon in instrument div when classification is idle and no instrument prop', () => {
   const { container } = render(<Channel {...defaultProps} />);
 
-  const swipe = container.querySelector('.channel__swipe');
-  expect(swipe?.querySelector('[role="img"]')).not.toBeInTheDocument();
+  const instrumentDiv = container.querySelector('.channel__instrument');
+  expect(instrumentDiv?.querySelector('[role="img"]')).not.toBeInTheDocument();
 });
 
-it('shows loading indicator in swipe div when classification is in progress', () => {
+it('shows loading indicator in instrument div when classification is in progress', () => {
   mockGetClassificationState.mockReturnValue('classifying');
 
   const { container } = render(<Channel {...defaultProps} />);
 
-  const swipe = container.querySelector('.channel__swipe');
-  expect(swipe?.querySelector('[role="img"]')).toBeInTheDocument();
+  const instrumentDiv = container.querySelector('.channel__instrument');
+  expect(instrumentDiv?.querySelector('[role="img"]')).toBeInTheDocument();
 });
 
-it('shows instrument icon in swipe div when classification is done', () => {
+it('shows instrument icon in instrument div when classification is done', () => {
   mockGetClassification.mockReturnValue({ label: 'guitar', score: 0.85 });
   mockGetClassificationState.mockReturnValue('done');
 
   const { container } = render(<Channel {...defaultProps} />);
 
-  const swipe = container.querySelector('.channel__swipe');
-  expect(swipe?.querySelector('[role="img"]')).toBeInTheDocument();
+  const instrumentDiv = container.querySelector('.channel__instrument');
+  expect(instrumentDiv?.querySelector('[role="img"]')).toBeInTheDocument();
 });
 
 it('shows instrument icon from track prop when service has no classification', () => {
@@ -205,8 +205,8 @@ it('shows instrument icon from track prop when service has no classification', (
   const track = mockTrack({ trackId: 'track-1', instrument: 'drums' });
   const { container } = render(<Channel {...{ ...defaultProps, track }} />);
 
-  const swipe = container.querySelector('.channel__swipe');
-  expect(swipe?.querySelector('[role="img"]')).toBeInTheDocument();
+  const instrumentDiv = container.querySelector('.channel__instrument');
+  expect(instrumentDiv?.querySelector('[role="img"]')).toBeInTheDocument();
 });
 
 it('prefers service classification over track instrument prop', () => {
@@ -216,6 +216,6 @@ it('prefers service classification over track instrument prop', () => {
   const track = mockTrack({ trackId: 'track-1', instrument: 'drums' });
   const { container } = render(<Channel {...{ ...defaultProps, track }} />);
 
-  const swipe = container.querySelector('.channel__swipe');
-  expect(swipe?.querySelector('[role="img"]')).toBeInTheDocument();
+  const instrumentDiv = container.querySelector('.channel__instrument');
+  expect(instrumentDiv?.querySelector('[role="img"]')).toBeInTheDocument();
 });
