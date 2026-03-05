@@ -11,4 +11,5 @@ export type Track = {
   color: TrackColor;
   fileName: string;
   index: number;
+  instrument?: string;
 };
