@@ -99,7 +99,9 @@ export function useScrubber({
   useEffect(() => {
     if (!playing) return;
 
-    const visualizer = new FrequencyVisualizer(audioService.getDestination());
+    const visualizer = new FrequencyVisualizer(audioService.getDestination(), {
+      dualBand: true,
+    });
     visualizerRef.current = visualizer;
 
     return () => {

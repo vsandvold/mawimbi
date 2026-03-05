@@ -4,6 +4,7 @@ import {
   createDualBandLogMapping,
   createLogFrequencyMapping,
 } from '../logFrequencyMapping';
+import { calculateMergeParams, SPLIT_FREQUENCY } from '../dualBandAnalysis';
 import { fft, magnitudeToBytes } from '../fft';
 
 /**
@@ -254,6 +255,119 @@ describe('logFrequencyMapping', () => {
       for (let i = 1; i < mapping.length; i++) {
         expect(mapping[i][0]).toBeGreaterThanOrEqual(mapping[i - 1][0]);
       }
+    });
+  });
+
+  describe('playhead and spectrogram frequency alignment', () => {
+    const SAMPLE_RATE = 44100;
+    const OUTPUT_BIN_COUNT = 512;
+
+    // Live dual-band parameters (FrequencyVisualizer with dualBand: true)
+    const LIVE_LOW_FFT_SIZE = 16384;
+    const LIVE_HIGH_FFT_SIZE = 1024;
+
+    function createLiveDualBandMapping() {
+      const lowBinWidth = SAMPLE_RATE / LIVE_LOW_FFT_SIZE;
+      const highBinWidth = SAMPLE_RATE / LIVE_HIGH_FFT_SIZE;
+      const lowBinCount = Math.ceil(SPLIT_FREQUENCY / lowBinWidth);
+      const highBinStart = Math.ceil(SPLIT_FREQUENCY / highBinWidth);
+      const highBinEnd = LIVE_HIGH_FFT_SIZE / 2;
+      const mergedBinCount = lowBinCount + (highBinEnd - highBinStart);
+
+      return {
+        mapping: createDualBandLogMapping(
+          mergedBinCount,
+          lowBinCount,
+          lowBinWidth,
+          highBinStart,
+          highBinWidth,
+          OUTPUT_BIN_COUNT,
+        ),
+        lowBinWidth,
+        lowBinCount,
+      };
+    }
+
+    function createOfflineSpectrogramMapping() {
+      const {
+        mergedBinCount,
+        lowBinCount,
+        lowBinWidth,
+        highBinStart,
+        highBinWidth,
+      } = calculateMergeParams(SAMPLE_RATE);
+
+      return {
+        mapping: createDualBandLogMapping(
+          mergedBinCount,
+          lowBinCount,
+          lowBinWidth,
+          highBinStart,
+          highBinWidth,
+        ),
+        lowBinWidth,
+        lowBinCount,
+        mergedBinCount,
+      };
+    }
+
+    /**
+     * Finds the fractional position (0–1) of a frequency in a mapping,
+     * where 0 = lowest output bin and 1 = highest.
+     */
+    function findFractionalPosition(
+      mapping: number[][],
+      inputBin: number,
+    ): number {
+      const outputBin = mapping.findIndex((pool) => pool.includes(inputBin));
+      if (outputBin === -1) return -1;
+      return outputBin / (mapping.length - 1);
+    }
+
+    it('single-band mapping diverges from spectrogram for A440', () => {
+      const singleBandInputBinCount = 1024;
+      const singleBandBinWidth = SAMPLE_RATE / 2048;
+      const singleBandMapping = createLogFrequencyMapping(
+        singleBandInputBinCount,
+        OUTPUT_BIN_COUNT,
+      );
+
+      const offline = createOfflineSpectrogramMapping();
+
+      const singleBandA440Bin = Math.round(440 / singleBandBinWidth);
+      const singleBandFraction = findFractionalPosition(
+        singleBandMapping,
+        singleBandA440Bin,
+      );
+
+      const offlineA440Bin = Math.round(440 / offline.lowBinWidth);
+      const offlineFraction = findFractionalPosition(
+        offline.mapping,
+        offlineA440Bin,
+      );
+
+      // The single-band mapping places A440 more than 10% away from the
+      // spectrogram — this is the root cause of the visual mismatch.
+      expect(Math.abs(singleBandFraction - offlineFraction)).toBeGreaterThan(
+        0.1,
+      );
+    });
+
+    it('live dual-band mapping aligns with offline spectrogram for A440', () => {
+      const live = createLiveDualBandMapping();
+      const offline = createOfflineSpectrogramMapping();
+
+      const liveA440Bin = Math.round(440 / live.lowBinWidth);
+      const liveFraction = findFractionalPosition(live.mapping, liveA440Bin);
+
+      const offlineA440Bin = Math.round(440 / offline.lowBinWidth);
+      const offlineFraction = findFractionalPosition(
+        offline.mapping,
+        offlineA440Bin,
+      );
+
+      // With dual-band, the live mapping should be within 1% of the spectrogram.
+      expect(liveFraction).toBeCloseTo(offlineFraction, 1);
     });
   });
 });
