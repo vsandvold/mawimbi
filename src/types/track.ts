@@ -12,4 +12,5 @@ export type Track = {
   fileName: string;
   index: number;
   instrument?: string;
+  startTime?: number;
 };

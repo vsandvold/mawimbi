@@ -5,6 +5,7 @@ import { useRecordingService } from '../../hooks/useRecordingService';
 import { useTrackService } from '../../hooks/useTrackService';
 import { useContainerHeight } from '../../hooks/useContainerHeight';
 import useKeypress from '../../hooks/useKeypress';
+import { saveAudioData } from '../../services/ProjectStorageService';
 import message from '../message';
 import { type Track } from '../../types/track';
 import { ADD_TRACK } from '../project/projectPageReducer';
@@ -207,9 +208,10 @@ export const useMicrophone = (isRecording: boolean) => {
           arrayBuffer,
           startTime,
         );
+        saveAudioData(trackId, arrayBuffer);
         projectDispatch([
           ADD_TRACK,
-          { trackId, fileName: RECORDING_FILE_NAME },
+          { trackId, fileName: RECORDING_FILE_NAME, startTime },
         ]);
         recording.stopRecording();
         // Pause at current position so the user can immediately press

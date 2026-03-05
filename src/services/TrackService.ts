@@ -163,6 +163,42 @@ class TrackService {
     return { trackId, initialVolume };
   }
 
+  // Restores a track from persisted audio data using a known track ID.
+  // Unlike createTrack(), this does not generate a new ID.
+  async restoreTrack(
+    trackId: string,
+    arrayBuffer: ArrayBuffer,
+    startTime: number,
+  ): Promise<TrackCreationResult> {
+    const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
+    const blob = new Blob([arrayBuffer], { type: 'audio/*' });
+    const blobUrl = URL.createObjectURL(blob);
+    const normalizationGainDb =
+      LoudnessNormalizer.calculateNormalizationGain(audioBuffer);
+    const initialVolume =
+      LoudnessNormalizer.gainToInitialVolume(normalizationGainDb);
+
+    this.mixer.createChannel(
+      trackId,
+      audioBuffer,
+      normalizationGainDb,
+      startTime,
+    );
+    this.audioSourceRepository.add({
+      id: trackId,
+      audioBuffer,
+      blobUrl,
+      normalizationGainDb,
+      initialVolume,
+      startTime,
+    });
+
+    this.createSignals(trackId, initialVolume);
+    this.onTrackCreated?.(trackId, audioBuffer);
+
+    return { trackId, initialVolume };
+  }
+
   // --- Track signal management ---
 
   createSignals(trackId: TrackId, initialVolume?: number): TrackSignals {

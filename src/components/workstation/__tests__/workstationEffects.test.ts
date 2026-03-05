@@ -21,6 +21,10 @@ vi.mock('../../project/useProjectDispatch', () => ({
   default: () => mockProjectDispatch,
 }));
 
+vi.mock('../../../services/ProjectStorageService', () => ({
+  saveAudioData: vi.fn().mockResolvedValue(undefined),
+}));
+
 const { mockError, mockSuccess, mockLoading, mockInfo } = vi.hoisted(() => ({
   mockError: vi.fn(),
   mockSuccess: vi.fn(),
@@ -116,7 +120,7 @@ describe('useMicrophone', () => {
     );
     expect(mockProjectDispatch).toHaveBeenCalledWith([
       'ADD_TRACK',
-      { trackId: 'recorded-track-1', fileName: 'Recording' },
+      { trackId: 'recorded-track-1', fileName: 'Recording', startTime: 0 },
     ]);
   });
 

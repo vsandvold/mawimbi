@@ -4,12 +4,20 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import {
   saveProject,
+  saveAudioData,
   loadProject,
+  loadAudioData,
   resetDB,
   type StoredProject,
 } from '../../../services/ProjectStorageService';
-import { useAutoSave, useLoadProject } from '../projectPageEffects';
+import {
+  useAutoSave,
+  useDeleteTrackAudio,
+  useLoadProject,
+  useRestoreAudio,
+} from '../projectPageEffects';
 import { type ProjectState } from '../projectPageReducer';
+import { type Track } from '../../../types/track';
 
 function createStoredProject(
   overrides: Partial<StoredProject> = {},
@@ -179,5 +187,167 @@ describe('useAutoSave', () => {
     expect(saved!.title).toBe('C');
 
     saveSpy.mockRestore();
+  });
+});
+
+const mockRestoreTrack = vi.fn().mockResolvedValue({ trackId: 'track-1' });
+
+vi.mock('../../../hooks/useTrackService', () => ({
+  useTrackService: () => ({
+    restoreTrack: mockRestoreTrack,
+  }),
+}));
+
+function createTrack(overrides: Partial<Track> = {}): Track {
+  return {
+    trackId: 'track-1',
+    color: { r: 77, g: 238, b: 234 },
+    fileName: 'drums.wav',
+    index: 0,
+    ...overrides,
+  };
+}
+
+describe('useRestoreAudio', () => {
+  it('returns true while restoring audio', () => {
+    const tracks = [createTrack()];
+    saveAudioData('track-1', new ArrayBuffer(16));
+
+    const { result } = renderHook(() => useRestoreAudio(tracks));
+
+    expect(result.current).toBe(true);
+  });
+
+  it('returns false after audio is restored', async () => {
+    const tracks = [createTrack()];
+    await saveAudioData('track-1', new ArrayBuffer(16));
+
+    const { result } = renderHook(() => useRestoreAudio(tracks));
+
+    await waitFor(() => {
+      expect(result.current).toBe(false);
+    });
+  });
+
+  it('calls restoreTrack for each track with audio data', async () => {
+    const tracks = [
+      createTrack({ trackId: 'track-1' }),
+      createTrack({ trackId: 'track-2', index: 1 }),
+    ];
+    await saveAudioData('track-1', new ArrayBuffer(16));
+    await saveAudioData('track-2', new ArrayBuffer(32));
+
+    const { result } = renderHook(() => useRestoreAudio(tracks));
+
+    await waitFor(() => {
+      expect(result.current).toBe(false);
+    });
+
+    expect(mockRestoreTrack).toHaveBeenCalledTimes(2);
+    expect(mockRestoreTrack).toHaveBeenCalledWith(
+      'track-1',
+      expect.anything(),
+      0,
+    );
+    expect(mockRestoreTrack).toHaveBeenCalledWith(
+      'track-2',
+      expect.anything(),
+      0,
+    );
+  });
+
+  it('uses startTime from track metadata', async () => {
+    const tracks = [createTrack({ trackId: 'track-1', startTime: 3.5 })];
+    await saveAudioData('track-1', new ArrayBuffer(16));
+
+    const { result } = renderHook(() => useRestoreAudio(tracks));
+
+    await waitFor(() => {
+      expect(result.current).toBe(false);
+    });
+
+    expect(mockRestoreTrack).toHaveBeenCalledWith(
+      'track-1',
+      expect.anything(),
+      3.5,
+    );
+  });
+
+  it('skips tracks with missing audio data', async () => {
+    const tracks = [createTrack({ trackId: 'track-1' })];
+    // No audio data saved for track-1
+
+    const { result } = renderHook(() => useRestoreAudio(tracks));
+
+    await waitFor(() => {
+      expect(result.current).toBe(false);
+    });
+
+    expect(mockRestoreTrack).not.toHaveBeenCalled();
+  });
+
+  it('returns false immediately when no tracks exist', async () => {
+    const { result } = renderHook(() => useRestoreAudio([]));
+
+    await waitFor(() => {
+      expect(result.current).toBe(false);
+    });
+  });
+
+  it('handles restoreTrack failure gracefully', async () => {
+    mockRestoreTrack.mockRejectedValueOnce(new Error('decode failed'));
+    const tracks = [createTrack()];
+    await saveAudioData('track-1', new ArrayBuffer(16));
+
+    const { result } = renderHook(() => useRestoreAudio(tracks));
+
+    await waitFor(() => {
+      expect(result.current).toBe(false);
+    });
+  });
+});
+
+describe('useDeleteTrackAudio', () => {
+  it('deletes audio data when a track is removed', async () => {
+    await saveAudioData('track-1', new ArrayBuffer(16));
+
+    const initialTracks = [createTrack({ trackId: 'track-1' })];
+    const { rerender } = renderHook(
+      ({ tracks }) => useDeleteTrackAudio(tracks),
+      { initialProps: { tracks: initialTracks } },
+    );
+
+    // Remove the track
+    rerender({ tracks: [] });
+
+    await waitFor(async () => {
+      const audio = await loadAudioData('track-1');
+      expect(audio).toBeNull();
+    });
+  });
+
+  it('does not delete audio for tracks that remain', async () => {
+    await saveAudioData('track-1', new ArrayBuffer(16));
+    await saveAudioData('track-2', new ArrayBuffer(32));
+
+    const initialTracks = [
+      createTrack({ trackId: 'track-1' }),
+      createTrack({ trackId: 'track-2', index: 1 }),
+    ];
+    const { rerender } = renderHook(
+      ({ tracks }) => useDeleteTrackAudio(tracks),
+      { initialProps: { tracks: initialTracks } },
+    );
+
+    // Remove only track-1
+    rerender({ tracks: [createTrack({ trackId: 'track-2', index: 0 })] });
+
+    await waitFor(async () => {
+      const audio1 = await loadAudioData('track-1');
+      expect(audio1).toBeNull();
+    });
+
+    const audio2 = await loadAudioData('track-2');
+    expect(audio2).not.toBeNull();
   });
 });
