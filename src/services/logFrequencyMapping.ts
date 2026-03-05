@@ -14,26 +14,39 @@
  * (expanding the low range); high-frequency output bins pool multiple
  * input bins (compressing the high range).
  *
- * When `outputBinCount` differs from `inputBinCount`, the log curve is
- * scaled so the output spans the full input range at the requested
- * resolution.
+ * Uses the same true logarithmic frequency scale as
+ * `createDualBandLogMapping`: output bins are spaced so that equal visual
+ * distances correspond to equal musical intervals. Bin 0 (DC) is skipped;
+ * the mapping spans from input bin 1 to input bin `inputBinCount - 1`.
  */
 export function createLogFrequencyMapping(
   inputBinCount: number,
   outputBinCount: number = inputBinCount,
 ): number[][] {
+  const logMin = 0; // ln(1) — first non-DC bin
+  const logMax = Math.log(inputBinCount - 1);
+
   const mapping: number[][] = new Array(outputBinCount);
-  const lower = 1;
-  const upper = inputBinCount + 1;
-  const b = Math.log(lower / upper) / (lower - upper);
-  const scale = inputBinCount / outputBinCount;
+
   for (let i = 0; i < outputBinCount; i++) {
-    const logIdx = Math.min(
-      Math.trunc(Math.exp(b * i * scale)) - 1,
-      inputBinCount - 1,
-    );
-    mapping[i] = [logIdx];
+    const t = i / (outputBinCount - 1);
+    const targetIdx = Math.exp(logMin + t * (logMax - logMin));
+
+    let lo = 0;
+    let hi = inputBinCount - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (mid < targetIdx) lo = mid + 1;
+      else hi = mid;
+    }
+    let closest = lo;
+    if (lo > 0 && Math.abs(targetIdx - (lo - 1)) < Math.abs(lo - targetIdx)) {
+      closest = lo - 1;
+    }
+
+    mapping[i] = [Math.min(closest, inputBinCount - 1)];
   }
+
   for (let i = 0; i < outputBinCount - 1; i++) {
     const df = mapping[i + 1][0] - mapping[i][0];
     if (df <= 1) {
