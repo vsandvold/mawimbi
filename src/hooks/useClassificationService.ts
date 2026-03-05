@@ -21,11 +21,12 @@ export function useClassificationService() {
       return service.signals.classifications.value;
     },
 
-    // --- Lookups ---
+    // --- Lookups (read from signal so useSignals() tracks the subscription) ---
 
-    getClassification: (trackId: TrackId) => service.getClassification(trackId),
+    getClassification: (trackId: TrackId) =>
+      service.signals.classifications.value.get(trackId)?.result,
     getClassificationState: (trackId: TrackId): ClassificationState =>
-      service.getClassificationState(trackId),
+      service.signals.classifications.value.get(trackId)?.state ?? 'idle',
 
     // --- Cleanup ---
 
