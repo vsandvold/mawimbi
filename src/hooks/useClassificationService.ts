@@ -21,6 +21,10 @@ export function useClassificationService() {
       return service.signals.classifications.value;
     },
 
+    get downloadProgress() {
+      return service.signals.downloadProgress.value;
+    },
+
     // --- Lookups (read from signal so useSignals() tracks the subscription) ---
 
     getClassification: (trackId: TrackId) =>

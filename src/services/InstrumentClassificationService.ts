@@ -5,15 +5,23 @@
 // caching via the Cache API) and audio preprocessing. If the worker fails,
 // the service falls back to main-thread inference.
 //
-// Uses the AST (Audio Spectrogram Transformer) model for audio classification.
-// AudioSet output labels are mapped to instrument categories.
+// Uses the CLAP (Contrastive Language-Audio Pretraining) model for
+// zero-shot audio classification. Candidate labels match the app's
+// instrument categories directly — no AudioSet label mapping needed.
 //
 // Signal ownership and per-track caching remain on the main thread.
 
 import { signal, type ReadonlySignal } from '@preact/signals-react';
 import type { TrackId } from '../types/track';
-import { type ClassifyResponse } from './classification.worker';
-import { mapToInstrumentLabel, type InstrumentLabel } from './instrumentLabels';
+import {
+  type WorkerMessage,
+  type ClassifyResponse,
+} from './classification.worker';
+import {
+  CANDIDATE_LABELS,
+  mapToInstrumentLabel,
+  type InstrumentLabel,
+} from './instrumentLabels';
 
 export type ClassificationState = 'idle' | 'classifying' | 'done' | 'error';
 
@@ -29,8 +37,8 @@ type ClassificationEntry = {
 
 export type { InstrumentLabel };
 
-// Sample rate expected by the AST model
-const MODEL_SAMPLE_RATE = 16_000;
+// CLAP model expects 48 kHz mono audio
+const MODEL_SAMPLE_RATE = 48_000;
 
 type Classifier = (
   audio: Float32Array,
@@ -53,12 +61,15 @@ class InstrumentClassificationService {
     ReadonlyMap<TrackId, ClassificationEntry>
   >(new Map());
 
+  private readonly _downloadProgress = signal<number | null>(null);
+
   // --- Narrow channel for reactive consumers (hooks) ---
 
   readonly signals: {
     readonly classifications: ReadonlySignal<
       ReadonlyMap<TrackId, ClassificationEntry>
     >;
+    readonly downloadProgress: ReadonlySignal<number | null>;
   };
 
   private cache = new Map<TrackId, ClassificationEntry>();
@@ -74,6 +85,7 @@ class InstrumentClassificationService {
   constructor() {
     this.signals = {
       classifications: this._classifications,
+      downloadProgress: this._downloadProgress,
     };
   }
 
@@ -81,6 +93,10 @@ class InstrumentClassificationService {
 
   get classifications(): ReadonlyMap<TrackId, ClassificationEntry> {
     return this._classifications.value;
+  }
+
+  get downloadProgress(): number | null {
+    return this._downloadProgress.value;
   }
 
   getClassification(trackId: TrackId): ClassificationResult | undefined {
@@ -187,23 +203,35 @@ class InstrumentClassificationService {
         new URL('./classification.worker.ts', import.meta.url),
         { type: 'module' },
       );
-      this.worker.onmessage = (event: MessageEvent<ClassifyResponse>) => {
-        const { id, type } = event.data;
-        const pending = this.pendingRequests.get(id);
-        if (!pending) return;
-        this.pendingRequests.delete(id);
+      this.worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
+        const { type } = event.data;
 
-        if (type === 'error') {
-          pending.reject(new Error(event.data.message));
+        // Handle download progress updates (service-level, not per-request)
+        if (type === 'download-progress') {
+          this._downloadProgress.value = event.data.progress;
+          return;
+        }
+
+        const response = event.data as ClassifyResponse;
+        const pending = this.pendingRequests.get(response.id);
+        if (!pending) return;
+        this.pendingRequests.delete(response.id);
+
+        // Model is loaded — clear download progress
+        this._downloadProgress.value = null;
+
+        if (response.type === 'error') {
+          pending.reject(new Error(response.message));
         } else {
           pending.resolve({
-            label: event.data.label,
-            score: event.data.score,
+            label: response.label,
+            score: response.score,
           });
         }
       };
       this.worker.onerror = () => {
         this.workerFailed = true;
+        this._downloadProgress.value = null;
         this.rejectAllPending(
           new Error(
             'Classification worker failed; falling back to main thread',
@@ -246,14 +274,14 @@ class InstrumentClassificationService {
     const { pipeline } = await import('@huggingface/transformers');
 
     const pipe = await pipeline(
-      'audio-classification',
-      'Xenova/ast-finetuned-audioset-10-10-0.4593',
-      { device: 'wasm', dtype: 'q4' },
+      'zero-shot-audio-classification',
+      'Xenova/clap-htsat-unfused',
+      { device: 'wasm', dtype: 'q8' },
     );
     console.log('[classification] Model loaded on main thread');
 
     return async (audio: Float32Array) => {
-      const output = (await pipe(audio, { top_k: 1 })) as Array<{
+      const output = (await pipe(audio, CANDIDATE_LABELS)) as Array<{
         label: string;
         score: number;
       }>;
