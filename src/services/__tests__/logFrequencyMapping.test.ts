@@ -3,11 +3,11 @@ import {
   applyLogFrequencyMapping,
   createDualBandLogMapping,
   createLogFrequencyMapping,
+  createMultiBandLogMapping,
 } from '../logFrequencyMapping';
 import {
-  calculateMergeParams,
+  calculateMultiBandMergeParams,
   REFERENCE_MIN_FREQUENCY,
-  SPLIT_FREQUENCY,
 } from '../dualBandAnalysis';
 import { fft, magnitudeToBytes } from '../fft';
 
@@ -261,9 +261,23 @@ describe('logFrequencyMapping', () => {
         expect(mapping[i][0]).toBeGreaterThanOrEqual(mapping[i - 1][0]);
       }
     });
+
+    it('createMultiBandLogMapping produces correct output length', () => {
+      const params = calculateMultiBandMergeParams(44100);
+      const mapping = createMultiBandLogMapping(params, 512);
+      expect(mapping.length).toBe(512);
+    });
+
+    it('createMultiBandLogMapping output bins are monotonically non-decreasing', () => {
+      const params = calculateMultiBandMergeParams(44100);
+      const mapping = createMultiBandLogMapping(params, 512);
+      for (let i = 1; i < mapping.length; i++) {
+        expect(mapping[i][0]).toBeGreaterThanOrEqual(mapping[i - 1][0]);
+      }
+    });
   });
 
-  describe('single-band and dual-band frequency alignment', () => {
+  describe('single-band and multi-band frequency alignment', () => {
     const SAMPLE_RATE = 44100;
     const OUTPUT_BIN_COUNT = 512;
 
@@ -286,46 +300,38 @@ describe('logFrequencyMapping', () => {
     }
 
     function createOfflineSpectrogramMapping() {
-      const {
-        mergedBinCount,
-        lowBinCount,
-        lowBinWidth,
-        highBinStart,
-        highBinWidth,
-      } = calculateMergeParams(SAMPLE_RATE);
+      const params = calculateMultiBandMergeParams(SAMPLE_RATE);
 
       return {
-        mapping: createDualBandLogMapping(
-          mergedBinCount,
-          lowBinCount,
-          lowBinWidth,
-          highBinStart,
-          highBinWidth,
-        ),
-        lowBinCount,
-        lowBinWidth,
-        highBinStart,
-        highBinWidth,
+        mapping: createMultiBandLogMapping(params),
+        params,
       };
     }
 
     /**
      * Converts a frequency to its merged bin index in the offline
-     * spectrogram. Low-band frequencies use lowBinWidth; high-band
-     * frequencies are offset into the merged array.
+     * spectrogram. Finds the correct band and computes the offset.
      */
     function toMergedBin(
       freq: number,
-      lowBinCount: number,
-      lowBinWidth: number,
-      highBinStart: number,
-      highBinWidth: number,
+      params: ReturnType<typeof calculateMultiBandMergeParams>,
     ): number {
-      if (freq < SPLIT_FREQUENCY) {
-        return Math.round(freq / lowBinWidth);
+      let offset = 0;
+      for (const band of params.bands) {
+        const binIndex = Math.round(freq / band.binWidth);
+        if (binIndex >= band.startBin && binIndex < band.endBin) {
+          return offset + (binIndex - band.startBin);
+        }
+        offset += band.binCount;
       }
-      const highBin = Math.round(freq / highBinWidth);
-      return lowBinCount + (highBin - highBinStart);
+      // Fallback: use last band
+      const lastBand = params.bands[params.bands.length - 1];
+      const binIndex = Math.round(freq / lastBand.binWidth);
+      return (
+        offset -
+        lastBand.binCount +
+        Math.min(binIndex - lastBand.startBin, lastBand.binCount - 1)
+      );
     }
 
     it('single-band with binWidth aligns with offline spectrogram for A440', () => {
@@ -343,13 +349,7 @@ describe('logFrequencyMapping', () => {
         singleA440Bin,
       );
 
-      const offlineA440Bin = toMergedBin(
-        440,
-        offline.lowBinCount,
-        offline.lowBinWidth,
-        offline.highBinStart,
-        offline.highBinWidth,
-      );
+      const offlineA440Bin = toMergedBin(440, offline.params);
       const offlineFraction = findFractionalPosition(
         offline.mapping,
         offlineA440Bin,
@@ -359,7 +359,7 @@ describe('logFrequencyMapping', () => {
       expect(Math.abs(singleFraction - offlineFraction)).toBeLessThan(0.05);
     });
 
-    it('single-band with binWidth aligns with dual-band across octaves', () => {
+    it('single-band with binWidth aligns with multi-band across octaves', () => {
       const singleMapping = createLogFrequencyMapping(
         SINGLE_INPUT_BIN_COUNT,
         OUTPUT_BIN_COUNT,
@@ -371,13 +371,7 @@ describe('logFrequencyMapping', () => {
 
       for (const freq of frequencies) {
         const singleBin = Math.round(freq / SINGLE_BIN_WIDTH);
-        const offlineBin = toMergedBin(
-          freq,
-          offline.lowBinCount,
-          offline.lowBinWidth,
-          offline.highBinStart,
-          offline.highBinWidth,
-        );
+        const offlineBin = toMergedBin(freq, offline.params);
 
         const singlePos = findFractionalPosition(singleMapping, singleBin);
         const offlinePos = findFractionalPosition(offline.mapping, offlineBin);

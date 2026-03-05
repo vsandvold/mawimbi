@@ -1,6 +1,13 @@
 import { vi } from 'vitest';
 import FrequencyVisualizer from '../FrequencyVisualizer';
+import { BAND_CONFIGS, LIVE_BAND_FFT_SIZES } from '../dualBandAnalysis';
 import type WorkletAnalyser from '../WorkletAnalyser';
+
+const BAND_COUNT = BAND_CONFIGS.length;
+
+// Count total biquad filters across all bands
+// Band 0: 1 (lowpass), middle bands: 2 each (hp+lp), last band: 1 (highpass)
+const TOTAL_FILTERS = 1 + (BAND_COUNT - 2) * 2 + 1; // first + middles + last
 
 // --- Mocks ---
 
@@ -34,7 +41,7 @@ vi.mock('tone', () => ({
   },
 }));
 
-// Track created AudioWorkletNodes for worklet dual-band tests
+// Track created AudioWorkletNodes for worklet multi-band tests
 const createdWorkletNodes: Array<{
   port: { postMessage: ReturnType<typeof vi.fn>; onmessage: unknown };
   connect: ReturnType<typeof vi.fn>;
@@ -257,8 +264,8 @@ describe('FrequencyVisualizer', () => {
     });
   });
 
-  describe('worklet path (dual-band)', () => {
-    it('creates two AudioWorkletNodes for the two bands', () => {
+  describe('worklet path (multi-band)', () => {
+    it('creates AudioWorkletNodes for each band', () => {
       const analyser = createMockWorkletAnalyser();
       const source = createMockSource();
 
@@ -267,7 +274,7 @@ describe('FrequencyVisualizer', () => {
         dualBand: true,
       });
 
-      expect(createdWorkletNodes.length).toBe(2);
+      expect(createdWorkletNodes.length).toBe(BAND_COUNT);
     });
 
     it('does not use the provided workletAnalyser for frequency analysis', () => {
@@ -292,10 +299,10 @@ describe('FrequencyVisualizer', () => {
       });
 
       const nativeCtx = source.context.rawContext._nativeContext;
-      expect(nativeCtx.createBiquadFilter).toHaveBeenCalledTimes(2);
+      expect(nativeCtx.createBiquadFilter).toHaveBeenCalledTimes(TOTAL_FILTERS);
     });
 
-    it('connects source to both biquad filters', () => {
+    it('connects source to filter chains for each band', () => {
       const analyser = createMockWorkletAnalyser();
       const source = createMockSource();
 
@@ -304,10 +311,10 @@ describe('FrequencyVisualizer', () => {
         dualBand: true,
       });
 
-      expect(source.connect).toHaveBeenCalledTimes(2);
+      expect(source.connect).toHaveBeenCalledTimes(BAND_COUNT);
     });
 
-    it('connects each filter to its worklet analyser input', () => {
+    it('connects each filter chain to its worklet analyser input', () => {
       const analyser = createMockWorkletAnalyser();
       const source = createMockSource();
 
@@ -318,11 +325,13 @@ describe('FrequencyVisualizer', () => {
 
       const nativeCtx = source.context.rawContext._nativeContext;
       const filters = nativeCtx.createBiquadFilter.mock.results;
-      expect(filters[0].value.connect).toHaveBeenCalled();
-      expect(filters[1].value.connect).toHaveBeenCalled();
+      // At least one filter per band should have connect called
+      for (const { value } of filters) {
+        expect(value.connect).toHaveBeenCalled();
+      }
     });
 
-    it('configures the low-band worklet with large FFT', () => {
+    it('configures the first band worklet with the largest FFT', () => {
       const analyser = createMockWorkletAnalyser();
       const source = createMockSource();
 
@@ -331,19 +340,19 @@ describe('FrequencyVisualizer', () => {
         dualBand: true,
       });
 
-      // The low-band worklet should receive a configure command with
-      // frequencyAnalysis: true and a large FFT size
-      const lowNode = createdWorkletNodes[0];
-      const configCalls = lowNode.port.postMessage.mock.calls;
+      const firstNode = createdWorkletNodes[0];
+      const configCalls = firstNode.port.postMessage.mock.calls;
       const freqConfig = configCalls.find(
         (c: unknown[]) =>
           (c[0] as { frequencyAnalysis?: boolean }).frequencyAnalysis === true,
       );
       expect(freqConfig).toBeDefined();
-      expect((freqConfig![0] as { fftSize: number }).fftSize).toBe(16384);
+      expect((freqConfig![0] as { fftSize: number }).fftSize).toBe(
+        LIVE_BAND_FFT_SIZES[0],
+      );
     });
 
-    it('configures the high-band worklet with small FFT', () => {
+    it('configures the last band worklet with the smallest FFT', () => {
       const analyser = createMockWorkletAnalyser();
       const source = createMockSource();
 
@@ -352,14 +361,16 @@ describe('FrequencyVisualizer', () => {
         dualBand: true,
       });
 
-      const highNode = createdWorkletNodes[1];
-      const configCalls = highNode.port.postMessage.mock.calls;
+      const lastNode = createdWorkletNodes[BAND_COUNT - 1];
+      const configCalls = lastNode.port.postMessage.mock.calls;
       const freqConfig = configCalls.find(
         (c: unknown[]) =>
           (c[0] as { frequencyAnalysis?: boolean }).frequencyAnalysis === true,
       );
       expect(freqConfig).toBeDefined();
-      expect((freqConfig![0] as { fftSize: number }).fftSize).toBe(1024);
+      expect((freqConfig![0] as { fftSize: number }).fftSize).toBe(
+        LIVE_BAND_FFT_SIZES[BAND_COUNT - 1],
+      );
     });
 
     it('does not create native AnalyserNodes or gain nodes', () => {
@@ -433,7 +444,7 @@ describe('FrequencyVisualizer', () => {
         expect(value.disconnect).toHaveBeenCalled();
       }
 
-      // Both worklet nodes should be disconnected
+      // All worklet nodes should be disconnected
       for (const node of createdWorkletNodes) {
         expect(node.disconnect).toHaveBeenCalled();
       }
@@ -504,25 +515,27 @@ describe('FrequencyVisualizer', () => {
     });
   });
 
-  describe('dual-band path (native)', () => {
-    it('creates two AnalyserNodes and two filters when dualBand is true', () => {
+  describe('multi-band path (native)', () => {
+    it('creates AnalyserNodes and filters for each band', () => {
       const source = createMockSource();
 
       new FrequencyVisualizer(source as never, { dualBand: true });
 
-      expect(source.context.rawContext.createAnalyser).toHaveBeenCalledTimes(2);
+      expect(source.context.rawContext.createAnalyser).toHaveBeenCalledTimes(
+        BAND_COUNT,
+      );
       expect(
         source.context.rawContext.createBiquadFilter,
-      ).toHaveBeenCalledTimes(2);
+      ).toHaveBeenCalledTimes(TOTAL_FILTERS);
       expect(source.context.rawContext.createGain).toHaveBeenCalledTimes(1);
     });
 
-    it('connects source to biquad filters', () => {
+    it('connects source to filter chains for each band', () => {
       const source = createMockSource();
 
       new FrequencyVisualizer(source as never, { dualBand: true });
 
-      expect(source.connect).toHaveBeenCalledTimes(2);
+      expect(source.connect).toHaveBeenCalledTimes(BAND_COUNT);
     });
 
     it('sets frequencyBinCount to the default output size', () => {
@@ -574,19 +587,19 @@ describe('FrequencyVisualizer', () => {
       const workletViz = new FrequencyVisualizer(source as never, {
         workletAnalyser: analyser,
       });
-      const workletDualBandViz = new FrequencyVisualizer(source as never, {
+      const workletMultiBandViz = new FrequencyVisualizer(source as never, {
         workletAnalyser: createMockWorkletAnalyser(),
         dualBand: true,
       });
       const singleViz = new FrequencyVisualizer(source as never);
-      const dualBandViz = new FrequencyVisualizer(source as never, {
+      const multiBandViz = new FrequencyVisualizer(source as never, {
         dualBand: true,
       });
 
       expect(workletViz.frequencyBinCount).toBe(singleViz.frequencyBinCount);
-      expect(singleViz.frequencyBinCount).toBe(dualBandViz.frequencyBinCount);
-      expect(dualBandViz.frequencyBinCount).toBe(
-        workletDualBandViz.frequencyBinCount,
+      expect(singleViz.frequencyBinCount).toBe(multiBandViz.frequencyBinCount);
+      expect(multiBandViz.frequencyBinCount).toBe(
+        workletMultiBandViz.frequencyBinCount,
       );
     });
 
@@ -597,12 +610,12 @@ describe('FrequencyVisualizer', () => {
       const workletViz = new FrequencyVisualizer(source as never, {
         workletAnalyser: analyser,
       });
-      const workletDualBandViz = new FrequencyVisualizer(source as never, {
+      const workletMultiBandViz = new FrequencyVisualizer(source as never, {
         workletAnalyser: createMockWorkletAnalyser(),
         dualBand: true,
       });
       const singleViz = new FrequencyVisualizer(source as never);
-      const dualBandViz = new FrequencyVisualizer(source as never, {
+      const multiBandViz = new FrequencyVisualizer(source as never, {
         dualBand: true,
       });
 
@@ -610,10 +623,10 @@ describe('FrequencyVisualizer', () => {
         singleViz.getVisualizationData().length,
       );
       expect(singleViz.getVisualizationData().length).toBe(
-        dualBandViz.getVisualizationData().length,
+        multiBandViz.getVisualizationData().length,
       );
-      expect(dualBandViz.getVisualizationData().length).toBe(
-        workletDualBandViz.getVisualizationData().length,
+      expect(multiBandViz.getVisualizationData().length).toBe(
+        workletMultiBandViz.getVisualizationData().length,
       );
     });
 
@@ -625,7 +638,7 @@ describe('FrequencyVisualizer', () => {
         workletAnalyser: createMockWorkletAnalyser(),
         frequencyBinCount: customBinCount,
       });
-      const workletDualBandViz = new FrequencyVisualizer(source as never, {
+      const workletMultiBandViz = new FrequencyVisualizer(source as never, {
         workletAnalyser: createMockWorkletAnalyser(),
         dualBand: true,
         frequencyBinCount: customBinCount,
@@ -633,17 +646,17 @@ describe('FrequencyVisualizer', () => {
       const singleViz = new FrequencyVisualizer(source as never, {
         frequencyBinCount: customBinCount,
       });
-      const dualBandViz = new FrequencyVisualizer(source as never, {
+      const multiBandViz = new FrequencyVisualizer(source as never, {
         dualBand: true,
         frequencyBinCount: customBinCount,
       });
 
       expect(workletViz.getVisualizationData().length).toBe(customBinCount);
-      expect(workletDualBandViz.getVisualizationData().length).toBe(
+      expect(workletMultiBandViz.getVisualizationData().length).toBe(
         customBinCount,
       );
       expect(singleViz.getVisualizationData().length).toBe(customBinCount);
-      expect(dualBandViz.getVisualizationData().length).toBe(customBinCount);
+      expect(multiBandViz.getVisualizationData().length).toBe(customBinCount);
     });
   });
 

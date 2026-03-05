@@ -6,7 +6,10 @@
  * human pitch perception.
  */
 
-import { REFERENCE_MIN_FREQUENCY } from './dualBandAnalysis';
+import {
+  type MultiBandMergeParams,
+  REFERENCE_MIN_FREQUENCY,
+} from './dualBandAnalysis';
 
 /**
  * Creates a mapping from output (log-spaced) bins to input (linear) bins.
@@ -18,7 +21,7 @@ import { REFERENCE_MIN_FREQUENCY } from './dualBandAnalysis';
  *
  * When `binWidth` is provided, the mapping uses actual frequencies and
  * the shared `REFERENCE_MIN_FREQUENCY` anchor, producing output that
- * aligns with `createDualBandLogMapping` — the same frequency maps to
+ * aligns with `createMultiBandLogMapping` — the same frequency maps to
  * the same output bin position regardless of FFT size. Output bins below
  * the FFT's resolution clamp to the lowest input bin.
  *
@@ -111,13 +114,13 @@ function createFrequencyAwareMapping(
 }
 
 /**
- * Creates a log-frequency mapping for merged dual-band FFT data.
+ * Creates a log-frequency mapping for merged multi-band FFT data.
  *
  * Unlike `createLogFrequencyMapping` (which assumes uniform bin width),
- * this function respects the actual frequency of each merged bin. The low
- * band has much finer frequency resolution than the high band, so a mapping
- * based purely on bin index would incorrectly over-expand the low-frequency
- * region and compress the high-frequency region.
+ * this function respects the actual frequency of each merged bin. Each
+ * band may have a different bin width (due to different sample rates and
+ * FFT sizes), so the mapping computes the true frequency for every
+ * merged bin and maps on that basis.
  *
  * Uses `REFERENCE_MIN_FREQUENCY` as the lower bound of the log scale,
  * ensuring consistent output positions across all analysis modes.
@@ -125,32 +128,33 @@ function createFrequencyAwareMapping(
  * Each entry `mapping[i]` is an array of merged-bin indices that feed into
  * output bin `i`, using the same pooling convention as the uniform version.
  */
-export function createDualBandLogMapping(
-  mergedBinCount: number,
-  lowBinCount: number,
-  lowBinWidth: number,
-  highBinStart: number,
-  highBinWidth: number,
-  outputBinCount: number = mergedBinCount,
+export function createMultiBandLogMapping(
+  params: MultiBandMergeParams,
+  outputBinCount?: number,
 ): number[][] {
+  const { bands, mergedBinCount } = params;
+  const outCount = outputBinCount ?? mergedBinCount;
+
+  // Build frequency array for all merged bins
   const freq = new Float64Array(mergedBinCount);
-  for (let i = 0; i < lowBinCount; i++) {
-    freq[i] = i * lowBinWidth;
-  }
-  for (let i = lowBinCount; i < mergedBinCount; i++) {
-    freq[i] = (highBinStart + (i - lowBinCount)) * highBinWidth;
+  let offset = 0;
+  for (const band of bands) {
+    for (let i = 0; i < band.binCount; i++) {
+      freq[offset + i] = (band.startBin + i) * band.binWidth;
+    }
+    offset += band.binCount;
   }
 
-  const naturalMin = freq[1] || lowBinWidth;
+  const naturalMin = freq[1] || REFERENCE_MIN_FREQUENCY;
   const minFreq = Math.min(REFERENCE_MIN_FREQUENCY, naturalMin);
   const maxFreq = freq[mergedBinCount - 1];
   const logMin = Math.log(minFreq);
   const logMax = Math.log(maxFreq);
 
-  const mapping: number[][] = new Array(outputBinCount);
+  const mapping: number[][] = new Array(outCount);
 
-  for (let i = 0; i < outputBinCount; i++) {
-    const t = i / (outputBinCount - 1);
+  for (let i = 0; i < outCount; i++) {
+    const t = i / (outCount - 1);
     const targetFreq = Math.exp(logMin + t * (logMax - logMin));
 
     let lo = 0;
@@ -173,6 +177,48 @@ export function createDualBandLogMapping(
 
   poolConsecutiveBins(mapping);
   return mapping;
+}
+
+/**
+ * Creates a log-frequency mapping for merged dual-band FFT data.
+ *
+ * @deprecated Use `createMultiBandLogMapping` instead. This function is
+ * retained for backward compatibility.
+ */
+export function createDualBandLogMapping(
+  mergedBinCount: number,
+  lowBinCount: number,
+  lowBinWidth: number,
+  highBinStart: number,
+  highBinWidth: number,
+  outputBinCount: number = mergedBinCount,
+): number[][] {
+  const params: MultiBandMergeParams = {
+    bands: [
+      {
+        binWidth: lowBinWidth,
+        startBin: 0,
+        endBin: lowBinCount,
+        binCount: lowBinCount,
+        sampleRate: 0,
+        fftSize: 0,
+        lowerFreq: 0,
+        upperFreq: 0,
+      },
+      {
+        binWidth: highBinWidth,
+        startBin: highBinStart,
+        endBin: highBinStart + (mergedBinCount - lowBinCount),
+        binCount: mergedBinCount - lowBinCount,
+        sampleRate: 0,
+        fftSize: 0,
+        lowerFreq: 0,
+        upperFreq: 0,
+      },
+    ],
+    mergedBinCount,
+  };
+  return createMultiBandLogMapping(params, outputBinCount);
 }
 
 function poolConsecutiveBins(mapping: number[][]): void {
