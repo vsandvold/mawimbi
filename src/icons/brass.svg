@@ -1,0 +1,13 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Trumpet: mouthpiece + tube + bell -->
+  <path d="M128 480h384v64H128z" fill="currentColor"/>
+  <!-- Mouthpiece -->
+  <path d="M96 488c0-16 12-32 32-32v-8c0-12 10-24 24-24h16c14 0 24 12 24 24v8h-64v64h64v8c0 12-10 24-24 24h-16c-14 0-24-12-24-24v-8c-20 0-32-16-32-32z" fill="currentColor"/>
+  <!-- Valves -->
+  <rect x="320" y="416" width="40" height="96" rx="8" fill="currentColor"/>
+  <rect x="384" y="416" width="40" height="96" rx="8" fill="currentColor"/>
+  <rect x="448" y="416" width="40" height="96" rx="8" fill="currentColor"/>
+  <!-- Bell -->
+  <path d="M512 416c0 0 160-32 256-96v384c-96-64-256-96-256-96V416z" fill="none" stroke="currentColor" stroke-width="56" stroke-linejoin="round"/>
+  <path d="M768 320c64-40 128-56 128-56v496s-64-16-128-56" fill="none" stroke="currentColor" stroke-width="56" stroke-linejoin="round"/>
+</svg>

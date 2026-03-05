@@ -1,0 +1,11 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Bass guitar: body + long neck + tuning pegs -->
+  <path d="M224 544c0-88 72-160 160-160h32V160h64v224h32c88 0 160 72 160 160v96c0 88-72 160-160 160h-32v64h96v64H352v-64h96v-64h-64c-88 0-160-72-160-160v-96zm160-96c-53 0-96 43-96 96v96c0 53 43 96 96 96h256c53 0 96-43 96-96v-96c0-53-43-96-96-96H384z" fill="currentColor"/>
+  <!-- Strings -->
+  <rect x="432" y="160" width="16" height="128" fill="currentColor"/>
+  <rect x="480" y="160" width="16" height="128" fill="currentColor"/>
+  <rect x="432" y="480" width="16" height="192" fill="currentColor"/>
+  <rect x="480" y="480" width="16" height="192" fill="currentColor"/>
+  <rect x="528" y="480" width="16" height="192" fill="currentColor"/>
+  <rect x="576" y="480" width="16" height="192" fill="currentColor"/>
+</svg>

@@ -1,0 +1,10 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Violin: simplified silhouette -->
+  <path d="M512 96v128M480 224c-64 16-112 64-128 128-16 80 16 144 48 176-32 32-64 80-64 160 0 112 80 192 176 192s176-80 176-192c0-80-32-128-64-160 32-32 64-96 48-176-16-64-64-112-128-128" fill="none" stroke="currentColor" stroke-width="56" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- F-holes -->
+  <path d="M448 496c-8 32-8 64 0 96M576 496c8 32 8 64 0 96" fill="none" stroke="currentColor" stroke-width="40" stroke-linecap="round"/>
+  <!-- Scroll -->
+  <rect x="488" y="96" width="48" height="160" rx="24" fill="currentColor"/>
+  <!-- Tailpiece -->
+  <rect x="488" y="800" width="48" height="96" rx="8" fill="currentColor"/>
+</svg>

@@ -1,0 +1,10 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Snare drum: cylinder with crossed sticks -->
+  <ellipse cx="512" cy="384" rx="288" ry="96" fill="none" stroke="currentColor" stroke-width="64"/>
+  <rect x="224" y="384" width="576" height="256" fill="currentColor"/>
+  <ellipse cx="512" cy="640" rx="288" ry="96" fill="currentColor"/>
+  <ellipse cx="512" cy="640" rx="288" ry="96" fill="none" stroke="currentColor" stroke-width="64"/>
+  <!-- Drumsticks crossed -->
+  <rect x="128" y="128" width="320" height="40" rx="20" transform="rotate(35 288 148)" fill="currentColor"/>
+  <rect x="576" y="128" width="320" height="40" rx="20" transform="rotate(-35 736 148)" fill="currentColor"/>
+</svg>

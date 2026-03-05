@@ -1,0 +1,6 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- Musical note (eighth note) as generic/unknown instrument -->
+  <circle cx="384" cy="736" r="128" fill="currentColor"/>
+  <rect x="480" y="192" width="48" height="544" fill="currentColor"/>
+  <path d="M528 192c0 0 192 48 192 192s-192 64-192 64" fill="currentColor"/>
+</svg>
