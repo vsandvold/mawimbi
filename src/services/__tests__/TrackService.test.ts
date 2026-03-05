@@ -366,4 +366,73 @@ describe('TrackService', () => {
       expect(service.getTotalTime()).toBe(13.0);
     });
   });
+
+  describe('restoreTrack', () => {
+    it('uses the provided track ID instead of generating a new one', async () => {
+      const arrayBuffer = new ArrayBuffer(16);
+
+      const { trackId } = await service.restoreTrack(
+        'restored-id',
+        arrayBuffer,
+        0,
+      );
+
+      expect(trackId).toBe('restored-id');
+    });
+
+    it('decodes audio data and creates signals', async () => {
+      const arrayBuffer = new ArrayBuffer(16);
+
+      await service.restoreTrack('restored-id', arrayBuffer, 0);
+
+      expect(Tone.context.decodeAudioData).toHaveBeenCalledWith(arrayBuffer);
+      expect(service.getSignals('restored-id')).toBeDefined();
+    });
+
+    it('creates a mixer channel for the restored track', async () => {
+      const arrayBuffer = new ArrayBuffer(16);
+
+      await service.restoreTrack('restored-id', arrayBuffer, 0);
+
+      expect(service.retrieveChannel('restored-id')).toBeDefined();
+    });
+
+    it('stores the blob URL for the restored track', async () => {
+      const arrayBuffer = new ArrayBuffer(16);
+
+      await service.restoreTrack('restored-id', arrayBuffer, 0);
+
+      const blobUrl = service.retrieveBlobUrl('restored-id');
+      expect(blobUrl).toBeDefined();
+      expect(blobUrl).toContain('blob:');
+    });
+
+    it('preserves the start time for restored tracks', async () => {
+      const arrayBuffer = new ArrayBuffer(16);
+
+      await service.restoreTrack('restored-id', arrayBuffer, 3.5);
+
+      expect(service.retrieveStartTime('restored-id')).toBe(3.5);
+    });
+
+    it('includes restored track in total time calculation', async () => {
+      vi.mocked(Tone.context.decodeAudioData).mockResolvedValueOnce(
+        mockAudioBuffer({ duration: 5.0 }),
+      );
+
+      await service.restoreTrack('restored-id', new ArrayBuffer(16), 2.0);
+
+      // Total = startTime (2) + duration (5) = 7
+      expect(service.getTotalTime()).toBe(7.0);
+    });
+
+    it('fires the onTrackCreated callback', async () => {
+      const callback = vi.fn();
+      service.setOnTrackCreated(callback);
+
+      await service.restoreTrack('restored-id', new ArrayBuffer(16), 0);
+
+      expect(callback).toHaveBeenCalledWith('restored-id', expect.any(Object));
+    });
+  });
 });

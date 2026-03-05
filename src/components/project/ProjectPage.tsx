@@ -5,8 +5,10 @@ import Workstation from '../workstation/Workstation';
 import './ProjectPage.css';
 import {
   useAutoSave,
+  useDeleteTrackAudio,
   useFullscreen,
   useLoadProject,
+  useRestoreAudio,
   useTrackSideEffects,
   useUploadFile,
 } from './projectPageEffects';
@@ -35,10 +37,16 @@ const ProjectPageContent = ({ initialState }: ProjectPageContentProps) => {
 
   const uploadFile = useUploadFile(dispatch);
   const [fullScreenHandle, toggleFullscreen] = useFullscreen();
+  const isRestoringAudio = useRestoreAudio(initialState.tracks);
   useTrackSideEffects(state.tracks);
+  useDeleteTrackAudio(state.tracks);
   useAutoSave(state);
 
   const recordingColor = COLOR_PALETTE[state.nextColorId];
+
+  if (isRestoringAudio) {
+    return null;
+  }
 
   return (
     <ProjectDispatch.Provider value={dispatch}>

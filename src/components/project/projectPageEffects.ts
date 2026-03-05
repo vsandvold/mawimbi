@@ -2,7 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTrackService } from '../../hooks/useTrackService';
 import useDebounced from '../../hooks/useDebounced';
 import {
+  deleteAudioData,
+  loadAudioData,
   loadProject,
+  saveAudioData,
   saveProject,
   type StoredProject,
 } from '../../services/ProjectStorageService';
@@ -34,6 +37,7 @@ export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
         trackHook
           .createTrack(arrayBuffer)
           .then(({ trackId }) => {
+            saveAudioData(trackId, arrayBuffer);
             dispatch([ADD_TRACK, { trackId, fileName }]);
             msg.success(fileName);
           })
@@ -172,6 +176,74 @@ export const useAutoSave = (state: ProjectState) => {
     save();
     // save is stable (useMemo in useDebounced)
   }, [state, save]);
+};
+
+export const useRestoreAudio = (tracks: Track[]) => {
+  const trackHook = useTrackService();
+  const [isRestoring, setIsRestoring] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const restore = async () => {
+      const results = await Promise.all(
+        tracks.map(async (track) => {
+          const audioData = await loadAudioData(track.trackId);
+          return { track, audioData };
+        }),
+      );
+
+      if (cancelled) return;
+
+      for (const { track, audioData } of results) {
+        if (cancelled) break;
+        if (!audioData) continue;
+        try {
+          await trackHook.restoreTrack(
+            track.trackId,
+            audioData,
+            track.startTime ?? 0,
+          );
+        } catch {
+          // Audio data corrupted or decode failed — skip this track
+        }
+      }
+
+      if (!cancelled) {
+        setIsRestoring(false);
+      }
+    };
+
+    if (tracks.length === 0) {
+      setIsRestoring(false);
+    } else {
+      restore();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+    // Runs once on mount with the initial tracks from the stored project
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return isRestoring;
+};
+
+export const useDeleteTrackAudio = (tracks: Track[]) => {
+  const previousTracksRef = useRef<Track[]>(tracks);
+
+  useEffect(() => {
+    const previousTracks = previousTracksRef.current;
+    const currIds = new Set(tracks.map((t) => t.trackId));
+
+    for (const track of previousTracks) {
+      if (!currIds.has(track.trackId)) {
+        deleteAudioData(track.trackId);
+      }
+    }
+
+    previousTracksRef.current = tracks;
+  }, [tracks]);
 };
 
 export const useFullscreen = () => {

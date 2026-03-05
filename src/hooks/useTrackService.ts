@@ -40,6 +40,11 @@ export function useTrackService() {
       arrayBuffer: ArrayBuffer,
       startTime: number,
     ) => service.createRecordedTrack(audioBuffer, arrayBuffer, startTime),
+    restoreTrack: (
+      trackId: string,
+      arrayBuffer: ArrayBuffer,
+      startTime: number,
+    ) => service.restoreTrack(trackId, arrayBuffer, startTime),
 
     // --- Signal management ---
 

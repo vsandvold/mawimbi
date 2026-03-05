@@ -13,6 +13,7 @@ export type ProjectState = {
 type AddTrackPayload = {
   trackId: TrackId;
   fileName?: string;
+  startTime?: number;
   restore?: Track;
 };
 
@@ -113,13 +114,14 @@ function deleteTrack(
 function createTrack(
   index: number,
   colorIdx: number,
-  { trackId, fileName }: AddTrackPayload,
+  { trackId, fileName, startTime }: AddTrackPayload,
 ): Track {
   return {
     color: COLOR_PALETTE[colorIdx],
     fileName: fileName ?? '',
     trackId,
     index,
+    startTime: startTime ?? 0,
   };
 }
 
