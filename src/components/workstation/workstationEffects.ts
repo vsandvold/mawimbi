@@ -155,7 +155,7 @@ export const useTotalTime = (tracks: Track[]) => {
   }, [tracks]); // eslint-disable-line react-hooks/exhaustive-deps
 };
 
-export const useClassificationErrors = (tracks: Track[]) => {
+export const useClassificationMessages = (tracks: Track[]) => {
   const classification = useClassificationService();
   const reportedRef = useRef(new Set<string>());
 
@@ -164,8 +164,19 @@ export const useClassificationErrors = (tracks: Track[]) => {
 
     for (const track of tracks) {
       const state = classification.getClassificationState(track.trackId);
-      if (state === 'error' && !reportedRef.current.has(track.trackId)) {
-        reportedRef.current.add(track.trackId);
+      const trackKey = `${track.trackId}:${state}`;
+
+      if (reportedRef.current.has(trackKey)) continue;
+
+      if (state === 'classifying') {
+        reportedRef.current.add(trackKey);
+        msg.loading('Detecting instrument…');
+      } else if (state === 'done') {
+        reportedRef.current.add(trackKey);
+        const label = classification.getClassification(track.trackId)?.label;
+        msg.success(`Detected instrument: ${label}`);
+      } else if (state === 'error') {
+        reportedRef.current.add(trackKey);
         msg.error('Instrument detection failed');
       }
     }

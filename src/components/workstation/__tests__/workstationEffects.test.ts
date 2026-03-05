@@ -5,7 +5,7 @@ import * as Tone from 'tone';
 import AudioService from '../../../services/AudioService';
 import { mockTrack } from '../../../testUtils';
 import {
-  useClassificationErrors,
+  useClassificationMessages,
   useSpacebarPlaybackToggle,
   useMicrophone,
 } from '../workstationEffects';
@@ -168,7 +168,7 @@ describe('useMicrophone', () => {
   });
 });
 
-describe('useClassificationErrors', () => {
+describe('useClassificationMessages', () => {
   const track1 = mockTrack({ trackId: 'track-1' });
 
   const mockAudioBuffer = {
@@ -191,7 +191,7 @@ describe('useClassificationErrors', () => {
 
   it('shows error message when classification fails for a track', async () => {
     const { rerender } = renderHook(
-      ({ tracks }) => useClassificationErrors(tracks),
+      ({ tracks }) => useClassificationMessages(tracks),
       { initialProps: { tracks: [track1] } },
     );
 
@@ -208,7 +208,7 @@ describe('useClassificationErrors', () => {
   });
 
   it('does not show error message when classification succeeds', () => {
-    renderHook(({ tracks }) => useClassificationErrors(tracks), {
+    renderHook(({ tracks }) => useClassificationMessages(tracks), {
       initialProps: { tracks: [track1] },
     });
 
@@ -217,7 +217,7 @@ describe('useClassificationErrors', () => {
 
   it('does not show duplicate error messages for the same track', async () => {
     const { rerender } = renderHook(
-      ({ tracks }) => useClassificationErrors(tracks),
+      ({ tracks }) => useClassificationMessages(tracks),
       { initialProps: { tracks: [track1] } },
     );
 

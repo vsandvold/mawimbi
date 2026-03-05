@@ -5,7 +5,7 @@ import { useFileDropzone } from '../../dropzone/useFileDropzone';
 import { mockTrack } from '../../../testUtils';
 import Workstation from '../Workstation';
 import {
-  useClassificationErrors,
+  useClassificationMessages,
   useCountIn,
   useMixerHeight,
   useSpacebarPlaybackToggle,
@@ -83,14 +83,14 @@ it('uses workstation effect hooks', () => {
   expect(useFileDropzone).toHaveBeenCalled();
   expect(useMixerHeight).toHaveBeenCalled();
   expect(useSpacebarPlaybackToggle).toHaveBeenCalled();
-  expect(useClassificationErrors).toHaveBeenCalled();
+  expect(useClassificationMessages).toHaveBeenCalled();
   expect(useTotalTime).toHaveBeenCalled();
   expect(useCountIn).toHaveBeenCalled();
 });
 
 function mockWorkstationEffects() {
   return {
-    useClassificationErrors: vi.fn(),
+    useClassificationMessages: vi.fn(),
     useCountIn: vi.fn(() => null),
     useMixerHeight: vi.fn(() => ({
       mixerContainerRef: { current: null },

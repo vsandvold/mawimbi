@@ -9,8 +9,8 @@ vi.mock('@huggingface/transformers', () => ({
 
 function createAudioBuffer(
   numberOfChannels = 1,
-  length = 48000,
-  sampleRate = 48000,
+  length = 16000,
+  sampleRate = 16000,
 ): AudioBuffer {
   const channelData: Float32Array[] = [];
   for (let ch = 0; ch < numberOfChannels; ch++) {
@@ -65,11 +65,9 @@ let service: InstrumentClassificationService;
 beforeEach(() => {
   service = new InstrumentClassificationService();
   mockClassifier.mockReset();
-  mockClassifier.mockResolvedValue([
-    { label: 'guitar', score: 0.85 },
-    { label: 'vocals', score: 0.1 },
-    { label: 'drums', score: 0.05 },
-  ]);
+  // AST model returns an array of { label, score } sorted by score.
+  // The service uses top_k: 1 so only the top result is returned.
+  mockClassifier.mockResolvedValue([{ label: 'Guitar', score: 0.85 }]);
 });
 
 describe('InstrumentClassificationService', () => {
@@ -92,7 +90,7 @@ describe('InstrumentClassificationService', () => {
       const buffer = createAudioBuffer();
       const promise = service.classify('track-1', buffer);
 
-      simulateWorkerResult('guitar', 0.85);
+      simulateWorkerResult('Guitar', 0.85);
       await promise;
 
       expect(Worker).toHaveBeenCalledWith(expect.any(URL), {
@@ -104,11 +102,11 @@ describe('InstrumentClassificationService', () => {
       const buffer = createAudioBuffer();
 
       const promise1 = service.classify('track-1', buffer);
-      simulateWorkerResult('guitar', 0.85, 0);
+      simulateWorkerResult('Guitar', 0.85, 0);
       await promise1;
 
       const promise2 = service.classify('track-2', buffer);
-      simulateWorkerResult('drums', 0.8, 1);
+      simulateWorkerResult('Drum', 0.8, 1);
       await promise2;
 
       expect(Worker).toHaveBeenCalledTimes(1);
@@ -118,15 +116,15 @@ describe('InstrumentClassificationService', () => {
       const buffer = createAudioBuffer();
       const promise = service.classify('track-1', buffer);
 
-      simulateWorkerResult('guitar', 0.85);
+      simulateWorkerResult('Guitar', 0.85);
       await promise;
 
       expect(mockWorker.postMessage).toHaveBeenCalledWith(
         expect.objectContaining({
           id: 0,
           type: 'classify',
-          sampleRate: 48000,
-          length: 48000,
+          sampleRate: 16000,
+          length: 16000,
         }),
         expect.any(Array),
       );
@@ -140,7 +138,7 @@ describe('InstrumentClassificationService', () => {
       const buffer = createAudioBuffer();
       const promise = service.classify('track-1', buffer);
 
-      simulateWorkerResult('guitar', 0.85);
+      simulateWorkerResult('Guitar', 0.85);
       await promise;
 
       const transferables = mockWorker.postMessage.mock.calls[0][1];
@@ -153,8 +151,8 @@ describe('InstrumentClassificationService', () => {
       const buffer = {
         numberOfChannels: 1,
         length: 3,
-        sampleRate: 48000,
-        duration: 3 / 48000,
+        sampleRate: 16000,
+        duration: 3 / 16000,
         getChannelData: vi.fn().mockReturnValue(originalData),
       } as unknown as AudioBuffer;
 
@@ -165,36 +163,36 @@ describe('InstrumentClassificationService', () => {
       expect(postedChannelData).not.toBe(originalData);
       expect(Array.from(postedChannelData)).toEqual(Array.from(originalData));
 
-      simulateWorkerResult('guitar', 0.85);
+      simulateWorkerResult('Guitar', 0.85);
       await promise;
     });
 
     it('extracts all channels for multi-channel audio', async () => {
-      const buffer = createAudioBuffer(2, 48000, 48000);
+      const buffer = createAudioBuffer(2, 16000, 16000);
       const promise = service.classify('track-1', buffer);
 
-      simulateWorkerResult('guitar', 0.85);
+      simulateWorkerResult('Guitar', 0.85);
       await promise;
 
       const postedMessage = mockWorker.postMessage.mock.calls[0][0];
       expect(postedMessage.channelData).toHaveLength(2);
     });
 
-    it('returns the label from the worker response', async () => {
+    it('maps AudioSet labels to instrument categories', async () => {
       const buffer = createAudioBuffer();
       const promise = service.classify('track-1', buffer);
 
-      simulateWorkerResult('guitar', 0.85);
+      simulateWorkerResult('Guitar', 0.85);
       const label = await promise;
 
       expect(label).toBe('guitar');
     });
 
-    it('stores the result in the classifications signal', async () => {
+    it('stores the mapped result in the classifications signal', async () => {
       const buffer = createAudioBuffer();
       const promise = service.classify('track-1', buffer);
 
-      simulateWorkerResult('guitar', 0.85);
+      simulateWorkerResult('Guitar', 0.85);
       await promise;
 
       const result = service.getClassification('track-1');
@@ -205,7 +203,7 @@ describe('InstrumentClassificationService', () => {
       const buffer = createAudioBuffer();
       const promise = service.classify('track-1', buffer);
 
-      simulateWorkerResult('guitar', 0.85);
+      simulateWorkerResult('Guitar', 0.85);
       await promise;
 
       expect(service.getClassificationState('track-1')).toBe('done');
@@ -215,7 +213,7 @@ describe('InstrumentClassificationService', () => {
       const buffer = createAudioBuffer();
 
       const promise1 = service.classify('track-1', buffer);
-      simulateWorkerResult('guitar', 0.85);
+      simulateWorkerResult('Guitar', 0.85);
       await promise1;
 
       const label = await service.classify('track-1', buffer);
@@ -229,11 +227,11 @@ describe('InstrumentClassificationService', () => {
       const buffer2 = createAudioBuffer();
 
       const promise1 = service.classify('track-1', buffer1);
-      simulateWorkerResult('guitar', 0.9, 0);
+      simulateWorkerResult('Guitar', 0.9, 0);
       await promise1;
 
       const promise2 = service.classify('track-2', buffer2);
-      simulateWorkerResult('drums', 0.8, 1);
+      simulateWorkerResult('Drum', 0.8, 1);
       await promise2;
 
       expect(service.getClassification('track-1')?.label).toBe('guitar');
@@ -245,11 +243,11 @@ describe('InstrumentClassificationService', () => {
       const buffer = createAudioBuffer();
 
       const promise1 = service.classify('track-1', buffer);
-      simulateWorkerResult('guitar', 0.85, 0);
+      simulateWorkerResult('Guitar', 0.85, 0);
       await promise1;
 
       const promise2 = service.classify('track-2', buffer);
-      simulateWorkerResult('drums', 0.8, 1);
+      simulateWorkerResult('Drum', 0.8, 1);
       await promise2;
 
       expect(mockWorker.postMessage.mock.calls[0][0].id).toBe(0);
@@ -303,7 +301,7 @@ describe('InstrumentClassificationService', () => {
   });
 
   describe('main-thread fallback', () => {
-    it('passes candidate labels to the pipeline', async () => {
+    it('passes audio data to the classifier', async () => {
       const buffer = createAudioBuffer();
 
       // Force fallback by triggering worker error
@@ -311,25 +309,13 @@ describe('InstrumentClassificationService', () => {
       simulateWorkerError('Worker failed');
       await promise;
 
-      expect(mockClassifier).toHaveBeenCalledWith(
-        expect.any(Float32Array),
-        expect.arrayContaining([
-          'vocals',
-          'guitar',
-          'bass',
-          'drums',
-          'keyboard',
-          'strings',
-          'brass',
-          'woodwind',
-          'synth',
-          'percussion',
-        ]),
-      );
+      expect(mockClassifier).toHaveBeenCalledWith(expect.any(Float32Array), {
+        top_k: 1,
+      });
     });
 
     it('downmixes stereo to mono', async () => {
-      const buffer = createAudioBuffer(2, 48000, 48000);
+      const buffer = createAudioBuffer(2, 16000, 16000);
 
       // Force fallback
       const promise = service.classify('track-1', buffer);
@@ -337,10 +323,10 @@ describe('InstrumentClassificationService', () => {
       await promise;
 
       const passedAudio = mockClassifier.mock.calls[0][0] as Float32Array;
-      expect(passedAudio.length).toBe(48000);
+      expect(passedAudio.length).toBe(16000);
     });
 
-    it('resamples from 44100 to 48000', async () => {
+    it('resamples from 44100 to 16000', async () => {
       const buffer = createAudioBuffer(1, 44100, 44100);
 
       // Force fallback
@@ -349,11 +335,11 @@ describe('InstrumentClassificationService', () => {
       await promise;
 
       const passedAudio = mockClassifier.mock.calls[0][0] as Float32Array;
-      expect(passedAudio.length).toBe(48000);
+      expect(passedAudio.length).toBe(16000);
     });
 
     it('does not resample when already at target rate', async () => {
-      const buffer = createAudioBuffer(1, 48000, 48000);
+      const buffer = createAudioBuffer(1, 16000, 16000);
 
       // Force fallback
       const promise = service.classify('track-1', buffer);
@@ -361,7 +347,7 @@ describe('InstrumentClassificationService', () => {
       await promise;
 
       const passedAudio = mockClassifier.mock.calls[0][0] as Float32Array;
-      expect(passedAudio.length).toBe(48000);
+      expect(passedAudio.length).toBe(16000);
     });
 
     it('loads the pipeline lazily on first classify call', async () => {
@@ -374,9 +360,9 @@ describe('InstrumentClassificationService', () => {
       await promise;
 
       expect(pipeline).toHaveBeenCalledWith(
-        'zero-shot-audio-classification',
-        'Xenova/clap-large',
-        { device: 'wasm' },
+        'audio-classification',
+        'Xenova/ast-finetuned-audioset-10-10-0.4593',
+        { device: 'wasm', dtype: 'q4' },
       );
     });
 
@@ -389,7 +375,9 @@ describe('InstrumentClassificationService', () => {
       simulateWorkerError('Worker failed');
       await promise1;
 
-      mockClassifier.mockResolvedValueOnce([{ label: 'bass', score: 0.9 }]);
+      mockClassifier.mockResolvedValueOnce([
+        { label: 'Bass guitar', score: 0.9 },
+      ]);
       await service.classify('track-2', buffer);
 
       expect(pipeline).toHaveBeenCalledTimes(1);
@@ -400,7 +388,7 @@ describe('InstrumentClassificationService', () => {
     it('removes a classification entry', async () => {
       const buffer = createAudioBuffer();
       const promise = service.classify('track-1', buffer);
-      simulateWorkerResult('guitar', 0.85);
+      simulateWorkerResult('Guitar', 0.85);
       await promise;
 
       service.removeClassification('track-1');
@@ -416,11 +404,11 @@ describe('InstrumentClassificationService', () => {
       const buffer = createAudioBuffer();
 
       const promise1 = service.classify('track-1', buffer);
-      simulateWorkerResult('guitar', 0.85, 0);
+      simulateWorkerResult('Guitar', 0.85, 0);
       await promise1;
 
       const promise2 = service.classify('track-2', buffer);
-      simulateWorkerResult('drums', 0.8, 1);
+      simulateWorkerResult('Drum', 0.8, 1);
       await promise2;
 
       service.reset();

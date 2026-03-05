@@ -98,7 +98,7 @@ it('re-renders when classification transitions from classifying to done', async 
   const messageId = lastPostedMessageId();
   await act(async () => {
     mockWorker.onmessage!({
-      data: { id: messageId, type: 'result', label: 'guitar', score: 0.85 },
+      data: { id: messageId, type: 'result', label: 'Guitar', score: 0.85 },
     } as MessageEvent);
     await classifyPromise!;
   });
