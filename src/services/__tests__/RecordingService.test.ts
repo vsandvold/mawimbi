@@ -5,6 +5,19 @@ import type WorkletAnalyser from '../WorkletAnalyser';
 let service: RecordingService;
 
 beforeEach(() => {
+  // MicrophoneService.open() calls getUserMedia directly with
+  // low-latency constraints — provide a mock in the test environment.
+  Object.defineProperty(navigator, 'mediaDevices', {
+    value: {
+      getUserMedia: vi.fn().mockResolvedValue({
+        active: true,
+        getAudioTracks: () => [{ stop: vi.fn() }],
+      }),
+    },
+    writable: true,
+    configurable: true,
+  });
+
   const transport = Tone.getTransport();
   transport.seconds = 0;
   vi.mocked(transport.start).mockClear();
