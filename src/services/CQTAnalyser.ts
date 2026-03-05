@@ -43,6 +43,16 @@ const Q_FACTOR = 1 / (2 ** (1 / BINS_PER_OCTAVE) - 1);
  */
 const HOP_SECONDS = 0.025;
 
+/**
+ * Maximum kernel length as a multiple of the hop size. Without a cap, the
+ * constant-Q formula gives kernel lengths up to ~46,000 samples (~1 second)
+ * at the lowest frequency bin. A transient then smears across ~40 frames,
+ * creating visible cone-shaped artifacts in the spectrogram. Capping at a
+ * few hops limits temporal smearing while preserving the CQT's log-frequency
+ * property at higher frequencies.
+ */
+const MAX_KERNEL_HOPS = 4;
+
 // ---------------------------------------------------------------------------
 // CQT kernel
 // ---------------------------------------------------------------------------
@@ -83,12 +93,16 @@ function computeNumberBins(sampleRate: number): number {
 function computeKernel(sampleRate: number): CQTKernel {
   const numberBins = computeNumberBins(sampleRate);
   const hopSize = Math.round(HOP_SECONDS * sampleRate);
+  const maxKernelLength = hopSize * MAX_KERNEL_HOPS;
 
   const bins: CQTBinKernel[] = new Array(numberBins);
 
   for (let k = 0; k < numberBins; k++) {
     const freq = MIN_FREQUENCY * 2 ** (k / BINS_PER_OCTAVE);
-    const Nk = Math.ceil((Q_FACTOR * sampleRate) / freq);
+    const Nk = Math.min(
+      Math.ceil((Q_FACTOR * sampleRate) / freq),
+      maxKernelLength,
+    );
     const norm = 1 / Nk;
     const angularFreq = (2 * Math.PI * freq) / sampleRate;
 
@@ -251,6 +265,7 @@ export {
   MIN_FREQUENCY,
   Q_FACTOR,
   HOP_SECONDS,
+  MAX_KERNEL_HOPS,
   MIN_DECIBELS,
   MAX_DECIBELS,
   computeNumberBins,
