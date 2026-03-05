@@ -7,21 +7,15 @@
 .channel__swipe {
   display: flex;
   align-items: center;
-  padding-left: 8px;
+  justify-content: center;
+  width: 40px;
+  font-size: 16px;
+  color: rgba(0, 0, 0, 0.65);
   background-color: rgba(0, 0, 0, 0.35);
   margin: -4px 8px -4px -8px;
 }
 
-.channel__instrument {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  font-size: 16px;
-  color: rgba(0, 0, 0, 0.65);
-}
-
-.channel--inverted .channel__instrument {
+.channel--inverted .channel__swipe {
   color: rgba(255, 255, 255, 0.65);
 }
 

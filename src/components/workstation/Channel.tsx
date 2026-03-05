@@ -54,13 +54,11 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
       }}
     >
       <div className="channel__swipe">
-        <div className="channel__instrument">
-          {classificationState === 'classifying' ? (
-            <LoadingOutlined />
-          ) : (
-            instrument !== undefined && getInstrumentIcon(instrument)
-          )}
-        </div>
+        {classificationState === 'classifying' ? (
+          <LoadingOutlined />
+        ) : (
+          instrument !== undefined && getInstrumentIcon(instrument)
+        )}
       </div>
       <div className="channel__solo">
         <Button
