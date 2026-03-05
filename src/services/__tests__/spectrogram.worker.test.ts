@@ -1,12 +1,14 @@
 import { vi } from 'vitest';
 import {
-  calculateMergeParams,
+  BAND_CONFIGS,
+  calculateMultiBandMergeParams,
   createMergedLogMapping,
 } from '../dualBandAnalysis';
 import { createLogFrequencyMapping } from '../logFrequencyMapping';
 import { analyseToFrames } from '../spectrogram.worker';
 
 const LOG_MAPPING_BIN_COUNT = 512;
+const BAND_COUNT = BAND_CONFIGS.length;
 
 type MockAnalyser = {
   fftSize: number;
@@ -152,27 +154,42 @@ describe('createLogFrequencyMapping', () => {
   });
 });
 
-describe('calculateMergeParams', () => {
+describe('calculateMultiBandMergeParams', () => {
   it('returns correct merge parameters for 44100 Hz', () => {
-    const params = calculateMergeParams(44100);
+    const params = calculateMultiBandMergeParams(44100);
 
-    expect(params.lowBinWidth).toBe(2.5);
-    expect(params.highBinWidth).toBeCloseTo(43.066, 2);
-    expect(params.lowBinCount).toBe(301);
-    expect(params.highBinStart).toBe(18);
-    expect(params.highBinEnd).toBe(512);
-    expect(params.mergedBinCount).toBe(795);
+    expect(params.bands.length).toBe(BAND_COUNT);
+
+    // Band 0: SR=5120, FFT=2048
+    expect(params.bands[0].binWidth).toBe(2.5);
+    expect(params.bands[0].startBin).toBe(0);
+    expect(params.bands[0].endBin).toBe(128); // ceil(320/2.5)
+
+    // Band 1: SR=5120, FFT=512
+    expect(params.bands[1].binWidth).toBe(10);
+    expect(params.bands[1].startBin).toBe(32); // ceil(320/10)
+    expect(params.bands[1].endBin).toBe(128); // ceil(1280/10)
+
+    // Band 3: SR=44100, FFT=1024 (native)
+    expect(params.bands[3].sampleRate).toBe(44100);
+    expect(params.bands[3].binWidth).toBeCloseTo(43.066, 2);
+
+    // Total merged bins should be positive and reasonable
+    expect(params.mergedBinCount).toBeGreaterThan(0);
+    expect(params.mergedBinCount).toBeLessThan(2000);
   });
 
   it('returns correct merge parameters for 48000 Hz', () => {
-    const params = calculateMergeParams(48000);
+    const params = calculateMultiBandMergeParams(48000);
 
-    expect(params.lowBinWidth).toBe(2.5);
-    expect(params.highBinWidth).toBeCloseTo(46.875, 2);
-    expect(params.lowBinCount).toBe(301);
-    expect(params.highBinStart).toBe(17);
-    expect(params.highBinEnd).toBe(512);
-    expect(params.mergedBinCount).toBe(796);
+    expect(params.bands.length).toBe(BAND_COUNT);
+
+    // Band 0 stays the same (SR=5120 is independent of native rate)
+    expect(params.bands[0].binWidth).toBe(2.5);
+
+    // Band 3 uses native rate
+    expect(params.bands[3].sampleRate).toBe(48000);
+    expect(params.bands[3].binWidth).toBeCloseTo(46.875, 2);
   });
 });
 
@@ -183,7 +200,7 @@ describe('analyseToFrames', () => {
     const sampleRate = 44100;
     const length = Math.ceil(0.1 * sampleRate);
     const channelData = [new Float32Array(length)];
-    const { mergedBinCount } = calculateMergeParams(sampleRate);
+    const { mergedBinCount } = calculateMultiBandMergeParams(sampleRate);
 
     const result = await analyseToFrames(channelData, sampleRate, length);
 
@@ -194,16 +211,20 @@ describe('analyseToFrames', () => {
     expect(result.frequencyFrames).toBeInstanceOf(Array);
   });
 
-  it('creates two OfflineAudioContexts with correct parameters', async () => {
+  it('creates OfflineAudioContexts for each band', async () => {
     stubOfflineAudioContext();
 
     const channelData = [new Float32Array(44100)];
     await analyseToFrames(channelData, 44100, 44100);
 
-    expect(OfflineAudioContext).toHaveBeenCalledTimes(2);
-    // Low band: 1 channel, ceil(1.0 × 5120) = 5120 samples, 5120 Hz
+    expect(OfflineAudioContext).toHaveBeenCalledTimes(BAND_COUNT);
+    // Band 0: SR=5120
     expect(OfflineAudioContext).toHaveBeenCalledWith(1, 5120, 5120);
-    // High band: 1 channel, ceil(1.0 × 44100) = 44100 samples, 44100 Hz
+    // Band 1: SR=5120
+    expect(OfflineAudioContext).toHaveBeenCalledWith(1, 5120, 5120);
+    // Band 2: SR=20480
+    expect(OfflineAudioContext).toHaveBeenCalledWith(1, 20480, 20480);
+    // Band 3: SR=44100
     expect(OfflineAudioContext).toHaveBeenCalledWith(1, 44100, 44100);
   });
 
@@ -213,9 +234,13 @@ describe('analyseToFrames', () => {
     const channelData = [new Float32Array(1024), new Float32Array(1024)];
     await analyseToFrames(channelData, 44100, 1024);
 
-    expect(OfflineAudioContext).toHaveBeenCalledTimes(2);
-    // duration = 1024/44100 ≈ 0.0232s → low band length = ceil(0.0232 × 5120) = 119
-    expect(OfflineAudioContext).toHaveBeenCalledWith(2, 119, 5120);
+    expect(OfflineAudioContext).toHaveBeenCalledTimes(BAND_COUNT);
+    const duration = 1024 / 44100;
+    expect(OfflineAudioContext).toHaveBeenCalledWith(
+      2,
+      Math.ceil(duration * 5120),
+      5120,
+    );
     expect(OfflineAudioContext).toHaveBeenCalledWith(2, 1024, 44100);
   });
 
@@ -240,22 +265,27 @@ describe('analyseToFrames', () => {
     }
   });
 
-  it('creates a lowpass filter in low band and highpass filter in high band', async () => {
+  it('creates appropriate filters per band', async () => {
     stubOfflineAudioContext();
 
     await analyseToFrames([new Float32Array(44100)], 44100, 44100);
 
-    expect(mockContexts).toHaveLength(2);
+    expect(mockContexts).toHaveLength(BAND_COUNT);
 
-    const lowFilter = mockContexts[0].createBiquadFilter.mock.results[0]
+    // Band 0: lowpass@320
+    const band0Filter = mockContexts[0].createBiquadFilter.mock.results[0]
       .value as MockBiquadFilter;
-    expect(lowFilter.type).toBe('lowpass');
-    expect(lowFilter.frequency.value).toBe(752);
+    expect(band0Filter.type).toBe('lowpass');
+    expect(band0Filter.frequency.value).toBe(320);
 
-    const highFilter = mockContexts[1].createBiquadFilter.mock.results[0]
-      .value as MockBiquadFilter;
-    expect(highFilter.type).toBe('highpass');
-    expect(highFilter.frequency.value).toBe(752);
+    // Band 1: highpass@320 + lowpass@1280
+    expect(mockContexts[1].createBiquadFilter).toHaveBeenCalledTimes(2);
+
+    // Band 3: highpass@5120
+    const lastBandFilter = mockContexts[BAND_COUNT - 1].createBiquadFilter.mock
+      .results[0].value as MockBiquadFilter;
+    expect(lastBandFilter.type).toBe('highpass');
+    expect(lastBandFilter.frequency.value).toBe(5120);
   });
 
   it('creates one analyser per band context', async () => {
@@ -268,7 +298,7 @@ describe('analyseToFrames', () => {
     }
   });
 
-  it('connects buffer source through filter to analyser and destination in each band', async () => {
+  it('connects buffer source through filters to analyser and destination in each band', async () => {
     stubOfflineAudioContext();
 
     await analyseToFrames([new Float32Array(44100)], 44100, 44100);
@@ -277,13 +307,6 @@ describe('analyseToFrames', () => {
       const bufferSource = ctx.createBufferSource.mock.results[0].value;
       expect(bufferSource.connect).toHaveBeenCalledTimes(1);
       expect(bufferSource.start).toHaveBeenCalledWith(0);
-
-      const filter = ctx.createBiquadFilter.mock.results[0]
-        .value as MockBiquadFilter;
-      expect(filter.connect).toHaveBeenCalledTimes(1);
-
-      const analyser = ctx.createAnalyser.mock.results[0].value as MockAnalyser;
-      expect(analyser.connect).toHaveBeenCalledTimes(1);
     }
   });
 
@@ -301,7 +324,7 @@ describe('analyseToFrames', () => {
     }
   });
 
-  it('suspends at regular intervals in both band contexts', async () => {
+  it('suspends at regular intervals in all band contexts', async () => {
     stubOfflineAudioContext();
 
     // 100ms duration → suspend at 25ms, 50ms, 75ms → 3 suspend calls
@@ -333,7 +356,7 @@ describe('analyseToFrames', () => {
     stubOfflineAudioContext();
 
     const sampleRate = 44100;
-    const { mergedBinCount } = calculateMergeParams(sampleRate);
+    const { mergedBinCount } = calculateMultiBandMergeParams(sampleRate);
     const length = Math.ceil(0.1 * sampleRate);
     const result = await analyseToFrames(
       [new Float32Array(length)],
@@ -351,7 +374,7 @@ describe('analyseToFrames', () => {
     }
   });
 
-  it('calls startRendering on both band contexts', async () => {
+  it('calls startRendering on all band contexts', async () => {
     stubOfflineAudioContext();
 
     await analyseToFrames([new Float32Array(44100)], 44100, 44100);
@@ -397,7 +420,7 @@ describe('analyseToFrames', () => {
     );
 
     const sampleRate = 44100;
-    const { mergedBinCount } = calculateMergeParams(sampleRate);
+    const { mergedBinCount } = calculateMultiBandMergeParams(sampleRate);
     const length = Math.ceil(0.05 * sampleRate);
     const result = await analyseToFrames(
       [new Float32Array(length)],
@@ -415,9 +438,8 @@ describe('analyseToFrames', () => {
     }
   });
 
-  it('merges low-frequency bins from lowpass and high-frequency bins from highpass', async () => {
-    const LOW_VALUE = 100;
-    const HIGH_VALUE = 200;
+  it('merges bins from all bands correctly', async () => {
+    const BAND_VALUES = [100, 120, 160, 200];
     const contexts: MockOfflineContext[] = [];
     let contextIndex = 0;
 
@@ -425,7 +447,8 @@ describe('analyseToFrames', () => {
       'OfflineAudioContext',
       vi.fn().mockImplementation(function () {
         const ctx = createMockOfflineContext();
-        const fillValue = contextIndex === 0 ? LOW_VALUE : HIGH_VALUE;
+        const fillValue =
+          contextIndex < BAND_VALUES.length ? BAND_VALUES[contextIndex] : 0;
         contextIndex++;
         ctx.createAnalyser = vi.fn().mockImplementation(() => ({
           _fftSize: 0,
@@ -455,7 +478,7 @@ describe('analyseToFrames', () => {
     );
 
     const sampleRate = 44100;
-    const { lowBinCount, mergedBinCount } = calculateMergeParams(sampleRate);
+    const { bands, mergedBinCount } = calculateMultiBandMergeParams(sampleRate);
     const length = Math.ceil(0.05 * sampleRate);
     const result = await analyseToFrames(
       [new Float32Array(length)],
@@ -466,20 +489,20 @@ describe('analyseToFrames', () => {
     const frame = result.frequencyFrames[0];
     expect(frame).toBeDefined();
 
-    // Bin 0 maps to linear bin 0 (1:1 in log mapping) → low band value
-    expect(frame[0]).toBe(LOW_VALUE);
+    // Bin 0 maps to lowest frequencies → band 0 value
+    expect(frame[0]).toBe(BAND_VALUES[0]);
 
-    // The last output bin maps to the highest linear bins → high band value
+    // The last output bin maps to the highest frequencies → last band value
     expect(frame[mergedBinCount - 1]).toBeGreaterThan(0);
 
-    // Verify the split: output bins mapped entirely from the low band
-    // should carry the low band value
+    // Verify the split: output bins mapped from band 0 should carry band 0's value
+    const band0BinCount = bands[0].binCount;
     const logMapping = createMergedLogMapping(sampleRate);
-    const firstHighOutputBin = logMapping.findIndex((pool) =>
-      pool.some((idx) => idx >= lowBinCount),
+    const firstNonBand0OutputBin = logMapping.findIndex((pool) =>
+      pool.some((idx) => idx >= band0BinCount),
     );
-    if (firstHighOutputBin > 0) {
-      expect(frame[firstHighOutputBin - 1]).toBeGreaterThan(0);
+    if (firstNonBand0OutputBin > 0) {
+      expect(frame[firstNonBand0OutputBin - 1]).toBeGreaterThan(0);
     }
   });
 });

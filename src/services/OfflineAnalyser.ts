@@ -1,10 +1,8 @@
 import {
-  calculateMergeParams,
+  BAND_CONFIGS,
+  type BandMergeInfo,
+  calculateMultiBandMergeParams,
   createMergedLogMapping,
-  HIGH_BAND_FFT_SIZE,
-  LOW_BAND_FFT_SIZE,
-  LOW_BAND_SAMPLE_RATE,
-  SPLIT_FREQUENCY,
 } from './dualBandAnalysis';
 import {
   applyLogFrequencyMapping,
@@ -17,6 +15,11 @@ export type SpectrogramData = {
   frequencyBinCount: number;
   sampleRate: number;
   duration: number;
+};
+
+type FilterSpec = {
+  type: BiquadFilterType;
+  frequency: number;
 };
 
 class OfflineAnalyser {
@@ -69,7 +72,7 @@ class OfflineAnalyser {
     return analyser;
   }
 
-  private createDualBandAnalyser(
+  private createBandAnalyser(
     offlineContext: OfflineAudioContext,
     fftSize: number,
   ) {
@@ -109,47 +112,37 @@ class OfflineAnalyser {
   }
 
   /**
-   * Dual-band FFT analysis producing log-frequency spectrogram frames.
+   * Multi-band FFT analysis producing log-frequency spectrogram frames.
    *
-   * Splits the signal at ~752 Hz with separate OfflineAudioContexts:
-   * the low band runs at 5120 Hz with a 2048-point FFT for ~4× finer
-   * frequency resolution in the bass range (301 bins vs 70), achieving
-   * semitone discrimination down to ~42 Hz. The high band runs at the
-   * original sample rate with a 1024-point FFT. The two bands are merged
-   * and log-frequency mapped into a single spectrogram.
+   * Splits the signal into four bands with geometrically spaced boundaries
+   * (0–320 Hz, 320–1280 Hz, 1280–5120 Hz, 5120–Nyquist), each analysed
+   * in a separate OfflineAudioContext at a sample rate and FFT size chosen
+   * to approximate constant-Q resolution. The bands are merged and
+   * log-frequency mapped into a single spectrogram.
    */
   async analyseToFrames(): Promise<SpectrogramData> {
     const { audioBuffer } = this;
     const sampleRate = audioBuffer.sampleRate;
 
-    const lowFrames = await this.analyseBand(
-      LOW_BAND_SAMPLE_RATE,
-      'lowpass',
-      LOW_BAND_FFT_SIZE,
-    );
-    const highFrames = await this.analyseBand(
-      sampleRate,
-      'highpass',
-      HIGH_BAND_FFT_SIZE,
+    const bandFrames = await Promise.all(
+      BAND_CONFIGS.map((config, i) => {
+        const sr = config.sampleRate || sampleRate;
+        const filters = buildFilters(i);
+        return this.analyseBand(sr, filters, config.fftSize);
+      }),
     );
 
-    const { lowBinCount, highBinStart, highBinEnd, mergedBinCount } =
-      calculateMergeParams(sampleRate);
+    const params = calculateMultiBandMergeParams(sampleRate);
+    const { bands, mergedBinCount } = params;
 
     const logMapping = createMergedLogMapping(sampleRate);
-    const frameCount = Math.min(lowFrames.length, highFrames.length);
+    const frameCount = Math.min(...bandFrames.map((f) => f.length));
     const frequencyFrames: Uint8Array[] = [];
     const mergedData = new Uint8Array(mergedBinCount);
     const tempBuffer = new Uint8Array(mergedBinCount);
 
     for (let f = 0; f < frameCount; f++) {
-      for (let i = 0; i < lowBinCount; i++) {
-        mergedData[i] = lowFrames[f][i];
-      }
-      for (let i = highBinStart; i < highBinEnd; i++) {
-        mergedData[lowBinCount + i - highBinStart] = highFrames[f][i];
-      }
-
+      mergeBands(mergedData, bandFrames, bands, f);
       tempBuffer.set(mergedData);
       applyLogFrequencyMapping(tempBuffer, logMapping, mergedData);
       frequencyFrames.push(new Uint8Array(mergedData));
@@ -179,7 +172,7 @@ class OfflineAnalyser {
    */
   private async analyseBand(
     contextSampleRate: number,
-    filterType: BiquadFilterType,
+    filters: FilterSpec[],
     fftSize: number,
   ): Promise<Uint8Array[]> {
     const { audioBuffer } = this;
@@ -193,11 +186,15 @@ class OfflineAnalyser {
       contextSampleRate,
     );
 
-    const filter = context.createBiquadFilter();
-    filter.type = filterType;
-    filter.frequency.value = SPLIT_FREQUENCY;
+    // Build filter chain
+    const filterNodes = filters.map((spec) => {
+      const filter = context.createBiquadFilter();
+      filter.type = spec.type;
+      filter.frequency.value = spec.frequency;
+      return filter;
+    });
 
-    const analyser = this.createDualBandAnalyser(context, fftSize);
+    const analyser = this.createBandAnalyser(context, fftSize);
 
     const newBuffer = context.createBuffer(
       numChannels,
@@ -210,8 +207,17 @@ class OfflineAnalyser {
 
     const bufferSource = context.createBufferSource();
     bufferSource.buffer = newBuffer;
-    bufferSource.connect(filter);
-    filter.connect(analyser);
+
+    // Wire: source → filter[0] → ... → filter[N-1] → analyser
+    if (filterNodes.length === 0) {
+      bufferSource.connect(analyser);
+    } else {
+      bufferSource.connect(filterNodes[0]);
+      for (let i = 1; i < filterNodes.length; i++) {
+        filterNodes[i - 1].connect(filterNodes[i]);
+      }
+      filterNodes[filterNodes.length - 1].connect(analyser);
+    }
 
     const binCount = analyser.frequencyBinCount;
     const frames: Uint8Array[] = [];
@@ -328,6 +334,50 @@ class OfflineAnalyser {
       frequencyData,
     );
     return frequencyData;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Builds the filter specs for a band by index.
+ *
+ * - First band: lowpass only
+ * - Last band: highpass only
+ * - Middle bands: highpass + lowpass
+ */
+function buildFilters(bandIndex: number): FilterSpec[] {
+  const config = BAND_CONFIGS[bandIndex];
+  const filters: FilterSpec[] = [];
+  if (config.lowerFreq > 0) {
+    filters.push({ type: 'highpass', frequency: config.lowerFreq });
+  }
+  if (config.upperFreq > 0) {
+    filters.push({ type: 'lowpass', frequency: config.upperFreq });
+  }
+  return filters;
+}
+
+/**
+ * Copies the relevant FFT bins from each band's frame into the
+ * merged array.
+ */
+function mergeBands(
+  merged: Uint8Array,
+  bandFrames: Uint8Array[][],
+  bands: BandMergeInfo[],
+  frameIndex: number,
+): void {
+  let offset = 0;
+  for (let b = 0; b < bands.length; b++) {
+    const band = bands[b];
+    const frame = bandFrames[b][frameIndex];
+    for (let i = 0; i < band.binCount; i++) {
+      merged[offset + i] = frame[band.startBin + i];
+    }
+    offset += band.binCount;
   }
 }
 

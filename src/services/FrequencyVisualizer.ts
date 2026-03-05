@@ -3,19 +3,19 @@
  *
  * Four analysis paths, selected by constructor options:
  *
- * 1. **WorkletAnalyser + dual-band** — splits the signal via biquad
- *    filters, routes each band into its own WorkletAnalyser (large FFT
- *    for low, small FFT for high), merges and maps on the main thread.
- *    Best low-frequency resolution with no main-thread FFT cost.
+ * 1. **WorkletAnalyser + multi-band** — splits the signal via biquad
+ *    filters into four bands, routes each band into its own WorkletAnalyser
+ *    with an FFT size matching the offline pipeline's resolution per band.
+ *    Best resolution consistency with no main-thread FFT cost.
  *    Selected when both `workletAnalyser` and `dualBand` are set.
  *
  * 2. **WorkletAnalyser** — single FFT on the audio thread via
  *    AudioWorkletProcessor, with log-frequency mapping on the main
  *    thread. Selected when `workletAnalyser` is provided without `dualBand`.
  *
- * 3. **Dual-band AnalyserNode** — splits the signal at ~752 Hz via biquad
- *    filters, runs separate native AnalyserNode FFTs for the low and high
- *    bands on the main thread, merges them, and applies a dual-band
+ * 3. **Multi-band AnalyserNode** — splits the signal via biquad filters
+ *    into four bands, runs separate native AnalyserNode FFTs for each
+ *    band on the main thread, merges them, and applies a multi-band
  *    log-frequency mapping. Selected when `dualBand: true` without a worklet.
  *
  * 4. **Single AnalyserNode** (default fallback) — one AnalyserNode with a
@@ -26,11 +26,16 @@
  * details leak outside this module.
  */
 import * as Tone from 'tone';
-import { SPLIT_FREQUENCY } from './dualBandAnalysis';
+import {
+  BAND_CONFIGS,
+  type BandMergeInfo,
+  calculateLiveMergeParams,
+  LIVE_BAND_FFT_SIZES,
+} from './dualBandAnalysis';
 import {
   applyLogFrequencyMapping,
-  createDualBandLogMapping,
   createLogFrequencyMapping,
+  createMultiBandLogMapping,
 } from './logFrequencyMapping';
 import WorkletAnalyser from './WorkletAnalyser';
 
@@ -38,14 +43,8 @@ const SMOOTHING = 0;
 const MIN_DECIBELS = -80;
 const MAX_DECIBELS = -30;
 
-// Dual-band FFT sizes (shared by native and worklet dual-band paths).
-// 16384-point FFT at native sample rate gives ~2.7 Hz/bin resolution,
-// closely matching the offline pipeline's 2.5 Hz/bin (2048 FFT at 5120 Hz).
-const LOW_FFT_SIZE = 16384;
-const HIGH_FFT_SIZE = 1024;
-
 // Worklet path FFT size. 2048 gives ~21.5 Hz/bin at 44.1 kHz — moderate
-// resolution suitable for real-time visualization. The dual-band approach
+// resolution suitable for real-time visualization. The multi-band approach
 // offers finer low-frequency resolution but requires native AnalyserNodes
 // on the main thread.
 const WORKLET_FFT_SIZE = 2048;
@@ -70,10 +69,9 @@ class FrequencyVisualizer {
   private workletOutput: Uint8Array<ArrayBuffer> | null = null;
   private workletLogMapping: number[][] | null = null;
 
-  // Worklet dual-band path state (two internal WorkletAnalysers)
-  private workletDualBand = false;
-  private workletLowAnalyser: WorkletAnalyser | null = null;
-  private workletHighAnalyser: WorkletAnalyser | null = null;
+  // Worklet multi-band path state (N internal WorkletAnalysers)
+  private workletMultiBand = false;
+  private workletBandAnalysers: WorkletAnalyser[] = [];
 
   // Single-analyser path state
   private singleAnalyser: AnalyserNode | null = null;
@@ -81,21 +79,16 @@ class FrequencyVisualizer {
   private singleOutput: Uint8Array<ArrayBuffer> | null = null;
   private singleLogMapping: number[][] | null = null;
 
-  // Dual-band shared state (native and worklet dual-band paths)
-  private lowFilter: BiquadFilterNode | null = null;
-  private highFilter: BiquadFilterNode | null = null;
-  private lowData: Uint8Array<ArrayBuffer> | null = null;
-  private highData: Uint8Array<ArrayBuffer> | null = null;
+  // Multi-band shared state (native and worklet multi-band paths)
+  private bandFilters: BiquadFilterNode[] = [];
+  private bandData: Uint8Array<ArrayBuffer>[] = [];
   private mergedData: Uint8Array<ArrayBuffer> | null = null;
   private outputData: Uint8Array<ArrayBuffer> | null = null;
   private logMapping: number[][] | null = null;
-  private lowBinCount = 0;
-  private highBinStart = 0;
-  private highBinEnd = 0;
+  private bandMergeInfos: BandMergeInfo[] = [];
 
-  // Native dual-band specific state
-  private lowAnalyser: AnalyserNode | null = null;
-  private highAnalyser: AnalyserNode | null = null;
+  // Native multi-band specific state
+  private bandAnalysers: AnalyserNode[] = [];
   private muter: GainNode | null = null;
 
   constructor(source: Tone.ToneAudioNode, options?: FrequencyVisualizerOptions);
@@ -113,7 +106,7 @@ class FrequencyVisualizer {
     const sampleRate = (toneCtx.rawContext as AudioContext).sampleRate;
 
     if (opts.workletAnalyser && opts.dualBand) {
-      this.initializeWorkletDualBandPath(source, outputBinCount);
+      this.initializeWorkletMultiBandPath(source, outputBinCount);
     } else if (opts.workletAnalyser) {
       this.workletAnalyser = opts.workletAnalyser;
       this.initializeWorkletPath(
@@ -122,15 +115,15 @@ class FrequencyVisualizer {
         sampleRate,
       );
     } else if (opts.dualBand) {
-      this.initializeDualBandPath(source, outputBinCount);
+      this.initializeMultiBandPath(source, outputBinCount);
     } else {
       this.initializeSingleAnalyserPath(source, outputBinCount);
     }
   }
 
   getVisualizationData(): Uint8Array {
-    if (this.workletDualBand) {
-      return this.getWorkletDualBandVisualizationData();
+    if (this.workletMultiBand) {
+      return this.getWorkletMultiBandVisualizationData();
     }
     if (this.workletAnalyser && this.workletData && this.workletOutput) {
       return this.getWorkletVisualizationData();
@@ -138,20 +131,21 @@ class FrequencyVisualizer {
     if (this.singleAnalyser && this.singleData && this.singleOutput) {
       return this.getSingleAnalyserVisualizationData();
     }
-    return this.getDualBandVisualizationData();
+    return this.getMultiBandVisualizationData();
   }
 
   dispose(): void {
-    if (this.workletDualBand) {
-      this.workletLowAnalyser?.disableFrequencyAnalysis();
-      this.workletLowAnalyser?.dispose();
-      this.workletHighAnalyser?.disableFrequencyAnalysis();
-      this.workletHighAnalyser?.dispose();
-      this.workletLowAnalyser = null;
-      this.workletHighAnalyser = null;
-      this.workletDualBand = false;
-      this.lowFilter?.disconnect();
-      this.highFilter?.disconnect();
+    if (this.workletMultiBand) {
+      for (const analyser of this.workletBandAnalysers) {
+        analyser.disableFrequencyAnalysis();
+        analyser.dispose();
+      }
+      this.workletBandAnalysers = [];
+      this.workletMultiBand = false;
+      for (const filter of this.bandFilters) {
+        filter.disconnect();
+      }
+      this.bandFilters = [];
       return;
     }
 
@@ -173,11 +167,15 @@ class FrequencyVisualizer {
       return;
     }
 
-    this.lowFilter?.disconnect();
-    this.highFilter?.disconnect();
-    this.lowAnalyser?.disconnect();
-    this.highAnalyser?.disconnect();
+    for (const filter of this.bandFilters) {
+      filter.disconnect();
+    }
+    for (const analyser of this.bandAnalysers) {
+      analyser.disconnect();
+    }
     this.muter?.disconnect();
+    this.bandFilters = [];
+    this.bandAnalysers = [];
   }
 
   // --- Worklet path (single-band) ---
@@ -214,15 +212,15 @@ class FrequencyVisualizer {
     return this.workletOutput!;
   }
 
-  // --- Worklet path (dual-band) ---
+  // --- Worklet path (multi-band) ---
   //
-  // Creates two internal WorkletAnalysers, each receiving one side of a
+  // Creates N internal WorkletAnalysers, each receiving one side of a
   // biquad frequency split. The provided workletAnalyser (from the
   // constructor options) acts as a capability signal — its existence tells
   // us the AudioWorklet module is already registered, so we can safely
   // create new instances on the same native context.
 
-  private initializeWorkletDualBandPath(
+  private initializeWorkletMultiBandPath(
     source: Tone.ToneAudioNode,
     outputBinCount: number,
   ): void {
@@ -235,75 +233,77 @@ class FrequencyVisualizer {
       rawCtx;
     const sampleRate = nativeCtx.sampleRate;
 
-    // Biquad filters on the native context
-    this.lowFilter = nativeCtx.createBiquadFilter();
-    this.lowFilter.type = 'lowpass';
-    this.lowFilter.frequency.value = SPLIT_FREQUENCY;
+    // Create WorkletAnalysers and biquad filter chains for each band
+    for (let i = 0; i < BAND_CONFIGS.length; i++) {
+      const config = BAND_CONFIGS[i];
 
-    this.highFilter = nativeCtx.createBiquadFilter();
-    this.highFilter.type = 'highpass';
-    this.highFilter.frequency.value = SPLIT_FREQUENCY;
+      // Build filter chain for this band
+      const filterChain: BiquadFilterNode[] = [];
+      if (config.lowerFreq > 0) {
+        const hp = nativeCtx.createBiquadFilter();
+        hp.type = 'highpass';
+        hp.frequency.value = config.lowerFreq;
+        filterChain.push(hp);
+      }
+      if (config.upperFreq > 0) {
+        const lp = nativeCtx.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.value = config.upperFreq;
+        filterChain.push(lp);
+      }
 
-    // Two WorkletAnalysers on the native context. The worklet module is
-    // already registered by AudioService, so we skip initialize() and
-    // go straight to enabling frequency analysis.
-    this.workletLowAnalyser = new WorkletAnalyser(nativeCtx, 0);
-    this.workletHighAnalyser = new WorkletAnalyser(nativeCtx, 0);
+      const wa = new WorkletAnalyser(nativeCtx, 0);
 
-    // Wire: source → filter → workletAnalyser.input
-    source.connect(this.lowFilter as unknown as AudioNode);
-    this.lowFilter.connect(this.workletLowAnalyser.input);
+      // Wire: source → filter[0] → ... → filter[N-1] → wa.input
+      // Access wa.input first to create the underlying AudioWorkletNode,
+      // so that enableFrequencyAnalysis can post its config message.
+      if (filterChain.length === 0) {
+        source.connect(wa.input as unknown as AudioNode);
+      } else {
+        source.connect(filterChain[0] as unknown as AudioNode);
+        for (let j = 1; j < filterChain.length; j++) {
+          filterChain[j - 1].connect(filterChain[j]);
+        }
+        filterChain[filterChain.length - 1].connect(wa.input);
+      }
 
-    source.connect(this.highFilter as unknown as AudioNode);
-    this.highFilter.connect(this.workletHighAnalyser.input);
+      wa.enableFrequencyAnalysis({
+        fftSize: LIVE_BAND_FFT_SIZES[i],
+        minDecibels: MIN_DECIBELS,
+        maxDecibels: MAX_DECIBELS,
+      });
 
-    this.workletLowAnalyser.enableFrequencyAnalysis({
-      fftSize: LOW_FFT_SIZE,
-      minDecibels: MIN_DECIBELS,
-      maxDecibels: MAX_DECIBELS,
-    });
-    this.workletHighAnalyser.enableFrequencyAnalysis({
-      fftSize: HIGH_FFT_SIZE,
-      minDecibels: MIN_DECIBELS,
-      maxDecibels: MAX_DECIBELS,
-    });
+      this.bandFilters.push(...filterChain);
+      this.workletBandAnalysers.push(wa);
+    }
 
-    this.workletDualBand = true;
+    this.workletMultiBand = true;
 
-    // Merge parameters (identical to native dual-band)
-    const lowBinWidth = sampleRate / LOW_FFT_SIZE;
-    const highBinWidth = sampleRate / HIGH_FFT_SIZE;
-    this.lowBinCount = Math.ceil(SPLIT_FREQUENCY / lowBinWidth);
-    this.highBinStart = Math.ceil(SPLIT_FREQUENCY / highBinWidth);
-    this.highBinEnd = HIGH_FFT_SIZE / 2;
-    const mergedBinCount =
-      this.lowBinCount + (this.highBinEnd - this.highBinStart);
+    // Merge parameters
+    const params = calculateLiveMergeParams(sampleRate);
+    this.bandMergeInfos = params.bands;
 
-    this.logMapping = createDualBandLogMapping(
-      mergedBinCount,
-      this.lowBinCount,
-      lowBinWidth,
-      this.highBinStart,
-      highBinWidth,
-      outputBinCount,
+    this.logMapping = createMultiBandLogMapping(params, outputBinCount);
+
+    this.bandData = this.workletBandAnalysers.map(
+      (wa) => new Uint8Array(wa.frequencyBinCount),
     );
-
-    this.lowData = new Uint8Array(this.workletLowAnalyser.frequencyBinCount);
-    this.highData = new Uint8Array(this.workletHighAnalyser.frequencyBinCount);
-    this.mergedData = new Uint8Array(mergedBinCount);
+    this.mergedData = new Uint8Array(params.mergedBinCount);
     this.outputData = new Uint8Array(outputBinCount);
   }
 
-  private getWorkletDualBandVisualizationData(): Uint8Array {
-    this.workletLowAnalyser!.getByteFrequencyData(this.lowData!);
-    this.workletHighAnalyser!.getByteFrequencyData(this.highData!);
-
-    for (let i = 0; i < this.lowBinCount; i++) {
-      this.mergedData![i] = this.lowData![i];
+  private getWorkletMultiBandVisualizationData(): Uint8Array {
+    for (let i = 0; i < this.workletBandAnalysers.length; i++) {
+      this.workletBandAnalysers[i].getByteFrequencyData(this.bandData[i]);
     }
-    for (let i = this.highBinStart; i < this.highBinEnd; i++) {
-      this.mergedData![this.lowBinCount + i - this.highBinStart] =
-        this.highData![i];
+
+    let offset = 0;
+    for (let b = 0; b < this.bandMergeInfos.length; b++) {
+      const band = this.bandMergeInfos[b];
+      for (let i = 0; i < band.binCount; i++) {
+        this.mergedData![offset + i] = this.bandData[b][band.startBin + i];
+      }
+      offset += band.binCount;
     }
 
     applyLogFrequencyMapping(
@@ -353,9 +353,9 @@ class FrequencyVisualizer {
     return this.singleOutput!;
   }
 
-  // --- Dual-band fallback (native AnalyserNodes) ---
+  // --- Multi-band fallback (native AnalyserNodes) ---
 
-  private initializeDualBandPath(
+  private initializeMultiBandPath(
     source: Tone.ToneAudioNode,
     outputBinCount: number,
   ): void {
@@ -363,74 +363,77 @@ class FrequencyVisualizer {
     const ctx = toneCtx.rawContext as AudioContext;
     const sampleRate = ctx.sampleRate;
 
-    this.lowFilter = ctx.createBiquadFilter();
-    this.lowFilter.type = 'lowpass';
-    this.lowFilter.frequency.value = SPLIT_FREQUENCY;
-
-    this.highFilter = ctx.createBiquadFilter();
-    this.highFilter.type = 'highpass';
-    this.highFilter.frequency.value = SPLIT_FREQUENCY;
-
-    this.lowAnalyser = ctx.createAnalyser();
-    this.lowAnalyser.fftSize = LOW_FFT_SIZE;
-    this.lowAnalyser.smoothingTimeConstant = SMOOTHING;
-    this.lowAnalyser.minDecibels = MIN_DECIBELS;
-    this.lowAnalyser.maxDecibels = MAX_DECIBELS;
-
-    this.highAnalyser = ctx.createAnalyser();
-    this.highAnalyser.fftSize = HIGH_FFT_SIZE;
-    this.highAnalyser.smoothingTimeConstant = SMOOTHING;
-    this.highAnalyser.minDecibels = MIN_DECIBELS;
-    this.highAnalyser.maxDecibels = MAX_DECIBELS;
-
     // Keep analysers in the rendering graph without audible output.
     this.muter = ctx.createGain();
     this.muter.gain.value = 0;
     this.muter.connect(ctx.destination);
 
-    // Side-chain: source → filter → analyser → muter → destination (silent)
-    source.connect(this.lowFilter as unknown as AudioNode);
-    this.lowFilter.connect(this.lowAnalyser);
-    this.lowAnalyser.connect(this.muter);
+    for (let i = 0; i < BAND_CONFIGS.length; i++) {
+      const config = BAND_CONFIGS[i];
+      const fftSize = LIVE_BAND_FFT_SIZES[i];
 
-    source.connect(this.highFilter as unknown as AudioNode);
-    this.highFilter.connect(this.highAnalyser);
-    this.highAnalyser.connect(this.muter);
+      // Build filter chain for this band
+      const filterChain: BiquadFilterNode[] = [];
+      if (config.lowerFreq > 0) {
+        const hp = ctx.createBiquadFilter();
+        hp.type = 'highpass';
+        hp.frequency.value = config.lowerFreq;
+        filterChain.push(hp);
+      }
+      if (config.upperFreq > 0) {
+        const lp = ctx.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.value = config.upperFreq;
+        filterChain.push(lp);
+      }
+
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = fftSize;
+      analyser.smoothingTimeConstant = SMOOTHING;
+      analyser.minDecibels = MIN_DECIBELS;
+      analyser.maxDecibels = MAX_DECIBELS;
+
+      // Wire: source → filter[0] → ... → filter[N-1] → analyser → muter
+      if (filterChain.length === 0) {
+        source.connect(analyser as unknown as AudioNode);
+      } else {
+        source.connect(filterChain[0] as unknown as AudioNode);
+        for (let j = 1; j < filterChain.length; j++) {
+          filterChain[j - 1].connect(filterChain[j]);
+        }
+        filterChain[filterChain.length - 1].connect(analyser);
+      }
+      analyser.connect(this.muter);
+
+      this.bandFilters.push(...filterChain);
+      this.bandAnalysers.push(analyser);
+    }
 
     // Merge parameters
-    const lowBinWidth = sampleRate / LOW_FFT_SIZE;
-    const highBinWidth = sampleRate / HIGH_FFT_SIZE;
-    this.lowBinCount = Math.ceil(SPLIT_FREQUENCY / lowBinWidth);
-    this.highBinStart = Math.ceil(SPLIT_FREQUENCY / highBinWidth);
-    this.highBinEnd = HIGH_FFT_SIZE / 2;
-    const mergedBinCount =
-      this.lowBinCount + (this.highBinEnd - this.highBinStart);
+    const params = calculateLiveMergeParams(sampleRate);
+    this.bandMergeInfos = params.bands;
 
-    this.logMapping = createDualBandLogMapping(
-      mergedBinCount,
-      this.lowBinCount,
-      lowBinWidth,
-      this.highBinStart,
-      highBinWidth,
-      outputBinCount,
+    this.logMapping = createMultiBandLogMapping(params, outputBinCount);
+
+    this.bandData = this.bandAnalysers.map(
+      (a) => new Uint8Array(a.frequencyBinCount),
     );
-
-    this.lowData = new Uint8Array(this.lowAnalyser.frequencyBinCount);
-    this.highData = new Uint8Array(this.highAnalyser.frequencyBinCount);
-    this.mergedData = new Uint8Array(mergedBinCount);
+    this.mergedData = new Uint8Array(params.mergedBinCount);
     this.outputData = new Uint8Array(outputBinCount);
   }
 
-  private getDualBandVisualizationData(): Uint8Array {
-    this.lowAnalyser!.getByteFrequencyData(this.lowData!);
-    this.highAnalyser!.getByteFrequencyData(this.highData!);
-
-    for (let i = 0; i < this.lowBinCount; i++) {
-      this.mergedData![i] = this.lowData![i];
+  private getMultiBandVisualizationData(): Uint8Array {
+    for (let i = 0; i < this.bandAnalysers.length; i++) {
+      this.bandAnalysers[i].getByteFrequencyData(this.bandData[i]);
     }
-    for (let i = this.highBinStart; i < this.highBinEnd; i++) {
-      this.mergedData![this.lowBinCount + i - this.highBinStart] =
-        this.highData![i];
+
+    let offset = 0;
+    for (let b = 0; b < this.bandMergeInfos.length; b++) {
+      const band = this.bandMergeInfos[b];
+      for (let i = 0; i < band.binCount; i++) {
+        this.mergedData![offset + i] = this.bandData[b][band.startBin + i];
+      }
+      offset += band.binCount;
     }
 
     applyLogFrequencyMapping(
