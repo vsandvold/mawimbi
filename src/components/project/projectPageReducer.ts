@@ -26,10 +26,15 @@ type MoveTrackPayload = {
   toIndex: number;
 };
 
+type RenameProjectPayload = {
+  title: string;
+};
+
 export type ProjectAction =
   | [typeof ADD_TRACK, AddTrackPayload]
   | [typeof DELETE_TRACK, DeleteTrackPayload]
-  | [typeof MOVE_TRACK, MoveTrackPayload];
+  | [typeof MOVE_TRACK, MoveTrackPayload]
+  | [typeof RENAME_PROJECT, RenameProjectPayload];
 
 export const COLOR_PALETTE: TrackColor[] = [
   { r: 77, g: 238, b: 234 },
@@ -42,6 +47,7 @@ export const COLOR_PALETTE: TrackColor[] = [
 export const ADD_TRACK = 'ADD_TRACK';
 export const DELETE_TRACK = 'DELETE_TRACK';
 export const MOVE_TRACK = 'MOVE_TRACK';
+export const RENAME_PROJECT = 'RENAME_PROJECT';
 
 export function projectReducer(
   state: ProjectState,
@@ -54,6 +60,8 @@ export function projectReducer(
       return deleteTrack(state, action[1]);
     case MOVE_TRACK:
       return { ...state, tracks: moveTrack(state.tracks, action[1]) };
+    case RENAME_PROJECT:
+      return { ...state, title: action[1].title };
     default:
       throw new Error();
   }
@@ -76,6 +84,8 @@ export function reverseProjectAction(
         MOVE_TRACK,
         { fromIndex: action[1].toIndex, toIndex: action[1].fromIndex },
       ];
+    case RENAME_PROJECT:
+      return null;
     default:
       return null;
   }

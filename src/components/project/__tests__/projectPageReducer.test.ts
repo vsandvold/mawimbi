@@ -4,6 +4,7 @@ import {
   COLOR_PALETTE,
   DELETE_TRACK,
   MOVE_TRACK,
+  RENAME_PROJECT,
   ProjectAction,
   projectReducer,
   ProjectState,
@@ -151,6 +152,15 @@ describe('reverseProjectAction', () => {
     expect(reverse).toEqual([MOVE_TRACK, { fromIndex: 2, toIndex: 0 }]);
   });
 
+  it('returns null for RENAME_PROJECT', () => {
+    const state = createState();
+    const action: ProjectAction = [RENAME_PROJECT, { title: 'New Title' }];
+
+    const reverse = reverseProjectAction(state, action);
+
+    expect(reverse).toBeNull();
+  });
+
   it('returns null for unknown actions', () => {
     const state = createState();
     const action = ['UNKNOWN_ACTION'] as unknown as ProjectAction;
@@ -158,5 +168,31 @@ describe('reverseProjectAction', () => {
     const reverse = reverseProjectAction(state, action);
 
     expect(reverse).toBeNull();
+  });
+});
+
+describe('RENAME_PROJECT', () => {
+  it('updates the project title', () => {
+    const state = createState([track1]);
+
+    const result = projectReducer(state, [
+      RENAME_PROJECT,
+      { title: 'New Title' },
+    ]);
+
+    expect(result.title).toBe('New Title');
+  });
+
+  it('preserves tracks and other state', () => {
+    const state = createState([track1, track2]);
+
+    const result = projectReducer(state, [
+      RENAME_PROJECT,
+      { title: 'New Title' },
+    ]);
+
+    expect(result.tracks).toEqual(state.tracks);
+    expect(result.nextColorId).toBe(state.nextColorId);
+    expect(result.nextIndex).toBe(state.nextIndex);
   });
 });

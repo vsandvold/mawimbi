@@ -5,9 +5,10 @@ import {
   UndoOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
-import { Button, Dropdown, Typography, Upload } from 'antd';
+import { Button, Dropdown, Input, Modal, Typography, Upload } from 'antd';
 import type { MenuProps, UploadProps } from 'antd';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import './ProjectPageHeader.css';
 
 type ProjectPageHeaderProps = {
@@ -19,23 +20,61 @@ type ProjectPageHeaderProps = {
   redo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  renameProject: (title: string) => void;
 };
 
 const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
-  const navigate = useNavigate();
+  const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
+  const [newTitle, setNewTitle] = useState(props.title);
+
+  const openRenameModal = () => {
+    setNewTitle(props.title);
+    setIsRenameModalOpen(true);
+  };
+
+  const handleRename = () => {
+    const trimmed = newTitle.trim();
+    if (trimmed) {
+      props.renameProject(trimmed);
+    }
+    setIsRenameModalOpen(false);
+  };
+
+  const handleCancel = () => {
+    setIsRenameModalOpen(false);
+  };
 
   return (
     <div className="project-page-header">
-      <Button
-        type="link"
-        className="button back-button"
-        icon={<ArrowLeftOutlined />}
-        aria-label="Back"
-        onClick={() => navigate(-1)}
-      />
-      <Typography.Title level={4} className="project-page-header__title">
+      <Link to="/" className="back-link" aria-label="Back">
+        <Button
+          type="link"
+          className="button back-button"
+          icon={<ArrowLeftOutlined />}
+          tabIndex={-1}
+        />
+      </Link>
+      <Typography.Title
+        level={4}
+        className="project-page-header__title"
+        onClick={openRenameModal}
+      >
         {props.title}
       </Typography.Title>
+      <Modal
+        title="Rename project"
+        open={isRenameModalOpen}
+        onOk={handleRename}
+        onCancel={handleCancel}
+        okText="Update"
+      >
+        <Input
+          value={newTitle}
+          onChange={(e) => setNewTitle(e.target.value)}
+          onPressEnter={handleRename}
+          autoFocus
+        />
+      </Modal>
       <div className="project-page-header__extra">
         <Button
           type="link"
@@ -108,9 +147,13 @@ const OverflowMenu = (props: OverflowMenuProps) => {
 
   return (
     <Dropdown menu={{ items }} trigger={['click']}>
-      <Button type="link" className="button overflow-button">
-        <EllipsisOutlined />
-      </Button>
+      <Button
+        type="link"
+        className="button overflow-button"
+        icon={<EllipsisOutlined />}
+        aria-label="More"
+        onClick={(e) => e.stopPropagation()}
+      />
     </Dropdown>
   );
 };
