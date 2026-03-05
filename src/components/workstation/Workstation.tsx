@@ -13,7 +13,7 @@ import Timeline from './Timeline';
 import Toolbar from './Toolbar';
 import './Workstation.css';
 import {
-  useClassificationErrors,
+  useClassificationMessage,
   useCountIn,
   useMicrophone,
   useMixerHeight,
@@ -42,7 +42,7 @@ const Workstation = (props: WorkstationProps) => {
     useFileDropzone(uploadFile);
 
   useSpacebarPlaybackToggle();
-  useClassificationErrors(tracks);
+  useClassificationMessage();
   useTotalTime(tracks);
 
   const handleCountInComplete = useCallback(() => {

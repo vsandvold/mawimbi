@@ -36,6 +36,7 @@ class AudioService {
   readonly spectrogramCache: SpectrogramCache;
 
   private static instance: AudioService;
+  private classificationErrorCallback: (() => void) | null = null;
 
   private constructor() {
     const transport = Tone.getTransport();
@@ -50,7 +51,7 @@ class AudioService {
     // Fire-and-forget classification when a track is created
     this.trackService.setOnTrackCreated((trackId, audioBuffer) => {
       this.classificationService.classify(trackId, audioBuffer).catch(() => {
-        // Classification failure is non-critical — silently ignored
+        this.classificationErrorCallback?.();
       });
     });
 
@@ -112,6 +113,10 @@ class AudioService {
         { once: true },
       );
     });
+  }
+
+  setOnClassificationError(callback: (() => void) | null): void {
+    this.classificationErrorCallback = callback;
   }
 
   getDestination(): Tone.ToneAudioNode {
