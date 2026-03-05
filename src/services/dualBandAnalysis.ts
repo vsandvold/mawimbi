@@ -13,6 +13,16 @@ export const HIGH_BAND_FFT_SIZE = 1024;
 export const SPLIT_FREQUENCY = 752;
 export const LOW_BAND_SAMPLE_RATE = 5120;
 
+/**
+ * Shared minimum frequency anchor for all log-frequency mappings.
+ *
+ * Both `createLogFrequencyMapping` and `createDualBandLogMapping` use
+ * this as the lower bound of the log scale, ensuring the same frequency
+ * maps to the same output bin position regardless of analysis mode.
+ * Derived from the offline spectrogram's low-band configuration.
+ */
+export const REFERENCE_MIN_FREQUENCY = LOW_BAND_SAMPLE_RATE / LOW_BAND_FFT_SIZE;
+
 export type MergeParams = {
   lowBinWidth: number;
   highBinWidth: number;
