@@ -5,16 +5,20 @@
 // caching via the Cache API) and audio preprocessing. If the worker fails,
 // the service falls back to main-thread inference.
 //
+// Uses the AST (Audio Spectrogram Transformer) model for audio classification.
+// AudioSet output labels are mapped to instrument categories.
+//
 // Signal ownership and per-track caching remain on the main thread.
 
 import { signal, type ReadonlySignal } from '@preact/signals-react';
 import type { TrackId } from '../types/track';
 import { type ClassifyResponse } from './classification.worker';
+import { mapToInstrumentLabel, type InstrumentLabel } from './instrumentLabels';
 
 export type ClassificationState = 'idle' | 'classifying' | 'done' | 'error';
 
 export type ClassificationResult = {
-  label: string;
+  label: InstrumentLabel;
   score: number;
 };
 
@@ -23,31 +27,22 @@ type ClassificationEntry = {
   result?: ClassificationResult;
 };
 
-export type InstrumentLabel = (typeof CANDIDATE_LABELS)[number];
+export type { InstrumentLabel };
 
-const CANDIDATE_LABELS = [
-  'vocals',
-  'guitar',
-  'bass',
-  'drums',
-  'keyboard',
-  'strings',
-  'brass',
-  'woodwind',
-  'synth',
-  'percussion',
-] as const;
+// Sample rate expected by the AST model
+const MODEL_SAMPLE_RATE = 16_000;
 
-// Sample rate expected by the CLAP model
-const MODEL_SAMPLE_RATE = 48_000;
-
-type Pipeline = (
+type Classifier = (
   audio: Float32Array,
-  labels: string[],
-) => Promise<Array<{ label: string; score: number }>>;
+) => Promise<{ label: string; score: number }>;
+
+type RawClassificationResult = {
+  label: string;
+  score: number;
+};
 
 type PendingRequest = {
-  resolve: (result: ClassificationResult) => void;
+  resolve: (result: RawClassificationResult) => void;
   reject: (error: Error) => void;
 };
 
@@ -73,8 +68,8 @@ class InstrumentClassificationService {
   private pendingRequests = new Map<number, PendingRequest>();
 
   // Main-thread fallback state
-  private pipeline: Pipeline | null = null;
-  private pipelinePromise: Promise<Pipeline> | null = null;
+  private classifier: Classifier | null = null;
+  private classifierPromise: Promise<Classifier> | null = null;
 
   constructor() {
     this.signals = {
@@ -107,24 +102,47 @@ class InstrumentClassificationService {
     }
 
     this.setEntry(trackId, { state: 'classifying' });
+    console.log(`[classification] Classifying track ${trackId}`);
 
     try {
-      const result = this.workerFailed
+      const rawResult = this.workerFailed
         ? await this.classifyOnMainThread(audioBuffer)
         : await this.classifyInWorker(audioBuffer);
 
+      const result: ClassificationResult = {
+        label: mapToInstrumentLabel(rawResult.label),
+        score: rawResult.score,
+      };
+
       this.setEntry(trackId, { state: 'done', result });
+      console.log(
+        `[classification] Track ${trackId} classified as "${result.label}" (raw: "${rawResult.label}", score: ${result.score.toFixed(3)})`,
+      );
       return result.label;
-    } catch {
+    } catch (workerError) {
       // If the worker failed for the first time, try the main-thread fallback
       if (!this.workerFailed) {
         this.workerFailed = true;
+        console.warn(
+          '[classification] Worker failed, falling back to main thread:',
+          workerError,
+        );
         try {
-          const result = await this.classifyOnMainThread(audioBuffer);
+          const rawResult = await this.classifyOnMainThread(audioBuffer);
+          const result: ClassificationResult = {
+            label: mapToInstrumentLabel(rawResult.label),
+            score: rawResult.score,
+          };
           this.setEntry(trackId, { state: 'done', result });
+          console.log(
+            `[classification] Track ${trackId} classified as "${result.label}" (raw: "${rawResult.label}", score: ${result.score.toFixed(3)})`,
+          );
           return result.label;
-        } catch {
-          // Main thread also failed — fall through to error
+        } catch (mainThreadError) {
+          console.error(
+            '[classification] Main-thread fallback also failed:',
+            mainThreadError,
+          );
         }
       }
       this.setEntry(trackId, { state: 'error' });
@@ -136,7 +154,7 @@ class InstrumentClassificationService {
 
   private classifyInWorker(
     audioBuffer: AudioBuffer,
-  ): Promise<ClassificationResult> {
+  ): Promise<{ label: string; score: number }> {
     const worker = this.getWorker();
     const id = this.nextMessageId++;
 
@@ -207,43 +225,39 @@ class InstrumentClassificationService {
 
   private async classifyOnMainThread(
     audioBuffer: AudioBuffer,
-  ): Promise<ClassificationResult> {
-    const classifierPipeline = await this.loadPipeline();
+  ): Promise<{ label: string; score: number }> {
+    const classify = await this.loadClassifier();
     const monoSamples = downmixToMono(audioBuffer, MODEL_SAMPLE_RATE);
-    const results = await classifierPipeline(monoSamples, [
-      ...CANDIDATE_LABELS,
-    ]);
-
-    const top = results.reduce((best, current) =>
-      current.score > best.score ? current : best,
-    );
-
-    return { label: top.label, score: top.score };
+    return classify(monoSamples);
   }
 
-  private async loadPipeline(): Promise<Pipeline> {
-    if (this.pipeline) return this.pipeline;
-    if (this.pipelinePromise) return this.pipelinePromise;
+  private async loadClassifier(): Promise<Classifier> {
+    if (this.classifier) return this.classifier;
+    if (this.classifierPromise) return this.classifierPromise;
 
-    this.pipelinePromise = this.initializePipeline();
-    this.pipeline = await this.pipelinePromise;
-    this.pipelinePromise = null;
-    return this.pipeline;
+    this.classifierPromise = this.initializeClassifier();
+    this.classifier = await this.classifierPromise;
+    this.classifierPromise = null;
+    return this.classifier;
   }
 
-  private async initializePipeline(): Promise<Pipeline> {
+  private async initializeClassifier(): Promise<Classifier> {
+    console.log('[classification] Loading model on main thread...');
     const { pipeline } = await import('@huggingface/transformers');
 
-    const classifier = await pipeline(
-      'zero-shot-audio-classification',
-      'Xenova/clap-large',
-      { device: 'wasm' },
+    const pipe = await pipeline(
+      'audio-classification',
+      'Xenova/ast-finetuned-audioset-10-10-0.4593',
+      { device: 'wasm', dtype: 'q4' },
     );
+    console.log('[classification] Model loaded on main thread');
 
-    return async (audio: Float32Array, labels: string[]) => {
-      const output = await classifier(audio, labels);
-
-      return output as Array<{ label: string; score: number }>;
+    return async (audio: Float32Array) => {
+      const output = (await pipe(audio, { top_k: 1 })) as Array<{
+        label: string;
+        score: number;
+      }>;
+      return output[0];
     };
   }
 

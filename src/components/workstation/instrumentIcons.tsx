@@ -1,5 +1,5 @@
 import Icon from '@ant-design/icons';
-import type { InstrumentLabel } from '../../services/InstrumentClassificationService';
+import type { InstrumentLabel } from '../../services/instrumentLabels';
 
 import BassSvg from '../../icons/bass.svg?react';
 import BrassSvg from '../../icons/brass.svg?react';

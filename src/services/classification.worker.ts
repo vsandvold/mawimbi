@@ -1,6 +1,10 @@
 // Classification worker — runs Transformers.js pipeline loading and
 // inference off the main thread to keep the UI responsive.
 //
+// Uses the AST (Audio Spectrogram Transformer) model for audio
+// classification into AudioSet labels. Label-to-instrument mapping
+// happens on the main thread (InstrumentClassificationService).
+//
 // Implements stale-while-revalidate model caching:
 // 1. If model files exist in Cache API, load from cache only (fast path)
 // 2. After cache hit, revalidate cached files in the background
@@ -11,22 +15,11 @@
 
 import { isModelCached, revalidateCache } from './ModelCache';
 
-const MODEL_ID = 'Xenova/clap-large';
-const TASK = 'zero-shot-audio-classification';
-const MODEL_SAMPLE_RATE = 48_000;
+const MODEL_ID = 'Xenova/ast-finetuned-audioset-10-10-0.4593';
+const TASK = 'audio-classification';
 
-const CANDIDATE_LABELS = [
-  'vocals',
-  'guitar',
-  'bass',
-  'drums',
-  'keyboard',
-  'strings',
-  'brass',
-  'woodwind',
-  'synth',
-  'percussion',
-] as const;
+// AST model expects 16 kHz mono audio
+const MODEL_SAMPLE_RATE = 16_000;
 
 export type ClassifyRequest = {
   id: number;
@@ -42,8 +35,7 @@ export type ClassifyResponse =
 
 type Classifier = (
   audio: Float32Array,
-  labels: string[],
-) => Promise<Array<{ label: string; score: number }>>;
+) => Promise<{ label: string; score: number }>;
 
 let classifier: Classifier | null = null;
 let pipelinePromise: Promise<Classifier> | null = null;
@@ -59,38 +51,58 @@ async function loadPipeline(): Promise<Classifier> {
 }
 
 async function initializePipeline(): Promise<Classifier> {
+  console.log('[classification:worker] Loading model pipeline...');
   const { pipeline, env } = await import('@huggingface/transformers');
   env.useBrowserCache = true;
 
   // Stale-while-revalidate: try cache-only first for fast startup
   const cached = await isModelCached(MODEL_ID);
   if (cached) {
+    console.log('[classification:worker] Model found in cache, loading...');
     try {
       env.allowRemoteModels = false;
-      const pipe = await pipeline(TASK, MODEL_ID, { device: 'wasm' });
+      const pipe = await pipeline(TASK, MODEL_ID, {
+        device: 'wasm',
+        dtype: 'q4',
+      });
 
       // Cache hit — revalidate in background for next session
       env.allowRemoteModels = true;
       revalidateCache(MODEL_ID);
 
+      console.log('[classification:worker] Model loaded from cache');
       return createClassifier(pipe);
     } catch {
       // Cache was stale or corrupt — fall through to network
+      console.warn(
+        '[classification:worker] Cache load failed, downloading from network...',
+      );
       env.allowRemoteModels = true;
     }
+  } else {
+    console.log(
+      '[classification:worker] No cached model, downloading from network...',
+    );
   }
 
   // Network path (first load or cache miss)
   env.allowRemoteModels = true;
-  const pipe = await pipeline(TASK, MODEL_ID, { device: 'wasm' });
+  const pipe = await pipeline(TASK, MODEL_ID, {
+    device: 'wasm',
+    dtype: 'q4',
+  });
+  console.log('[classification:worker] Model loaded from network');
   return createClassifier(pipe);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function createClassifier(pipe: any): Classifier {
-  return async (audio: Float32Array, labels: string[]) => {
-    const output = await pipe(audio, labels);
-    return output as Array<{ label: string; score: number }>;
+  return async (audio: Float32Array) => {
+    const output = (await pipe(audio, { top_k: 1 })) as Array<{
+      label: string;
+      score: number;
+    }>;
+    return output[0];
   };
 }
 
@@ -149,19 +161,15 @@ workerSelf.onmessage = async (event: MessageEvent<ClassifyRequest>) => {
   const { id, channelData, sampleRate, length } = event.data;
 
   try {
-    const pipe = await loadPipeline();
+    const classify = await loadPipeline();
     const monoSamples = downmixToMono(channelData, sampleRate, length);
-    const results = await pipe(monoSamples, [...CANDIDATE_LABELS]);
-
-    const top = results.reduce((best, current) =>
-      current.score > best.score ? current : best,
-    );
+    const result = await classify(monoSamples);
 
     const response: ClassifyResponse = {
       id,
       type: 'result',
-      label: top.label,
-      score: top.score,
+      label: result.label,
+      score: result.score,
     };
     workerSelf.postMessage(response);
   } catch (error) {

@@ -7,12 +7,7 @@ export default defineConfig({
     react(),
     svgr(),
   ],
-  server: {
-    headers: {
-      'Cross-Origin-Opener-Policy': 'same-origin',
-      'Cross-Origin-Embedder-Policy': 'require-corp',
-    },
-  },
+  server: {},
   worker: {
     format: 'es',
   },
