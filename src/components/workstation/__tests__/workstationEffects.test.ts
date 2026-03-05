@@ -179,14 +179,14 @@ describe('useClassificationErrors', () => {
   } as unknown as AudioBuffer;
 
   beforeEach(() => {
-    vi.spyOn(
-      classificationService as never,
-      'classifyInWorker' as never,
-    ).mockRejectedValue(new Error('worker failed'));
-    vi.spyOn(
-      classificationService as never,
-      'classifyOnMainThread' as never,
-    ).mockRejectedValue(new Error('main thread failed'));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const service = classificationService as any;
+    vi.spyOn(service, 'classifyInWorker').mockRejectedValue(
+      new Error('worker failed'),
+    );
+    vi.spyOn(service, 'classifyOnMainThread').mockRejectedValue(
+      new Error('main thread failed'),
+    );
   });
 
   it('shows error message when classification fails for a track', async () => {
