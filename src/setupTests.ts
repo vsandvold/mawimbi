@@ -146,5 +146,6 @@ vi.mock('react-router-dom', async () => {
     useLocation: () => ({
       pathname: 'path',
     }),
+    useParams: () => ({ id: 'test-project-id' }),
   };
 });

@@ -21,7 +21,7 @@ async function uploadAudioFile(
 
 test.describe('Audio file upload', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
   });
 
   test('uploads an audio file and displays a track in the timeline', async ({
@@ -61,7 +61,7 @@ test.describe('Audio file upload', () => {
 
 test.describe('Playback controls', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     await uploadAudioFile(page, SHORT_AUDIO);
     // Wait for track to appear
     await expect(page.locator('.timeline__track')).toBeVisible();
@@ -118,7 +118,7 @@ test.describe('Playback controls', () => {
     });
 
     // Re-navigate so the init script takes effect
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     await uploadAudioFile(page, SHORT_AUDIO);
     await expect(page.locator('.timeline__track')).toBeVisible();
 
@@ -170,7 +170,7 @@ test.describe('Playback controls', () => {
 
 test.describe('Mixer', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     await uploadAudioFile(page, SHORT_AUDIO);
     await expect(page.locator('.timeline__track')).toBeVisible();
   });
@@ -247,7 +247,7 @@ test.describe('Mixer', () => {
 
 test.describe('Spectrogram rendering', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
   });
 
   test('renders spectrogram canvas for uploaded track', async ({ page }) => {
@@ -290,7 +290,7 @@ test.describe('Spectrogram rendering', () => {
 
 test.describe('Scrubber', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     await uploadAudioFile(page, LONG_AUDIO);
     await expect(page.locator('.timeline__track')).toBeVisible();
   });
@@ -364,7 +364,7 @@ test.describe('Scrubber', () => {
 
 test.describe('Rewind control', () => {
   test('rewind button appears and resets playback', async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     await uploadAudioFile(page, LONG_AUDIO);
     await expect(page.locator('.timeline__track')).toBeVisible();
 
@@ -401,7 +401,7 @@ test.describe('Visual regression - audio states', () => {
   });
 
   test('timeline with single track', async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     await uploadAudioFile(page, SHORT_AUDIO);
 
     const timeline = page.locator('.timeline');
@@ -413,7 +413,7 @@ test.describe('Visual regression - audio states', () => {
   });
 
   test('timeline with two tracks', async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     await uploadAudioFile(page, SHORT_AUDIO);
     await uploadAudioFile(page, LONG_AUDIO);
 
@@ -427,7 +427,7 @@ test.describe('Visual regression - audio states', () => {
   });
 
   test('toolbar while playing', async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     await uploadAudioFile(page, SHORT_AUDIO);
     await expect(page.locator('.timeline__track')).toBeVisible();
 
@@ -442,7 +442,7 @@ test.describe('Visual regression - audio states', () => {
   });
 
   test('mixer open with one channel', async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     await uploadAudioFile(page, SHORT_AUDIO);
     await expect(page.locator('.timeline__track')).toBeVisible();
 
@@ -455,7 +455,7 @@ test.describe('Visual regression - audio states', () => {
   });
 
   test('mixer with muted channel', async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     await uploadAudioFile(page, SHORT_AUDIO);
     await expect(page.locator('.timeline__track')).toBeVisible();
 
@@ -471,7 +471,7 @@ test.describe('Visual regression - audio states', () => {
   });
 
   test('mixer with solo channel', async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     await uploadAudioFile(page, SHORT_AUDIO);
     await uploadAudioFile(page, LONG_AUDIO);
     await expect(page.locator('.timeline__track')).toHaveCount(2);
@@ -488,7 +488,7 @@ test.describe('Visual regression - audio states', () => {
   test('scrubber scrolled forward with rewind button visible', async ({
     page,
   }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     await uploadAudioFile(page, LONG_AUDIO);
     await expect(page.locator('.timeline__track')).toBeVisible();
 

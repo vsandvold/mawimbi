@@ -111,7 +111,7 @@ async function recordAudio(
 test.describe('Recording', () => {
   test.beforeEach(async ({ page }) => {
     await installAudioContextSpy(page);
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     await ensureAudioContextRunning(page);
   });
 
@@ -189,7 +189,7 @@ test.describe('Recording', () => {
 test.describe('Recording with existing tracks', () => {
   test.beforeEach(async ({ page }) => {
     await installAudioContextSpy(page);
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     await ensureAudioContextRunning(page);
 
     // Upload a backing track first

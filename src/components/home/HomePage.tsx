@@ -7,7 +7,8 @@ const HomePage = () => {
   const navigate = useNavigate();
 
   function handleClick() {
-    navigate('/project');
+    const id = crypto.randomUUID();
+    navigate(`/project/${id}`);
   }
 
   const { Title, Text } = Typography;

@@ -19,6 +19,8 @@ test.describe('Home page', () => {
     page,
   }) => {
     await page.getByRole('button', { name: 'Create Project' }).click();
-    await expect(page).toHaveURL('/project');
+    await expect(page).toHaveURL(
+      /\/project\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/
+    );
   });
 });

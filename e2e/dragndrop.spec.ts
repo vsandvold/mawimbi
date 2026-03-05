@@ -68,7 +68,7 @@ async function drop(
 
 test.describe('Drag and drop – overlay visibility', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
   });
 
   test('dropzone overlay is hidden before any drag', async ({ page }) => {
@@ -107,7 +107,7 @@ test.describe('Drag and drop – overlay visibility', () => {
 
 test.describe('Drag and drop – accept / reject states', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
   });
 
   test('shows accept styling and hint text for valid audio files', async ({
@@ -137,7 +137,7 @@ test.describe('Drag and drop – accept / reject states', () => {
 
 test.describe('Drag and drop – file upload', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
   });
 
   test('dropping an audio file creates a track in the timeline', async ({
@@ -200,7 +200,7 @@ test.describe('Visual regression – drag and drop states', () => {
   });
 
   test('dropzone overlay in accept state', async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     const dt = await createAudioDataTransfer(page, [SHORT_AUDIO]);
     await dragOver(page, dt);
 
@@ -211,7 +211,7 @@ test.describe('Visual regression – drag and drop states', () => {
   });
 
   test('dropzone overlay in reject state', async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     const dt = await createNonAudioDataTransfer(page);
     await dragOver(page, dt);
 

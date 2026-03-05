@@ -64,7 +64,7 @@ test.describe('Swipe to scrub timeline during playback', () => {
   test.use({ hasTouch: true });
 
   test.beforeEach(async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     await uploadAudioFile(page, LONG_AUDIO);
     await expect(page.locator('.timeline__track')).toBeVisible();
 

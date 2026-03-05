@@ -100,7 +100,7 @@ test.describe('Spectrogram canvas sticky positioning on mobile', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
   test.beforeEach(async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     await uploadAudioFile(page, LONG_AUDIO);
 
     const spectrogramCanvas = page.locator('.spectrogram__canvas');
@@ -149,7 +149,7 @@ test.describe('Spectrogram canvas sticky positioning on mobile', () => {
 
 test.describe('Spectrogram timeline visualization during scroll', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/project');
+    await page.goto('/project/test-id');
     await uploadAudioFile(page, LONG_AUDIO);
 
     const spectrogramCanvas = page.locator('.spectrogram__canvas');

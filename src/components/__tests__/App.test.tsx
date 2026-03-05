@@ -20,14 +20,24 @@ it('renders route to home page', () => {
   expect(getByTestId('home-page')).toBeInTheDocument();
 });
 
-it('renders route to project page', () => {
+it('renders route to project page with id param', () => {
   const { getByTestId } = render(
-    <MemoryRouter initialEntries={['/project']}>
+    <MemoryRouter initialEntries={['/project/abc-123']}>
       <App />
     </MemoryRouter>,
   );
 
   expect(getByTestId('project-page')).toBeInTheDocument();
+});
+
+it('renders unknown route for /project without id', () => {
+  const { queryByTestId } = render(
+    <MemoryRouter initialEntries={['/project']}>
+      <App />
+    </MemoryRouter>,
+  );
+
+  expect(queryByTestId('project-page')).not.toBeInTheDocument();
 });
 
 it('renders unknown route', () => {
