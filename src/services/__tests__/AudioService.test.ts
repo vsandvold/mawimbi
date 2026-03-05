@@ -49,6 +49,11 @@ describe('sub-services', () => {
     expect(audioService.trackService.mutedTracks).toEqual([]);
   });
 
+  it('creates an InstrumentClassificationService', () => {
+    expect(audioService.classificationService).toBeDefined();
+    expect(audioService.classificationService.classifications.size).toBe(0);
+  });
+
   it('creates a SpectrogramCache', () => {
     expect(audioService.spectrogramCache).toBeDefined();
   });

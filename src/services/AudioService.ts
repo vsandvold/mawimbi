@@ -9,6 +9,7 @@ import * as Tone from 'tone';
 import PlaybackService from './PlaybackService';
 import RecordingService from './RecordingService';
 import TrackService from './TrackService';
+import InstrumentClassificationService from './InstrumentClassificationService';
 import SpectrogramCache from './SpectrogramCache';
 import WorkletAnalyser from './WorkletAnalyser';
 
@@ -31,6 +32,7 @@ class AudioService {
   readonly playbackService: PlaybackService;
   readonly recordingService: RecordingService;
   readonly trackService: TrackService;
+  readonly classificationService: InstrumentClassificationService;
   readonly spectrogramCache: SpectrogramCache;
 
   private static instance: AudioService;
@@ -42,7 +44,15 @@ class AudioService {
     this.playbackService = new PlaybackService(transport);
     this.recordingService = new RecordingService(transport, context);
     this.trackService = new TrackService(context);
+    this.classificationService = new InstrumentClassificationService();
     this.spectrogramCache = new SpectrogramCache();
+
+    // Fire-and-forget classification when a track is created
+    this.trackService.setOnTrackCreated((trackId, audioBuffer) => {
+      this.classificationService.classify(trackId, audioBuffer).catch(() => {
+        // Classification failure is non-critical — silently ignored
+      });
+    });
 
     // Attempt to initialize the AudioWorklet-based recorder for
     // sample-accurate capture. Falls back to Tone.Recorder silently.

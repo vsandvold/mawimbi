@@ -42,6 +42,8 @@ type Context = {
   decodeAudioData: (arrayBuffer: ArrayBuffer) => Promise<AudioBuffer>;
 };
 
+type TrackCreatedCallback = (trackId: string, audioBuffer: AudioBuffer) => void;
+
 const DEFAULT_VOLUME = 100;
 
 class TrackService {
@@ -61,6 +63,7 @@ class TrackService {
   private audioSourceRepository: AudioSourceRepository;
   private signalStore = new Map<TrackId, TrackSignals>();
   private effectDisposers = new Map<TrackId, Array<() => void>>();
+  private onTrackCreated: TrackCreatedCallback | null = null;
 
   // Bumped on every store mutation so computed signals that depend on the
   // store's membership (e.g. mutedTracks) know to re-evaluate.
@@ -92,6 +95,12 @@ class TrackService {
     return this._mutedTracks.value;
   }
 
+  // --- Lifecycle hooks ---
+
+  setOnTrackCreated(callback: TrackCreatedCallback): void {
+    this.onTrackCreated = callback;
+  }
+
   // --- Track creation ---
 
   async createTrack(arrayBuffer: ArrayBuffer): Promise<TrackCreationResult> {
@@ -115,6 +124,7 @@ class TrackService {
     });
 
     this.createSignals(trackId, initialVolume);
+    this.onTrackCreated?.(trackId, audioBuffer);
 
     return { trackId, initialVolume };
   }
@@ -148,6 +158,7 @@ class TrackService {
     });
 
     this.createSignals(trackId, initialVolume);
+    this.onTrackCreated?.(trackId, audioBuffer);
 
     return { trackId, initialVolume };
   }
