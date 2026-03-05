@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useClassificationService } from '../../hooks/useClassificationService';
 import { usePlaybackService } from '../../hooks/usePlaybackService';
 import { useRecordingService } from '../../hooks/useRecordingService';
 import { useTrackService } from '../../hooks/useTrackService';
@@ -152,6 +153,23 @@ export const useTotalTime = (tracks: Track[]) => {
     playback.setTotalTime(trackHook.getTotalTime());
     // Hook objects reference stable service singletons via getters
   }, [tracks]); // eslint-disable-line react-hooks/exhaustive-deps
+};
+
+export const useClassificationErrors = (tracks: Track[]) => {
+  const classification = useClassificationService();
+  const reportedRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    const msg = message({ key: 'classification' });
+
+    for (const track of tracks) {
+      const state = classification.getClassificationState(track.trackId);
+      if (state === 'error' && !reportedRef.current.has(track.trackId)) {
+        reportedRef.current.add(track.trackId);
+        msg.error('Instrument detection failed');
+      }
+    }
+  });
 };
 
 export const useMicrophone = (isRecording: boolean) => {

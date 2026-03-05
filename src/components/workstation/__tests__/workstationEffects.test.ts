@@ -3,7 +3,9 @@ import { act, renderHook } from '@testing-library/react';
 import { vi } from 'vitest';
 import * as Tone from 'tone';
 import AudioService from '../../../services/AudioService';
+import { mockTrack } from '../../../testUtils';
 import {
+  useClassificationErrors,
   useSpacebarPlaybackToggle,
   useMicrophone,
 } from '../workstationEffects';
@@ -12,18 +14,26 @@ const audioService = AudioService.getInstance();
 const playbackService = audioService.playbackService;
 const recordingService = audioService.recordingService;
 const trackService = audioService.trackService;
+const classificationService = audioService.classificationService;
 
 const mockProjectDispatch = vi.fn();
 vi.mock('../../project/useProjectDispatch', () => ({
   default: () => mockProjectDispatch,
 }));
 
+const { mockError, mockSuccess, mockLoading, mockInfo } = vi.hoisted(() => ({
+  mockError: vi.fn(),
+  mockSuccess: vi.fn(),
+  mockLoading: vi.fn(),
+  mockInfo: vi.fn(),
+}));
+
 vi.mock('../../message', () => ({
   default: () => ({
-    success: vi.fn(),
-    error: vi.fn(),
-    loading: vi.fn(),
-    info: vi.fn(),
+    success: mockSuccess,
+    error: mockError,
+    loading: mockLoading,
+    info: mockInfo,
   }),
 }));
 
@@ -31,6 +41,7 @@ afterEach(() => {
   vi.restoreAllMocks();
   playbackService.reset();
   recordingService.reset();
+  classificationService.reset();
   Tone.getTransport().seconds = 0;
   vi.clearAllMocks();
 });
@@ -154,5 +165,73 @@ describe('useMicrophone', () => {
 
     expect(playbackService.isPlaying).toBe(false);
     expect(playbackService.transportTime).toBe(5.0);
+  });
+});
+
+describe('useClassificationErrors', () => {
+  const track1 = mockTrack({ trackId: 'track-1' });
+
+  const mockAudioBuffer = {
+    numberOfChannels: 1,
+    length: 100,
+    sampleRate: 44100,
+    getChannelData: () => new Float32Array(100),
+  } as unknown as AudioBuffer;
+
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const service = classificationService as any;
+    vi.spyOn(service, 'classifyInWorker').mockRejectedValue(
+      new Error('worker failed'),
+    );
+    vi.spyOn(service, 'classifyOnMainThread').mockRejectedValue(
+      new Error('main thread failed'),
+    );
+  });
+
+  it('shows error message when classification fails for a track', async () => {
+    const { rerender } = renderHook(
+      ({ tracks }) => useClassificationErrors(tracks),
+      { initialProps: { tracks: [track1] } },
+    );
+
+    // Let the classify promise settle (worker fails → main-thread fails → error state)
+    await act(async () => {
+      await classificationService
+        .classify('track-1', mockAudioBuffer)
+        .catch(() => {});
+    });
+
+    rerender({ tracks: [track1] });
+
+    expect(mockError).toHaveBeenCalledWith('Instrument detection failed');
+  });
+
+  it('does not show error message when classification succeeds', () => {
+    renderHook(({ tracks }) => useClassificationErrors(tracks), {
+      initialProps: { tracks: [track1] },
+    });
+
+    expect(mockError).not.toHaveBeenCalled();
+  });
+
+  it('does not show duplicate error messages for the same track', async () => {
+    const { rerender } = renderHook(
+      ({ tracks }) => useClassificationErrors(tracks),
+      { initialProps: { tracks: [track1] } },
+    );
+
+    await act(async () => {
+      await classificationService
+        .classify('track-1', mockAudioBuffer)
+        .catch(() => {});
+    });
+
+    rerender({ tracks: [track1] });
+
+    // Re-render again — should not show another error
+    rerender({ tracks: [track1] });
+
+    expect(mockError).toHaveBeenCalledTimes(1);
   });
 });
