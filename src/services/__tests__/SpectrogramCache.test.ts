@@ -268,6 +268,34 @@ describe('getEntry', () => {
   });
 });
 
+describe('restore', () => {
+  it('populates the cache from pre-computed SpectrogramData', async () => {
+    const { renderTiles: mockRenderTiles } = vi.mocked(
+      await import('../SpectrogramTileRenderer'),
+    );
+    const restoredTile = { close: vi.fn() } as unknown as ImageBitmap;
+    mockRenderTiles.mockReturnValue([restoredTile]);
+
+    cache.restore('track-1', MOCK_SPECTROGRAM_DATA, COLOR);
+
+    const entry = cache.getEntry('track-1');
+    expect(entry).toBeDefined();
+    expect(entry!.data).toBe(MOCK_SPECTROGRAM_DATA);
+    expect(entry!.tiles).toEqual([restoredTile]);
+  });
+
+  it('renders tiles from data without running analysis', async () => {
+    const { renderTiles: mockRenderTiles } = vi.mocked(
+      await import('../SpectrogramTileRenderer'),
+    );
+    mockRenderTiles.mockReturnValue([]);
+
+    cache.restore('track-1', MOCK_SPECTROGRAM_DATA, COLOR);
+
+    expect(mockRenderTiles).toHaveBeenCalledWith(MOCK_SPECTROGRAM_DATA, COLOR);
+  });
+});
+
 describe('invalidate', () => {
   it('removes the entry for the given track', async () => {
     const promise = cache.analyse('track-1', mockAudioBuffer(), COLOR);

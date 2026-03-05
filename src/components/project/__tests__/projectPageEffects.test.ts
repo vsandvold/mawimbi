@@ -5,8 +5,10 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 import {
   saveProject,
   saveAudioData,
+  saveSpectrogramData,
   loadProject,
   loadAudioData,
+  loadSpectrogramData,
   resetDB,
   type StoredProject,
 } from '../../../services/ProjectStorageService';
@@ -349,5 +351,29 @@ describe('useDeleteTrackAudio', () => {
 
     const audio2 = await loadAudioData('track-2');
     expect(audio2).not.toBeNull();
+  });
+
+  it('deletes spectrogram data when a track is removed', async () => {
+    await saveSpectrogramData({
+      trackId: 'track-1',
+      frequencyFrames: [new ArrayBuffer(4)],
+      timeResolution: 0.025,
+      frequencyBinCount: 2,
+      sampleRate: 44100,
+      duration: 0.05,
+    });
+
+    const initialTracks = [createTrack({ trackId: 'track-1' })];
+    const { rerender } = renderHook(
+      ({ tracks }) => useDeleteTrackAudio(tracks),
+      { initialProps: { tracks: initialTracks } },
+    );
+
+    rerender({ tracks: [] });
+
+    await waitFor(async () => {
+      const spectrogram = await loadSpectrogramData('track-1');
+      expect(spectrogram).toBeNull();
+    });
   });
 });

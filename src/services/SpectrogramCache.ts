@@ -40,6 +40,11 @@ class SpectrogramCache {
     this.entries.set(trackId, { data: result.data, tiles: result.tiles });
   }
 
+  restore(trackId: string, data: SpectrogramData, color: TrackColor): void {
+    const tiles = renderTiles(data, color);
+    this.entries.set(trackId, { data, tiles });
+  }
+
   getEntry(trackId: string): TrackSpectrogramEntry | undefined {
     return this.entries.get(trackId);
   }
