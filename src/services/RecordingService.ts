@@ -247,13 +247,11 @@ class RecordingService {
 
     if (this.workletRecorder && this.nativeAudioContext) {
       // Connect microphone to worklet via a native MediaStreamSourceNode.
-      // Tone.UserMedia exposes its MediaStream as _stream (private). We
-      // create a native source node on the native AudioContext and connect it
-      // to the native AudioWorkletNode, bypassing standardized-audio-context
-      // entirely for the recording path.
-      const stream = (
-        this.microphone.source as unknown as { _stream: MediaStream }
-      )._stream;
+      // MicrophoneService exposes the raw MediaStream acquired with
+      // low-latency constraints. We create a native source node on the
+      // native AudioContext and connect it to the native AudioWorkletNode,
+      // bypassing standardized-audio-context entirely for the recording path.
+      const stream = this.microphone.stream!;
       this.nativeSourceNode =
         this.nativeAudioContext.createMediaStreamSource(stream);
       this.nativeSourceNode.connect(this.workletRecorder.input);
