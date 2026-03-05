@@ -12,6 +12,7 @@
     "@dnd-kit/sortable": "^8.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@eslint/js": "^9.0.0",
+    "@huggingface/transformers": "^3.8.1",
     "@preact/signals-react": "^3.9.0",
     "@testing-library/jest-dom": "^6.4.6",
     "@testing-library/react": "^16.0.0",

@@ -13,6 +13,10 @@ export default defineConfig({
       'Cross-Origin-Embedder-Policy': 'require-corp',
     },
   },
+  optimizeDeps: {
+    exclude: ['@huggingface/transformers'],
+  },
+  assetsInclude: ['**/*.wasm', '**/*.onnx'],
   test: {
     globals: true,
     environment: 'jsdom',
