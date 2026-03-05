@@ -9,6 +9,18 @@ vi.mock('../home/HomePage', () => ({
 vi.mock('../project/ProjectPage', () => ({
   default: () => <div data-testid="project-page"></div>,
 }));
+vi.mock('../../hooks/useMessage', () => ({
+  default: () => () => ({
+    error: vi.fn(),
+    info: vi.fn(),
+    loading: vi.fn(),
+    success: vi.fn(),
+    warning: vi.fn(),
+  }),
+}));
+vi.mock('../../services/AudioService', () => ({
+  default: { startAudio: () => Promise.resolve() },
+}));
 
 it('renders route to home page', () => {
   const { getByTestId } = render(

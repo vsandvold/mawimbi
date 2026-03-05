@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useRef } from 'react';
+import useMessage from '../../hooks/useMessage';
 import { useTrackService } from '../../hooks/useTrackService';
 import {
   FullScreenHandle,
   useFullScreenHandle,
 } from '../fullscreen/Fullscreen';
-import message from '../message';
 import { type Track } from '../../types/track';
 import { ADD_TRACK, type ProjectAction } from './projectPageReducer';
 
 export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
   const trackHook = useTrackService();
+  const message = useMessage();
 
   const uploadFile = useCallback(
     (file: File) => {

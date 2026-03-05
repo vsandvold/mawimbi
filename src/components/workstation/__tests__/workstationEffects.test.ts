@@ -28,8 +28,8 @@ const { mockError, mockSuccess, mockLoading, mockInfo } = vi.hoisted(() => ({
   mockInfo: vi.fn(),
 }));
 
-vi.mock('../../message', () => ({
-  default: () => ({
+vi.mock('../../../hooks/useMessage', () => ({
+  default: () => () => ({
     success: mockSuccess,
     error: mockError,
     loading: mockLoading,

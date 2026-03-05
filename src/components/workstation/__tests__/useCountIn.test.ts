@@ -8,8 +8,8 @@ const audioService = AudioService.getInstance();
 const playbackService = audioService.playbackService;
 const recordingService = audioService.recordingService;
 
-vi.mock('../../message', () => ({
-  default: () => ({
+vi.mock('../../../hooks/useMessage', () => ({
+  default: () => () => ({
     success: vi.fn(),
     error: vi.fn(),
     loading: vi.fn(),
