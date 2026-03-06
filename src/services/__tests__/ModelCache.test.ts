@@ -1,14 +1,12 @@
 import { vi } from 'vitest';
-import { isModelCached, revalidateCache } from '../ModelCache';
+import { isModelCached, fetchModel } from '../ModelCache';
 
 const mockMatch = vi.fn();
 const mockPut = vi.fn();
-const mockKeys = vi.fn();
 
 const mockCache = {
   match: mockMatch,
   put: mockPut,
-  keys: mockKeys,
 };
 
 const mockCachesOpen = vi.fn().mockResolvedValue(mockCache);
@@ -21,7 +19,6 @@ const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
 beforeEach(() => {
-  mockKeys.mockReset();
   mockMatch.mockReset();
   mockPut.mockReset();
   mockCachesOpen.mockClear();
@@ -29,31 +26,18 @@ beforeEach(() => {
 });
 
 describe('isModelCached', () => {
-  it('returns true when cache contains entries for the model', async () => {
-    mockKeys.mockResolvedValue([
-      { url: 'https://huggingface.co/Xenova/clap-large/config.json' },
-      { url: 'https://huggingface.co/Xenova/clap-large/model.onnx' },
-    ]);
+  it('returns true when cache contains the URL', async () => {
+    mockMatch.mockResolvedValue(new Response('data'));
 
-    const result = await isModelCached('Xenova/clap-large');
+    const result = await isModelCached('https://example.com/model.onnx');
 
     expect(result).toBe(true);
   });
 
-  it('returns false when cache has no entries for the model', async () => {
-    mockKeys.mockResolvedValue([
-      { url: 'https://huggingface.co/other-model/config.json' },
-    ]);
+  it('returns false when cache does not contain the URL', async () => {
+    mockMatch.mockResolvedValue(undefined);
 
-    const result = await isModelCached('Xenova/clap-large');
-
-    expect(result).toBe(false);
-  });
-
-  it('returns false when cache is empty', async () => {
-    mockKeys.mockResolvedValue([]);
-
-    const result = await isModelCached('Xenova/clap-large');
+    const result = await isModelCached('https://example.com/model.onnx');
 
     expect(result).toBe(false);
   });
@@ -63,135 +47,128 @@ describe('isModelCached', () => {
     // @ts-expect-error — simulating missing API
     delete globalThis.caches;
 
-    const result = await isModelCached('Xenova/clap-large');
+    const result = await isModelCached('https://example.com/model.onnx');
 
     expect(result).toBe(false);
 
     globalThis.caches = originalCaches;
   });
 
-  it('returns false when cache.keys() throws', async () => {
-    mockKeys.mockRejectedValue(new Error('Storage error'));
+  it('returns false when cache.match() throws', async () => {
+    mockMatch.mockRejectedValue(new Error('Storage error'));
 
-    const result = await isModelCached('Xenova/clap-large');
+    const result = await isModelCached('https://example.com/model.onnx');
 
     expect(result).toBe(false);
   });
 
-  it('opens the transformers-cache cache store', async () => {
-    mockKeys.mockResolvedValue([]);
+  it('opens the essentia-models cache store', async () => {
+    mockMatch.mockResolvedValue(undefined);
 
-    await isModelCached('Xenova/clap-large');
+    await isModelCached('https://example.com/model.onnx');
 
-    expect(mockCachesOpen).toHaveBeenCalledWith('transformers-cache');
+    expect(mockCachesOpen).toHaveBeenCalledWith('essentia-models');
   });
 });
 
-describe('revalidateCache', () => {
-  it('fetches model files with conditional request headers', async () => {
-    const modelUrl =
-      'https://huggingface.co/Xenova/clap-large/resolve/main/config.json';
-    mockKeys.mockResolvedValue([{ url: modelUrl }]);
-    mockMatch.mockResolvedValue({
-      headers: new Headers({
-        etag: '"abc123"',
-        'last-modified': 'Wed, 01 Jan 2025 00:00:00 GMT',
-      }),
+describe('fetchModel', () => {
+  it('returns cached response immediately when available', async () => {
+    const data = new Uint8Array([1, 2, 3, 4]);
+    const cachedResponse = new Response(data, {
+      headers: { etag: '"abc"' },
     });
-    mockFetch.mockResolvedValue({ ok: true, status: 200 });
+    mockMatch.mockResolvedValue(cachedResponse);
 
-    await revalidateCache('Xenova/clap-large');
+    // Background revalidation will call fetch — let it succeed
+    mockFetch.mockResolvedValue({ ok: true, status: 304 });
 
-    expect(mockFetch).toHaveBeenCalledWith(modelUrl, {
-      headers: {
-        'If-None-Match': '"abc123"',
-        'If-Modified-Since': 'Wed, 01 Jan 2025 00:00:00 GMT',
-      },
-    });
+    const result = await fetchModel('https://example.com/model.onnx');
+
+    expect(result).toBeInstanceOf(ArrayBuffer);
   });
 
-  it('updates the cache when server returns 200', async () => {
-    const modelUrl =
-      'https://huggingface.co/Xenova/clap-large/resolve/main/config.json';
-    const request = { url: modelUrl };
-    mockKeys.mockResolvedValue([request]);
-    mockMatch.mockResolvedValue({
-      headers: new Headers({ etag: '"abc123"' }),
+  it('fetches from network on cache miss and stores result', async () => {
+    mockMatch.mockResolvedValue(undefined);
+
+    const responseData = new Uint8Array([1, 2, 3, 4]);
+    const response = new Response(responseData, {
+      status: 200,
+      statusText: 'OK',
     });
-    const freshResponse = { ok: true, status: 200 };
-    mockFetch.mockResolvedValue(freshResponse);
+    vi.spyOn(response, 'clone').mockReturnValue(new Response(responseData));
+    mockFetch.mockResolvedValue(response);
 
-    await revalidateCache('Xenova/clap-large');
+    const result = await fetchModel('https://example.com/model.onnx');
 
-    expect(mockPut).toHaveBeenCalledWith(request, freshResponse);
+    expect(result).toBeInstanceOf(ArrayBuffer);
+    expect(mockPut).toHaveBeenCalledWith(
+      'https://example.com/model.onnx',
+      expect.any(Response),
+    );
   });
 
-  it('does not update cache when server returns 304', async () => {
-    const modelUrl =
-      'https://huggingface.co/Xenova/clap-large/resolve/main/config.json';
-    mockKeys.mockResolvedValue([{ url: modelUrl }]);
-    mockMatch.mockResolvedValue({
-      headers: new Headers({ etag: '"abc123"' }),
+  it('throws when fetch returns non-ok response', async () => {
+    mockMatch.mockResolvedValue(undefined);
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 404,
+      body: null,
     });
-    mockFetch.mockResolvedValue({ ok: false, status: 304 });
 
-    await revalidateCache('Xenova/clap-large');
-
-    expect(mockPut).not.toHaveBeenCalled();
+    await expect(fetchModel('https://example.com/model.onnx')).rejects.toThrow(
+      'Failed to fetch',
+    );
   });
 
-  it('only revalidates files matching the model ID', async () => {
-    const modelUrl =
-      'https://huggingface.co/Xenova/clap-large/resolve/main/config.json';
-    const otherUrl =
-      'https://huggingface.co/other-model/resolve/main/config.json';
-    mockKeys.mockResolvedValue([{ url: modelUrl }, { url: otherUrl }]);
-    mockMatch.mockResolvedValue({
-      headers: new Headers({}),
-    });
-    mockFetch.mockResolvedValue({ ok: true, status: 200 });
-
-    await revalidateCache('Xenova/clap-large');
-
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-    expect(mockFetch).toHaveBeenCalledWith(modelUrl, expect.any(Object));
-  });
-
-  it('does not throw when fetch fails', async () => {
-    mockKeys.mockResolvedValue([
-      {
-        url: 'https://huggingface.co/Xenova/clap-large/resolve/main/config.json',
-      },
-    ]);
-    mockMatch.mockResolvedValue({
-      headers: new Headers({}),
-    });
-    mockFetch.mockRejectedValue(new Error('Network error'));
-
-    await expect(revalidateCache('Xenova/clap-large')).resolves.not.toThrow();
-  });
-
-  it('does not throw when caches API is unavailable', async () => {
+  it('falls back to plain fetch when caches API is unavailable', async () => {
     const originalCaches = globalThis.caches;
     // @ts-expect-error — simulating missing API
     delete globalThis.caches;
 
-    await expect(revalidateCache('Xenova/clap-large')).resolves.not.toThrow();
+    const responseData = new Uint8Array([1, 2, 3]);
+    mockFetch.mockResolvedValue(new Response(responseData, { status: 200 }));
+
+    const result = await fetchModel('https://example.com/model.onnx');
+
+    expect(result).toBeInstanceOf(ArrayBuffer);
+    expect(mockFetch).toHaveBeenCalledWith('https://example.com/model.onnx');
 
     globalThis.caches = originalCaches;
   });
 
-  it('sends no conditional headers when cached response has none', async () => {
-    const modelUrl =
-      'https://huggingface.co/Xenova/clap-large/resolve/main/config.json';
-    mockKeys.mockResolvedValue([{ url: modelUrl }]);
-    mockMatch.mockResolvedValue({
-      headers: new Headers({}),
-    });
-    mockFetch.mockResolvedValue({ ok: true, status: 200 });
+  it('calls onProgress during network download', async () => {
+    mockMatch.mockResolvedValue(undefined);
 
-    await revalidateCache('Xenova/clap-large');
+    const chunk1 = new Uint8Array([1, 2, 3]);
+    const chunk2 = new Uint8Array([4, 5]);
 
-    expect(mockFetch).toHaveBeenCalledWith(modelUrl, { headers: {} });
+    let readCount = 0;
+    const mockReader = {
+      read: vi.fn().mockImplementation(async () => {
+        readCount++;
+        if (readCount === 1) return { done: false, value: chunk1 };
+        if (readCount === 2) return { done: false, value: chunk2 };
+        return { done: true, value: undefined };
+      }),
+    };
+
+    const response = {
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers({ 'content-length': '5' }),
+      body: { getReader: () => mockReader },
+      clone: vi.fn(),
+    };
+    mockFetch.mockResolvedValue(response);
+
+    // Mock cache.put to accept the reconstructed response
+    mockPut.mockResolvedValue(undefined);
+
+    const onProgress = vi.fn();
+    await fetchModel('https://example.com/model.onnx', onProgress);
+
+    expect(onProgress).toHaveBeenCalledWith(3, 5);
+    expect(onProgress).toHaveBeenCalledWith(5, 5);
   });
 });

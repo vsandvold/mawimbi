@@ -1,28 +1,25 @@
 // InstrumentClassificationService — owns instrument classification state.
 //
 // Delegates inference to a Web Worker to keep the main thread responsive.
-// The worker handles pipeline loading (with stale-while-revalidate model
-// caching via the Cache API) and audio preprocessing. If the worker fails,
-// the service falls back to main-thread inference.
+// The worker handles model loading (with stale-while-revalidate caching
+// via the Cache API) and audio preprocessing. If the worker fails, the
+// service falls back to main-thread inference.
 //
-// Uses the CLAP (Contrastive Language-Audio Pretraining) model for
-// zero-shot audio classification. Candidate labels match the app's
-// instrument categories directly — no AudioSet label mapping needed.
+// Uses Essentia.js WASM for mel spectrogram extraction and ONNX Runtime
+// for Discogs-EffNet embedding + MTG-Jamendo instrument classification.
 //
 // Signal ownership and per-track caching remain on the main thread.
 
 import { signal, type ReadonlySignal } from '@preact/signals-react';
 import type { TrackId } from '../types/track';
+import type { WorkerMessage, ClassifyResponse } from './classification.worker';
 import {
-  type WorkerMessage,
-  type ClassifyResponse,
-} from './classification.worker';
-import { extractLoudestSegment } from './audioSegment';
-import {
-  CANDIDATE_LABELS,
+  JAMENDO_CLASSES,
   mapToInstrumentLabel,
   type InstrumentLabel,
 } from './instrumentLabels';
+import { computeMelSpectrogram } from './melSpectrogram';
+import { fetchModel } from './ModelCache';
 
 export type ClassificationState = 'idle' | 'classifying' | 'done' | 'error';
 
@@ -38,8 +35,17 @@ type ClassificationEntry = {
 
 export type { InstrumentLabel };
 
-// CLAP model expects 48 kHz mono audio
-const MODEL_SAMPLE_RATE = 48_000;
+// EffNet expects 16 kHz mono audio
+const MODEL_SAMPLE_RATE = 16_000;
+
+const EFFNET_URL =
+  'https://essentia.upf.edu/models/feature-extractors/discogs-effnet/discogs-effnet-bsdynamic-1.onnx';
+const INSTRUMENT_HEAD_URL =
+  'https://essentia.upf.edu/models/classification-heads/mtg_jamendo_instrument/mtg_jamendo_instrument-discogs-effnet-1.onnx';
+
+// EffNet input dimensions
+const PATCH_FRAMES = 128;
+const MEL_BANDS = 96;
 
 type Classifier = (
   audio: Float32Array,
@@ -257,8 +263,7 @@ class InstrumentClassificationService {
   ): Promise<{ label: string; score: number }> {
     const classify = await this.loadClassifier();
     const monoSamples = downmixToMono(audioBuffer, MODEL_SAMPLE_RATE);
-    const segment = extractLoudestSegment(monoSamples, MODEL_SAMPLE_RATE);
-    return classify(segment);
+    return classify(monoSamples);
   }
 
   private async loadClassifier(): Promise<Classifier> {
@@ -272,22 +277,83 @@ class InstrumentClassificationService {
   }
 
   private async initializeClassifier(): Promise<Classifier> {
-    console.log('[classification] Loading model on main thread...');
-    const { pipeline } = await import('@huggingface/transformers');
+    console.log('[classification] Loading ONNX models on main thread...');
+    const ort = await import('onnxruntime-web');
+    ort.env.wasm.numThreads = 1;
 
-    const pipe = await pipeline(
-      'zero-shot-audio-classification',
-      'Xenova/larger_clap_music_and_speech',
-      { device: 'wasm', dtype: 'q8' },
-    );
-    console.log('[classification] Model loaded on main thread');
+    const [effnetBuffer, instrumentBuffer] = await Promise.all([
+      fetchModel(EFFNET_URL),
+      fetchModel(INSTRUMENT_HEAD_URL),
+    ]);
 
-    return async (audio: Float32Array) => {
-      const output = (await pipe(audio, CANDIDATE_LABELS)) as Array<{
-        label: string;
-        score: number;
-      }>;
-      return output[0];
+    const [effnetSession, instrumentSession] = await Promise.all([
+      ort.InferenceSession.create(effnetBuffer),
+      ort.InferenceSession.create(instrumentBuffer),
+    ]);
+
+    console.log('[classification] Models loaded on main thread');
+
+    return async (monoAudio: Float32Array) => {
+      const patches = await computeMelSpectrogram(monoAudio);
+      if (patches.length === 0) {
+        throw new Error('Audio too short to produce mel spectrogram patches');
+      }
+
+      // Run EffNet on all patches
+      const batchSize = patches.length;
+      const inputData = new Float32Array(batchSize * PATCH_FRAMES * MEL_BANDS);
+      for (let i = 0; i < batchSize; i++) {
+        inputData.set(patches[i], i * PATCH_FRAMES * MEL_BANDS);
+      }
+
+      const effnetInput = new ort.Tensor('float32', inputData, [
+        batchSize,
+        PATCH_FRAMES,
+        MEL_BANDS,
+      ]);
+      const effnetOutput = await effnetSession.run({
+        model_input: effnetInput,
+      });
+      const embeddings = Object.values(effnetOutput)[0] as {
+        data: Float32Array;
+        dims: readonly number[];
+      };
+
+      // Average embeddings across patches
+      const embeddingDim = embeddings.dims[1];
+      const avgEmbedding = new Float32Array(embeddingDim);
+      for (let p = 0; p < batchSize; p++) {
+        for (let d = 0; d < embeddingDim; d++) {
+          avgEmbedding[d] += embeddings.data[p * embeddingDim + d] / batchSize;
+        }
+      }
+
+      // Run instrument classification head
+      const instrumentInput = new ort.Tensor('float32', avgEmbedding, [
+        1,
+        embeddingDim,
+      ]);
+      const instrumentOutput = await instrumentSession.run({
+        model_input: instrumentInput,
+      });
+      const predictions = Object.values(instrumentOutput)[0] as {
+        data: Float32Array;
+      };
+
+      // Find top prediction
+      let bestIndex = 0;
+      let bestScore = -1;
+      for (let i = 0; i < predictions.data.length; i++) {
+        if (predictions.data[i] > bestScore) {
+          bestScore = predictions.data[i];
+          bestIndex = i;
+        }
+      }
+
+      return {
+        label: JAMENDO_CLASSES[bestIndex],
+        score: bestScore,
+      };
     };
   }
 

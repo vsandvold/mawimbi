@@ -1,27 +1,28 @@
-// Classification worker — runs Transformers.js pipeline loading and
-// inference off the main thread to keep the UI responsive.
+// Classification worker — runs Essentia.js mel spectrogram extraction and
+// ONNX Runtime inference off the main thread to keep the UI responsive.
 //
-// Uses the CLAP (Contrastive Language-Audio Pretraining) model for
-// zero-shot audio classification. Candidate labels matching the app's
-// instrument categories are passed directly — no AudioSet mapping needed.
+// Pipeline: mono 16 kHz audio → mel spectrogram (essentia.js WASM)
+//   → Discogs-EffNet embeddings (ONNX) → MTG-Jamendo instrument head (ONNX)
+//   → top instrument prediction
 //
-// Implements stale-while-revalidate model caching:
-// 1. If model files exist in Cache API, load from cache only (fast path)
-// 2. After cache hit, revalidate cached files in the background
-// 3. On cache miss, download from network (slow first load)
-//
-// Audio preprocessing (downmix + resample) also runs here to avoid
-// blocking the main thread with CPU-intensive sample manipulation.
+// Model files are cached via the Cache API with stale-while-revalidate.
+// Download progress is reported back to the main thread.
 
-import { extractLoudestSegment } from './audioSegment';
-import { CANDIDATE_LABELS } from './instrumentLabels';
-import { isModelCached, revalidateCache } from './ModelCache';
+import { computeMelSpectrogram } from './melSpectrogram';
+import { JAMENDO_CLASSES } from './instrumentLabels';
+import { fetchModel, isModelCached } from './ModelCache';
 
-const MODEL_ID = 'Xenova/larger_clap_music_and_speech';
-const TASK = 'zero-shot-audio-classification';
+const EFFNET_URL =
+  'https://essentia.upf.edu/models/feature-extractors/discogs-effnet/discogs-effnet-bsdynamic-1.onnx';
+const INSTRUMENT_HEAD_URL =
+  'https://essentia.upf.edu/models/classification-heads/mtg_jamendo_instrument/mtg_jamendo_instrument-discogs-effnet-1.onnx';
 
-// CLAP model expects 48 kHz mono audio
-const MODEL_SAMPLE_RATE = 48_000;
+// EffNet expects 16 kHz mono audio
+const MODEL_SAMPLE_RATE = 16_000;
+
+// EffNet input: [batch, 128 frames, 96 mel bands]
+const PATCH_FRAMES = 128;
+const MEL_BANDS = 96;
 
 export type ClassifyRequest = {
   id: number;
@@ -42,43 +43,43 @@ export type DownloadProgressMessage = {
 
 export type WorkerMessage = ClassifyResponse | DownloadProgressMessage;
 
-type Classifier = (
-  audio: Float32Array,
-) => Promise<{ label: string; score: number }>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type OnnxSession = any;
 
-let classifier: Classifier | null = null;
-let pipelinePromise: Promise<Classifier> | null = null;
+type InferenceContext = {
+  effnetSession: OnnxSession;
+  instrumentSession: OnnxSession;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ort: any;
+};
 
-async function loadPipeline(): Promise<Classifier> {
-  if (classifier) return classifier;
-  if (pipelinePromise) return pipelinePromise;
+let context: InferenceContext | null = null;
+let contextPromise: Promise<InferenceContext> | null = null;
 
-  pipelinePromise = initializePipeline();
-  classifier = await pipelinePromise;
-  pipelinePromise = null;
-  return classifier;
+async function loadContext(): Promise<InferenceContext> {
+  if (context) return context;
+  if (contextPromise) return contextPromise;
+
+  contextPromise = initializeContext();
+  context = await contextPromise;
+  contextPromise = null;
+  return context;
 }
 
 // --- Download progress tracking ---
 
-// Tracks per-file download progress to compute an overall percentage.
-// Each file reports its own 0–100 progress; the overall progress is the
-// average across all files currently being downloaded.
-const fileProgress = new Map<string, number>();
+// Tracks per-model download progress to compute an overall percentage.
+// Each model reports bytes loaded vs total; the overall progress is the
+// average percentage across both models.
+const modelProgress = new Map<string, number>();
 
-function handleProgress(event: {
-  status: string;
-  file?: string;
-  progress?: number;
-}): void {
-  if (event.status !== 'progress' || !event.file || event.progress == null)
-    return;
+function reportProgress(url: string, loaded: number, total: number): void {
+  const percentage = Math.round((loaded / total) * 100);
+  modelProgress.set(url, percentage);
 
-  fileProgress.set(event.file, event.progress);
-
-  let total = 0;
-  for (const p of fileProgress.values()) total += p;
-  const overall = Math.round(total / fileProgress.size);
+  let sum = 0;
+  for (const p of modelProgress.values()) sum += p;
+  const overall = Math.round(sum / modelProgress.size);
 
   workerSelf.postMessage({
     type: 'download-progress',
@@ -86,60 +87,116 @@ function handleProgress(event: {
   } satisfies DownloadProgressMessage);
 }
 
-async function initializePipeline(): Promise<Classifier> {
-  console.log('[classification:worker] Loading model pipeline...');
-  const { pipeline, env } = await import('@huggingface/transformers');
-  env.useBrowserCache = true;
+async function initializeContext(): Promise<InferenceContext> {
+  console.log('[classification:worker] Loading ONNX models...');
+  const ort = await import('onnxruntime-web');
 
-  // Stale-while-revalidate: try cache-only first for fast startup
-  const cached = await isModelCached(MODEL_ID);
-  if (cached) {
-    console.log('[classification:worker] Model found in cache, loading...');
-    try {
-      env.allowRemoteModels = false;
-      const pipe = await pipeline(TASK, MODEL_ID, {
-        device: 'wasm',
-        dtype: 'q8',
-      });
+  // Disable multithreading to avoid SharedArrayBuffer requirement
+  ort.env.wasm.numThreads = 1;
 
-      // Cache hit — revalidate in background for next session
-      env.allowRemoteModels = true;
-      revalidateCache(MODEL_ID);
+  const [effnetCached, instrumentCached] = await Promise.all([
+    isModelCached(EFFNET_URL),
+    isModelCached(INSTRUMENT_HEAD_URL),
+  ]);
+  const allCached = effnetCached && instrumentCached;
 
-      console.log('[classification:worker] Model loaded from cache');
-      return createClassifier(pipe);
-    } catch {
-      // Cache was stale or corrupt — fall through to network
-      console.warn(
-        '[classification:worker] Cache load failed, downloading from network...',
-      );
-      env.allowRemoteModels = true;
-    }
+  if (allCached) {
+    console.log('[classification:worker] Models found in cache, loading...');
   } else {
-    console.log(
-      '[classification:worker] No cached model, downloading from network...',
-    );
+    console.log('[classification:worker] Downloading models from network...');
   }
 
-  // Network path (first load or cache miss)
-  env.allowRemoteModels = true;
-  const pipe = await pipeline(TASK, MODEL_ID, {
-    device: 'wasm',
-    dtype: 'q8',
-    progress_callback: handleProgress,
-  });
-  console.log('[classification:worker] Model loaded from network');
-  return createClassifier(pipe);
+  const onEffnetProgress = allCached
+    ? undefined
+    : (loaded: number, total: number) =>
+        reportProgress(EFFNET_URL, loaded, total);
+  const onInstrumentProgress = allCached
+    ? undefined
+    : (loaded: number, total: number) =>
+        reportProgress(INSTRUMENT_HEAD_URL, loaded, total);
+
+  const [effnetBuffer, instrumentBuffer] = await Promise.all([
+    fetchModel(EFFNET_URL, onEffnetProgress),
+    fetchModel(INSTRUMENT_HEAD_URL, onInstrumentProgress),
+  ]);
+
+  const [effnetSession, instrumentSession] = await Promise.all([
+    ort.InferenceSession.create(effnetBuffer),
+    ort.InferenceSession.create(instrumentBuffer),
+  ]);
+
+  console.log('[classification:worker] Models loaded');
+  return { effnetSession, instrumentSession, ort };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function createClassifier(pipe: any): Classifier {
-  return async (audio: Float32Array) => {
-    const output = (await pipe(audio, CANDIDATE_LABELS)) as Array<{
-      label: string;
-      score: number;
-    }>;
-    return output[0];
+// --- Inference ---
+
+async function classify(
+  ctx: InferenceContext,
+  monoAudio: Float32Array,
+): Promise<{ label: string; score: number }> {
+  const { effnetSession, instrumentSession, ort } = ctx;
+
+  // Compute mel spectrogram patches
+  const patches = await computeMelSpectrogram(monoAudio);
+  if (patches.length === 0) {
+    throw new Error('Audio too short to produce mel spectrogram patches');
+  }
+
+  // Run EffNet on each patch to get 1280-dim embeddings
+  const batchSize = patches.length;
+  const inputData = new Float32Array(batchSize * PATCH_FRAMES * MEL_BANDS);
+  for (let i = 0; i < batchSize; i++) {
+    inputData.set(patches[i], i * PATCH_FRAMES * MEL_BANDS);
+  }
+
+  const effnetInput = new ort.Tensor('float32', inputData, [
+    batchSize,
+    PATCH_FRAMES,
+    MEL_BANDS,
+  ]);
+  const effnetOutput = await effnetSession.run({
+    model_input: effnetInput,
+  });
+  const embeddings = Object.values(effnetOutput)[0] as {
+    data: Float32Array;
+    dims: number[];
+  };
+
+  // Average embeddings across patches → [1, 1280]
+  const embeddingDim = embeddings.dims[1];
+  const avgEmbedding = new Float32Array(embeddingDim);
+  for (let p = 0; p < batchSize; p++) {
+    for (let d = 0; d < embeddingDim; d++) {
+      avgEmbedding[d] += embeddings.data[p * embeddingDim + d] / batchSize;
+    }
+  }
+
+  // Run instrument classification head → 40 sigmoid predictions
+  const instrumentInput = new ort.Tensor('float32', avgEmbedding, [
+    1,
+    embeddingDim,
+  ]);
+  const instrumentOutput = await instrumentSession.run({
+    model_input: instrumentInput,
+  });
+  const predictions = Object.values(instrumentOutput)[0] as {
+    data: Float32Array;
+  };
+
+  // Find top prediction
+  let bestIndex = 0;
+  let bestScore = -1;
+  for (let i = 0; i < predictions.data.length; i++) {
+    if (predictions.data[i] > bestScore) {
+      bestScore = predictions.data[i];
+      bestIndex = i;
+    }
+  }
+
+  return {
+    label: JAMENDO_CLASSES[bestIndex],
+    score: bestScore,
   };
 }
 
@@ -198,10 +255,9 @@ workerSelf.onmessage = async (event: MessageEvent<ClassifyRequest>) => {
   const { id, channelData, sampleRate, length } = event.data;
 
   try {
-    const classify = await loadPipeline();
+    const ctx = await loadContext();
     const monoSamples = downmixToMono(channelData, sampleRate, length);
-    const segment = extractLoudestSegment(monoSamples, MODEL_SAMPLE_RATE);
-    const result = await classify(segment);
+    const result = await classify(ctx, monoSamples);
 
     const response: ClassifyResponse = {
       id,

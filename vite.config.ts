@@ -12,7 +12,7 @@ export default defineConfig({
     format: 'es',
   },
   optimizeDeps: {
-    exclude: ['@huggingface/transformers'],
+    exclude: ['onnxruntime-web'],
   },
   assetsInclude: ['**/*.wasm', '**/*.onnx'],
   test: {
