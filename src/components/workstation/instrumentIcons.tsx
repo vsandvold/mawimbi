@@ -24,15 +24,14 @@ const INSTRUMENT_ICONS: Record<InstrumentLabel, React.ComponentType> = {
   woodwind: WoodwindSvg,
   synth: SynthSvg,
   percussion: PercussionSvg,
+  unknown: UnknownSvg,
 };
-
-const FALLBACK_ICON = UnknownSvg;
 
 export function getInstrumentIcon(label: string | undefined): React.ReactNode {
   const SvgComponent =
     label && label in INSTRUMENT_ICONS
       ? INSTRUMENT_ICONS[label as InstrumentLabel]
-      : FALLBACK_ICON;
+      : INSTRUMENT_ICONS.unknown;
 
   return <Icon component={SvgComponent} />;
 }

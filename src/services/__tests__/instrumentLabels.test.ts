@@ -35,7 +35,7 @@ describe('mapToInstrumentLabel', () => {
     expect(mapToInstrumentLabel(candidateLabel)).toBe(expected);
   });
 
-  it('falls back to percussion for unrecognised labels', () => {
-    expect(mapToInstrumentLabel('unknown label')).toBe('percussion');
+  it('falls back to unknown for unrecognised labels', () => {
+    expect(mapToInstrumentLabel('unknown label')).toBe('unknown');
   });
 });

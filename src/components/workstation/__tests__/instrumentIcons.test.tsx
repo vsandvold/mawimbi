@@ -14,6 +14,7 @@ const ALL_LABELS: InstrumentLabel[] = [
   'woodwind',
   'synth',
   'percussion',
+  'unknown',
 ];
 
 it.each(ALL_LABELS)('returns an icon for "%s"', (label) => {
