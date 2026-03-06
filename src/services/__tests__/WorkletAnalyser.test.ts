@@ -292,6 +292,104 @@ describe('WorkletAnalyser', () => {
     });
   });
 
+  describe('CQT analysis', () => {
+    it('has default cqtBinCount of 0', () => {
+      const analyser = new WorkletAnalyser(createMockAudioContext());
+      expect(analyser.cqtBinCount).toBe(0);
+    });
+
+    describe('enableCQTAnalysis', () => {
+      it('sends CQT kernel data to processor', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        void analyser.input;
+
+        analyser.enableCQTAnalysis(44100);
+
+        // Should have sent a configure message with cqtAnalysis: true and kernel data
+        const calls = mockPort.postMessage.mock.calls;
+        const cqtCall = calls.find(
+          (c: unknown[]) =>
+            (c[0] as { cqtAnalysis?: boolean }).cqtAnalysis === true,
+        );
+        expect(cqtCall).toBeDefined();
+        expect(
+          (cqtCall![0] as { cqtKernel: { numberBins: number } }).cqtKernel
+            .numberBins,
+        ).toBeGreaterThan(0);
+      });
+
+      it('sets cqtBinCount', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        void analyser.input;
+
+        analyser.enableCQTAnalysis(44100);
+
+        expect(analyser.cqtBinCount).toBeGreaterThan(0);
+      });
+    });
+
+    describe('disableCQTAnalysis', () => {
+      it('sends disable command to processor', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        void analyser.input;
+        analyser.enableCQTAnalysis(44100);
+        mockPort.postMessage.mockClear();
+
+        analyser.disableCQTAnalysis();
+
+        expect(mockPort.postMessage).toHaveBeenCalledWith({
+          type: 'configure',
+          cqtAnalysis: false,
+        });
+      });
+
+      it('resets cqtBinCount to 0', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        void analyser.input;
+        analyser.enableCQTAnalysis(44100);
+
+        analyser.disableCQTAnalysis();
+
+        expect(analyser.cqtBinCount).toBe(0);
+      });
+    });
+
+    describe('getCQTData', () => {
+      it('returns false when CQT analysis is not enabled', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        const output = new Uint8Array(200);
+
+        expect(analyser.getCQTData(output)).toBe(false);
+      });
+
+      it('returns true after enabling and receiving data', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        void analyser.input;
+        analyser.enableCQTAnalysis(44100);
+
+        const bins = new Uint8Array(analyser.cqtBinCount);
+        bins[0] = 200;
+        bins[1] = 150;
+        mockPort._simulateMessage({ type: 'cqtData', bins });
+
+        const output = new Uint8Array(analyser.cqtBinCount);
+        expect(analyser.getCQTData(output)).toBe(true);
+        expect(output[0]).toBe(200);
+        expect(output[1]).toBe(150);
+      });
+
+      it('returns false after disabling CQT analysis', () => {
+        const analyser = new WorkletAnalyser(createMockAudioContext());
+        void analyser.input;
+        analyser.enableCQTAnalysis(44100);
+        analyser.disableCQTAnalysis();
+
+        const output = new Uint8Array(200);
+        expect(analyser.getCQTData(output)).toBe(false);
+      });
+    });
+  });
+
   describe('dispose', () => {
     it('disconnects the node', () => {
       const analyser = new WorkletAnalyser(createMockAudioContext());
@@ -324,6 +422,18 @@ describe('WorkletAnalyser', () => {
 
       const output = new Uint8Array(1024);
       expect(analyser.getByteFrequencyData(output)).toBe(false);
+    });
+
+    it('clears CQT data', () => {
+      const analyser = new WorkletAnalyser(createMockAudioContext());
+      void analyser.input;
+      analyser.enableCQTAnalysis(44100);
+
+      analyser.dispose();
+
+      const output = new Uint8Array(200);
+      expect(analyser.getCQTData(output)).toBe(false);
+      expect(analyser.cqtBinCount).toBe(0);
     });
   });
 });

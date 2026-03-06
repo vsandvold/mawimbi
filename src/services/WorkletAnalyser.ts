@@ -6,14 +6,23 @@
 // AnalyserNode's main-thread contention during complex playback with
 // many tracks.
 //
-// Optionally provides frequency-domain analysis (FFT on the audio
-// thread), replacing AnalyserNode.getByteFrequencyData(). Enable with
-// enableFrequencyAnalysis() after initialization.
+// Provides two optional frequency-domain analysis modes:
+//
+// 1. **FFT mode** — Cooley-Tukey radix-2 FFT on the audio thread.
+//    Enable with enableFrequencyAnalysis(). Returns linear-frequency bins.
+//
+// 2. **CQT mode** — Constant-Q Transform on the audio thread using
+//    pre-computed kernels. Enable with enableCQTAnalysis(). Returns
+//    log-frequency bins identical to the offline CQT spectrogram.
 
 import {
   type AnalysisCommand,
   type AnalysisMessage,
 } from './AnalysisProcessor';
+import LiveCQTAnalyser, {
+  type SerializedCQTKernel,
+  getTransferables,
+} from './LiveCQTAnalyser';
 
 const PROCESSOR_NAME = 'analysis-processor';
 const DEFAULT_SMOOTHING = 0.8;
@@ -29,11 +38,15 @@ class WorkletAnalyser {
   private smoothing: number;
   private initialized = false;
 
-  // Frequency analysis state
+  // FFT frequency analysis state
   private _fftSize: number;
   private _minDecibels: number;
   private _maxDecibels: number;
   private currentBins: Uint8Array | null = null;
+
+  // CQT analysis state
+  private _cqtBinCount = 0;
+  private currentCQTBins: Uint8Array | null = null;
 
   constructor(audioContext: AudioContext, smoothing = DEFAULT_SMOOTHING) {
     this.audioContext = audioContext;
@@ -100,6 +113,16 @@ class WorkletAnalyser {
   }
 
   /**
+   * Number of CQT bins. Only meaningful after enableCQTAnalysis()
+   * has been called.
+   */
+  get cqtBinCount(): number {
+    return this._cqtBinCount;
+  }
+
+  // --- FFT frequency analysis ---
+
+  /**
    * Enables frequency-domain analysis on the audio thread.
    *
    * Must be called after `initialize()` and after accessing `.input`
@@ -153,11 +176,56 @@ class WorkletAnalyser {
     return true;
   }
 
+  // --- CQT analysis ---
+
+  /**
+   * Enables CQT analysis on the audio thread.
+   *
+   * Computes the CQT kernel for the given sample rate and transfers
+   * it to the AudioWorklet processor. The processor runs the CQT at
+   * the hop interval (25ms) and posts back CQT frames.
+   */
+  enableCQTAnalysis(sampleRate: number): void {
+    const liveCQT = new LiveCQTAnalyser(sampleRate);
+    const serialized = liveCQT.getSerializedKernel();
+    this._cqtBinCount = serialized.numberBins;
+    this.currentCQTBins = new Uint8Array(serialized.numberBins);
+
+    this.sendCQTConfig(serialized);
+  }
+
+  /**
+   * Disables CQT analysis on the audio thread.
+   */
+  disableCQTAnalysis(): void {
+    this.currentCQTBins = null;
+    this._cqtBinCount = 0;
+
+    if (this.node) {
+      this.node.port.postMessage({
+        type: 'configure',
+        cqtAnalysis: false,
+      } satisfies AnalysisCommand);
+    }
+  }
+
+  /**
+   * Copies the latest CQT data into the provided output array.
+   * Returns false if CQT analysis is not enabled or no data available.
+   */
+  getCQTData(output: Uint8Array): boolean {
+    if (!this.currentCQTBins) return false;
+    output.set(this.currentCQTBins.subarray(0, output.length));
+    return true;
+  }
+
   dispose(): void {
     this.node?.disconnect();
     this.node = null;
     this.currentRms = 0;
     this.currentBins = null;
+    this.currentCQTBins = null;
+    this._cqtBinCount = 0;
   }
 
   private sendFrequencyConfig(): void {
@@ -172,6 +240,27 @@ class WorkletAnalyser {
     } satisfies AnalysisCommand);
   }
 
+  private sendCQTConfig(serialized: SerializedCQTKernel): void {
+    if (!this.node) return;
+
+    const transferables = getTransferables(serialized);
+
+    this.node.port.postMessage(
+      {
+        type: 'configure',
+        cqtAnalysis: true,
+        cqtKernel: {
+          cosBuffer: serialized.cosBuffer,
+          sinBuffer: serialized.sinBuffer,
+          binLengths: serialized.binLengths,
+          numberBins: serialized.numberBins,
+          hopSize: serialized.hopSize,
+        },
+      } satisfies AnalysisCommand,
+      transferables,
+    );
+  }
+
   private setupMessageHandler(node: AudioWorkletNode): void {
     node.port.onmessage = (event: MessageEvent<AnalysisMessage>) => {
       if (event.data.type === 'loudness') {
@@ -179,6 +268,10 @@ class WorkletAnalyser {
       } else if (event.data.type === 'frequencyData' && this.currentBins) {
         this.currentBins.set(
           event.data.bins.subarray(0, this.currentBins.length),
+        );
+      } else if (event.data.type === 'cqtData' && this.currentCQTBins) {
+        this.currentCQTBins.set(
+          event.data.bins.subarray(0, this.currentCQTBins.length),
         );
       }
     };

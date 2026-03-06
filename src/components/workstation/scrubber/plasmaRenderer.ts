@@ -287,9 +287,13 @@ export function pruneEtchMarks(state: PlasmaState, now: number): void {
 // --- Rendering helpers ---
 
 /**
- * Convert visualization data (pre-mapped Uint8Array 0–255) into per-row
+ * Convert CQT visualization data (Uint8Array 0–255) into per-row
  * intensity values (0–1) for the canvas height. Low-frequency bins map
  * to bottom rows, high-frequency bins to top rows.
+ *
+ * CQT bins are already log-spaced (24 bins/octave from 32.7 Hz to
+ * Nyquist), matching the offline spectrogram exactly. No alignment
+ * offset or frequency remapping is needed.
  */
 export function getFrequencyIntensities(
   visualizationData: Uint8Array | null,

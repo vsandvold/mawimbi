@@ -352,4 +352,31 @@ describe('getFrequencyIntensities', () => {
       expect(val).toBeCloseTo(0, 1);
     }
   });
+
+  it('maps all CQT bins to the full canvas height', () => {
+    // CQT bins are already log-spaced — all bins map directly
+    const bins = 200;
+    const data = new Uint8Array(bins).fill(255);
+
+    const result = getFrequencyIntensities(data, 100);
+
+    // All canvas rows should be at max intensity
+    for (const val of result) {
+      expect(val).toBeCloseTo(1.0, 1);
+    }
+  });
+
+  it('maps low-frequency CQT bins to bottom canvas rows', () => {
+    // Only first bin has energy — should appear at the bottom row
+    const bins = 100;
+    const data = new Uint8Array(bins).fill(0);
+    data[0] = 255;
+
+    const result = getFrequencyIntensities(data, 100);
+
+    // Bottom row (last index) should be non-zero
+    expect(result[99]).toBeCloseTo(1.0, 1);
+    // Top row (first index) should be zero
+    expect(result[0]).toBeCloseTo(0, 1);
+  });
 });

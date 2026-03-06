@@ -1,13 +1,5 @@
 import { vi } from 'vitest';
-import {
-  BAND_CONFIGS,
-  calculateMultiBandMergeParams,
-} from '../dualBandAnalysis';
-import { createLogFrequencyMapping } from '../logFrequencyMapping';
 import { analyseCQT, computeNumberBins, HOP_SECONDS } from '../CQTAnalyser';
-
-const LOG_MAPPING_BIN_COUNT = 512;
-const BAND_COUNT = BAND_CONFIGS.length;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -15,87 +7,6 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
-});
-
-describe('createLogFrequencyMapping', () => {
-  it('produces a mapping array with length equal to frequencyBinCount', () => {
-    const mapping = createLogFrequencyMapping(LOG_MAPPING_BIN_COUNT);
-
-    expect(mapping.length).toBe(LOG_MAPPING_BIN_COUNT);
-  });
-
-  it('produces mapping entries that are arrays of at least one index', () => {
-    const mapping = createLogFrequencyMapping(LOG_MAPPING_BIN_COUNT);
-
-    for (const entry of mapping) {
-      expect(Array.isArray(entry)).toBe(true);
-      expect(entry.length).toBeGreaterThanOrEqual(1);
-    }
-  });
-
-  it('has higher bins mapping to more entries than lower bins', () => {
-    const mapping = createLogFrequencyMapping(LOG_MAPPING_BIN_COUNT);
-
-    const lastBinPoolSize = mapping[mapping.length - 1].length;
-    const firstBinPoolSize = mapping[0].length;
-
-    expect(lastBinPoolSize).toBeGreaterThanOrEqual(firstBinPoolSize);
-  });
-
-  it('produces consistent results for the same input', () => {
-    const mapping1 = createLogFrequencyMapping(512);
-    const mapping2 = createLogFrequencyMapping(512);
-
-    expect(mapping1).toEqual(mapping2);
-  });
-
-  it('handles small bin counts', () => {
-    const mapping = createLogFrequencyMapping(4);
-
-    expect(mapping.length).toBe(4);
-    for (const entry of mapping) {
-      expect(entry.length).toBeGreaterThanOrEqual(1);
-    }
-  });
-});
-
-describe('calculateMultiBandMergeParams', () => {
-  it('returns correct merge parameters for 44100 Hz', () => {
-    const params = calculateMultiBandMergeParams(44100);
-
-    expect(params.bands.length).toBe(BAND_COUNT);
-
-    // Band 0: SR=5120, FFT=2048
-    expect(params.bands[0].binWidth).toBe(2.5);
-    expect(params.bands[0].startBin).toBe(0);
-    expect(params.bands[0].endBin).toBe(128); // ceil(320/2.5)
-
-    // Band 1: SR=5120, FFT=512
-    expect(params.bands[1].binWidth).toBe(10);
-    expect(params.bands[1].startBin).toBe(32); // ceil(320/10)
-    expect(params.bands[1].endBin).toBe(128); // ceil(1280/10)
-
-    // Band 3: SR=44100, FFT=1024 (native)
-    expect(params.bands[3].sampleRate).toBe(44100);
-    expect(params.bands[3].binWidth).toBeCloseTo(43.066, 2);
-
-    // Total merged bins should be positive and reasonable
-    expect(params.mergedBinCount).toBeGreaterThan(0);
-    expect(params.mergedBinCount).toBeLessThan(2000);
-  });
-
-  it('returns correct merge parameters for 48000 Hz', () => {
-    const params = calculateMultiBandMergeParams(48000);
-
-    expect(params.bands.length).toBe(BAND_COUNT);
-
-    // Band 0 stays the same (SR=5120 is independent of native rate)
-    expect(params.bands[0].binWidth).toBe(2.5);
-
-    // Band 3 uses native rate
-    expect(params.bands[3].sampleRate).toBe(48000);
-    expect(params.bands[3].binWidth).toBeCloseTo(46.875, 2);
-  });
 });
 
 describe('analyseCQT (worker path)', () => {
