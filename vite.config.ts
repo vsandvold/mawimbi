@@ -7,7 +7,14 @@ export default defineConfig({
     react(),
     svgr(),
   ],
-  server: {},
+  server: {
+    proxy: {
+      '/models': {
+        target: 'https://essentia.upf.edu',
+        changeOrigin: true,
+      },
+    },
+  },
   worker: {
     format: 'es',
   },

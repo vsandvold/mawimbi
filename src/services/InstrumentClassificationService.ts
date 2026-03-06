@@ -38,10 +38,12 @@ export type { InstrumentLabel };
 // EffNet expects 16 kHz mono audio
 const MODEL_SAMPLE_RATE = 16_000;
 
+// Same-origin paths proxied to essentia.upf.edu (Vite proxy in dev,
+// Netlify redirect in production) to avoid CORS restrictions.
 const EFFNET_URL =
-  'https://essentia.upf.edu/models/feature-extractors/discogs-effnet/discogs-effnet-bsdynamic-1.onnx';
+  '/models/feature-extractors/discogs-effnet/discogs-effnet-bsdynamic-1.onnx';
 const INSTRUMENT_HEAD_URL =
-  'https://essentia.upf.edu/models/classification-heads/mtg_jamendo_instrument/mtg_jamendo_instrument-discogs-effnet-1.onnx';
+  '/models/classification-heads/mtg_jamendo_instrument/mtg_jamendo_instrument-discogs-effnet-1.onnx';
 
 // EffNet input dimensions
 const PATCH_FRAMES = 128;
