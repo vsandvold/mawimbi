@@ -201,10 +201,8 @@ describe('useClassificationMessages', () => {
     rerender({ tracks: [track1] });
 
     expect(mockMessage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'error',
-        msg: 'Instrument detection failed',
-      }),
+      'Instrument detection failed',
+      expect.objectContaining({ type: 'error' }),
     );
   });
 
@@ -214,6 +212,7 @@ describe('useClassificationMessages', () => {
     });
 
     expect(mockMessage).not.toHaveBeenCalledWith(
+      expect.any(String),
       expect.objectContaining({ type: 'error' }),
     );
   });
@@ -236,7 +235,7 @@ describe('useClassificationMessages', () => {
     rerender({ tracks: [track1] });
 
     const errorCalls = mockMessage.mock.calls.filter(
-      ([opts]: [{ type: string }]) => opts.type === 'error',
+      (call) => call[1]?.type === 'error',
     );
     expect(errorCalls).toHaveLength(1);
   });

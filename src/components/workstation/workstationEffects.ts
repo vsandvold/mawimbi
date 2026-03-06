@@ -58,9 +58,8 @@ export const useCountIn = (
       try {
         await recording.prepareMicrophone();
       } catch {
-        message({
+        message('Microphone access failed', {
           type: 'error',
-          msg: 'Microphone access failed',
           key: 'microphone',
         });
         return;
@@ -173,24 +172,21 @@ export const useClassificationMessages = (tracks: Track[]) => {
 
       if (state === 'classifying') {
         reportedRef.current.add(trackKey);
-        message({
+        message('Detecting instrument…', {
           type: 'loading',
-          msg: 'Detecting instrument…',
           key: 'classification',
         });
       } else if (state === 'done') {
         reportedRef.current.add(trackKey);
         const label = classification.getClassification(track.trackId)?.label;
-        message({
+        message(`Detected instrument: ${label}`, {
           type: 'success',
-          msg: `Detected instrument: ${label}`,
           key: 'classification',
         });
       } else if (state === 'error') {
         reportedRef.current.add(trackKey);
-        message({
+        message('Instrument detection failed', {
           type: 'error',
-          msg: 'Instrument detection failed',
           key: 'classification',
         });
       }
@@ -214,13 +210,12 @@ export const useMicrophone = (isRecording: boolean) => {
         // this is the first play() call.  When lead-in was available,
         // play() was already called and this is a no-op.
         playback.play();
-        message({
+        message('Recording started', {
           type: 'success',
-          msg: 'Recording started',
           key: 'microphone',
         });
       } catch {
-        message({ type: 'error', msg: 'Recording failed', key: 'microphone' });
+        message('Recording failed', { type: 'error', key: 'microphone' });
       }
     };
 
@@ -246,15 +241,14 @@ export const useMicrophone = (isRecording: boolean) => {
         // play to hear the recording in context (standard DAW behavior).
         playback.pause();
         playback.setTransportTime(playback.getEngineTime());
-        message({
+        message('Recording stopped', {
           type: 'success',
-          msg: 'Recording stopped',
           key: 'microphone',
         });
       } catch {
         recording.stopRecording();
         playback.pause();
-        message({ type: 'error', msg: 'Recording failed', key: 'microphone' });
+        message('Recording failed', { type: 'error', key: 'microphone' });
       }
     };
 

@@ -35,7 +35,7 @@ afterEach(() => {
 it('calls antd message with type, content, and key', () => {
   const { result } = renderHook(() => useMessage());
 
-  result.current({ type: 'success', msg: 'it works!', key: 'messageKey' });
+  result.current('it works!', { type: 'success', key: 'messageKey' });
 
   expect(mockSuccess).toHaveBeenCalledWith({
     content: 'it works!',
@@ -46,10 +46,10 @@ it('calls antd message with type, content, and key', () => {
 it('supports all message types', () => {
   const { result } = renderHook(() => useMessage());
 
-  result.current({ type: 'error', msg: 'fail' });
-  result.current({ type: 'info', msg: 'note' });
-  result.current({ type: 'loading', msg: 'wait' });
-  result.current({ type: 'warning', msg: 'warn' });
+  result.current('fail', { type: 'error' });
+  result.current('note', { type: 'info' });
+  result.current('wait', { type: 'loading' });
+  result.current('warn', { type: 'warning' });
 
   expect(mockError).toHaveBeenCalledWith({ content: 'fail', key: undefined });
   expect(mockInfo).toHaveBeenCalledWith({ content: 'note', key: undefined });

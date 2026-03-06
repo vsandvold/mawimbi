@@ -5,7 +5,6 @@ type MessageType = 'error' | 'info' | 'loading' | 'success' | 'warning';
 
 type MessageOptions = {
   type: MessageType;
-  msg: string;
   key?: string;
 };
 
@@ -13,7 +12,7 @@ const useMessage = () => {
   const { message: antdMessage } = App.useApp();
 
   return useCallback(
-    ({ type, msg, key }: MessageOptions) => {
+    (msg: string, { type, key }: MessageOptions) => {
       antdMessage[type]({ content: msg, key });
     },
     [antdMessage],
