@@ -159,12 +159,11 @@ test.describe('Playback controls', () => {
     const playhead = page.locator('.plasma-playhead');
     await expect(playhead).toBeVisible();
 
-    const reveal = page.locator('.scrubber__reveal');
     await page.getByTitle('Play').click();
-    await expect(reveal).toHaveClass(/scrubber__reveal--active/);
+    await expect(page.getByTitle('Pause')).toBeVisible();
 
     await page.getByTitle('Pause').click();
-    await expect(reveal).not.toHaveClass(/scrubber__reveal--active/);
+    await expect(page.getByTitle('Play')).toBeVisible();
   });
 });
 
