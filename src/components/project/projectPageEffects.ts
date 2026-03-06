@@ -14,7 +14,7 @@ import {
   FullScreenHandle,
   useFullScreenHandle,
 } from '../fullscreen/Fullscreen';
-import message from '../message';
+import useMessage from '../message';
 import { type Track } from '../../types/track';
 import {
   ADD_TRACK,
@@ -25,6 +25,7 @@ import { createInitialState } from './useProjectReducer';
 
 export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
   const trackHook = useTrackService();
+  const message = useMessage();
 
   const uploadFile = useCallback(
     (file: File) => {

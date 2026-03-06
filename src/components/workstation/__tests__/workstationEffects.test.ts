@@ -33,7 +33,7 @@ const { mockError, mockSuccess, mockLoading, mockInfo } = vi.hoisted(() => ({
 }));
 
 vi.mock('../../message', () => ({
-  default: () => ({
+  default: () => () => ({
     success: mockSuccess,
     error: mockError,
     loading: mockLoading,

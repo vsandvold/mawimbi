@@ -6,7 +6,7 @@ import { useTrackService } from '../../hooks/useTrackService';
 import { useContainerHeight } from '../../hooks/useContainerHeight';
 import useKeypress from '../../hooks/useKeypress';
 import { saveAudioData } from '../../services/ProjectStorageService';
-import message from '../message';
+import useMessage from '../message';
 import { type Track } from '../../types/track';
 import { ADD_TRACK } from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
@@ -40,6 +40,7 @@ export const useCountIn = (
 ): number | null => {
   const playback = usePlaybackService();
   const recording = useRecordingService();
+  const message = useMessage();
   const [currentBeat, setCurrentBeat] = useState<number | null>(null);
   const completedRef = useRef(false);
 
@@ -158,6 +159,7 @@ export const useTotalTime = (tracks: Track[]) => {
 
 export const useClassificationMessages = (tracks: Track[]) => {
   const classification = useClassificationService();
+  const message = useMessage();
   const reportedRef = useRef(new Set<string>());
 
   useEffect(() => {
@@ -189,6 +191,7 @@ export const useMicrophone = (isRecording: boolean) => {
   const recording = useRecordingService();
   const trackHook = useTrackService();
   const projectDispatch = useProjectDispatch();
+  const message = useMessage();
   useEffect(() => {
     const msg = message({ key: 'microphone' });
 
