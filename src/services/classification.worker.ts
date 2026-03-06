@@ -17,7 +17,7 @@ import { extractLoudestSegment } from './audioSegment';
 import { CANDIDATE_LABELS } from './instrumentLabels';
 import { isModelCached, revalidateCache } from './ModelCache';
 
-const MODEL_ID = 'Xenova/clap-htsat-unfused';
+const MODEL_ID = 'Xenova/larger_clap_music_and_speech';
 const TASK = 'zero-shot-audio-classification';
 
 // CLAP model expects 48 kHz mono audio
