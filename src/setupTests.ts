@@ -91,6 +91,7 @@ vi.mock('tone', () => {
           minDecibels: -100,
           maxDecibels: -30,
           getByteFrequencyData: vi.fn(),
+          getFloatTimeDomainData: vi.fn(),
           connect: vi.fn(),
           disconnect: vi.fn(),
         };
