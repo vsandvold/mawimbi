@@ -17,6 +17,7 @@ import {
   type WorkerMessage,
   type ClassifyResponse,
 } from './classification.worker';
+import { extractLoudestSegment } from './audioSegment';
 import {
   CANDIDATE_LABELS,
   mapToInstrumentLabel,
@@ -256,7 +257,8 @@ class InstrumentClassificationService {
   ): Promise<{ label: string; score: number }> {
     const classify = await this.loadClassifier();
     const monoSamples = downmixToMono(audioBuffer, MODEL_SAMPLE_RATE);
-    return classify(monoSamples);
+    const segment = extractLoudestSegment(monoSamples, MODEL_SAMPLE_RATE);
+    return classify(segment);
   }
 
   private async loadClassifier(): Promise<Classifier> {
