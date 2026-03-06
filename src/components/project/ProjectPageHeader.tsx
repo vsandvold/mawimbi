@@ -26,23 +26,11 @@ type ProjectPageHeaderProps = {
 const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState(props.title);
-  const [wasFullscreen, setWasFullscreen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const openRenameModal = () => {
     setNewTitle(props.title);
-    if (props.isFullscreen) {
-      props.toggleFullscreen(false);
-      setWasFullscreen(true);
-    }
     setIsRenameModalOpen(true);
-  };
-
-  const closeRenameModal = () => {
-    setIsRenameModalOpen(false);
-    if (wasFullscreen) {
-      props.toggleFullscreen(true);
-      setWasFullscreen(false);
-    }
   };
 
   const handleRename = () => {
@@ -50,15 +38,15 @@ const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
     if (trimmed) {
       props.renameProject(trimmed);
     }
-    closeRenameModal();
+    setIsRenameModalOpen(false);
   };
 
   const handleCancel = () => {
-    closeRenameModal();
+    setIsRenameModalOpen(false);
   };
 
   return (
-    <div className="project-page-header">
+    <div className="project-page-header" ref={containerRef}>
       <Link to="/" className="back-link" aria-label="Back">
         <Button
           type="link"
@@ -80,6 +68,7 @@ const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
         onOk={handleRename}
         onCancel={handleCancel}
         okText="Update"
+        getContainer={() => containerRef.current!}
       >
         <Input
           value={newTitle}
@@ -109,6 +98,7 @@ const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
         <OverflowMenu
           isFullscreen={props.isFullscreen}
           toggleFullscreen={props.toggleFullscreen}
+          getPopupContainer={() => containerRef.current!}
         />
       </div>
     </div>
@@ -145,11 +135,11 @@ const UploadButton = (props: UploadButtonProps) => {
 type OverflowMenuProps = {
   isFullscreen: boolean;
   toggleFullscreen: (state?: boolean) => void;
+  getPopupContainer: () => HTMLElement;
 };
 
 const OverflowMenu = (props: OverflowMenuProps) => {
-  const { isFullscreen, toggleFullscreen } = props;
-  const containerRef = useRef<HTMLDivElement>(null);
+  const { isFullscreen, toggleFullscreen, getPopupContainer } = props;
 
   const items: MenuProps['items'] = [
     {
@@ -160,21 +150,19 @@ const OverflowMenu = (props: OverflowMenuProps) => {
   ];
 
   return (
-    <div ref={containerRef}>
-      <Dropdown
-        menu={{ items }}
-        trigger={['click']}
-        getPopupContainer={() => containerRef.current!}
-      >
-        <Button
-          type="link"
-          className="button overflow-button"
-          icon={<EllipsisOutlined />}
-          aria-label="More"
-          onClick={(e) => e.stopPropagation()}
-        />
-      </Dropdown>
-    </div>
+    <Dropdown
+      menu={{ items }}
+      trigger={['click']}
+      getPopupContainer={getPopupContainer}
+    >
+      <Button
+        type="link"
+        className="button overflow-button"
+        icon={<EllipsisOutlined />}
+        aria-label="More"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </Dropdown>
   );
 };
 
