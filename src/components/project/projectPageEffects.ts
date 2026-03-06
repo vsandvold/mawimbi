@@ -37,7 +37,7 @@ export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
       reader.onload = () => {
         const arrayBuffer = reader.result as ArrayBuffer;
         trackHook
-          .createTrack(arrayBuffer)
+          .createTrack(arrayBuffer, fileName)
           .then(({ trackId }) => {
             saveAudioData(trackId, arrayBuffer);
             dispatch([ADD_TRACK, { trackId, fileName }]);

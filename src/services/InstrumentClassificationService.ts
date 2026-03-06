@@ -19,6 +19,7 @@ import {
 } from './classification.worker';
 import {
   CANDIDATE_LABELS,
+  classifyFromFilename,
   mapToInstrumentLabel,
   type InstrumentLabel,
 } from './instrumentLabels';
@@ -109,11 +110,28 @@ class InstrumentClassificationService {
 
   // --- Classification ---
 
-  async classify(trackId: TrackId, audioBuffer: AudioBuffer): Promise<string> {
+  async classify(
+    trackId: TrackId,
+    audioBuffer: AudioBuffer,
+    fileName?: string,
+  ): Promise<string> {
     if (this.cache.has(trackId)) {
       const cached = this.cache.get(trackId)!;
       if (cached.state === 'done' && cached.result) {
         return cached.result.label;
+      }
+    }
+
+    // Try filename-based classification first — instant and avoids model download
+    if (fileName) {
+      const filenameLabel = classifyFromFilename(fileName);
+      if (filenameLabel) {
+        const result: ClassificationResult = { label: filenameLabel, score: 1 };
+        this.setEntry(trackId, { state: 'done', result });
+        console.log(
+          `[classification] Track ${trackId} classified as "${filenameLabel}" from filename "${fileName}"`,
+        );
+        return filenameLabel;
       }
     }
 

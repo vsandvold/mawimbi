@@ -42,7 +42,11 @@ type Context = {
   decodeAudioData: (arrayBuffer: ArrayBuffer) => Promise<AudioBuffer>;
 };
 
-type TrackCreatedCallback = (trackId: string, audioBuffer: AudioBuffer) => void;
+type TrackCreatedCallback = (
+  trackId: string,
+  audioBuffer: AudioBuffer,
+  fileName?: string,
+) => void;
 
 const DEFAULT_VOLUME = 100;
 
@@ -103,7 +107,10 @@ class TrackService {
 
   // --- Track creation ---
 
-  async createTrack(arrayBuffer: ArrayBuffer): Promise<TrackCreationResult> {
+  async createTrack(
+    arrayBuffer: ArrayBuffer,
+    fileName?: string,
+  ): Promise<TrackCreationResult> {
     const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
     const trackId = uuidv4();
     const blob = new Blob([arrayBuffer], { type: 'audio/*' });
@@ -124,7 +131,7 @@ class TrackService {
     });
 
     this.createSignals(trackId, initialVolume);
-    this.onTrackCreated?.(trackId, audioBuffer);
+    this.onTrackCreated?.(trackId, audioBuffer, fileName);
 
     return { trackId, initialVolume };
   }

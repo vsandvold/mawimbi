@@ -34,7 +34,11 @@ describe('TrackService track creation callback', () => {
     const { trackId } = await service.createTrack(new ArrayBuffer(16));
 
     expect(callback).toHaveBeenCalledOnce();
-    expect(callback).toHaveBeenCalledWith(trackId, expect.any(Object));
+    expect(callback).toHaveBeenCalledWith(
+      trackId,
+      expect.any(Object),
+      undefined,
+    );
   });
 
   it('calls onTrackCreated after createRecordedTrack', () => {
@@ -56,6 +60,32 @@ describe('TrackService track creation callback', () => {
     await expect(
       service.createTrack(new ArrayBuffer(16)),
     ).resolves.toBeDefined();
+  });
+
+  it('passes the filename to the callback when provided', async () => {
+    const callback = vi.fn();
+    service.setOnTrackCreated(callback);
+
+    await service.createTrack(new ArrayBuffer(16), 'guitar_solo.wav');
+
+    expect(callback).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(Object),
+      'guitar_solo.wav',
+    );
+  });
+
+  it('passes undefined filename to the callback when not provided', async () => {
+    const callback = vi.fn();
+    service.setOnTrackCreated(callback);
+
+    await service.createTrack(new ArrayBuffer(16));
+
+    expect(callback).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.any(Object),
+      undefined,
+    );
   });
 
   it('passes the decoded audio buffer to the callback', async () => {

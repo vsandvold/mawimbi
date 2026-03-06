@@ -456,6 +456,51 @@ describe('InstrumentClassificationService', () => {
     });
   });
 
+  describe('filename-based classification', () => {
+    it('classifies from filename without running inference', async () => {
+      const buffer = createAudioBuffer();
+      const label = await service.classify(
+        'track-1',
+        buffer,
+        'guitar_solo.wav',
+      );
+
+      expect(label).toBe('guitar');
+      expect(mockWorker.postMessage).not.toHaveBeenCalled();
+    });
+
+    it('stores the filename-based result in classifications', async () => {
+      const buffer = createAudioBuffer();
+      await service.classify('track-1', buffer, 'drums_main.wav');
+
+      const result = service.getClassification('track-1');
+      expect(result).toEqual({ label: 'drums', score: 1 });
+      expect(service.getClassificationState('track-1')).toBe('done');
+    });
+
+    it('falls back to model inference when filename has no instrument keyword', async () => {
+      const buffer = createAudioBuffer();
+      const promise = service.classify('track-1', buffer, 'track_01.wav');
+
+      simulateWorkerResult('bass guitar', 0.75);
+      const label = await promise;
+
+      expect(label).toBe('bass');
+      expect(mockWorker.postMessage).toHaveBeenCalled();
+    });
+
+    it('falls back to model inference when no filename is provided', async () => {
+      const buffer = createAudioBuffer();
+      const promise = service.classify('track-1', buffer);
+
+      simulateWorkerResult('electric guitar', 0.85);
+      const label = await promise;
+
+      expect(label).toBe('guitar');
+      expect(mockWorker.postMessage).toHaveBeenCalled();
+    });
+  });
+
   describe('reset', () => {
     it('clears all classifications', async () => {
       const buffer = createAudioBuffer();

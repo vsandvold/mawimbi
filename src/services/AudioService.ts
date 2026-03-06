@@ -48,10 +48,12 @@ class AudioService {
     this.spectrogramCache = new SpectrogramCache();
 
     // Fire-and-forget classification when a track is created
-    this.trackService.setOnTrackCreated((trackId, audioBuffer) => {
-      this.classificationService.classify(trackId, audioBuffer).catch(() => {
-        // Classification failure is non-critical — silently ignored
-      });
+    this.trackService.setOnTrackCreated((trackId, audioBuffer, fileName) => {
+      this.classificationService
+        .classify(trackId, audioBuffer, fileName)
+        .catch(() => {
+          // Classification failure is non-critical — silently ignored
+        });
     });
 
     // Attempt to initialize the AudioWorklet-based recorder for

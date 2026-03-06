@@ -34,7 +34,8 @@ export function useTrackService() {
 
     // --- Track creation ---
 
-    createTrack: (arrayBuffer: ArrayBuffer) => service.createTrack(arrayBuffer),
+    createTrack: (arrayBuffer: ArrayBuffer, fileName?: string) =>
+      service.createTrack(arrayBuffer, fileName),
     createRecordedTrack: (
       audioBuffer: AudioBuffer,
       arrayBuffer: ArrayBuffer,
