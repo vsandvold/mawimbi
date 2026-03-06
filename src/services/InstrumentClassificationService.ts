@@ -277,7 +277,7 @@ class InstrumentClassificationService {
 
     const pipe = await pipeline(
       'zero-shot-audio-classification',
-      'Xenova/clap-htsat-unfused',
+      'Xenova/larger_clap_music_and_speech',
       { device: 'wasm', dtype: 'q8' },
     );
     console.log('[classification] Model loaded on main thread');

@@ -407,7 +407,7 @@ describe('InstrumentClassificationService', () => {
       expect(passedAudio.length).toBe(48000);
     });
 
-    it('loads the CLAP pipeline lazily on first classify call', async () => {
+    it('loads the music-trained CLAP model on first classify call', async () => {
       const { pipeline } = await import('@huggingface/transformers');
       const buffer = createAudioBuffer();
 
@@ -418,7 +418,7 @@ describe('InstrumentClassificationService', () => {
 
       expect(pipeline).toHaveBeenCalledWith(
         'zero-shot-audio-classification',
-        'Xenova/clap-htsat-unfused',
+        'Xenova/larger_clap_music_and_speech',
         { device: 'wasm', dtype: 'q8' },
       );
     });
