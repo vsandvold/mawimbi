@@ -278,7 +278,6 @@ export function useScrubber({
     timelineScrollRef,
     cursorContainerRef,
     plasmaRef,
-    playing,
     isRewindButtonHidden,
     timelineScaleStyle,
     rewindButtonStyle,
