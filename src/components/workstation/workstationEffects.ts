@@ -55,12 +55,14 @@ export const useCountIn = (
     let playbackTimerId: ReturnType<typeof setTimeout> | null = null;
 
     const run = async () => {
-      const msg = message({ key: 'microphone' });
-
       try {
         await recording.prepareMicrophone();
       } catch {
-        msg.error('Microphone access failed');
+        message({
+          type: 'error',
+          msg: 'Microphone access failed',
+          key: 'microphone',
+        });
         return;
       }
 
@@ -163,8 +165,6 @@ export const useClassificationMessages = (tracks: Track[]) => {
   const reportedRef = useRef(new Set<string>());
 
   useEffect(() => {
-    const msg = message({ key: 'classification' });
-
     for (const track of tracks) {
       const state = classification.getClassificationState(track.trackId);
       const trackKey = `${track.trackId}:${state}`;
@@ -173,14 +173,26 @@ export const useClassificationMessages = (tracks: Track[]) => {
 
       if (state === 'classifying') {
         reportedRef.current.add(trackKey);
-        msg.loading('Detecting instrument…');
+        message({
+          type: 'loading',
+          msg: 'Detecting instrument…',
+          key: 'classification',
+        });
       } else if (state === 'done') {
         reportedRef.current.add(trackKey);
         const label = classification.getClassification(track.trackId)?.label;
-        msg.success(`Detected instrument: ${label}`);
+        message({
+          type: 'success',
+          msg: `Detected instrument: ${label}`,
+          key: 'classification',
+        });
       } else if (state === 'error') {
         reportedRef.current.add(trackKey);
-        msg.error('Instrument detection failed');
+        message({
+          type: 'error',
+          msg: 'Instrument detection failed',
+          key: 'classification',
+        });
       }
     }
   });
@@ -193,8 +205,6 @@ export const useMicrophone = (isRecording: boolean) => {
   const projectDispatch = useProjectDispatch();
   const message = useMessage();
   useEffect(() => {
-    const msg = message({ key: 'microphone' });
-
     const startRecording = async () => {
       try {
         await recording.startOverdubRecording();
@@ -204,9 +214,13 @@ export const useMicrophone = (isRecording: boolean) => {
         // this is the first play() call.  When lead-in was available,
         // play() was already called and this is a no-op.
         playback.play();
-        msg.success('Recording started');
+        message({
+          type: 'success',
+          msg: 'Recording started',
+          key: 'microphone',
+        });
       } catch {
-        msg.error('Recording failed');
+        message({ type: 'error', msg: 'Recording failed', key: 'microphone' });
       }
     };
 
@@ -232,11 +246,15 @@ export const useMicrophone = (isRecording: boolean) => {
         // play to hear the recording in context (standard DAW behavior).
         playback.pause();
         playback.setTransportTime(playback.getEngineTime());
-        msg.success('Recording stopped');
+        message({
+          type: 'success',
+          msg: 'Recording stopped',
+          key: 'microphone',
+        });
       } catch {
         recording.stopRecording();
         playback.pause();
-        msg.error('Recording failed');
+        message({ type: 'error', msg: 'Recording failed', key: 'microphone' });
       }
     };
 

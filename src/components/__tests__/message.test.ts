@@ -32,11 +32,10 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-it('renders message with given content and key', () => {
+it('calls antd message with type, content, and key', () => {
   const { result } = renderHook(() => useMessage());
-  const msg = result.current({ key: 'messageKey' });
 
-  msg.success('it works!');
+  result.current({ type: 'success', msg: 'it works!', key: 'messageKey' });
 
   expect(mockSuccess).toHaveBeenCalledWith({
     content: 'it works!',
@@ -44,22 +43,24 @@ it('renders message with given content and key', () => {
   });
 });
 
-it('has fallback to default message key', () => {
+it('supports all message types', () => {
   const { result } = renderHook(() => useMessage());
-  const msg = result.current();
 
-  msg.success('it works!');
+  result.current({ type: 'error', msg: 'fail' });
+  result.current({ type: 'info', msg: 'note' });
+  result.current({ type: 'loading', msg: 'wait' });
+  result.current({ type: 'warning', msg: 'warn' });
 
-  expect(mockSuccess).toHaveBeenCalledWith(
-    expect.objectContaining({
-      content: 'it works!',
-    }),
-  );
+  expect(mockError).toHaveBeenCalledWith({ content: 'fail', key: undefined });
+  expect(mockInfo).toHaveBeenCalledWith({ content: 'note', key: undefined });
+  expect(mockLoading).toHaveBeenCalledWith({ content: 'wait', key: undefined });
+  expect(mockWarning).toHaveBeenCalledWith({
+    content: 'warn',
+    key: undefined,
+  });
 });
 
 it('uses instance-based API from App.useApp()', () => {
-  // Verify the hook calls App.useApp() — the instance-based API renders
-  // messages inside the AntApp context where theme and styles apply.
   const useAppSpy = vi.spyOn(App, 'useApp');
 
   renderHook(() => useMessage());

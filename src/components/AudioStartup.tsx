@@ -13,8 +13,11 @@ const AudioStartup = () => {
     AudioService.startAudio()
       .then(() => console.log('audio is ready'))
       .catch(() => {
-        const msg = message({ key: 'audio-startup' });
-        msg.error('failed to start audio');
+        message({
+          type: 'error',
+          msg: 'failed to start audio',
+          key: 'audio-startup',
+        });
       });
   }, [message]);
 

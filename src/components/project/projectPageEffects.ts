@@ -30,10 +30,10 @@ export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
   const uploadFile = useCallback(
     (file: File) => {
       const fileName = file.name;
-      const msg = message({ key: `uploadFile-${fileName}` });
+      const key = `uploadFile-${fileName}`;
       const reader = new FileReader();
-      reader.onabort = () => msg.info(fileName);
-      reader.onerror = () => msg.error(fileName);
+      reader.onabort = () => message({ type: 'info', msg: fileName, key });
+      reader.onerror = () => message({ type: 'error', msg: fileName, key });
       reader.onload = () => {
         const arrayBuffer = reader.result as ArrayBuffer;
         trackHook
@@ -41,13 +41,13 @@ export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
           .then(({ trackId }) => {
             saveAudioData(trackId, arrayBuffer);
             dispatch([ADD_TRACK, { trackId, fileName }]);
-            msg.success(fileName);
+            message({ type: 'success', msg: fileName, key });
           })
           .catch((error) => {
-            msg.error(`${fileName}: ${error}`);
+            message({ type: 'error', msg: `${fileName}: ${error}`, key });
           });
       };
-      msg.loading(fileName);
+      message({ type: 'loading', msg: fileName, key });
       reader.readAsArrayBuffer(file);
     },
     // Hook callbacks reference stable service singletons
