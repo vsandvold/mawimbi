@@ -423,6 +423,33 @@ describe('InstrumentClassificationService', () => {
       );
     });
 
+    it('extracts the loudest segment from long audio', async () => {
+      // 30 seconds at 48kHz — longer than the 10s segment window
+      const buffer = createAudioBuffer(1, 48000 * 30, 48000);
+
+      // Force fallback
+      const promise = service.classify('track-1', buffer);
+      simulateWorkerError('Worker failed');
+      await promise;
+
+      const passedAudio = mockClassifier.mock.calls[0][0] as Float32Array;
+      // Should be trimmed to 10 seconds (480,000 samples), not the full 30s
+      expect(passedAudio.length).toBe(48000 * 10);
+    });
+
+    it('passes short audio unchanged to the classifier', async () => {
+      // 5 seconds — shorter than the 10s segment window
+      const buffer = createAudioBuffer(1, 48000 * 5, 48000);
+
+      // Force fallback
+      const promise = service.classify('track-1', buffer);
+      simulateWorkerError('Worker failed');
+      await promise;
+
+      const passedAudio = mockClassifier.mock.calls[0][0] as Float32Array;
+      expect(passedAudio.length).toBe(48000 * 5);
+    });
+
     it('reuses the pipeline across multiple calls', async () => {
       const { pipeline } = await import('@huggingface/transformers');
       const buffer = createAudioBuffer();

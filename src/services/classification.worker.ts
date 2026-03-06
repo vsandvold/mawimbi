@@ -13,6 +13,7 @@
 // Audio preprocessing (downmix + resample) also runs here to avoid
 // blocking the main thread with CPU-intensive sample manipulation.
 
+import { extractLoudestSegment } from './audioSegment';
 import { CANDIDATE_LABELS } from './instrumentLabels';
 import { isModelCached, revalidateCache } from './ModelCache';
 
@@ -199,7 +200,8 @@ workerSelf.onmessage = async (event: MessageEvent<ClassifyRequest>) => {
   try {
     const classify = await loadPipeline();
     const monoSamples = downmixToMono(channelData, sampleRate, length);
-    const result = await classify(monoSamples);
+    const segment = extractLoudestSegment(monoSamples, MODEL_SAMPLE_RATE);
+    const result = await classify(segment);
 
     const response: ClassifyResponse = {
       id,
