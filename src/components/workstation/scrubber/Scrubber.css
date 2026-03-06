@@ -59,28 +59,6 @@
   );
 }
 
-/* Spectrogram reveal: dims the upcoming (right of playhead) audio */
-.scrubber__reveal {
-  position: absolute;
-  top: 0;
-  left: calc(var(--cursor-position) * 100vw);
-  right: 0;
-  bottom: var(--timeline-margin);
-  padding-top: var(--timeline-margin);
-  pointer-events: none;
-  background: linear-gradient(
-    to right,
-    rgba(0, 0, 0, 0.35),
-    rgba(0, 0, 0, 0.5)
-  );
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-
-.scrubber__reveal--active {
-  opacity: 1;
-}
-
 .plasma-playhead {
   display: block;
   width: 100%;

@@ -33,7 +33,6 @@ const Scrubber = (props: ScrubberProps) => {
     timelineScrollRef,
     cursorContainerRef,
     plasmaRef,
-    playing,
     isRewindButtonHidden,
     timelineScaleStyle,
     rewindButtonStyle,
@@ -55,10 +54,6 @@ const Scrubber = (props: ScrubberProps) => {
     'scrubber__rewind--hidden': isRewindButtonHidden,
   });
 
-  const revealClass = classNames('scrubber__reveal', {
-    'scrubber__reveal--active': playing,
-  });
-
   return (
     <div className="scrubber scrubber--firefox-scroll-fix">
       <div
@@ -75,7 +70,6 @@ const Scrubber = (props: ScrubberProps) => {
       <div className="scrubber__shade" style={timelineScaleStyle}>
         <div className="shade"></div>
       </div>
-      <div className={revealClass} style={timelineScaleStyle}></div>
       <div
         ref={cursorContainerRef}
         className="scrubber__cursor"
