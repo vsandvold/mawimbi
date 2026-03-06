@@ -7,7 +7,7 @@ import {
 } from '@ant-design/icons';
 import { Button, Dropdown, Input, Modal, Typography, Upload } from 'antd';
 import type { MenuProps, UploadProps } from 'antd';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import './ProjectPageHeader.css';
 
@@ -26,6 +26,7 @@ type ProjectPageHeaderProps = {
 const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState(props.title);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const openRenameModal = () => {
     setNewTitle(props.title);
@@ -45,7 +46,7 @@ const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
   };
 
   return (
-    <div className="project-page-header">
+    <div className="project-page-header" ref={containerRef}>
       <Link to="/" className="back-link" aria-label="Back">
         <Button
           type="link"
@@ -67,6 +68,7 @@ const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
         onOk={handleRename}
         onCancel={handleCancel}
         okText="Update"
+        getContainer={() => containerRef.current!}
       >
         <Input
           value={newTitle}
@@ -96,6 +98,7 @@ const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
         <OverflowMenu
           isFullscreen={props.isFullscreen}
           toggleFullscreen={props.toggleFullscreen}
+          getPopupContainer={() => containerRef.current!}
         />
       </div>
     </div>
@@ -132,10 +135,11 @@ const UploadButton = (props: UploadButtonProps) => {
 type OverflowMenuProps = {
   isFullscreen: boolean;
   toggleFullscreen: (state?: boolean) => void;
+  getPopupContainer: () => HTMLElement;
 };
 
 const OverflowMenu = (props: OverflowMenuProps) => {
-  const { isFullscreen, toggleFullscreen } = props;
+  const { isFullscreen, toggleFullscreen, getPopupContainer } = props;
 
   const items: MenuProps['items'] = [
     {
@@ -146,7 +150,11 @@ const OverflowMenu = (props: OverflowMenuProps) => {
   ];
 
   return (
-    <Dropdown menu={{ items }} trigger={['click']}>
+    <Dropdown
+      menu={{ items }}
+      trigger={['click']}
+      getPopupContainer={getPopupContainer}
+    >
       <Button
         type="link"
         className="button overflow-button"
