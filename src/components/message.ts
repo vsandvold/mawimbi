@@ -1,31 +1,22 @@
-import { message as antdMessage } from 'antd';
+import { App } from 'antd';
+import { useCallback } from 'react';
+
+type MessageType = 'error' | 'info' | 'loading' | 'success' | 'warning';
 
 type MessageOptions = {
-  key: string;
+  type: MessageType;
+  key?: string;
 };
 
-const defaultOptions = {
-  key: '',
+const useMessage = () => {
+  const { message: antdMessage } = App.useApp();
+
+  return useCallback(
+    (msg: string, { type, key }: MessageOptions) => {
+      antdMessage[type]({ content: msg, key });
+    },
+    [antdMessage],
+  );
 };
 
-const message = ({ key }: MessageOptions = defaultOptions) => {
-  return {
-    error(content: string) {
-      antdMessage.error({ content, key });
-    },
-    info(content: string) {
-      antdMessage.info({ content, key });
-    },
-    loading(content: string) {
-      antdMessage.loading({ content, key });
-    },
-    success(content: string) {
-      antdMessage.success({ content, key });
-    },
-    warning(content: string) {
-      antdMessage.warning({ content, key });
-    },
-  };
-};
-
-export default message;
+export default useMessage;

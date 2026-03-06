@@ -14,7 +14,7 @@ import {
   FullScreenHandle,
   useFullScreenHandle,
 } from '../fullscreen/Fullscreen';
-import message from '../message';
+import useMessage from '../message';
 import { type Track } from '../../types/track';
 import {
   ADD_TRACK,
@@ -25,14 +25,15 @@ import { createInitialState } from './useProjectReducer';
 
 export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
   const trackHook = useTrackService();
+  const message = useMessage();
 
   const uploadFile = useCallback(
     (file: File) => {
       const fileName = file.name;
-      const msg = message({ key: `uploadFile-${fileName}` });
+      const key = `uploadFile-${fileName}`;
       const reader = new FileReader();
-      reader.onabort = () => msg.info(fileName);
-      reader.onerror = () => msg.error(fileName);
+      reader.onabort = () => message(fileName, { type: 'info', key });
+      reader.onerror = () => message(fileName, { type: 'error', key });
       reader.onload = () => {
         const arrayBuffer = reader.result as ArrayBuffer;
         trackHook
@@ -40,13 +41,13 @@ export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
           .then(({ trackId }) => {
             saveAudioData(trackId, arrayBuffer);
             dispatch([ADD_TRACK, { trackId, fileName }]);
-            msg.success(fileName);
+            message(fileName, { type: 'success', key });
           })
           .catch((error) => {
-            msg.error(`${fileName}: ${error}`);
+            message(`${fileName}: ${error}`, { type: 'error', key });
           });
       };
-      msg.loading(fileName);
+      message(fileName, { type: 'loading', key });
       reader.readAsArrayBuffer(file);
     },
     // Hook callbacks reference stable service singletons

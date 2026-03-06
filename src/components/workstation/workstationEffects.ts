@@ -6,7 +6,7 @@ import { useTrackService } from '../../hooks/useTrackService';
 import { useContainerHeight } from '../../hooks/useContainerHeight';
 import useKeypress from '../../hooks/useKeypress';
 import { saveAudioData } from '../../services/ProjectStorageService';
-import message from '../message';
+import useMessage from '../message';
 import { type Track } from '../../types/track';
 import { ADD_TRACK } from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
@@ -40,6 +40,7 @@ export const useCountIn = (
 ): number | null => {
   const playback = usePlaybackService();
   const recording = useRecordingService();
+  const message = useMessage();
   const [currentBeat, setCurrentBeat] = useState<number | null>(null);
   const completedRef = useRef(false);
 
@@ -54,12 +55,13 @@ export const useCountIn = (
     let playbackTimerId: ReturnType<typeof setTimeout> | null = null;
 
     const run = async () => {
-      const msg = message({ key: 'microphone' });
-
       try {
         await recording.prepareMicrophone();
       } catch {
-        msg.error('Microphone access failed');
+        message('Microphone access failed', {
+          type: 'error',
+          key: 'microphone',
+        });
         return;
       }
 
@@ -158,11 +160,10 @@ export const useTotalTime = (tracks: Track[]) => {
 
 export const useClassificationMessages = (tracks: Track[]) => {
   const classification = useClassificationService();
+  const message = useMessage();
   const reportedRef = useRef(new Set<string>());
 
   useEffect(() => {
-    const msg = message({ key: 'classification' });
-
     for (const track of tracks) {
       const state = classification.getClassificationState(track.trackId);
       const trackKey = `${track.trackId}:${state}`;
@@ -171,14 +172,23 @@ export const useClassificationMessages = (tracks: Track[]) => {
 
       if (state === 'classifying') {
         reportedRef.current.add(trackKey);
-        msg.loading('Detecting instrument…');
+        message('Detecting instrument…', {
+          type: 'loading',
+          key: 'classification',
+        });
       } else if (state === 'done') {
         reportedRef.current.add(trackKey);
         const label = classification.getClassification(track.trackId)?.label;
-        msg.success(`Detected instrument: ${label}`);
+        message(`Detected instrument: ${label}`, {
+          type: 'success',
+          key: 'classification',
+        });
       } else if (state === 'error') {
         reportedRef.current.add(trackKey);
-        msg.error('Instrument detection failed');
+        message('Instrument detection failed', {
+          type: 'error',
+          key: 'classification',
+        });
       }
     }
   });
@@ -189,9 +199,8 @@ export const useMicrophone = (isRecording: boolean) => {
   const recording = useRecordingService();
   const trackHook = useTrackService();
   const projectDispatch = useProjectDispatch();
+  const message = useMessage();
   useEffect(() => {
-    const msg = message({ key: 'microphone' });
-
     const startRecording = async () => {
       try {
         await recording.startOverdubRecording();
@@ -201,9 +210,12 @@ export const useMicrophone = (isRecording: boolean) => {
         // this is the first play() call.  When lead-in was available,
         // play() was already called and this is a no-op.
         playback.play();
-        msg.success('Recording started');
+        message('Recording started', {
+          type: 'success',
+          key: 'microphone',
+        });
       } catch {
-        msg.error('Recording failed');
+        message('Recording failed', { type: 'error', key: 'microphone' });
       }
     };
 
@@ -229,11 +241,14 @@ export const useMicrophone = (isRecording: boolean) => {
         // play to hear the recording in context (standard DAW behavior).
         playback.pause();
         playback.setTransportTime(playback.getEngineTime());
-        msg.success('Recording stopped');
+        message('Recording stopped', {
+          type: 'success',
+          key: 'microphone',
+        });
       } catch {
         recording.stopRecording();
         playback.pause();
-        msg.error('Recording failed');
+        message('Recording failed', { type: 'error', key: 'microphone' });
       }
     };
 

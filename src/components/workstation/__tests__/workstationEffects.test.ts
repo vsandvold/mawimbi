@@ -25,20 +25,12 @@ vi.mock('../../../services/ProjectStorageService', () => ({
   saveAudioData: vi.fn().mockResolvedValue(undefined),
 }));
 
-const { mockError, mockSuccess, mockLoading, mockInfo } = vi.hoisted(() => ({
-  mockError: vi.fn(),
-  mockSuccess: vi.fn(),
-  mockLoading: vi.fn(),
-  mockInfo: vi.fn(),
+const { mockMessage } = vi.hoisted(() => ({
+  mockMessage: vi.fn(),
 }));
 
 vi.mock('../../message', () => ({
-  default: () => ({
-    success: mockSuccess,
-    error: mockError,
-    loading: mockLoading,
-    info: mockInfo,
-  }),
+  default: () => mockMessage,
 }));
 
 afterEach(() => {
@@ -208,7 +200,10 @@ describe('useClassificationMessages', () => {
 
     rerender({ tracks: [track1] });
 
-    expect(mockError).toHaveBeenCalledWith('Instrument detection failed');
+    expect(mockMessage).toHaveBeenCalledWith(
+      'Instrument detection failed',
+      expect.objectContaining({ type: 'error' }),
+    );
   });
 
   it('does not show error message when classification succeeds', () => {
@@ -216,7 +211,10 @@ describe('useClassificationMessages', () => {
       initialProps: { tracks: [track1] },
     });
 
-    expect(mockError).not.toHaveBeenCalled();
+    expect(mockMessage).not.toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ type: 'error' }),
+    );
   });
 
   it('does not show duplicate error messages for the same track', async () => {
@@ -236,6 +234,9 @@ describe('useClassificationMessages', () => {
     // Re-render again — should not show another error
     rerender({ tracks: [track1] });
 
-    expect(mockError).toHaveBeenCalledTimes(1);
+    const errorCalls = mockMessage.mock.calls.filter(
+      (call) => call[1]?.type === 'error',
+    );
+    expect(errorCalls).toHaveLength(1);
   });
 });

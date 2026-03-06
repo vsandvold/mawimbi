@@ -1,28 +1,69 @@
-import { message as antdMessage } from 'antd';
+import { App } from 'antd';
+import { renderHook } from '@testing-library/react';
 import { vi } from 'vitest';
-import message from '../message';
+import useMessage from '../message';
 
-vi.spyOn(antdMessage, 'success');
+const mockSuccess = vi.fn();
+const mockError = vi.fn();
+const mockInfo = vi.fn();
+const mockLoading = vi.fn();
+const mockWarning = vi.fn();
 
-it('renders message with given content and key', () => {
-  const msg = message({ key: 'messageKey' });
+vi.mock('antd', async () => {
+  const actual = await vi.importActual<typeof import('antd')>('antd');
+  return {
+    ...actual,
+    App: {
+      ...actual.App,
+      useApp: () => ({
+        message: {
+          success: mockSuccess,
+          error: mockError,
+          info: mockInfo,
+          loading: mockLoading,
+          warning: mockWarning,
+        },
+      }),
+    },
+  };
+});
 
-  msg.success('it works!');
+afterEach(() => {
+  vi.clearAllMocks();
+});
 
-  expect(antdMessage.success).toHaveBeenCalledWith({
+it('calls antd message with type, content, and key', () => {
+  const { result } = renderHook(() => useMessage());
+
+  result.current('it works!', { type: 'success', key: 'messageKey' });
+
+  expect(mockSuccess).toHaveBeenCalledWith({
     content: 'it works!',
     key: 'messageKey',
   });
 });
 
-it('has fallback to default message key', () => {
-  const msg = message();
+it('supports all message types', () => {
+  const { result } = renderHook(() => useMessage());
 
-  msg.success('it works!');
+  result.current('fail', { type: 'error' });
+  result.current('note', { type: 'info' });
+  result.current('wait', { type: 'loading' });
+  result.current('warn', { type: 'warning' });
 
-  expect(antdMessage.success).toHaveBeenCalledWith(
-    expect.objectContaining({
-      content: 'it works!',
-    }),
-  );
+  expect(mockError).toHaveBeenCalledWith({ content: 'fail', key: undefined });
+  expect(mockInfo).toHaveBeenCalledWith({ content: 'note', key: undefined });
+  expect(mockLoading).toHaveBeenCalledWith({ content: 'wait', key: undefined });
+  expect(mockWarning).toHaveBeenCalledWith({
+    content: 'warn',
+    key: undefined,
+  });
+});
+
+it('uses instance-based API from App.useApp()', () => {
+  const useAppSpy = vi.spyOn(App, 'useApp');
+
+  renderHook(() => useMessage());
+
+  expect(useAppSpy).toHaveBeenCalled();
 });

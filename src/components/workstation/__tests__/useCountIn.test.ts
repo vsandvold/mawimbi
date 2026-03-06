@@ -9,12 +9,7 @@ const playbackService = audioService.playbackService;
 const recordingService = audioService.recordingService;
 
 vi.mock('../../message', () => ({
-  default: () => ({
-    success: vi.fn(),
-    error: vi.fn(),
-    loading: vi.fn(),
-    info: vi.fn(),
-  }),
+  default: () => vi.fn(),
 }));
 
 let prepareMicSpy: ReturnType<typeof vi.spyOn>;
