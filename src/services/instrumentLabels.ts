@@ -1,8 +1,7 @@
-// instrumentLabels — candidate labels for CLAP zero-shot audio classification.
+// instrumentLabels — maps MTG-Jamendo instrument predictions to app categories.
 //
-// Each candidate is a short descriptive phrase that CLAP matches against audio
-// embeddings. The mapping from candidate text to InstrumentLabel is 1:1 — no
-// multi-label disambiguation needed (unlike the old AudioSet mapping).
+// The Jamendo instrument model outputs 40 sigmoid predictions (one per class).
+// This module maps the top prediction to one of 10 InstrumentLabel categories.
 
 export type InstrumentLabel =
   | 'vocals'
@@ -19,32 +18,101 @@ export type InstrumentLabel =
 
 export const FALLBACK_LABEL: InstrumentLabel = 'unknown';
 
-// Candidate label text → InstrumentLabel.
-// These phrases are passed to CLAP as the candidate set. CLAP returns the
-// best-matching phrase, which we look up here to get the InstrumentLabel.
-const CANDIDATE_TO_INSTRUMENT: Record<string, InstrumentLabel> = {
-  'singing vocals': 'vocals',
-  'electric guitar': 'guitar',
-  'bass guitar': 'bass',
-  'drum kit': 'drums',
-  'acoustic piano': 'keyboard',
-  'orchestral strings': 'strings',
-  'brass instrument': 'brass',
-  'woodwind instrument': 'woodwind',
+/**
+ * The 40 Jamendo instrument classes, ordered to match the model's output
+ * tensor indices.
+ */
+export const JAMENDO_CLASSES = [
+  'accordion',
+  'acousticbassguitar',
+  'acousticguitar',
+  'bass',
+  'beat',
+  'bell',
+  'bongo',
+  'brass',
+  'cello',
+  'clarinet',
+  'classicalguitar',
+  'computer',
+  'doublebass',
+  'drummachine',
+  'drums',
+  'electricguitar',
+  'electricpiano',
+  'flute',
+  'guitar',
+  'harmonica',
+  'harp',
+  'horn',
+  'keyboard',
+  'oboe',
+  'orchestra',
+  'organ',
+  'pad',
+  'percussion',
+  'piano',
+  'pipeorgan',
+  'rhodes',
+  'sampler',
+  'saxophone',
+  'strings',
+  'synthesizer',
+  'trombone',
+  'trumpet',
+  'viola',
+  'violin',
+  'voice',
+] as const;
+
+// Jamendo class → InstrumentLabel category.
+const JAMENDO_TO_INSTRUMENT: Record<string, InstrumentLabel> = {
+  voice: 'vocals',
+  acousticguitar: 'guitar',
+  classicalguitar: 'guitar',
+  electricguitar: 'guitar',
+  guitar: 'guitar',
+  acousticbassguitar: 'bass',
+  bass: 'bass',
+  doublebass: 'bass',
+  drums: 'drums',
+  drummachine: 'drums',
+  accordion: 'keyboard',
+  electricpiano: 'keyboard',
+  keyboard: 'keyboard',
+  organ: 'keyboard',
+  piano: 'keyboard',
+  pipeorgan: 'keyboard',
+  rhodes: 'keyboard',
+  cello: 'strings',
+  harp: 'strings',
+  orchestra: 'strings',
+  strings: 'strings',
+  viola: 'strings',
+  violin: 'strings',
+  brass: 'brass',
+  horn: 'brass',
+  trombone: 'brass',
+  trumpet: 'brass',
+  clarinet: 'woodwind',
+  flute: 'woodwind',
+  harmonica: 'woodwind',
+  oboe: 'woodwind',
+  saxophone: 'woodwind',
+  computer: 'synth',
+  pad: 'synth',
+  sampler: 'synth',
   synthesizer: 'synth',
+  beat: 'percussion',
+  bell: 'percussion',
+  bongo: 'percussion',
   percussion: 'percussion',
 };
 
 /**
- * The candidate label strings passed to CLAP's zero-shot classifier.
+ * Maps a Jamendo instrument class name to the corresponding InstrumentLabel.
+ * Returns 'unknown' for any unrecognised class.
  */
-export const CANDIDATE_LABELS = Object.keys(CANDIDATE_TO_INSTRUMENT);
-
-/**
- * Maps a CLAP candidate label to the corresponding InstrumentLabel.
- * Returns 'unknown' for any unrecognised label (shouldn't happen
- * since CLAP always returns one of the provided candidates).
- */
-export function mapToInstrumentLabel(candidateLabel: string): InstrumentLabel {
-  return CANDIDATE_TO_INSTRUMENT[candidateLabel] ?? FALLBACK_LABEL;
+export function mapToInstrumentLabel(jamendoClass: string): InstrumentLabel {
+  return JAMENDO_TO_INSTRUMENT[jamendoClass] ?? FALLBACK_LABEL;
 }

@@ -101,7 +101,7 @@ it('re-renders when classification transitions from classifying to done', async 
       data: {
         id: messageId,
         type: 'result',
-        label: 'electric guitar',
+        label: 'electricguitar',
         score: 0.85,
       },
     } as MessageEvent);
