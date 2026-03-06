@@ -7,6 +7,7 @@ import {
 import { Button, Slider } from 'antd';
 import classNames from 'classnames';
 import { useClassificationService } from '../../hooks/useClassificationService';
+import { FALLBACK_LABEL } from '../../services/instrumentLabels';
 import { type Track } from '../../types/track';
 import './Channel.css';
 import { getInstrumentIcon } from './instrumentIcons';
@@ -37,7 +38,10 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
   const { getClassification, getClassificationState, downloadProgress } =
     useClassificationService();
   const classificationState = getClassificationState(trackId);
-  const instrument = getClassification(trackId)?.label ?? track.instrument;
+  const instrument =
+    getClassification(trackId)?.label ??
+    track.instrument ??
+    (classificationState === 'error' ? FALLBACK_LABEL : undefined);
   const isDownloading =
     classificationState === 'classifying' && downloadProgress !== null;
 

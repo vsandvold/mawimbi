@@ -14,7 +14,10 @@ export type InstrumentLabel =
   | 'brass'
   | 'woodwind'
   | 'synth'
-  | 'percussion';
+  | 'percussion'
+  | 'unknown';
+
+export const FALLBACK_LABEL: InstrumentLabel = 'unknown';
 
 // Candidate label text → InstrumentLabel.
 // These phrases are passed to CLAP as the candidate set. CLAP returns the
@@ -39,9 +42,9 @@ export const CANDIDATE_LABELS = Object.keys(CANDIDATE_TO_INSTRUMENT);
 
 /**
  * Maps a CLAP candidate label to the corresponding InstrumentLabel.
- * Returns 'percussion' for any unrecognised label (shouldn't happen
+ * Returns 'unknown' for any unrecognised label (shouldn't happen
  * since CLAP always returns one of the provided candidates).
  */
 export function mapToInstrumentLabel(candidateLabel: string): InstrumentLabel {
-  return CANDIDATE_TO_INSTRUMENT[candidateLabel] ?? 'percussion';
+  return CANDIDATE_TO_INSTRUMENT[candidateLabel] ?? FALLBACK_LABEL;
 }
