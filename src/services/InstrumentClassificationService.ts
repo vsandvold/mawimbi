@@ -239,7 +239,6 @@ class InstrumentClassificationService {
         }
       };
       this.worker.onerror = () => {
-        this.workerFailed = true;
         this._downloadProgress.value = null;
         this.rejectAllPending(
           new Error(

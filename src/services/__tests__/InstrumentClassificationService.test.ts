@@ -351,19 +351,29 @@ describe('InstrumentClassificationService', () => {
 
       simulateDownloadProgress(50);
 
-      // Trigger onerror (catastrophic worker failure) — sets workerFailed
-      // and rejects all pending requests. Since workerFailed is already set,
-      // the catch block skips the main-thread fallback and throws.
+      // Trigger onerror (catastrophic worker failure) — rejects all pending
+      // requests and falls back to main-thread inference.
       mockWorker.onerror!({} as ErrorEvent);
-      await expect(promise).rejects.toThrow(
-        'Classification failed for track track-1',
-      );
+      await promise;
 
       expect(service.downloadProgress).toBeNull();
     });
   });
 
   describe('worker error handling', () => {
+    it('falls back to main thread when the worker crashes (onerror)', async () => {
+      const buffer = createAudioBuffer();
+      const promise = service.classify('track-1', buffer);
+
+      // Simulate catastrophic worker failure (e.g., module failed to load)
+      mockWorker.onerror!({} as ErrorEvent);
+      await promise;
+
+      // Should have fallen back to main-thread ONNX pipeline
+      expect(mockFetchModel).toHaveBeenCalled();
+      expect(service.getClassification('track-1')?.label).toBe('guitar');
+    });
+
     it('falls back to main thread when the worker responds with an error', async () => {
       const buffer = createAudioBuffer();
       const promise = service.classify('track-1', buffer);
