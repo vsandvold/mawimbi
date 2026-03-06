@@ -36,10 +36,13 @@ export const useUploadFile = (dispatch: React.Dispatch<ProjectAction>) => {
       reader.onerror = () => message(fileName, { type: 'error', key });
       reader.onload = () => {
         const arrayBuffer = reader.result as ArrayBuffer;
+        // Clone before createTrack — decodeAudioData detaches the original
+        // ArrayBuffer, making it unusable for IndexedDB storage.
+        const audioDataForStorage = arrayBuffer.slice(0);
         trackHook
           .createTrack(arrayBuffer)
           .then(({ trackId }) => {
-            saveAudioData(trackId, arrayBuffer);
+            saveAudioData(trackId, audioDataForStorage);
             dispatch([ADD_TRACK, { trackId, fileName }]);
             message(fileName, { type: 'success', key });
           })
