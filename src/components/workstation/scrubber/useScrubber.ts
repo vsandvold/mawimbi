@@ -242,13 +242,28 @@ export function useScrubber({
 
   const [timelineScaleFactor, setTimelineScaleFactor] = useState(1.0);
 
+  // Recalculate the scale factor when the timeline container resizes (e.g.
+  // entering/exiting fullscreen) or when the drawer height changes.
   useLayoutEffect(() => {
-    if (timelineScrollRef.current) {
-      // TODO: or use clientHeight?
-      const timelineHeight = timelineScrollRef.current.offsetHeight;
-      const scaleFactor = (timelineHeight - drawerHeight) / timelineHeight;
-      setTimelineScaleFactor(scaleFactor);
-    }
+    const el = timelineScrollRef.current;
+    if (!el) return;
+
+    const updateScaleFactor = () => {
+      const timelineHeight = el.offsetHeight;
+      if (timelineHeight > 0) {
+        const scaleFactor = (timelineHeight - drawerHeight) / timelineHeight;
+        setTimelineScaleFactor(scaleFactor);
+      }
+    };
+
+    updateScaleFactor();
+
+    const observer = new ResizeObserver(() => {
+      updateScaleFactor();
+    });
+    observer.observe(el);
+
+    return () => observer.disconnect();
   }, [drawerHeight]);
 
   const timelineScaleStyle = getTimelineStyle(isMixerOpen, timelineScaleFactor);

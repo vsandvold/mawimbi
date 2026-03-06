@@ -113,12 +113,12 @@ it('renders plasma playhead canvas in the cursor container', () => {
 });
 
 it('renders idle playhead after cursor container is resized', () => {
-  // Override the no-op ResizeObserver stub to capture the callback
-  let resizeCallback: ResizeObserverCallback | undefined;
+  // Override the no-op ResizeObserver stub to capture all callbacks
+  const resizeCallbacks: ResizeObserverCallback[] = [];
   const OriginalResizeObserver = globalThis.ResizeObserver;
   globalThis.ResizeObserver = class MockResizeObserver {
     constructor(cb: ResizeObserverCallback) {
-      resizeCallback = cb;
+      resizeCallbacks.push(cb);
     }
     observe() {}
     unobserve() {}
@@ -158,11 +158,17 @@ it('renders idle playhead after cursor container is resized', () => {
     getContextSpy.mockClear();
 
     // Simulate the ResizeObserver firing (container gains height)
+    // Fire all registered callbacks since the cursor observer may not
+    // be the last one registered.
     act(() => {
-      resizeCallback?.(
-        [{ contentRect: { height: 400 } }] as unknown as ResizeObserverEntry[],
-        {} as ResizeObserver,
-      );
+      for (const cb of resizeCallbacks) {
+        cb(
+          [
+            { contentRect: { height: 400 } },
+          ] as unknown as ResizeObserverEntry[],
+          {} as ResizeObserver,
+        );
+      }
     });
 
     // renderIdle should have been called, which calls getContext to draw
@@ -288,6 +294,81 @@ it('does not rewind when rewind button is clicked during recording', () => {
 
   expect(playbackService.isPlaying).toBe(true);
   expect(playbackService.transportTime).toBe(5.0);
+});
+
+it('recalculates timeline scale when container resizes with mixer open', () => {
+  // Capture all ResizeObserver callbacks so we can trigger them manually
+  const observerCallbacks: ResizeObserverCallback[] = [];
+  const observedElements: Element[] = [];
+  const OriginalResizeObserver = globalThis.ResizeObserver;
+  globalThis.ResizeObserver = class MockResizeObserver {
+    private cb: ResizeObserverCallback;
+    constructor(cb: ResizeObserverCallback) {
+      this.cb = cb;
+      observerCallbacks.push(cb);
+    }
+    observe(el: Element) {
+      observedElements.push(el);
+    }
+    unobserve() {}
+    disconnect() {}
+  } as unknown as typeof ResizeObserver;
+
+  // Mock offsetHeight on the timeline scroll container to simulate height change
+  let mockOffsetHeight = 600;
+  const originalDescriptor = Object.getOwnPropertyDescriptor(
+    HTMLElement.prototype,
+    'offsetHeight',
+  );
+  Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+    configurable: true,
+    get() {
+      return mockOffsetHeight;
+    },
+  });
+
+  try {
+    const { container } = render(
+      <Scrubber
+        {...{ ...defaultProps, drawerHeight: 120, isMixerOpen: true }}
+      />,
+    );
+
+    const timeline = container.querySelector('.scrubber__timeline');
+
+    // Initial scale: (600 - 120) / 600 = 0.8
+    expect(timeline?.outerHTML).toEqual(expect.stringContaining('scaleY(0.8)'));
+
+    // Simulate entering fullscreen — container height increases to 900
+    mockOffsetHeight = 900;
+
+    // Fire all ResizeObserver callbacks to simulate the resize
+    act(() => {
+      for (const cb of observerCallbacks) {
+        cb(
+          [
+            { contentRect: { height: 900 } },
+          ] as unknown as ResizeObserverEntry[],
+          {} as ResizeObserver,
+        );
+      }
+    });
+
+    // Scale should now be (900 - 120) / 900 ≈ 0.867
+    expect(timeline?.outerHTML).toEqual(expect.stringContaining('scaleY(0.8'));
+    expect(timeline?.outerHTML).not.toEqual(
+      expect.stringContaining('scaleY(0.8)'),
+    );
+  } finally {
+    globalThis.ResizeObserver = OriginalResizeObserver;
+    if (originalDescriptor) {
+      Object.defineProperty(
+        HTMLElement.prototype,
+        'offsetHeight',
+        originalDescriptor,
+      );
+    }
+  }
 });
 
 it('does not update transportTime during count-in', () => {
