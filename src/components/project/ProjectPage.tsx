@@ -12,7 +12,11 @@ import {
   useTrackSideEffects,
   useUploadFile,
 } from './projectPageEffects';
-import { COLOR_PALETTE, type ProjectState } from './projectPageReducer';
+import {
+  COLOR_PALETTE,
+  RENAME_PROJECT,
+  type ProjectState,
+} from './projectPageReducer';
 import ProjectPageHeader from './ProjectPageHeader';
 import { ProjectDispatch } from './useProjectDispatch';
 import useProjectReducer from './useProjectReducer';
@@ -62,6 +66,7 @@ const ProjectPageContent = ({ initialState }: ProjectPageContentProps) => {
               redo={undoControls.redo}
               canUndo={undoControls.canUndo}
               canRedo={undoControls.canRedo}
+              renameProject={(title) => dispatch([RENAME_PROJECT, { title }])}
             />
           </PageHeader>
           <PageContent>

@@ -14,6 +14,13 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.back-link {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 .project-page-header__extra {
