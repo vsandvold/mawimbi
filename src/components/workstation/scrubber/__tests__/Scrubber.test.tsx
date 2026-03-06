@@ -302,9 +302,7 @@ it('recalculates timeline scale when container resizes with mixer open', () => {
   const observedElements: Element[] = [];
   const OriginalResizeObserver = globalThis.ResizeObserver;
   globalThis.ResizeObserver = class MockResizeObserver {
-    private cb: ResizeObserverCallback;
     constructor(cb: ResizeObserverCallback) {
-      this.cb = cb;
       observerCallbacks.push(cb);
     }
     observe(el: Element) {
