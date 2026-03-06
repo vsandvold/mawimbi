@@ -152,3 +152,35 @@ it('updates height when the container resizes', async () => {
   // Timeline from ever rendering tracks for the first recording.
   expect(reportedHeight).toBe(500);
 });
+
+it('updates height when fullscreen changes the container size', async () => {
+  // Simulate a container that starts at normal viewport height and then
+  // expands when fullscreen is entered (and later shrinks when exited).
+  mockHeight = 400;
+  let reportedHeight = -1;
+
+  const { getByTestId } = render(
+    createElement(HeightReporter, {
+      onHeight: (h: number) => {
+        reportedHeight = h;
+      },
+    }),
+  );
+
+  expect(reportedHeight).toBe(400);
+
+  // Simulate entering fullscreen — container height increases
+  const container = getByTestId('container');
+  await act(async () => {
+    triggerResizeObserver(container, { height: 900 });
+  });
+
+  expect(reportedHeight).toBe(900);
+
+  // Simulate exiting fullscreen — container height returns to original
+  await act(async () => {
+    triggerResizeObserver(container, { height: 400 });
+  });
+
+  expect(reportedHeight).toBe(400);
+});
