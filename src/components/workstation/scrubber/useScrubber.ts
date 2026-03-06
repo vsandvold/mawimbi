@@ -122,6 +122,13 @@ export function useScrubber({
         // timeline stays frozen at the recording position.  Once the
         // count-in ends, scroll and transportTime resume updating.
         if (!recording.isCountingIn) {
+          // During recording the timeline grows beyond the duration of
+          // existing tracks.  Keep totalTime ahead of the transport so
+          // the end-of-timeline guard in setTransportTime does not stop
+          // playback and freeze the recording spectrogram.
+          if (recording.isActivelyRecording && time >= playback.totalTime) {
+            playback.setTotalTime(time + 1);
+          }
           playback.setTransportTime(time);
           setScrollPosition(time);
         }

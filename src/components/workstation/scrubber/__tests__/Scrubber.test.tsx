@@ -226,6 +226,38 @@ it('does not stop playback at end of scroll during recording', () => {
   expect(playbackService.transportTime).toBe(1.5);
 });
 
+it('does not stop playback when recording reaches total time of existing tracks', () => {
+  // Simulate existing tracks with a total duration of 10 seconds
+  playbackService.setTotalTime(10.0);
+
+  // Engine time matches totalTime — at ~60fps, some animation frame will
+  // land on (or round to) the same value as totalTime.
+  vi.spyOn(playbackService, 'getEngineTime').mockReturnValue(10.0);
+  vi.spyOn(trackService, 'getLoudness').mockReturnValue(0);
+
+  let rafCallback: FrameRequestCallback = () => {};
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+    rafCallback = cb;
+    return 1;
+  });
+
+  playbackService.play();
+  recordingService.arm();
+  recordingService.startRecording();
+
+  render(<Scrubber {...defaultProps} />);
+
+  // The animation loop calls setTransportTime(10.0) which matches
+  // totalTime (10.0). Without the fix, this triggers stopAtEndOfTimeline
+  // which pauses the transport and freezes the recording spectrogram.
+  act(() => {
+    rafCallback(0);
+  });
+
+  expect(playbackService.isPlaying).toBe(true);
+  expect(playbackService.transportTime).toBe(10.0);
+});
+
 it('does not call getLoudness when playback is stopped', () => {
   const getLoudnessSpy = vi.spyOn(trackService, 'getLoudness');
 
