@@ -7,7 +7,7 @@ import {
 } from '@ant-design/icons';
 import { Button, Dropdown, Input, Modal, Typography, Upload } from 'antd';
 import type { MenuProps, UploadProps } from 'antd';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import './ProjectPageHeader.css';
 
@@ -26,10 +26,23 @@ type ProjectPageHeaderProps = {
 const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState(props.title);
+  const [wasFullscreen, setWasFullscreen] = useState(false);
 
   const openRenameModal = () => {
     setNewTitle(props.title);
+    if (props.isFullscreen) {
+      props.toggleFullscreen(false);
+      setWasFullscreen(true);
+    }
     setIsRenameModalOpen(true);
+  };
+
+  const closeRenameModal = () => {
+    setIsRenameModalOpen(false);
+    if (wasFullscreen) {
+      props.toggleFullscreen(true);
+      setWasFullscreen(false);
+    }
   };
 
   const handleRename = () => {
@@ -37,11 +50,11 @@ const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
     if (trimmed) {
       props.renameProject(trimmed);
     }
-    setIsRenameModalOpen(false);
+    closeRenameModal();
   };
 
   const handleCancel = () => {
-    setIsRenameModalOpen(false);
+    closeRenameModal();
   };
 
   return (
@@ -136,6 +149,7 @@ type OverflowMenuProps = {
 
 const OverflowMenu = (props: OverflowMenuProps) => {
   const { isFullscreen, toggleFullscreen } = props;
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const items: MenuProps['items'] = [
     {
@@ -146,15 +160,21 @@ const OverflowMenu = (props: OverflowMenuProps) => {
   ];
 
   return (
-    <Dropdown menu={{ items }} trigger={['click']}>
-      <Button
-        type="link"
-        className="button overflow-button"
-        icon={<EllipsisOutlined />}
-        aria-label="More"
-        onClick={(e) => e.stopPropagation()}
-      />
-    </Dropdown>
+    <div ref={containerRef}>
+      <Dropdown
+        menu={{ items }}
+        trigger={['click']}
+        getPopupContainer={() => containerRef.current!}
+      >
+        <Button
+          type="link"
+          className="button overflow-button"
+          icon={<EllipsisOutlined />}
+          aria-label="More"
+          onClick={(e) => e.stopPropagation()}
+        />
+      </Dropdown>
+    </div>
   );
 };
 

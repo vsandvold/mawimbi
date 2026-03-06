@@ -163,3 +163,59 @@ it('closes rename modal when Cancel is clicked', () => {
 
   expect(mockRenameProject).not.toHaveBeenCalled();
 });
+
+it('exits fullscreen when rename modal opens', () => {
+  const toggleFullscreen = vi.fn();
+  renderHeader({ isFullscreen: true, toggleFullscreen });
+
+  fireEvent.click(screen.getByText(defaultProps.title));
+
+  expect(toggleFullscreen).toHaveBeenCalledWith(false);
+});
+
+it('does not exit fullscreen when rename modal opens outside fullscreen', () => {
+  const toggleFullscreen = vi.fn();
+  renderHeader({ isFullscreen: false, toggleFullscreen });
+
+  fireEvent.click(screen.getByText(defaultProps.title));
+
+  expect(toggleFullscreen).not.toHaveBeenCalled();
+});
+
+it('re-enters fullscreen when rename modal closes after exiting fullscreen', () => {
+  const toggleFullscreen = vi.fn();
+  renderHeader({ isFullscreen: true, toggleFullscreen });
+
+  fireEvent.click(screen.getByText(defaultProps.title));
+  expect(toggleFullscreen).toHaveBeenCalledWith(false);
+
+  const modal = screen.getByRole('dialog');
+  const updateButton = within(modal).getByText('Update');
+  fireEvent.click(updateButton);
+
+  expect(toggleFullscreen).toHaveBeenCalledWith(true);
+});
+
+it('re-enters fullscreen when rename modal is cancelled after exiting fullscreen', () => {
+  const toggleFullscreen = vi.fn();
+  renderHeader({ isFullscreen: true, toggleFullscreen });
+
+  fireEvent.click(screen.getByText(defaultProps.title));
+  expect(toggleFullscreen).toHaveBeenCalledWith(false);
+
+  const modal = screen.getByRole('dialog');
+  const cancelButton = within(modal).getByText('Cancel');
+  fireEvent.click(cancelButton);
+
+  expect(toggleFullscreen).toHaveBeenCalledWith(true);
+});
+
+it('renders overflow menu popup inside its parent container', () => {
+  const { container } = renderHeader();
+
+  const overflowButton = container.querySelector('[aria-label="More"]');
+  fireEvent.click(overflowButton as Element);
+
+  const popup = container.querySelector('.ant-dropdown');
+  expect(popup).toBeInTheDocument();
+});
