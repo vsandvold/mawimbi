@@ -8,7 +8,7 @@ test.describe('Project page', () => {
   test.describe('header', () => {
     test('displays a back button', async ({ page }) => {
       await expect(
-        page.getByRole('button', { name: 'Back', exact: true })
+        page.getByRole('link', { name: 'Back', exact: true })
       ).toBeVisible();
     });
 
@@ -19,7 +19,7 @@ test.describe('Project page', () => {
       await expect(page).toHaveURL(
         /\/project\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/
       );
-      await page.getByRole('button', { name: 'Back', exact: true }).click();
+      await page.getByRole('link', { name: 'Back', exact: true }).click();
       await expect(page).toHaveURL('/');
     });
 
