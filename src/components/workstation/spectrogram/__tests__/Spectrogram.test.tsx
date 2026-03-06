@@ -557,4 +557,72 @@ describe('recording mode', () => {
 
     vi.restoreAllMocks();
   });
+
+  it('draws recording buffer at content width, not viewport width, when content is narrower', () => {
+    // When the recording has just started, contentWidth (elapsed * pps)
+    // is smaller than the viewport. The buffer should be drawn at
+    // contentWidth, not stretched across the full viewport — otherwise
+    // the spectrogram visually extends past the playhead and appears
+    // to move faster than the actual recording position.
+
+    const VIEWPORT_WIDTH = 800;
+    const ELAPSED = 0.5; // 0.5s of recording
+    const PPS = 200;
+    const CONTENT_WIDTH = ELAPSED * PPS; // 100px — much less than 800px viewport
+
+    recordingService.arm();
+    recordingService.startRecording();
+    vi.spyOn(playbackService, 'getEngineTime').mockReturnValue(ELAPSED);
+    vi.spyOn(recordingService, 'isOverdubRecording').mockReturnValue(true);
+    vi.spyOn(recordingService, 'getRecordingStartTime').mockReturnValue(0);
+    mockGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));
+
+    const mockDrawImage = vi.fn();
+    const mockCtx = {
+      clearRect: vi.fn(),
+      drawImage: mockDrawImage,
+      fillRect: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      globalCompositeOperation: 'source-over' as string,
+      fillStyle: '' as string,
+      canvas: { width: VIEWPORT_WIDTH, height: 128 },
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+      mockCtx as unknown as CanvasRenderingContext2D,
+    );
+
+    const { container } = render(
+      <div className="scrubber__timeline">
+        <Spectrogram
+          height={128}
+          pixelsPerSecond={PPS}
+          track={recordingTrack}
+          isRecordingTrack
+        />
+      </div>,
+    );
+
+    // Set viewport dimensions on the scroll parent
+    const scrollContainer = container.querySelector('.scrubber__timeline')!;
+    Object.defineProperty(scrollContainer, 'clientWidth', {
+      value: VIEWPORT_WIDTH,
+      configurable: true,
+    });
+
+    const calls = vi.mocked(useAnimationFrame).mock.calls;
+    const callback = calls[calls.length - 1]?.[0];
+    callback?.();
+
+    // RecordingBuffer.drawTo calls ctx.drawImage on the OffscreenCanvas.
+    // The destination width (5th numeric arg) must equal contentWidth,
+    // NOT viewportWidth, so the spectrogram aligns with the playhead.
+    expect(mockDrawImage).toHaveBeenCalled();
+    const drawCall = mockDrawImage.mock.calls[0];
+    // drawImage(source, srcX, srcY, srcW, srcH, destX, destY, destW, destH)
+    const destWidth = drawCall[7];
+    expect(destWidth).toBeCloseTo(CONTENT_WIDTH, 0);
+
+    vi.restoreAllMocks();
+  });
 });

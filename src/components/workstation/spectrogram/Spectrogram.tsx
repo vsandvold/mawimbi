@@ -208,8 +208,13 @@ function drawRecordingFrame(
     Math.ceil(viewportWidth * framesPerPixel),
     buffer.frameCount - srcX,
   );
+  // Scale destination width proportionally to the source region so that
+  // the spectrogram is not stretched beyond the content boundary.  Without
+  // this, when contentWidth < viewportWidth the buffer is drawn across the
+  // full viewport, making the spectrogram visually extend past the playhead.
+  const destWidth = srcWidth / framesPerPixel;
 
-  buffer.drawTo(ctx, srcX, srcWidth, 0, viewportWidth, height);
+  buffer.drawTo(ctx, srcX, srcWidth, 0, destWidth, height);
 }
 
 function drawTilesFrame(
