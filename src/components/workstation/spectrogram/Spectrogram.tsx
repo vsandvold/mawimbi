@@ -203,13 +203,18 @@ function drawRecordingFrame(
   // Map buffer frames (1 frame = 1 pixel in the buffer) to display pixels.
   // bufferFrames maps to contentWidth display pixels.
   const framesPerPixel = buffer.frameCount / contentWidth;
+  // Clamp destination width so the buffer is never stretched beyond the
+  // actual content area. Without this, when the recording is shorter than
+  // the viewport the buffer was drawn across the full viewport width,
+  // making the spectrogram appear to move faster than existing tracks.
+  const destWidth = Math.min(viewportWidth, contentWidth - contentOffset);
   const srcX = Math.floor(contentOffset * framesPerPixel);
   const srcWidth = Math.min(
-    Math.ceil(viewportWidth * framesPerPixel),
+    Math.ceil(destWidth * framesPerPixel),
     buffer.frameCount - srcX,
   );
 
-  buffer.drawTo(ctx, srcX, srcWidth, 0, viewportWidth, height);
+  buffer.drawTo(ctx, srcX, srcWidth, 0, destWidth, height);
 }
 
 function drawTilesFrame(

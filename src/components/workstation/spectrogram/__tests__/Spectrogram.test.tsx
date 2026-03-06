@@ -522,6 +522,65 @@ describe('recording mode', () => {
     vi.restoreAllMocks();
   });
 
+  it('draws buffer content to content width, not viewport width, when recording is shorter than viewport', () => {
+    // Bug: when the recording content is narrower than the viewport, the
+    // buffer was stretched across the full viewport width. This made the
+    // live spectrogram appear to move faster than existing tracks initially,
+    // gradually slowing down as the content grew to fill the viewport.
+    const VIEWPORT_WIDTH = 800;
+    const PPS = 200;
+
+    recordingService.arm();
+    recordingService.startRecording();
+    // elapsed = 1.0 - 0 = 1.0s → contentWidth = 200px (< 800px viewport)
+    vi.spyOn(playbackService, 'getEngineTime').mockReturnValue(1.0);
+    vi.spyOn(recordingService, 'isOverdubRecording').mockReturnValue(true);
+    vi.spyOn(recordingService, 'getRecordingStartTime').mockReturnValue(0);
+    mockGetVisualizationData.mockReturnValue(new Uint8Array(774).fill(128));
+
+    const mockCtx = {
+      clearRect: vi.fn(),
+      drawImage: vi.fn(),
+      fillRect: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      globalCompositeOperation: 'source-over' as string,
+      fillStyle: '' as string,
+      canvas: { width: VIEWPORT_WIDTH, height: 128 },
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+      mockCtx as unknown as CanvasRenderingContext2D,
+    );
+
+    const { container } = render(
+      <div className="scrubber__timeline">
+        <Spectrogram {...recordingProps} pixelsPerSecond={PPS} />
+      </div>,
+    );
+
+    const scrollParent = container.querySelector('.scrubber__timeline')!;
+    Object.defineProperty(scrollParent, 'clientWidth', {
+      value: VIEWPORT_WIDTH,
+      configurable: true,
+    });
+
+    // First frame: accumulate a frame and draw
+    const calls = vi.mocked(useAnimationFrame).mock.calls;
+    const callback = calls[calls.length - 1]?.[0];
+    callback?.();
+
+    const contentWidth = 1.0 * PPS; // 200px
+    // RecordingBuffer.drawTo calls ctx.drawImage with 9 arguments:
+    // (canvas, srcX, srcY, srcWidth, srcHeight, destX, destY, destWidth, destHeight)
+    const drawCall = mockCtx.drawImage.mock.calls[0];
+    expect(drawCall).toBeDefined();
+    // destWidth (8th arg, index 7) should be contentWidth, NOT viewportWidth
+    const destWidth = drawCall[7];
+    expect(destWidth).toBe(contentWidth);
+
+    vi.restoreAllMocks();
+  });
+
   it('updates container width based on elapsed recording time', () => {
     recordingService.arm();
     recordingService.startRecording();
