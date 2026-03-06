@@ -1,4 +1,5 @@
 import {
+  CQT_ALIGNMENT_OFFSET,
   createPlasmaState,
   getFrequencyIntensities,
   pruneEtchMarks,
@@ -351,5 +352,56 @@ describe('getFrequencyIntensities', () => {
     for (const val of result) {
       expect(val).toBeCloseTo(0, 1);
     }
+  });
+
+  it('skips low-frequency bins below CQT minimum frequency', () => {
+    // Create data with a spike only in the low-frequency bins (below CQT range)
+    const bins = 512;
+    const data = new Uint8Array(bins).fill(0);
+    const cqtStartBin = Math.floor(CQT_ALIGNMENT_OFFSET * bins);
+    // Fill bins below CQT range with max intensity
+    for (let i = 0; i < cqtStartBin; i++) {
+      data[i] = 255;
+    }
+
+    const result = getFrequencyIntensities(data, 100);
+
+    // All canvas rows should be zero because the energy is below CQT range
+    for (const val of result) {
+      expect(val).toBeCloseTo(0, 1);
+    }
+  });
+
+  it('maps CQT-range bins to the full canvas height', () => {
+    // Create data where only the upper portion (CQT range) has energy
+    const bins = 512;
+    const data = new Uint8Array(bins).fill(0);
+    const cqtStartBin = Math.ceil(CQT_ALIGNMENT_OFFSET * bins);
+    // Fill the CQT range with max intensity
+    for (let i = cqtStartBin; i < bins; i++) {
+      data[i] = 255;
+    }
+
+    const result = getFrequencyIntensities(data, 100);
+
+    // All canvas rows should be at max intensity — CQT range fills the full height
+    for (const val of result) {
+      expect(val).toBeCloseTo(1.0, 1);
+    }
+  });
+});
+
+describe('CQT_ALIGNMENT_OFFSET', () => {
+  it('represents the fraction of viz bins below CQT min frequency', () => {
+    // CQT min frequency is 32.7 Hz, viz min is 2.5 Hz
+    // The offset should be > 0 (some bins are below CQT range)
+    expect(CQT_ALIGNMENT_OFFSET).toBeGreaterThan(0);
+    // And < 1 (most bins are in CQT range)
+    expect(CQT_ALIGNMENT_OFFSET).toBeLessThan(0.5);
+  });
+
+  it('is approximately 0.28 for standard sample rates', () => {
+    // log(32.7/2.5) / log(22050/2.5) ≈ 0.283
+    expect(CQT_ALIGNMENT_OFFSET).toBeCloseTo(0.28, 1);
   });
 });

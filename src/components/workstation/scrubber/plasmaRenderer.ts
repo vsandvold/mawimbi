@@ -1,3 +1,25 @@
+import { MIN_FREQUENCY as CQT_MIN_FREQUENCY } from '../../../services/CQTAnalyser';
+import { REFERENCE_MIN_FREQUENCY } from '../../../services/dualBandAnalysis';
+
+// --- CQT alignment ---
+
+/**
+ * Fraction of FrequencyVisualizer output bins that represent frequencies
+ * below the CQT minimum frequency (32.7 Hz). The FrequencyVisualizer's
+ * log mapping starts at REFERENCE_MIN_FREQUENCY (2.5 Hz), while the CQT
+ * spectrogram starts at CQT_MIN_FREQUENCY (32.7 Hz). Skipping this
+ * fraction of bins aligns the scrubber's frequency display with the
+ * spectrogram tiles.
+ *
+ * Computed as log(CQT_MIN / VIZ_MIN) / log(NYQUIST / VIZ_MIN) using
+ * a standard Nyquist of 22050 Hz. The value is insensitive to sample
+ * rate: 0.283 at 44.1 kHz, 0.280 at 48 kHz.
+ */
+const DEFAULT_NYQUIST = 22050;
+export const CQT_ALIGNMENT_OFFSET =
+  Math.log(CQT_MIN_FREQUENCY / REFERENCE_MIN_FREQUENCY) /
+  Math.log(DEFAULT_NYQUIST / REFERENCE_MIN_FREQUENCY);
+
 // --- Beat detection ---
 
 const EMA_DECAY = 0.05;
@@ -290,6 +312,10 @@ export function pruneEtchMarks(state: PlasmaState, now: number): void {
  * Convert visualization data (pre-mapped Uint8Array 0–255) into per-row
  * intensity values (0–1) for the canvas height. Low-frequency bins map
  * to bottom rows, high-frequency bins to top rows.
+ *
+ * Bins below the CQT minimum frequency (32.7 Hz) are skipped so that
+ * the scrubber's frequency distribution matches the CQT spectrogram.
+ * The remaining bins are mapped to the full canvas height.
  */
 export function getFrequencyIntensities(
   visualizationData: Uint8Array | null,
@@ -299,10 +325,12 @@ export function getFrequencyIntensities(
   if (!visualizationData || visualizationData.length === 0) return intensities;
 
   const bins = visualizationData.length;
-  const binsPerRow = bins / height;
+  const firstCQTBin = Math.floor(CQT_ALIGNMENT_OFFSET * bins);
+  const usableBins = bins - firstCQTBin;
+  const binsPerRow = usableBins / height;
   for (let row = 0; row < height; row++) {
-    const startBin = Math.floor(row * binsPerRow);
-    const endBin = Math.floor((row + 1) * binsPerRow);
+    const startBin = firstCQTBin + Math.floor(row * binsPerRow);
+    const endBin = firstCQTBin + Math.floor((row + 1) * binsPerRow);
     let maxByte = 0;
     for (let bin = startBin; bin < endBin; bin++) {
       if (visualizationData[bin] > maxByte) maxByte = visualizationData[bin];
