@@ -141,8 +141,13 @@ async function classify(
 
   // Compute mel spectrogram patches
   const patches = await computeMelSpectrogram(monoAudio);
+  console.log(
+    `[classification:worker] Mel spectrogram: ${patches.length} patches from ${monoAudio.length} samples (${(monoAudio.length / MODEL_SAMPLE_RATE).toFixed(2)}s at ${MODEL_SAMPLE_RATE} Hz)`,
+  );
   if (patches.length === 0) {
-    throw new Error('Audio too short to produce mel spectrogram patches');
+    throw new Error(
+      `Audio too short to produce mel spectrogram patches (${monoAudio.length} samples, ${(monoAudio.length / MODEL_SAMPLE_RATE).toFixed(2)}s at ${MODEL_SAMPLE_RATE} Hz — need ≥2.1s)`,
+    );
   }
 
   // Run EffNet on each patch to get 1280-dim embeddings
@@ -256,9 +261,31 @@ const workerSelf = self as unknown as WorkerSelf;
 workerSelf.onmessage = async (event: MessageEvent<ClassifyRequest>) => {
   const { id, channelData, sampleRate, length } = event.data;
 
+  const channels = channelData.length;
+  const firstChannelLength = channelData[0]?.length ?? 0;
+  const durationSeconds = length / sampleRate;
+  console.log(
+    `[classification:worker] Received audio: ${channels}ch, ${length} samples (actual first channel: ${firstChannelLength}), ${sampleRate} Hz, ${durationSeconds.toFixed(2)}s`,
+  );
+
+  if (firstChannelLength === 0) {
+    const response: ClassifyResponse = {
+      id,
+      type: 'error',
+      message: `Worker received empty channel data (${channels} channels, first channel length: ${firstChannelLength}, expected: ${length})`,
+    };
+    workerSelf.postMessage(response);
+    return;
+  }
+
   try {
     const ctx = await loadContext();
     const monoSamples = downmixToMono(channelData, sampleRate, length);
+
+    console.log(
+      `[classification:worker] Mono audio after downmix: ${monoSamples.length} samples at ${MODEL_SAMPLE_RATE} Hz (${(monoSamples.length / MODEL_SAMPLE_RATE).toFixed(2)}s)`,
+    );
+
     const result = await classify(ctx, monoSamples);
 
     const response: ClassifyResponse = {
@@ -270,6 +297,7 @@ workerSelf.onmessage = async (event: MessageEvent<ClassifyRequest>) => {
     workerSelf.postMessage(response);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    console.error(`[classification:worker] Classification failed: ${message}`);
     const response: ClassifyResponse = { id, type: 'error', message };
     workerSelf.postMessage(response);
   }

@@ -104,6 +104,6 @@ describe('computeMelSpectrogram', () => {
 
     await computeMelSpectrogram(audio);
 
-    expect(mockComputeFrameWise).toHaveBeenCalledWith(audio);
+    expect(mockComputeFrameWise).toHaveBeenCalledWith(audio, 256);
   });
 });

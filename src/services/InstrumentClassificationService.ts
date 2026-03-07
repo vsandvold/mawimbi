@@ -166,9 +166,13 @@ class InstrumentClassificationService {
     try {
       const rawResult = await this.runInference(excerpt);
       return this.applyResult(trackId, rawResult);
-    } catch {
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.error(
+        `[classification] Classification failed for track ${trackId}: ${detail}`,
+      );
       this.setEntry(trackId, { state: 'error' });
-      throw new Error(`Classification failed for track ${trackId}`);
+      throw new Error(`Classification failed for track ${trackId}: ${detail}`);
     }
   }
 
@@ -184,9 +188,15 @@ class InstrumentClassificationService {
       return await this.classifyInWorker(excerpt);
     } catch (workerError) {
       this.workerFailed = true;
+      const errorDetail =
+        workerError instanceof Error
+          ? workerError.message
+          : String(workerError);
       console.warn(
-        '[classification] Worker failed, falling back to main thread:',
-        workerError,
+        `[classification] Worker failed, falling back to main thread: ${errorDetail}`,
+      );
+      console.warn(
+        `[classification] Excerpt: ${excerpt.channelData.length}ch, ${excerpt.length} samples, ${excerpt.sampleRate} Hz, ${(excerpt.length / excerpt.sampleRate).toFixed(2)}s`,
       );
       return this.classifyOnMainThread(excerpt);
     }
@@ -328,8 +338,13 @@ class InstrumentClassificationService {
 
     return async (monoAudio: Float32Array) => {
       const patches = await computeMelSpectrogram(monoAudio);
+      console.log(
+        `[classification] Mel spectrogram: ${patches.length} patches from ${monoAudio.length} samples (${(monoAudio.length / MODEL_SAMPLE_RATE).toFixed(2)}s at ${MODEL_SAMPLE_RATE} Hz)`,
+      );
       if (patches.length === 0) {
-        throw new Error('Audio too short to produce mel spectrogram patches');
+        throw new Error(
+          `Audio too short to produce mel spectrogram patches (${monoAudio.length} samples, ${(monoAudio.length / MODEL_SAMPLE_RATE).toFixed(2)}s at ${MODEL_SAMPLE_RATE} Hz — need ≥${MIN_AUDIO_DURATION_SECONDS}s)`,
+        );
       }
 
       // Run EffNet on all patches
