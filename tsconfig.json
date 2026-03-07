@@ -18,7 +18,11 @@
     "noUnusedParameters": true,
     "jsx": "react-jsx",
     "useDefineForClassFields": true,
-    "types": ["vitest/globals"]
+    "types": ["vitest/globals"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
   },
   "include": ["src", "vite.config.ts"]
 }
