@@ -5,6 +5,7 @@ import { BrowserRouter } from 'react-router-dom';
 import { BrowserSupportProvider } from './browserSupport';
 import App from './components/App';
 import AudioStartup from './components/AudioStartup';
+import LogOverlay from './components/LogOverlay';
 import './index.css';
 
 const root = createRoot(document.getElementById('root')!);
@@ -25,6 +26,7 @@ root.render(
             <App />
           </BrowserRouter>
         </BrowserSupportProvider>
+        <LogOverlay />
       </AntApp>
     </ConfigProvider>
   </StyleProvider>,
