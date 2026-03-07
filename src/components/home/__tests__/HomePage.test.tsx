@@ -195,6 +195,20 @@ it('displays storage usage when projects exist', async () => {
   });
 });
 
+it('shows empty state when loading projects fails', async () => {
+  mockListProjects.mockRejectedValue(new Error('IndexedDB unavailable'));
+  mockGetStorageEstimate.mockResolvedValue({
+    usage: undefined,
+    quota: undefined,
+  });
+  render(<HomePage />);
+
+  await waitFor(() => {
+    expect(screen.getByText('Mawimbi')).toBeInTheDocument();
+  });
+  expect(screen.getByText('Create Project')).toBeInTheDocument();
+});
+
 it('hides storage usage when no projects exist', async () => {
   setupMocks([], { usage: 0, quota: 2147483648 });
   render(<HomePage />);
