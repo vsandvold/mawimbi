@@ -5,7 +5,10 @@ import { useRecordingService } from '../../../hooks/useRecordingService';
 import { useTrackService } from '../../../hooks/useTrackService';
 import { useTrackVolume } from '../../../hooks/useTrackVolume';
 import FrequencyVisualizer from '../../../services/FrequencyVisualizer';
+import { type MelodyNote } from '../../../services/MelodyExtractor';
+import { type TrackColor } from '../../../types/track';
 import { type Track } from '../../../types/track';
+import { drawPianoRoll, type PianoRollViewport } from './PianoRollRenderer';
 import RecordingBuffer from './RecordingBuffer';
 import './Spectrogram.css';
 import { useSpectrogramCache } from './useSpectrogramCache';
@@ -27,8 +30,14 @@ const Spectrogram = ({
   isRecordingTrack = false,
 }: SpectrogramProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const overlayRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const lastDrawnRef = useRef({ offset: -1, pps: -1, tileCount: -1 });
+  const lastDrawnOverlayRef = useRef({
+    offset: -1,
+    pps: -1,
+    noteCount: -1,
+  });
   const recordingBufferRef = useRef<RecordingBuffer | null>(null);
 
   const { trackId, color } = track;
@@ -51,8 +60,10 @@ const Spectrogram = ({
   const timeResolution = entry?.data.timeResolution ?? 0.025;
   const frameDisplayWidth = pixelsPerSecond * timeResolution;
   const tileDisplayWidth = TILE_WIDTH * frameDisplayWidth;
+  const frequencyBinCount = entry?.data.frequencyBinCount ?? 0;
   const totalFrames = entry?.data.frequencyFrames.length ?? 0;
   const tiles = entry?.tiles ?? [];
+  const melodyNotes = entry?.melody?.notes ?? [];
 
   const visualizerRef = useRef<FrequencyVisualizer | null>(null);
 
@@ -78,9 +89,10 @@ const Spectrogram = ({
     // Hook objects reference stable service singletons via getters
   }, [isRecordingTrack, color]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Draw visible tiles on each animation frame
+  // Draw visible tiles and melody overlay on each animation frame
   useAnimationFrame(() => {
     const canvas = canvasRef.current;
+    const overlay = overlayRef.current;
     const container = containerRef.current;
     if (!canvas || !container) return;
 
@@ -112,6 +124,20 @@ const Spectrogram = ({
       duration,
       lastDrawnRef,
     );
+
+    if (overlay && melodyNotes.length > 0) {
+      drawMelodyOverlay(
+        overlay,
+        container,
+        pixelsPerSecond,
+        height,
+        melodyNotes,
+        color,
+        frequencyBinCount,
+        duration,
+        lastDrawnOverlayRef,
+      );
+    }
   });
 
   const { opacity } = useTrackVolume(trackId);
@@ -133,6 +159,7 @@ const Spectrogram = ({
       }}
     >
       <canvas ref={canvasRef} className="spectrogram__canvas" />
+      <canvas ref={overlayRef} className="spectrogram__overlay" />
     </div>
   );
 };
@@ -292,6 +319,74 @@ function drawTilesFrame(
 
     ctx.drawImage(tiles[t], drawX, 0, drawWidth, height);
   }
+}
+
+function drawMelodyOverlay(
+  canvas: HTMLCanvasElement,
+  container: HTMLDivElement,
+  pixelsPerSecond: number,
+  height: number,
+  notes: MelodyNote[],
+  color: TrackColor,
+  frequencyBinCount: number,
+  duration: number,
+  lastDrawnOverlayRef: React.MutableRefObject<{
+    offset: number;
+    pps: number;
+    noteCount: number;
+  }>,
+): void {
+  const containerWidth = duration * pixelsPerSecond;
+
+  const scrollParent = container.closest(SCROLL_CONTAINER_CLASS);
+  const viewportWidth = scrollParent?.clientWidth ?? window.innerWidth;
+
+  const scrollLeft = scrollParent?.scrollLeft ?? 0;
+  const timeline = container.closest('.timeline');
+  const paddingLeft = timeline
+    ? parseFloat(getComputedStyle(timeline).paddingLeft) || 0
+    : 0;
+  const containerMarginLeft = parseFloat(container.style.marginLeft) || 0;
+  const maxContentOffset = Math.max(0, containerWidth - viewportWidth);
+  const contentOffset = Math.min(
+    Math.max(0, scrollLeft - paddingLeft - containerMarginLeft),
+    maxContentOffset,
+  );
+
+  const needsResize =
+    canvas.width !== viewportWidth || canvas.height !== height;
+
+  const last = lastDrawnOverlayRef.current;
+  if (
+    !needsResize &&
+    contentOffset === last.offset &&
+    pixelsPerSecond === last.pps &&
+    notes.length === last.noteCount
+  ) {
+    return;
+  }
+  last.offset = contentOffset;
+  last.pps = pixelsPerSecond;
+  last.noteCount = notes.length;
+
+  if (needsResize) {
+    canvas.width = viewportWidth;
+    canvas.height = height;
+  }
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const viewport: PianoRollViewport = {
+    pixelsPerSecond,
+    contentOffset,
+    viewportWidth,
+    canvasHeight: height,
+    frequencyBinCount,
+  };
+
+  drawPianoRoll(ctx, notes, color, viewport);
 }
 
 export default Spectrogram;

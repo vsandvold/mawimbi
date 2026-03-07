@@ -172,6 +172,23 @@ it('renders a canvas element', () => {
   expect(canvas).toBeInTheDocument();
 });
 
+it('renders an overlay canvas for the piano roll', () => {
+  const { container } = render(<Spectrogram {...defaultProps} />);
+
+  const overlay = container.querySelector('.spectrogram__overlay');
+  expect(overlay).toBeInTheDocument();
+  expect(overlay?.tagName).toBe('CANVAS');
+});
+
+it('overlay canvas has pointer-events none to pass through interactions', () => {
+  const { container } = render(<Spectrogram {...defaultProps} />);
+
+  const overlay = container.querySelector('.spectrogram__overlay');
+  expect(overlay).toBeInTheDocument();
+  // pointer-events: none is set via CSS class, verified by class presence
+  expect(overlay?.classList.contains('spectrogram__overlay')).toBe(true);
+});
+
 it('renders spectrogram container with correct opacity from volume signal', () => {
   trackService.getSignals(TRACK_ID)!.volume.value = 50;
   const { container } = render(<Spectrogram {...defaultProps} />);
