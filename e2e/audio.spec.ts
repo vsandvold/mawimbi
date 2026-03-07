@@ -175,17 +175,17 @@ test.describe('Mixer', () => {
   });
 
   test('opens and closes the mixer panel', async ({ page }) => {
-    // Mixer container is initially closed (translated off-screen)
-    const mixerContainer = page.locator('.editor__mixer');
-    await expect(mixerContainer).toHaveClass(/editor__mixer--closed/);
+    // Mixer bottom sheet is initially not rendered
+    const bottomSheet = page.locator('.mixer-bottom-sheet');
+    await expect(bottomSheet).toHaveCount(0);
 
-    // Click Show mixer → container slides in
+    // Click Show mixer → bottom sheet appears
     await page.getByTitle('Show mixer').click();
-    await expect(mixerContainer).not.toHaveClass(/editor__mixer--closed/);
+    await expect(bottomSheet).toBeVisible();
 
-    // Click Hide mixer → container slides out
+    // Click Hide mixer → bottom sheet disappears
     await page.getByTitle('Hide mixer').click();
-    await expect(mixerContainer).toHaveClass(/editor__mixer--closed/);
+    await expect(bottomSheet).toHaveCount(0);
   });
 
   test('displays a channel strip for each uploaded track', async ({
@@ -455,7 +455,7 @@ test.describe('Visual regression - audio states', () => {
     await page.getByTitle('Show mixer').click();
     await expect(page.locator('.channel')).toBeVisible();
 
-    await expect(page.locator('.editor__mixer')).toHaveScreenshot(
+    await expect(page.locator('.mixer-bottom-sheet')).toHaveScreenshot(
       'mixer-one-channel.png',
     );
   });
@@ -471,7 +471,7 @@ test.describe('Visual regression - audio states', () => {
       page.locator('.timeline__track--muted'),
     ).toBeVisible();
 
-    await expect(page.locator('.editor')).toHaveScreenshot(
+    await expect(page.locator('.workstation')).toHaveScreenshot(
       'timeline-muted-track.png',
     );
   });
@@ -489,7 +489,7 @@ test.describe('Visual regression - audio states', () => {
     await page.getByTitle('Muted').click(); // mute → solo
     await expect(page.locator('.timeline__track--muted')).toHaveCount(1);
 
-    await expect(page.locator('.editor')).toHaveScreenshot(
+    await expect(page.locator('.workstation')).toHaveScreenshot(
       'timeline-solo-track.png',
     );
   });
