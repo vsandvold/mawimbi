@@ -122,12 +122,13 @@ async function initializeContext(): Promise<InferenceContext> {
     fetchModel(INSTRUMENT_HEAD_URL, onInstrumentProgress),
   ]);
 
+  console.log('[classification:worker] Creating ONNX inference sessions...');
   const [effnetSession, instrumentSession] = await Promise.all([
     ort.InferenceSession.create(effnetBuffer),
     ort.InferenceSession.create(instrumentBuffer),
   ]);
 
-  console.log('[classification:worker] Models loaded');
+  console.log('[classification:worker] Models loaded and sessions created');
   return { effnetSession, instrumentSession, ort };
 }
 
@@ -140,6 +141,9 @@ async function classify(
   const { effnetSession, instrumentSession, ort } = ctx;
 
   // Compute mel spectrogram patches
+  console.log(
+    `[classification:worker] Computing mel spectrogram from ${monoAudio.length} samples (${(monoAudio.length / MODEL_SAMPLE_RATE).toFixed(2)}s)...`,
+  );
   const patches = await computeMelSpectrogram(monoAudio);
   console.log(
     `[classification:worker] Mel spectrogram: ${patches.length} patches from ${monoAudio.length} samples (${(monoAudio.length / MODEL_SAMPLE_RATE).toFixed(2)}s at ${MODEL_SAMPLE_RATE} Hz)`,
@@ -157,6 +161,9 @@ async function classify(
     inputData.set(patches[i], i * PATCH_FRAMES * MEL_BANDS);
   }
 
+  console.log(
+    `[classification:worker] Running EffNet on ${batchSize} patches (input shape: [${batchSize}, ${PATCH_FRAMES}, ${MEL_BANDS}])...`,
+  );
   const effnetInput = new ort.Tensor('float32', inputData, [
     batchSize,
     PATCH_FRAMES,
@@ -169,6 +176,9 @@ async function classify(
     data: Float32Array;
     dims: number[];
   };
+  console.log(
+    `[classification:worker] EffNet embeddings: [${embeddings.dims.join(', ')}]`,
+  );
 
   // Average embeddings across patches → [1, 1280]
   const embeddingDim = embeddings.dims[1];
@@ -180,6 +190,9 @@ async function classify(
   }
 
   // Run instrument classification head → 40 sigmoid predictions
+  console.log(
+    `[classification:worker] Running instrument head (embedding dim: ${embeddingDim})...`,
+  );
   const instrumentInput = new ort.Tensor('float32', avgEmbedding, [
     1,
     embeddingDim,
@@ -200,6 +213,17 @@ async function classify(
       bestIndex = i;
     }
   }
+
+  // Log top-3 predictions for debugging
+  const scored = Array.from(predictions.data)
+    .map((score, i) => ({ label: JAMENDO_CLASSES[i], score }))
+    .sort((a, b) => b.score - a.score);
+  console.log(
+    `[classification:worker] Top predictions: ${scored
+      .slice(0, 3)
+      .map((p) => `${p.label}=${p.score.toFixed(3)}`)
+      .join(', ')}`,
+  );
 
   return {
     label: JAMENDO_CLASSES[bestIndex],

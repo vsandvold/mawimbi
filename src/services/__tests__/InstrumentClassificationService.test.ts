@@ -538,39 +538,14 @@ describe('InstrumentClassificationService', () => {
     });
   });
 
-  describe('loudest excerpt extraction', () => {
-    it('sends only a 5-second excerpt to the worker for long audio', async () => {
-      // 30 seconds at 16kHz
-      const buffer = createAudioBuffer(1, 480000, 16000);
-      const promise = service.classify('track-long', buffer);
-
-      simulateWorkerResult('electricguitar', 0.85);
-      await promise;
-
-      // Should have sent a 5-second excerpt (80000 samples at 16kHz)
-      const postedMessage = mockWorker.postMessage.mock.calls[0][0];
-      expect(postedMessage.length).toBe(80000);
-    });
-
-    it('sends the full audio when shorter than the excerpt duration', async () => {
-      // 3 seconds at 16kHz — shorter than the 5-second excerpt
-      const buffer = createAudioBuffer(1, 48000, 16000);
-      const promise = service.classify('track-short-ok', buffer);
-
-      simulateWorkerResult('electricguitar', 0.85);
-      await promise;
-
-      const postedMessage = mockWorker.postMessage.mock.calls[0][0];
-      expect(postedMessage.length).toBe(48000);
-    });
-
-    it('picks the loudest segment from long audio', async () => {
-      // Create 10 seconds at 16kHz with a loud section at seconds 3-5
-      const length = 160000;
+  describe('silence trimming', () => {
+    it('trims leading silence before sending to the worker', async () => {
+      // 5 seconds at 16kHz: 1s silence + 4s signal
+      const length = 80000;
       const channelData = new Float32Array(length);
-      // Fill seconds 3-5 (samples 48000-80000) with loud signal
-      for (let i = 48000; i < 80000; i++) {
-        channelData[i] = 0.9 * Math.sin(i * 0.1);
+      // Fill samples 16000–80000 with audible signal
+      for (let i = 16000; i < length; i++) {
+        channelData[i] = 0.5 * Math.sin(i * 0.1);
       }
       const buffer = {
         numberOfChannels: 1,
@@ -580,19 +555,98 @@ describe('InstrumentClassificationService', () => {
         getChannelData: () => channelData,
       } as unknown as AudioBuffer;
 
-      const promise = service.classify('track-loud', buffer);
-
+      const promise = service.classify('track-trim', buffer);
       simulateWorkerResult('electricguitar', 0.85);
       await promise;
 
-      // The 5-second excerpt should overlap with the loud section (samples 48000-80000)
-      const postedData = mockWorker.postMessage.mock.calls[0][0].channelData[0];
-      const excerptEnergy = postedData.reduce(
-        (sum: number, v: number) => sum + v * v,
-        0,
-      );
-      // The excerpt should have significant energy (from the loud section)
-      expect(excerptEnergy).toBeGreaterThan(0);
+      const postedMessage = mockWorker.postMessage.mock.calls[0][0];
+      // Trimmed length should be less than the original
+      expect(postedMessage.length).toBeLessThan(length);
+      // Should be approximately 4 seconds (within a 10ms window tolerance)
+      expect(postedMessage.length).toBeGreaterThanOrEqual(63000);
+    });
+
+    it('trims trailing silence before sending to the worker', async () => {
+      // 5 seconds at 16kHz: 4s signal + 1s silence
+      const length = 80000;
+      const channelData = new Float32Array(length);
+      // Fill samples 0–64000 with audible signal
+      for (let i = 0; i < 64000; i++) {
+        channelData[i] = 0.5 * Math.sin(i * 0.1);
+      }
+      const buffer = {
+        numberOfChannels: 1,
+        length,
+        sampleRate: 16000,
+        duration: length / 16000,
+        getChannelData: () => channelData,
+      } as unknown as AudioBuffer;
+
+      const promise = service.classify('track-trim', buffer);
+      simulateWorkerResult('electricguitar', 0.85);
+      await promise;
+
+      const postedMessage = mockWorker.postMessage.mock.calls[0][0];
+      expect(postedMessage.length).toBeLessThan(length);
+      expect(postedMessage.length).toBeGreaterThanOrEqual(63000);
+    });
+
+    it('sends full audio when there is no silence to trim', async () => {
+      // 3 seconds at 16kHz filled with signal
+      const length = 48000;
+      const channelData = new Float32Array(length);
+      for (let i = 0; i < length; i++) {
+        channelData[i] = 0.5 * Math.sin(i * 0.1);
+      }
+      const buffer = {
+        numberOfChannels: 1,
+        length,
+        sampleRate: 16000,
+        duration: length / 16000,
+        getChannelData: () => channelData,
+      } as unknown as AudioBuffer;
+
+      const promise = service.classify('track-full', buffer);
+      simulateWorkerResult('electricguitar', 0.85);
+      await promise;
+
+      const postedMessage = mockWorker.postMessage.mock.calls[0][0];
+      expect(postedMessage.length).toBe(length);
+    });
+
+    it('sends full audio when the entire buffer is silent', async () => {
+      // 3 seconds of silence at 16kHz
+      const buffer = createAudioBuffer(1, 48000, 16000);
+
+      const promise = service.classify('track-silent', buffer);
+      simulateWorkerResult('electricguitar', 0.85);
+      await promise;
+
+      const postedMessage = mockWorker.postMessage.mock.calls[0][0];
+      expect(postedMessage.length).toBe(48000);
+    });
+
+    it('returns unknown when trimmed audio is too short for classification', async () => {
+      // 3 seconds at 16kHz: 2s silence + 1s signal + leftover silence
+      // After trimming, ~1s remains which is below MIN_AUDIO_DURATION_SECONDS
+      const length = 48000;
+      const channelData = new Float32Array(length);
+      // Only fill a short burst (0.5s) in the middle
+      for (let i = 24000; i < 32000; i++) {
+        channelData[i] = 0.5 * Math.sin(i * 0.1);
+      }
+      const buffer = {
+        numberOfChannels: 1,
+        length,
+        sampleRate: 16000,
+        duration: length / 16000,
+        getChannelData: () => channelData,
+      } as unknown as AudioBuffer;
+
+      const label = await service.classify('track-short-trim', buffer);
+
+      expect(label).toBe('unknown');
+      expect(service.getClassificationState('track-short-trim')).toBe('done');
     });
   });
 
