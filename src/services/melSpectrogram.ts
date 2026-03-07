@@ -23,11 +23,10 @@ async function getExtractor() {
 
   initPromise = (async () => {
     // Dynamic imports — WASM module + model extractor
-    const [{ default: EssentiaWASM }, { EssentiaTFInputExtractor }] =
-      await Promise.all([
-        import('essentia.js/dist/essentia-wasm.es.js'),
-        import('essentia.js/dist/essentia.js-model.es.js'),
-      ]);
+    const [{ EssentiaWASM }, { EssentiaTFInputExtractor }] = await Promise.all([
+      import('essentia.js/dist/essentia-wasm.es.js'),
+      import('essentia.js/dist/essentia.js-model.es.js'),
+    ]);
 
     const wasmModule = await EssentiaWASM();
     extractorInstance = new EssentiaTFInputExtractor(wasmModule, 'musicnn');
