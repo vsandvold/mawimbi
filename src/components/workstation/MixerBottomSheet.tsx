@@ -1,23 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Drawer } from 'vaul';
 import { type Track } from '../../types/track';
 import Mixer from './Mixer';
 import './MixerBottomSheet.css';
+import { useBottomSheetDrag } from './useBottomSheetDrag';
 
 // Height of the drag handle area (padding + handle + padding)
 const HANDLE_HEIGHT = 28;
 
-// The snap point where the mixer sits by default (px).
-// Below this, the timeline scales to follow the drawer height.
-// Above this, the drawer overlays the timeline.
-const SNAP_POINT_PX = '240px';
-const SNAP_POINT_VALUE = 240;
-
-// Small-screen snap point
-const SNAP_POINT_SMALL_PX = '120px';
-const SNAP_POINT_SMALL_VALUE = 120;
-
+// Default snap point heights (px)
+const SNAP_POINT_PX = 240;
+const SNAP_POINT_SMALL_PX = 120;
 const SMALL_SCREEN_BREAKPOINT = 425;
+
+// Maximum height the sheet can be dragged to (fraction of viewport)
+const MAX_HEIGHT_RATIO = 0.85;
 
 type MixerBottomSheetProps = {
   isOpen: boolean;
@@ -32,11 +28,9 @@ const MixerBottomSheet = ({
   onHeightChange,
   tracks,
 }: MixerBottomSheetProps) => {
-  const contentRef = useRef<HTMLDivElement>(null);
-  const [snapPoint, setSnapPoint] = useState(getSnapPoint());
-  const [activeSnapPoint, setActiveSnapPoint] = useState<
-    number | string | null
-  >(null);
+  const [snapPoint, setSnapPoint] = useState(getSnapPoint);
+  const [sheetHeight, setSheetHeight] = useState(0);
+  const isDraggingRef = useRef(false);
 
   // Update snap point on window resize
   useEffect(() => {
@@ -45,84 +39,79 @@ const MixerBottomSheet = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const snapPointValue = getSnapPointValue(snapPoint);
+  const maxHeight = Math.round(window.innerHeight * MAX_HEIGHT_RATIO);
+  const totalHeight = sheetHeight + HANDLE_HEIGHT;
 
-  // Track the visual height of the drawer content for timeline scaling.
-  // The reported height is capped at the snap point so the timeline only
-  // scales up to the snap point — beyond that the drawer overlays.
-  const reportHeight = useCallback(() => {
-    const el = contentRef.current;
-    if (!el) return;
+  const handleHeightChange = useCallback(
+    (height: number) => {
+      setSheetHeight(height);
+      const clamped = Math.min(height, snapPoint);
+      onHeightChange(clamped + HANDLE_HEIGHT);
+    },
+    [onHeightChange, snapPoint],
+  );
 
-    const rect = el.getBoundingClientRect();
-    const visualHeight = window.innerHeight - rect.top;
-    const clampedHeight = Math.min(
-      Math.max(visualHeight, 0),
-      snapPointValue + HANDLE_HEIGHT,
-    );
-    onHeightChange(clampedHeight);
-  }, [onHeightChange, snapPointValue]);
+  const handleClose = useCallback(() => {
+    onOpenChange(false);
+  }, [onOpenChange]);
 
-  // Observe the drawer content position via ResizeObserver + MutationObserver
-  // Vaul animates by setting `transform: translateY(...)` on the content,
-  // so we use a RAF loop while the drawer is open to track position changes.
+  const { handlePointerDown, handlePointerMove, handlePointerUp, setHeight } =
+    useBottomSheetDrag({
+      minHeight: SNAP_POINT_SMALL_PX,
+      maxHeight,
+      snapPoint,
+      isDraggingRef,
+      onHeightChange: handleHeightChange,
+      onClose: handleClose,
+    });
+
+  // Animate open/close
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
+      setSheetHeight(snapPoint);
+      setHeight(snapPoint);
+      onHeightChange(snapPoint + HANDLE_HEIGHT);
+    } else {
+      setSheetHeight(0);
+      setHeight(0);
       onHeightChange(0);
-      return;
     }
+  }, [isOpen, snapPoint, setHeight, onHeightChange]);
 
-    let rafId: number;
-    const tick = () => {
-      reportHeight();
-      rafId = requestAnimationFrame(tick);
-    };
-    rafId = requestAnimationFrame(tick);
-
-    return () => cancelAnimationFrame(rafId);
-  }, [isOpen, reportHeight, onHeightChange]);
+  if (!isOpen) return null;
 
   return (
-    <Drawer.Root
-      open={isOpen}
-      onOpenChange={onOpenChange}
-      snapPoints={[snapPoint, 1]}
-      activeSnapPoint={activeSnapPoint}
-      setActiveSnapPoint={setActiveSnapPoint}
-      fadeFromIndex={1}
-      modal={false}
-      handleOnly
-      noBodyStyles
+    <div
+      className="mixer-bottom-sheet"
+      style={{
+        height: totalHeight,
+        transition: isDraggingRef.current ? 'none' : undefined,
+      }}
     >
-      <Drawer.Portal>
-        <Drawer.Content
-          ref={contentRef}
-          className="mixer-bottom-sheet"
-          aria-describedby={undefined}
-        >
-          <Drawer.Title className="mixer-bottom-sheet__sr-title">
-            Mixer
-          </Drawer.Title>
-          <Drawer.Handle className="mixer-bottom-sheet__handle" />
-          <div className="mixer-bottom-sheet__content">
-            <Mixer tracks={tracks} />
-          </div>
-        </Drawer.Content>
-      </Drawer.Portal>
-    </Drawer.Root>
+      <div
+        className="mixer-bottom-sheet__handle"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+      >
+        <div className="mixer-bottom-sheet__handle-bar" />
+      </div>
+      <div
+        className="mixer-bottom-sheet__content"
+        style={{ height: sheetHeight }}
+      >
+        <Mixer tracks={tracks} />
+      </div>
+    </div>
   );
 };
 
-function getSnapPoint(): string {
+function getSnapPoint(): number {
   if (window.innerHeight < SMALL_SCREEN_BREAKPOINT) {
     return SNAP_POINT_SMALL_PX;
   }
   return SNAP_POINT_PX;
-}
-
-function getSnapPointValue(snapPoint: string): number {
-  if (snapPoint === SNAP_POINT_SMALL_PX) return SNAP_POINT_SMALL_VALUE;
-  return SNAP_POINT_VALUE;
 }
 
 export default MixerBottomSheet;
