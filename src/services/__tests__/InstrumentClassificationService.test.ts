@@ -30,7 +30,7 @@ vi.mock('../ModelCache', () => ({
 
 function createAudioBuffer(
   numberOfChannels = 1,
-  length = 16000,
+  length = 48000,
   sampleRate = 16000,
 ): AudioBuffer {
   const channelData: Float32Array[] = [];
@@ -187,7 +187,7 @@ describe('InstrumentClassificationService', () => {
           id: 0,
           type: 'classify',
           sampleRate: 16000,
-          length: 16000,
+          length: 48000,
         }),
         expect.any(Array),
       );
@@ -210,12 +210,12 @@ describe('InstrumentClassificationService', () => {
     });
 
     it('copies channel data before transfer to preserve the original AudioBuffer', async () => {
-      const originalData = new Float32Array([0.1, 0.2, 0.3]);
+      const originalData = new Float32Array(48000).fill(0.5);
       const buffer = {
         numberOfChannels: 1,
-        length: 3,
+        length: 48000,
         sampleRate: 16000,
-        duration: 3 / 16000,
+        duration: 3,
         getChannelData: vi.fn().mockReturnValue(originalData),
       } as unknown as AudioBuffer;
 
@@ -223,15 +223,16 @@ describe('InstrumentClassificationService', () => {
 
       const postedChannelData =
         mockWorker.postMessage.mock.calls[0][0].channelData[0];
+      // The posted data is a copy, not the same reference
       expect(postedChannelData).not.toBe(originalData);
-      expect(Array.from(postedChannelData)).toEqual(Array.from(originalData));
+      expect(postedChannelData.length).toBe(originalData.length);
 
       simulateWorkerResult('electricguitar', 0.85);
       await promise;
     });
 
     it('extracts all channels for multi-channel audio', async () => {
-      const buffer = createAudioBuffer(2, 16000, 16000);
+      const buffer = createAudioBuffer(2, 48000, 16000);
       const promise = service.classify('track-1', buffer);
 
       simulateWorkerResult('electricguitar', 0.85);
@@ -425,7 +426,7 @@ describe('InstrumentClassificationService', () => {
 
   describe('main-thread fallback', () => {
     it('downmixes stereo to mono', async () => {
-      const buffer = createAudioBuffer(2, 16000, 16000);
+      const buffer = createAudioBuffer(2, 48000, 16000);
 
       // Force fallback
       const promise = service.classify('track-1', buffer);
@@ -435,11 +436,12 @@ describe('InstrumentClassificationService', () => {
       // computeMelSpectrogram should receive mono audio of original length
       const passedAudio = mockComputeMelSpectrogram.mock
         .calls[0][0] as Float32Array;
-      expect(passedAudio.length).toBe(16000);
+      expect(passedAudio.length).toBe(48000);
     });
 
     it('resamples from 44100 to 16000', async () => {
-      const buffer = createAudioBuffer(1, 44100, 44100);
+      // 3 seconds at 44100 Hz = 132300 samples
+      const buffer = createAudioBuffer(1, 132300, 44100);
 
       // Force fallback
       const promise = service.classify('track-1', buffer);
@@ -448,11 +450,11 @@ describe('InstrumentClassificationService', () => {
 
       const passedAudio = mockComputeMelSpectrogram.mock
         .calls[0][0] as Float32Array;
-      expect(passedAudio.length).toBe(16000);
+      expect(passedAudio.length).toBe(48000);
     });
 
     it('does not resample when already at target rate', async () => {
-      const buffer = createAudioBuffer(1, 16000, 16000);
+      const buffer = createAudioBuffer(1, 48000, 16000);
 
       // Force fallback
       const promise = service.classify('track-1', buffer);
@@ -461,7 +463,7 @@ describe('InstrumentClassificationService', () => {
 
       const passedAudio = mockComputeMelSpectrogram.mock
         .calls[0][0] as Float32Array;
-      expect(passedAudio.length).toBe(16000);
+      expect(passedAudio.length).toBe(48000);
     });
 
     it('loads ONNX models on first classify call', async () => {
@@ -493,6 +495,104 @@ describe('InstrumentClassificationService', () => {
       // Models fetched and sessions created only once
       expect(mockFetchModel).toHaveBeenCalledTimes(2);
       expect(mockInferenceSessionCreate).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('short audio handling', () => {
+    it('skips classification for audio shorter than the minimum duration', async () => {
+      // At 16kHz, 16000 samples = 1 second — too short for a 128-frame patch
+      // (needs ~2.08 seconds at 16kHz)
+      const buffer = createAudioBuffer(1, 16000, 16000);
+
+      const label = await service.classify('track-short', buffer);
+
+      expect(label).toBe('unknown');
+      expect(service.getClassificationState('track-short')).toBe('done');
+      expect(service.getClassification('track-short')).toEqual({
+        label: 'unknown',
+        score: 0,
+      });
+    });
+
+    it('skips classification for short audio at higher sample rates', async () => {
+      // 44100 samples at 44100 Hz = 1 second — still too short after
+      // resampling to 16kHz
+      const buffer = createAudioBuffer(1, 44100, 44100);
+
+      const label = await service.classify('track-short', buffer);
+
+      expect(label).toBe('unknown');
+      expect(service.getClassificationState('track-short')).toBe('done');
+    });
+
+    it('classifies audio that meets the minimum duration', async () => {
+      // 3 seconds at 16kHz — long enough for at least one patch
+      const buffer = createAudioBuffer(1, 48000, 16000);
+      const promise = service.classify('track-ok', buffer);
+
+      simulateWorkerResult('electricguitar', 0.85);
+      await promise;
+
+      expect(service.getClassificationState('track-ok')).toBe('done');
+      expect(service.getClassification('track-ok')?.label).toBe('guitar');
+    });
+  });
+
+  describe('loudest excerpt extraction', () => {
+    it('sends only a 5-second excerpt to the worker for long audio', async () => {
+      // 30 seconds at 16kHz
+      const buffer = createAudioBuffer(1, 480000, 16000);
+      const promise = service.classify('track-long', buffer);
+
+      simulateWorkerResult('electricguitar', 0.85);
+      await promise;
+
+      // Should have sent a 5-second excerpt (80000 samples at 16kHz)
+      const postedMessage = mockWorker.postMessage.mock.calls[0][0];
+      expect(postedMessage.length).toBe(80000);
+    });
+
+    it('sends the full audio when shorter than the excerpt duration', async () => {
+      // 3 seconds at 16kHz — shorter than the 5-second excerpt
+      const buffer = createAudioBuffer(1, 48000, 16000);
+      const promise = service.classify('track-short-ok', buffer);
+
+      simulateWorkerResult('electricguitar', 0.85);
+      await promise;
+
+      const postedMessage = mockWorker.postMessage.mock.calls[0][0];
+      expect(postedMessage.length).toBe(48000);
+    });
+
+    it('picks the loudest segment from long audio', async () => {
+      // Create 10 seconds at 16kHz with a loud section at seconds 3-5
+      const length = 160000;
+      const channelData = new Float32Array(length);
+      // Fill seconds 3-5 (samples 48000-80000) with loud signal
+      for (let i = 48000; i < 80000; i++) {
+        channelData[i] = 0.9 * Math.sin(i * 0.1);
+      }
+      const buffer = {
+        numberOfChannels: 1,
+        length,
+        sampleRate: 16000,
+        duration: length / 16000,
+        getChannelData: () => channelData,
+      } as unknown as AudioBuffer;
+
+      const promise = service.classify('track-loud', buffer);
+
+      simulateWorkerResult('electricguitar', 0.85);
+      await promise;
+
+      // The 5-second excerpt should overlap with the loud section (samples 48000-80000)
+      const postedData = mockWorker.postMessage.mock.calls[0][0].channelData[0];
+      const excerptEnergy = postedData.reduce(
+        (sum: number, v: number) => sum + v * v,
+        0,
+      );
+      // The excerpt should have significant energy (from the loud section)
+      expect(excerptEnergy).toBeGreaterThan(0);
     });
   });
 

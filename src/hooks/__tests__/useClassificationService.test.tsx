@@ -27,12 +27,12 @@ vi.stubGlobal(
 );
 
 function createAudioBuffer(): AudioBuffer {
-  const data = new Float32Array(48000);
+  const data = new Float32Array(144000);
   return {
     numberOfChannels: 1,
-    length: 48000,
+    length: 144000,
     sampleRate: 48000,
-    duration: 1,
+    duration: 3,
     getChannelData: () => data,
   } as unknown as AudioBuffer;
 }

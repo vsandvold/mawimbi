@@ -80,6 +80,8 @@ These principles guide architectural decisions. Apply them when adding features,
 
 - **Prefer simple over indirect.** A direct call (`pause()`) in a workflow is better than a reactive chain (signal change → effect → service call → another effect → engine call) when the intent is clear and the trigger is already known. Reserve reactive patterns for cases where the producer genuinely shouldn't know about the consumer.
 
+- **Reduce duplication when safe.** When the same logic appears in multiple code paths (e.g., result mapping, logging, state transitions), extract it into a helper — but only when the abstraction is straightforward and the risk of introducing bugs is low. Don't tolerate copy-paste code that drifts apart silently. Conversely, don't force dissimilar code into a shared abstraction just because it looks similar on the surface.
+
 ### Services (`src/services/`)
 
 Services own state as private signals, expose plain getters for non-reactive reads, and provide a `signals` accessor for bridge hooks. They define valid transitions and guard against invalid ones.
