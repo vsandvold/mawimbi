@@ -12,7 +12,6 @@ import { useScrubber } from './useScrubber';
 
 type ScrubberProps = PropsWithChildren<{
   drawerHeight: number;
-  isMixerOpen: boolean;
   onStopRecording: () => void;
   pixelsPerSecond: number;
   tracks: Track[];
@@ -21,13 +20,7 @@ type ScrubberProps = PropsWithChildren<{
 const Scrubber = (props: ScrubberProps) => {
   const playback = usePlaybackService();
   const recording = useRecordingService();
-  const {
-    drawerHeight,
-    isMixerOpen,
-    onStopRecording,
-    pixelsPerSecond,
-    tracks,
-  } = props;
+  const { drawerHeight, onStopRecording, pixelsPerSecond, tracks } = props;
 
   const {
     timelineScrollRef,
@@ -40,7 +33,7 @@ const Scrubber = (props: ScrubberProps) => {
     handleWheel,
     handleTouchMove,
     handleStopAndRewind,
-  } = useScrubber({ drawerHeight, isMixerOpen, pixelsPerSecond, tracks });
+  } = useScrubber({ drawerHeight, pixelsPerSecond, tracks });
 
   const handleTimelineClick = () => {
     if (recording.isCountingIn || recording.isActivelyRecording) {

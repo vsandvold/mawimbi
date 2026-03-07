@@ -104,7 +104,6 @@ const Workstation = (props: WorkstationProps) => {
           {showTimeline ? (
             <Scrubber
               drawerHeight={drawerHeight}
-              isMixerOpen={isMixerOpen}
               onStopRecording={handleStopRecording}
               pixelsPerSecond={pixelsPerSecond}
               tracks={tracks}
