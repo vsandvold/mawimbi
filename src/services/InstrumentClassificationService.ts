@@ -55,10 +55,17 @@ const EFFNET_URL =
   '/models/feature-extractors/discogs-effnet/discogs-effnet-bsdynamic-1.onnx';
 const INSTRUMENT_HEAD_URL =
   '/models/classification-heads/mtg_jamendo_instrument/mtg_jamendo_instrument-discogs-effnet-1.onnx';
+const VOICE_INSTRUMENTAL_URL =
+  '/models/classification-heads/voice_instrumental/voice_instrumental-discogs-effnet-1.onnx';
 
 // EffNet input dimensions
 const PATCH_FRAMES = 128;
 const MEL_BANDS = 96;
+
+// Voice/instrumental model outputs softmax over [instrumental, voice].
+// Index 1 is the "voice" probability.
+const VOICE_CLASS_INDEX = 1;
+const VOICE_THRESHOLD = 0.5;
 
 type AudioExcerpt = {
   channelData: Float32Array[];
@@ -377,15 +384,18 @@ class InstrumentClassificationService {
     const ort = await import('onnxruntime-web');
     ort.env.wasm.numThreads = 1;
 
-    const [effnetBuffer, instrumentBuffer] = await Promise.all([
+    const [effnetBuffer, instrumentBuffer, voiceBuffer] = await Promise.all([
       fetchModel(EFFNET_URL),
       fetchModel(INSTRUMENT_HEAD_URL),
+      fetchModel(VOICE_INSTRUMENTAL_URL),
     ]);
 
-    const [effnetSession, instrumentSession] = await Promise.all([
-      ort.InferenceSession.create(effnetBuffer),
-      ort.InferenceSession.create(instrumentBuffer),
-    ]);
+    const [effnetSession, instrumentSession, voiceInstrumentalSession] =
+      await Promise.all([
+        ort.InferenceSession.create(effnetBuffer),
+        ort.InferenceSession.create(instrumentBuffer),
+        ort.InferenceSession.create(voiceBuffer),
+      ]);
 
     console.log('[classification] Models loaded on main thread');
 
@@ -441,18 +451,38 @@ class InstrumentClassificationService {
         }
       }
 
-      // Run instrument classification head
-      console.debug(
-        `[classification] Running instrument head (embedding dim: ${embeddingDim})...`,
-      );
-      const instrumentInput = new ort.Tensor('float32', avgEmbedding, [
+      // Run both classification heads in parallel on the averaged embedding
+      const embeddingTensor = new ort.Tensor('float32', avgEmbedding, [
         1,
         embeddingDim,
       ]);
+
+      console.debug(
+        `[classification] Running instrument head (embedding dim: ${embeddingDim})...`,
+      );
       const instrumentInputName = instrumentSession.inputNames[0];
-      const instrumentOutput = await instrumentSession.run({
-        [instrumentInputName]: instrumentInput,
-      });
+      const voiceInputName = voiceInstrumentalSession.inputNames[0];
+
+      const [instrumentOutput, voiceOutput] = await Promise.all([
+        instrumentSession.run({ [instrumentInputName]: embeddingTensor }),
+        voiceInstrumentalSession.run({ [voiceInputName]: embeddingTensor }),
+      ]);
+
+      // --- Voice/instrumental classification ---
+      const voicePredictions = Object.values(voiceOutput)[0] as {
+        data: Float32Array;
+      };
+      const voiceScore = voicePredictions.data[VOICE_CLASS_INDEX];
+      const isVocal = voiceScore >= VOICE_THRESHOLD;
+      console.debug(
+        `[classification] Voice/instrumental: voice=${voiceScore.toFixed(3)}, instrumental=${voicePredictions.data[0].toFixed(3)} → ${isVocal ? 'voice' : 'instrumental'}`,
+      );
+
+      if (isVocal) {
+        return { label: 'voice', score: voiceScore };
+      }
+
+      // --- Instrument classification (when not vocal) ---
       const predictions = Object.values(instrumentOutput)[0] as {
         data: Float32Array;
       };
