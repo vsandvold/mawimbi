@@ -31,13 +31,18 @@ const HomePage = () => {
   }, []);
 
   async function loadData() {
-    const [projectList, estimate] = await Promise.all([
-      listProjects(),
-      getStorageEstimate(),
-    ]);
-    setProjects(projectList);
-    setStorage({ usage: estimate.usage, quota: estimate.quota });
-    setIsLoading(false);
+    try {
+      const [projectList, estimate] = await Promise.all([
+        listProjects(),
+        getStorageEstimate(),
+      ]);
+      setProjects(projectList);
+      setStorage({ usage: estimate.usage, quota: estimate.quota });
+    } catch (error) {
+      console.error('Failed to load projects', error);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   function handleCreate() {
