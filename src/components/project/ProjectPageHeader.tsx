@@ -16,6 +16,8 @@ type ProjectPageHeaderProps = {
   uploadFile: (file: File) => void;
   isFullscreen: boolean;
   toggleFullscreen: (state?: boolean) => void;
+  isLogOverlayOpen: boolean;
+  toggleLogOverlay: () => void;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
@@ -98,6 +100,8 @@ const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
         <OverflowMenu
           isFullscreen={props.isFullscreen}
           toggleFullscreen={props.toggleFullscreen}
+          isLogOverlayOpen={props.isLogOverlayOpen}
+          toggleLogOverlay={props.toggleLogOverlay}
           getPopupContainer={() => containerRef.current!}
         />
       </div>
@@ -135,17 +139,30 @@ const UploadButton = (props: UploadButtonProps) => {
 type OverflowMenuProps = {
   isFullscreen: boolean;
   toggleFullscreen: (state?: boolean) => void;
+  isLogOverlayOpen: boolean;
+  toggleLogOverlay: () => void;
   getPopupContainer: () => HTMLElement;
 };
 
 const OverflowMenu = (props: OverflowMenuProps) => {
-  const { isFullscreen, toggleFullscreen, getPopupContainer } = props;
+  const {
+    isFullscreen,
+    toggleFullscreen,
+    isLogOverlayOpen,
+    toggleLogOverlay,
+    getPopupContainer,
+  } = props;
 
   const items: MenuProps['items'] = [
     {
       key: 'fullscreen',
       label: isFullscreen ? 'Exit Full Screen' : 'Enter Full Screen',
       onClick: () => toggleFullscreen(),
+    },
+    {
+      key: 'logs',
+      label: isLogOverlayOpen ? 'Hide Logs' : 'View Logs',
+      onClick: toggleLogOverlay,
     },
   ];
 

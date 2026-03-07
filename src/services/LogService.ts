@@ -1,7 +1,11 @@
-// LogService — captures log messages for display in the UI.
+// LogService — intercepts console.log/warn/error/debug and captures entries
+// for display in the UI overlay.
 //
-// Replaces console.log/warn/error calls throughout the app so that log
-// output is visible on devices without devtools (e.g. mobile browsers).
+// On install(), replaces native console methods with wrappers that:
+// 1. Forward to the original console method (so devtools still work)
+// 2. Append the message to the entries signal (so the UI overlay can show it)
+//
+// Callers throughout the app just use console.log/warn/error/debug as normal.
 //
 // Signal ownership: LogService owns the `entries` signal. Only LogService
 // writes to it. Consumers read via the `signals` accessor (bridge hooks)
@@ -62,24 +66,32 @@ function append(level: LogLevel, args: unknown[]): void {
   _entries.value = updated;
 }
 
-function log(...args: unknown[]): void {
-  append('log', args);
-}
-
-function warn(...args: unknown[]): void {
-  append('warn', args);
-}
-
-function error(...args: unknown[]): void {
-  append('error', args);
-}
-
-function debug(...args: unknown[]): void {
-  append('debug', args);
-}
-
 function clear(): void {
   _entries.value = [];
 }
 
-export default { signals, getEntries, log, warn, error, debug, clear };
+// --- Console interception ---
+
+const originalConsole = {
+  log: console.log.bind(console),
+  warn: console.warn.bind(console),
+  error: console.error.bind(console),
+  debug: console.debug.bind(console),
+};
+
+let installed = false;
+
+function install(): void {
+  if (installed) return;
+  installed = true;
+
+  const LEVELS: LogLevel[] = ['log', 'warn', 'error', 'debug'];
+  for (const level of LEVELS) {
+    console[level] = (...args: unknown[]) => {
+      originalConsole[level](...args);
+      append(level, args);
+    };
+  }
+}
+
+export default { signals, getEntries, clear, install };

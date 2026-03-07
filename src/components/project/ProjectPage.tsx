@@ -1,6 +1,8 @@
+import { useCallback, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import Fullscreen from '../fullscreen/Fullscreen';
 import { PageContent, PageHeader, PageLayout } from '../layout/PageLayout';
+import LogOverlay from '../LogOverlay';
 import Workstation from '../workstation/Workstation';
 import './ProjectPage.css';
 import {
@@ -38,6 +40,7 @@ type ProjectPageContentProps = {
 
 const ProjectPageContent = ({ initialState }: ProjectPageContentProps) => {
   const [state, dispatch, undoControls] = useProjectReducer(initialState);
+  const [isLogOverlayOpen, setIsLogOverlayOpen] = useState(false);
 
   const uploadFile = useUploadFile(dispatch);
   const [fullScreenHandle, toggleFullscreen] = useFullscreen();
@@ -45,6 +48,11 @@ const ProjectPageContent = ({ initialState }: ProjectPageContentProps) => {
   useTrackSideEffects(state.tracks);
   useDeleteTrackAudio(state.tracks);
   useAutoSave(state);
+
+  const toggleLogOverlay = useCallback(
+    () => setIsLogOverlayOpen((prev) => !prev),
+    [],
+  );
 
   const recordingColor = COLOR_PALETTE[state.nextColorId];
 
@@ -62,6 +70,8 @@ const ProjectPageContent = ({ initialState }: ProjectPageContentProps) => {
               uploadFile={uploadFile}
               isFullscreen={fullScreenHandle.active}
               toggleFullscreen={toggleFullscreen}
+              isLogOverlayOpen={isLogOverlayOpen}
+              toggleLogOverlay={toggleLogOverlay}
               undo={undoControls.undo}
               redo={undoControls.redo}
               canUndo={undoControls.canUndo}
@@ -77,6 +87,7 @@ const ProjectPageContent = ({ initialState }: ProjectPageContentProps) => {
             />
           </PageContent>
         </PageLayout>
+        <LogOverlay isOpen={isLogOverlayOpen} onClose={toggleLogOverlay} />
       </Fullscreen>
     </ProjectDispatch.Provider>
   );
