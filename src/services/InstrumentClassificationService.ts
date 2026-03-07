@@ -417,8 +417,9 @@ class InstrumentClassificationService {
         PATCH_FRAMES,
         MEL_BANDS,
       ]);
+      const effnetInputName = effnetSession.inputNames[0];
       const effnetOutput = await effnetSession.run({
-        model_input: effnetInput,
+        [effnetInputName]: effnetInput,
       });
       const embeddings = Object.values(effnetOutput)[0] as {
         data: Float32Array;
@@ -445,8 +446,9 @@ class InstrumentClassificationService {
         1,
         embeddingDim,
       ]);
+      const instrumentInputName = instrumentSession.inputNames[0];
       const instrumentOutput = await instrumentSession.run({
-        model_input: instrumentInput,
+        [instrumentInputName]: instrumentInput,
       });
       const predictions = Object.values(instrumentOutput)[0] as {
         data: Float32Array;
