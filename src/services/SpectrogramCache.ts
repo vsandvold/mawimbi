@@ -7,6 +7,7 @@ import { type WorkerResponse } from './spectrogram.worker';
 export type TrackSpectrogramEntry = {
   data: SpectrogramData;
   tiles: ImageBitmap[];
+  melody?: MelodyData;
 };
 
 type SpectrogramResult = { data: SpectrogramData; tiles: ImageBitmap[] };
@@ -59,6 +60,17 @@ class SpectrogramCache {
 
   getEntry(trackId: string): TrackSpectrogramEntry | undefined {
     return this.entries.get(trackId);
+  }
+
+  getMelody(trackId: string): MelodyData | undefined {
+    return this.entries.get(trackId)?.melody;
+  }
+
+  setMelody(trackId: string, melody: MelodyData): void {
+    const entry = this.entries.get(trackId);
+    if (entry) {
+      entry.melody = melody;
+    }
   }
 
   invalidate(trackId: string): void {

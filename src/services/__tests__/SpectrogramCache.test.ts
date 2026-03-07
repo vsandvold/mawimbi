@@ -1,5 +1,6 @@
 import { vi } from 'vitest';
 import { type TrackColor } from '../../types/track';
+import { type MelodyData } from '../MelodyExtractor';
 import type { SpectrogramData } from '../OfflineAnalyser';
 import SpectrogramCache from '../SpectrogramCache';
 
@@ -74,6 +75,20 @@ function simulateWorkerError(message: string, id = 0) {
     data: { id, type: 'error', message },
   } as MessageEvent);
 }
+
+function simulateWorkerMelodyResult(data: MelodyData, id = 0) {
+  mockWorker.onmessage!({
+    data: { id, type: 'melody-result', data },
+  } as MessageEvent);
+}
+
+const MOCK_MELODY_DATA: MelodyData = {
+  notes: [
+    { startTime: 0.1, endTime: 0.5, midiNote: 60, confidence: 0.9 },
+    { startTime: 0.6, endTime: 1.0, midiNote: 64, confidence: 0.85 },
+  ],
+  timeResolution: 0.0029,
+};
 
 let cache: SpectrogramCache;
 
@@ -375,5 +390,109 @@ describe('invalidateAll', () => {
 
   it('does nothing when cache is empty', () => {
     expect(() => cache.invalidateAll()).not.toThrow();
+  });
+});
+
+describe('getMelody', () => {
+  it('returns undefined when no melody is set', async () => {
+    const promise = cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap]);
+    await promise;
+
+    expect(cache.getMelody('track-1')).toBeUndefined();
+  });
+
+  it('returns undefined for an unknown track', () => {
+    expect(cache.getMelody('nonexistent')).toBeUndefined();
+  });
+});
+
+describe('setMelody', () => {
+  it('stores melody data on an existing entry', async () => {
+    const promise = cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap]);
+    await promise;
+
+    cache.setMelody('track-1', MOCK_MELODY_DATA);
+
+    expect(cache.getMelody('track-1')).toBe(MOCK_MELODY_DATA);
+  });
+
+  it('does nothing when track does not exist', () => {
+    expect(() =>
+      cache.setMelody('nonexistent', MOCK_MELODY_DATA),
+    ).not.toThrow();
+    expect(cache.getMelody('nonexistent')).toBeUndefined();
+  });
+
+  it('makes melody available through getEntry', async () => {
+    const promise = cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap]);
+    await promise;
+
+    cache.setMelody('track-1', MOCK_MELODY_DATA);
+
+    const entry = cache.getEntry('track-1');
+    expect(entry?.melody).toBe(MOCK_MELODY_DATA);
+  });
+
+  it('invalidate removes melody data along with the entry', async () => {
+    const promise = cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap]);
+    await promise;
+
+    cache.setMelody('track-1', MOCK_MELODY_DATA);
+    cache.invalidate('track-1');
+
+    expect(cache.getMelody('track-1')).toBeUndefined();
+  });
+
+  it('invalidateAll removes melody data for all tracks', async () => {
+    const promise1 = cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap], 0);
+    await promise1;
+
+    const tile2 = { close: vi.fn() } as unknown as ImageBitmap;
+    const promise2 = cache.analyse('track-2', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [tile2], 1);
+    await promise2;
+
+    cache.setMelody('track-1', MOCK_MELODY_DATA);
+    cache.setMelody('track-2', MOCK_MELODY_DATA);
+    cache.invalidateAll();
+
+    expect(cache.getMelody('track-1')).toBeUndefined();
+    expect(cache.getMelody('track-2')).toBeUndefined();
+  });
+});
+
+describe('extractMelodyInWorker', () => {
+  it('posts melody request to worker with correct message format', () => {
+    cache.extractMelodyInWorker(mockAudioBuffer());
+
+    expect(mockWorker.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 0,
+        kind: 'melody',
+        sampleRate: 44100,
+        length: 3,
+      }),
+      expect.any(Array),
+    );
+  });
+
+  it('resolves with MelodyData from worker response', async () => {
+    const promise = cache.extractMelodyInWorker(mockAudioBuffer());
+    simulateWorkerMelodyResult(MOCK_MELODY_DATA);
+
+    const result = await promise;
+    expect(result).toBe(MOCK_MELODY_DATA);
+  });
+
+  it('rejects when worker responds with error', async () => {
+    const promise = cache.extractMelodyInWorker(mockAudioBuffer());
+    simulateWorkerError('essentia.js failed');
+
+    await expect(promise).rejects.toThrow('essentia.js failed');
   });
 });

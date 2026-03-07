@@ -2,17 +2,23 @@ import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
 import { renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { MelodyData } from '../../../../services/MelodyExtractor';
 import type { SpectrogramData } from '../../../../services/OfflineAnalyser';
 import {
+  loadMelodyData,
   loadSpectrogramData,
   resetDB,
+  saveMelodyData,
   saveSpectrogramData,
+  type MelodyStoreData,
   type SpectrogramStoreData,
 } from '../../../../services/ProjectStorageService';
 import type { TrackSpectrogramEntry } from '../../../../services/SpectrogramCache';
 import { type TrackColor } from '../../../../types/track';
 import {
+  fromMelodyStoreData,
   fromSpectrogramStoreData,
+  toMelodyStoreData,
   toSpectrogramStoreData,
   useSpectrogramCache,
 } from '../useSpectrogramCache';
@@ -27,14 +33,28 @@ const MOCK_DATA: SpectrogramData = {
   duration: 0.05,
 };
 
+const MOCK_MELODY: MelodyData = {
+  notes: [{ startTime: 0.1, endTime: 0.5, midiNote: 60, confidence: 0.9 }],
+  timeResolution: 0.0029,
+};
+
 const MOCK_ENTRY: TrackSpectrogramEntry = {
   data: MOCK_DATA,
   tiles: [],
 };
 
+const MOCK_ENTRY_WITH_MELODY: TrackSpectrogramEntry = {
+  data: MOCK_DATA,
+  tiles: [],
+  melody: MOCK_MELODY,
+};
+
 const mockGetEntry = vi.fn();
 const mockAnalyse = vi.fn();
 const mockRestore = vi.fn();
+const mockGetMelody = vi.fn();
+const mockSetMelody = vi.fn();
+const mockExtractMelodyInWorker = vi.fn();
 
 vi.mock('../../../../hooks/useAudioService', () => ({
   useAudioService: () => ({
@@ -42,6 +62,9 @@ vi.mock('../../../../hooks/useAudioService', () => ({
       getEntry: mockGetEntry,
       analyse: mockAnalyse,
       restore: mockRestore,
+      getMelody: mockGetMelody,
+      setMelody: mockSetMelody,
+      extractMelodyInWorker: mockExtractMelodyInWorker,
     },
   }),
 }));
@@ -137,6 +160,39 @@ describe('fromSpectrogramStoreData', () => {
   });
 });
 
+describe('toMelodyStoreData', () => {
+  it('converts MelodyData to MelodyStoreData', () => {
+    const result = toMelodyStoreData('track-1', MOCK_MELODY);
+
+    expect(result.trackId).toBe('track-1');
+    expect(result.notes).toEqual(MOCK_MELODY.notes);
+    expect(result.timeResolution).toBe(0.0029);
+  });
+});
+
+describe('fromMelodyStoreData', () => {
+  it('converts MelodyStoreData back to MelodyData', () => {
+    const stored: MelodyStoreData = {
+      trackId: 'track-1',
+      notes: [{ startTime: 0.1, endTime: 0.5, midiNote: 60, confidence: 0.9 }],
+      timeResolution: 0.0029,
+    };
+
+    const result = fromMelodyStoreData(stored);
+
+    expect(result.notes).toEqual(stored.notes);
+    expect(result.timeResolution).toBe(0.0029);
+  });
+
+  it('round-trips through to/from without data loss', () => {
+    const stored = toMelodyStoreData('track-1', MOCK_MELODY);
+    const restored = fromMelodyStoreData(stored);
+
+    expect(restored.notes).toEqual(MOCK_MELODY.notes);
+    expect(restored.timeResolution).toBe(MOCK_MELODY.timeResolution);
+  });
+});
+
 describe('useSpectrogramCache', () => {
   it('returns undefined when audioBuffer is not available', () => {
     const { result } = renderHook(() =>
@@ -193,6 +249,7 @@ describe('useSpectrogramCache', () => {
       .mockReturnValue(MOCK_ENTRY); // after analyse
 
     mockAnalyse.mockResolvedValue(undefined);
+    mockExtractMelodyInWorker.mockResolvedValue(MOCK_MELODY);
 
     const buffer = mockAudioBuffer();
     const { result } = renderHook(() =>
@@ -210,5 +267,79 @@ describe('useSpectrogramCache', () => {
     expect(stored).not.toBeNull();
     expect(stored!.trackId).toBe('track-1');
     expect(stored!.timeResolution).toBe(0.025);
+  });
+
+  it('restores melody from IndexedDB alongside spectrogram', async () => {
+    mockGetEntry
+      .mockReturnValueOnce(undefined)
+      .mockReturnValue(MOCK_ENTRY_WITH_MELODY);
+
+    const storeData = toSpectrogramStoreData('track-1', MOCK_DATA);
+    await saveSpectrogramData(storeData);
+    const melodyStore = toMelodyStoreData('track-1', MOCK_MELODY);
+    await saveMelodyData(melodyStore);
+
+    const { result } = renderHook(() =>
+      useSpectrogramCache('track-1', mockAudioBuffer(), COLOR),
+    );
+
+    await waitFor(() => {
+      expect(result.current).toBe(MOCK_ENTRY_WITH_MELODY);
+    });
+
+    expect(mockSetMelody).toHaveBeenCalledWith(
+      'track-1',
+      expect.objectContaining({
+        timeResolution: 0.0029,
+        notes: expect.arrayContaining([
+          expect.objectContaining({ midiNote: 60 }),
+        ]),
+      }),
+    );
+  });
+
+  it('runs melody extraction after spectrogram analysis', async () => {
+    mockGetEntry.mockReturnValueOnce(undefined).mockReturnValue(MOCK_ENTRY);
+
+    mockAnalyse.mockResolvedValue(undefined);
+    mockExtractMelodyInWorker.mockResolvedValue(MOCK_MELODY);
+
+    const buffer = mockAudioBuffer();
+    renderHook(() => useSpectrogramCache('track-1', buffer, COLOR));
+
+    await waitFor(() => {
+      expect(mockExtractMelodyInWorker).toHaveBeenCalledWith(buffer);
+    });
+
+    await waitFor(() => {
+      expect(mockSetMelody).toHaveBeenCalledWith('track-1', MOCK_MELODY);
+    });
+
+    // Verify melody data was saved to IndexedDB
+    const stored = await loadMelodyData('track-1');
+    expect(stored).not.toBeNull();
+    expect(stored!.trackId).toBe('track-1');
+    expect(stored!.timeResolution).toBe(0.0029);
+  });
+
+  it('does not fail when melody extraction errors', async () => {
+    mockGetEntry.mockReturnValueOnce(undefined).mockReturnValue(MOCK_ENTRY);
+
+    mockAnalyse.mockResolvedValue(undefined);
+    mockExtractMelodyInWorker.mockRejectedValue(
+      new Error('essentia.js unavailable'),
+    );
+
+    const buffer = mockAudioBuffer();
+    const { result } = renderHook(() =>
+      useSpectrogramCache('track-1', buffer, COLOR),
+    );
+
+    await waitFor(() => {
+      expect(result.current).toBe(MOCK_ENTRY);
+    });
+
+    // Melody extraction failed but spectrogram still works
+    expect(mockSetMelody).not.toHaveBeenCalled();
   });
 });
