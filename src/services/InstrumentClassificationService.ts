@@ -421,10 +421,12 @@ class InstrumentClassificationService {
       const effnetOutput = await effnetSession.run({
         [effnetInputName]: effnetInput,
       });
-      const embeddings = Object.values(effnetOutput)[0] as {
-        data: Float32Array;
-        dims: readonly number[];
-      };
+
+      // Discogs-EffNet produces two outputs:
+      //   PartitionedCall:0 → [n, 400]  (genre predictions)
+      //   PartitionedCall:1 → [n, 1280] (embeddings for downstream heads)
+      // Select the embedding output (largest second dimension).
+      const embeddings = selectEmbeddingOutput(effnetOutput);
       console.debug(
         `[classification] EffNet embeddings: [${embeddings.dims.join(', ')}]`,
       );
@@ -504,6 +506,25 @@ class InstrumentClassificationService {
   private publishCache(): void {
     this._classifications.value = new Map(this.cache);
   }
+}
+
+// --- Output selection ---
+
+type TensorLike = { data: Float32Array; dims: readonly number[] };
+
+// Discogs-EffNet produces two outputs: genre predictions ([n, 400]) and
+// embeddings ([n, 1280]). The instrument classification head needs the
+// embeddings. Select the output with the largest second dimension.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function selectEmbeddingOutput(outputs: Record<string, any>): TensorLike {
+  const candidates = Object.values(outputs) as TensorLike[];
+  let best = candidates[0];
+  for (let i = 1; i < candidates.length; i++) {
+    if (candidates[i].dims[1] > best.dims[1]) {
+      best = candidates[i];
+    }
+  }
+  return best;
 }
 
 // --- Silence trimming ---
