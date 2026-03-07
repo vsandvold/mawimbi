@@ -21,6 +21,7 @@ import {
 } from './instrumentLabels';
 import { computeMelSpectrogram } from './melSpectrogram';
 import { fetchModel } from './ModelCache';
+import { resample } from './resample';
 
 export type ClassificationState = 'idle' | 'classifying' | 'done' | 'error';
 
@@ -620,28 +621,6 @@ function downmixExcerptToMono(
   }
 
   return resample(mono, sourceSampleRate, targetSampleRate);
-}
-
-function resample(
-  samples: Float32Array,
-  fromRate: number,
-  toRate: number,
-): Float32Array {
-  const ratio = fromRate / toRate;
-  const outputLength = Math.round(samples.length / ratio);
-  const output = new Float32Array(outputLength);
-
-  for (let i = 0; i < outputLength; i++) {
-    const srcIndex = i * ratio;
-    const srcIndexFloor = Math.floor(srcIndex);
-    const fraction = srcIndex - srcIndexFloor;
-
-    const sample0 = samples[srcIndexFloor] ?? 0;
-    const sample1 = samples[srcIndexFloor + 1] ?? 0;
-    output[i] = sample0 + fraction * (sample1 - sample0);
-  }
-
-  return output;
 }
 
 export default InstrumentClassificationService;
