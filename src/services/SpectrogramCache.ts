@@ -1,17 +1,29 @@
 import { type TrackColor } from '../types/track';
+import { type MelodyData } from './MelodyExtractor';
 import OfflineAnalyser, { type SpectrogramData } from './OfflineAnalyser';
 import { renderTiles } from './SpectrogramTileRenderer';
-import { type AnalyseResponse } from './spectrogram.worker';
+import { type WorkerResponse } from './spectrogram.worker';
 
 export type TrackSpectrogramEntry = {
   data: SpectrogramData;
   tiles: ImageBitmap[];
 };
 
-type PendingRequest = {
-  resolve: (result: { data: SpectrogramData; tiles: ImageBitmap[] }) => void;
+type SpectrogramResult = { data: SpectrogramData; tiles: ImageBitmap[] };
+
+type PendingSpectrogramRequest = {
+  kind: 'spectrogram';
+  resolve: (result: SpectrogramResult) => void;
   reject: (error: Error) => void;
 };
+
+type PendingMelodyRequest = {
+  kind: 'melody';
+  resolve: (result: MelodyData) => void;
+  reject: (error: Error) => void;
+};
+
+type PendingRequest = PendingSpectrogramRequest | PendingMelodyRequest;
 
 class SpectrogramCache {
   private entries = new Map<string, TrackSpectrogramEntry>();
@@ -25,7 +37,7 @@ class SpectrogramCache {
     audioBuffer: AudioBuffer,
     color: TrackColor,
   ): Promise<void> {
-    let result: { data: SpectrogramData; tiles: ImageBitmap[] };
+    let result: SpectrogramResult;
     if (this.workerFailed) {
       result = await this.analyseOnMainThread(audioBuffer, color);
     } else {
@@ -64,13 +76,40 @@ class SpectrogramCache {
     this.entries.clear();
   }
 
+  extractMelodyInWorker(audioBuffer: AudioBuffer): Promise<MelodyData> {
+    const worker = this.getWorker();
+    const id = this.nextMessageId++;
+
+    const channelData: Float32Array[] = [];
+    const transferables: Transferable[] = [];
+    for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) {
+      const copy = new Float32Array(audioBuffer.getChannelData(ch));
+      channelData.push(copy);
+      transferables.push(copy.buffer);
+    }
+
+    return new Promise((resolve, reject) => {
+      this.pendingRequests.set(id, { kind: 'melody', resolve, reject });
+      worker.postMessage(
+        {
+          id,
+          kind: 'melody',
+          channelData,
+          sampleRate: audioBuffer.sampleRate,
+          length: audioBuffer.length,
+        },
+        transferables,
+      );
+    });
+  }
+
   private getWorker(): Worker {
     if (!this.worker) {
       this.worker = new Worker(
         new URL('./spectrogram.worker.ts', import.meta.url),
         { type: 'module' },
       );
-      this.worker.onmessage = (event: MessageEvent<AnalyseResponse>) => {
+      this.worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
         const { id, type } = event.data;
         const pending = this.pendingRequests.get(id);
         if (!pending) return;
@@ -78,7 +117,9 @@ class SpectrogramCache {
 
         if (type === 'error') {
           pending.reject(new Error(event.data.message));
-        } else {
+        } else if (type === 'melody-result' && pending.kind === 'melody') {
+          pending.resolve(event.data.data);
+        } else if (type === 'result' && pending.kind === 'spectrogram') {
           pending.resolve({ data: event.data.data, tiles: event.data.tiles });
         }
       };
@@ -102,7 +143,7 @@ class SpectrogramCache {
   private analyseInWorker(
     audioBuffer: AudioBuffer,
     color: TrackColor,
-  ): Promise<{ data: SpectrogramData; tiles: ImageBitmap[] }> {
+  ): Promise<SpectrogramResult> {
     const worker = this.getWorker();
     const id = this.nextMessageId++;
 
@@ -115,10 +156,11 @@ class SpectrogramCache {
     }
 
     return new Promise((resolve, reject) => {
-      this.pendingRequests.set(id, { resolve, reject });
+      this.pendingRequests.set(id, { kind: 'spectrogram', resolve, reject });
       worker.postMessage(
         {
           id,
+          kind: 'spectrogram',
           channelData,
           sampleRate: audioBuffer.sampleRate,
           length: audioBuffer.length,
@@ -132,7 +174,7 @@ class SpectrogramCache {
   private async analyseOnMainThread(
     audioBuffer: AudioBuffer,
     color: TrackColor,
-  ): Promise<{ data: SpectrogramData; tiles: ImageBitmap[] }> {
+  ): Promise<SpectrogramResult> {
     const analyser = new OfflineAnalyser(audioBuffer);
     const data = await analyser.analyseToFrames();
     const tiles = renderTiles(data, color);

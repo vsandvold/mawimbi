@@ -3,12 +3,43 @@ declare module 'essentia.js/dist/essentia-wasm.es.js' {
 }
 
 declare module 'essentia.js/dist/essentia.js-core.es.js' {
+  type VectorFloat = unknown;
+
   class Essentia {
     constructor(wasmModule: unknown, isDebug?: boolean);
     version: string;
     algorithmNames: string;
     shutdown(): void;
     reinstate(): void;
+    arrayToVector(inputArray: Float32Array): VectorFloat;
+    vectorToArray(inputVector: VectorFloat): Float32Array;
+    EqualLoudness(
+      signal: VectorFloat,
+      sampleRate?: number,
+    ): { signal: VectorFloat };
+    PredominantPitchMelodia(
+      signal: VectorFloat,
+      binResolution?: number,
+      filterIterations?: number,
+      frameSize?: number,
+      guessUnvoiced?: boolean,
+      harmonicWeight?: number,
+      hopSize?: number,
+      magnitudeCompression?: number,
+      magnitudeThreshold?: number,
+      maxFrequency?: number,
+      minDuration?: number,
+      minFrequency?: number,
+      numberHarmonics?: number,
+      peakDistributionThreshold?: number,
+      peakFrameThreshold?: number,
+      pitchContinuity?: number,
+      referenceFrequency?: number,
+      sampleRate?: number,
+      timeContinuity?: number,
+      voiceVibrato?: boolean,
+      voicingTolerance?: number,
+    ): { pitch: VectorFloat; pitchConfidence: VectorFloat };
   }
   export default Essentia;
 }
