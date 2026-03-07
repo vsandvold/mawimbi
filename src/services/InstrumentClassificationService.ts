@@ -164,49 +164,47 @@ class InstrumentClassificationService {
     console.log(`[classification] Classifying track ${trackId}`);
 
     try {
-      const rawResult = this.workerFailed
-        ? await this.classifyOnMainThread(excerpt)
-        : await this.classifyInWorker(excerpt);
-
-      const result: ClassificationResult = {
-        label: mapToInstrumentLabel(rawResult.label),
-        score: rawResult.score,
-      };
-
-      this.setEntry(trackId, { state: 'done', result });
-      console.log(
-        `[classification] Track ${trackId} classified as "${result.label}" (raw: "${rawResult.label}", score: ${result.score.toFixed(3)})`,
-      );
-      return result.label;
-    } catch (workerError) {
-      // If the worker failed for the first time, try the main-thread fallback
-      if (!this.workerFailed) {
-        this.workerFailed = true;
-        console.warn(
-          '[classification] Worker failed, falling back to main thread:',
-          workerError,
-        );
-        try {
-          const rawResult = await this.classifyOnMainThread(excerpt);
-          const result: ClassificationResult = {
-            label: mapToInstrumentLabel(rawResult.label),
-            score: rawResult.score,
-          };
-          this.setEntry(trackId, { state: 'done', result });
-          console.log(
-            `[classification] Track ${trackId} classified as "${result.label}" (raw: "${rawResult.label}", score: ${result.score.toFixed(3)})`,
-          );
-          return result.label;
-        } catch (mainThreadError) {
-          console.error(
-            '[classification] Main-thread fallback also failed:',
-            mainThreadError,
-          );
-        }
-      }
+      const rawResult = await this.runInference(excerpt);
+      return this.applyResult(trackId, rawResult);
+    } catch {
       this.setEntry(trackId, { state: 'error' });
       throw new Error(`Classification failed for track ${trackId}`);
     }
+  }
+
+  // --- Inference orchestration ---
+
+  private async runInference(
+    excerpt: AudioExcerpt,
+  ): Promise<RawClassificationResult> {
+    if (this.workerFailed) {
+      return this.classifyOnMainThread(excerpt);
+    }
+    try {
+      return await this.classifyInWorker(excerpt);
+    } catch (workerError) {
+      this.workerFailed = true;
+      console.warn(
+        '[classification] Worker failed, falling back to main thread:',
+        workerError,
+      );
+      return this.classifyOnMainThread(excerpt);
+    }
+  }
+
+  private applyResult(
+    trackId: TrackId,
+    rawResult: RawClassificationResult,
+  ): string {
+    const result: ClassificationResult = {
+      label: mapToInstrumentLabel(rawResult.label),
+      score: rawResult.score,
+    };
+    this.setEntry(trackId, { state: 'done', result });
+    console.log(
+      `[classification] Track ${trackId} classified as "${result.label}" (raw: "${rawResult.label}", score: ${result.score.toFixed(3)})`,
+    );
+    return result.label;
   }
 
   // --- Worker-based inference ---
