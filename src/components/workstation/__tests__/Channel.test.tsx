@@ -44,16 +44,10 @@ it('renders without crashing', () => {
   render(<Channel {...defaultProps} />);
 });
 
-it('renders mute button', () => {
+it('renders mute/solo button with On title by default', () => {
   const { getByTitle } = render(<Channel {...defaultProps} />);
 
-  expect(getByTitle('Mute')).toBeInTheDocument();
-});
-
-it('renders solo button', () => {
-  const { getByTitle } = render(<Channel {...defaultProps} />);
-
-  expect(getByTitle('Solo')).toBeInTheDocument();
+  expect(getByTitle('On')).toBeInTheDocument();
 });
 
 it('renders move button', () => {
@@ -62,36 +56,29 @@ it('renders move button', () => {
   expect(getByTitle('Move')).toBeInTheDocument();
 });
 
-it('sets mute signal when mute button is clicked', () => {
+it('cycles from on to mute on first click', () => {
   const { getByTitle } = render(<Channel {...defaultProps} />);
 
-  fireEvent.click(getByTitle('Mute'));
+  fireEvent.click(getByTitle('On'));
 
   const signals = trackService.getSignals('track-1')!;
   expect(signals.mute.value).toBe(true);
+  expect(signals.solo.value).toBe(false);
 });
 
-it('unsets mute signal when mute button is clicked while muted', () => {
+it('cycles from mute to solo on second click', () => {
   const signals = trackService.getSignals('track-1')!;
   signals.mute.value = true;
 
   const { getByTitle } = render(<Channel {...defaultProps} />);
 
-  fireEvent.click(getByTitle('Mute'));
+  fireEvent.click(getByTitle('Muted'));
 
   expect(signals.mute.value).toBe(false);
-});
-
-it('sets solo signal when solo button is clicked', () => {
-  const { getByTitle } = render(<Channel {...defaultProps} />);
-
-  fireEvent.click(getByTitle('Solo'));
-
-  const signals = trackService.getSignals('track-1')!;
   expect(signals.solo.value).toBe(true);
 });
 
-it('unsets solo signal when solo button is clicked while solo', () => {
+it('cycles from solo to on on third click', () => {
   const signals = trackService.getSignals('track-1')!;
   signals.solo.value = true;
 
@@ -99,7 +86,53 @@ it('unsets solo signal when solo button is clicked while solo', () => {
 
   fireEvent.click(getByTitle('Solo'));
 
+  expect(signals.mute.value).toBe(false);
   expect(signals.solo.value).toBe(false);
+});
+
+it('shows Muted title when muted', () => {
+  const signals = trackService.getSignals('track-1')!;
+  signals.mute.value = true;
+
+  const { getByTitle } = render(<Channel {...defaultProps} />);
+
+  expect(getByTitle('Muted')).toBeInTheDocument();
+});
+
+it('shows Solo title when soloed', () => {
+  const signals = trackService.getSignals('track-1')!;
+  signals.solo.value = true;
+
+  const { getByTitle } = render(<Channel {...defaultProps} />);
+
+  expect(getByTitle('Solo')).toBeInTheDocument();
+});
+
+it('applies active style when muted', () => {
+  const signals = trackService.getSignals('track-1')!;
+  signals.mute.value = true;
+
+  const { getByTitle } = render(<Channel {...defaultProps} />);
+
+  const button = getByTitle('Muted').closest('button');
+  expect(button).toHaveClass('channel-button--active');
+});
+
+it('applies active style when soloed', () => {
+  const signals = trackService.getSignals('track-1')!;
+  signals.solo.value = true;
+
+  const { getByTitle } = render(<Channel {...defaultProps} />);
+
+  const button = getByTitle('Solo').closest('button');
+  expect(button).toHaveClass('channel-button--active');
+});
+
+it('does not apply active style when on', () => {
+  const { getByTitle } = render(<Channel {...defaultProps} />);
+
+  const button = getByTitle('On').closest('button');
+  expect(button).not.toHaveClass('channel-button--active');
 });
 
 it('applies inverted style when channel is muted via signal', () => {

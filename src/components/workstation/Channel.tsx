@@ -1,4 +1,5 @@
 import {
+  AudioMutedOutlined,
   CustomerServiceOutlined,
   LoadingOutlined,
   MenuOutlined,
@@ -31,8 +32,7 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
     startFocus,
     updateVolume,
     commitVolume,
-    updateMute,
-    updateSolo,
+    cycleState,
   } = useChannelControls(trackId);
 
   const { getClassification, getClassificationState, downloadProgress } =
@@ -77,26 +77,15 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
           instrument !== undefined && getInstrumentIcon(instrument)
         )}
       </div>
-      <div className="channel__solo">
+      <div className="channel__mute-solo">
         <Button
           className={classNames('channel-button', {
-            'channel-button--active': solo,
+            'channel-button--active': mute || solo,
           })}
-          icon={<CustomerServiceOutlined />}
+          icon={getChannelStateIcon(mute, solo)}
           type="link"
-          title="Solo"
-          onClick={updateSolo}
-        />
-      </div>
-      <div className="channel__mute">
-        <Button
-          className={classNames('channel-button', {
-            'channel-button--active': mute,
-          })}
-          icon={<SoundOutlined />}
-          type="link"
-          title="Mute"
-          onClick={updateMute}
+          title={getChannelStateTitle(mute, solo)}
+          onClick={cycleState}
         />
       </div>
       <div className="channel__volume" onPointerDown={startFocus}>
@@ -122,6 +111,18 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
     </div>
   );
 };
+
+function getChannelStateIcon(mute: boolean, solo: boolean) {
+  if (solo) return <CustomerServiceOutlined />;
+  if (mute) return <AudioMutedOutlined />;
+  return <SoundOutlined />;
+}
+
+function getChannelStateTitle(mute: boolean, solo: boolean) {
+  if (solo) return 'Solo';
+  if (mute) return 'Muted';
+  return 'On';
+}
 
 function convertToOpacity(value: number): number {
   return parseFloat((value / PERCENT_DIVISOR).toFixed(2));

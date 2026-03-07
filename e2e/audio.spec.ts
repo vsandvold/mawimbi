@@ -202,39 +202,46 @@ test.describe('Mixer', () => {
     await expect(channels).toHaveCount(2);
   });
 
-  test('channel has mute, solo, and move controls', async ({ page }) => {
+  test('channel has mute/solo and move controls', async ({ page }) => {
     await page.getByTitle('Show mixer').click();
 
-    await expect(page.getByTitle('Mute')).toBeVisible();
-    await expect(page.getByTitle('Solo')).toBeVisible();
+    await expect(page.getByTitle('On')).toBeVisible();
     await expect(page.getByTitle('Move')).toBeVisible();
   });
 
-  test('mute button toggles muted state on the track', async ({ page }) => {
+  test('mute/solo button cycles through on, mute, solo states', async ({
+    page,
+  }) => {
     await page.getByTitle('Show mixer').click();
 
-    const muteButton = page.getByTitle('Mute');
-
-    // Click mute
-    await muteButton.click();
     const track = page.locator('.timeline__track');
-    await expect(track).toHaveClass(/timeline__track--muted/);
 
-    // Click mute again to unmute
-    await muteButton.click();
+    // Click once: on → mute
+    await page.getByTitle('On').click();
+    await expect(track).toHaveClass(/timeline__track--muted/);
+    await expect(page.getByTitle('Muted')).toBeVisible();
+
+    // Click again: mute → solo
+    await page.getByTitle('Muted').click();
     await expect(track).not.toHaveClass(/timeline__track--muted/);
+    await expect(page.getByTitle('Solo')).toBeVisible();
+
+    // Click again: solo → on
+    await page.getByTitle('Solo').click();
+    await expect(page.getByTitle('On')).toBeVisible();
   });
 
-  test('solo button highlights the solo state', async ({ page }) => {
+  test('solo mutes other tracks', async ({ page }) => {
     // Upload a second track so solo logic has meaning
     await uploadAudioFile(page, LONG_AUDIO);
     await expect(page.locator('.timeline__track')).toHaveCount(2);
 
     await page.getByTitle('Show mixer').click();
 
-    // Solo the first channel (mixer renders in reverse, so first button is last track)
-    const soloButtons = page.getByTitle('Solo');
-    await soloButtons.first().click();
+    // Cycle the first channel button to solo (on → mute → solo)
+    const channelButtons = page.getByTitle('On');
+    await channelButtons.first().click(); // on → mute
+    await page.getByTitle('Muted').click(); // mute → solo
 
     // The non-solo track should be muted
     const tracks = page.locator('.timeline__track');
@@ -459,7 +466,7 @@ test.describe('Visual regression - audio states', () => {
     await expect(page.locator('.timeline__track')).toBeVisible();
 
     await page.getByTitle('Show mixer').click();
-    await page.getByTitle('Mute').click();
+    await page.getByTitle('On').click(); // on → mute
     await expect(
       page.locator('.timeline__track--muted'),
     ).toBeVisible();
@@ -476,7 +483,10 @@ test.describe('Visual regression - audio states', () => {
     await expect(page.locator('.timeline__track')).toHaveCount(2);
 
     await page.getByTitle('Show mixer').click();
-    await page.getByTitle('Solo').first().click();
+    // Cycle first channel to solo (on → mute → solo)
+    const channelButtons = page.getByTitle('On');
+    await channelButtons.first().click(); // on → mute
+    await page.getByTitle('Muted').click(); // mute → solo
     await expect(page.locator('.timeline__track--muted')).toHaveCount(1);
 
     await expect(page.locator('.editor')).toHaveScreenshot(

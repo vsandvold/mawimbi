@@ -33,9 +33,9 @@ it('renders a channel for each track', () => {
 
   const { getAllByTitle } = render(<Mixer tracks={tracks} />);
 
-  // Each channel renders a Mute button
-  const muteButtons = getAllByTitle('Mute');
-  expect(muteButtons).toHaveLength(3);
+  // Each channel renders a mute/solo button
+  const channelButtons = getAllByTitle('On');
+  expect(channelButtons).toHaveLength(3);
 });
 
 it('marks channel as muted via mute signal', () => {
