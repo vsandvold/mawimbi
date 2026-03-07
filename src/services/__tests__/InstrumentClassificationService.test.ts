@@ -92,6 +92,7 @@ function setupMainThreadMocks(): void {
   mockFetchModel.mockResolvedValue(new ArrayBuffer(8));
 
   const mockEffnetSession = {
+    inputNames: ['melspectrogram'],
     run: vi.fn().mockResolvedValue({
       output: {
         data: new Float32Array(1280).fill(0.5),
@@ -100,6 +101,7 @@ function setupMainThreadMocks(): void {
     }),
   };
   const mockInstrumentSession = {
+    inputNames: ['model_output'],
     run: vi.fn().mockResolvedValue({
       output: (() => {
         // 40 predictions, electricguitar (index 15) has highest score
@@ -476,6 +478,31 @@ describe('InstrumentClassificationService', () => {
 
       expect(mockFetchModel).toHaveBeenCalledTimes(2);
       expect(mockInferenceSessionCreate).toHaveBeenCalledTimes(2);
+    });
+
+    it('uses session inputNames for ONNX feed keys', async () => {
+      const buffer = createAudioBuffer();
+
+      // Force fallback
+      const promise = service.classify('track-1', buffer);
+      simulateWorkerError('Worker failed');
+      await promise;
+
+      // Retrieve the sessions that were created
+      const effnetSession =
+        await mockInferenceSessionCreate.mock.results[0].value;
+      const instrumentSession =
+        await mockInferenceSessionCreate.mock.results[1].value;
+
+      // EffNet should use its inputNames[0] ('melspectrogram') as the feed key
+      const effnetFeed = effnetSession.run.mock.calls[0][0];
+      expect(effnetFeed).toHaveProperty('melspectrogram');
+      expect(effnetFeed).not.toHaveProperty('model_input');
+
+      // Instrument head should use its inputNames[0] ('model_output') as the feed key
+      const instrumentFeed = instrumentSession.run.mock.calls[0][0];
+      expect(instrumentFeed).toHaveProperty('model_output');
+      expect(instrumentFeed).not.toHaveProperty('model_input');
     });
 
     it('reuses the pipeline across multiple calls', async () => {
