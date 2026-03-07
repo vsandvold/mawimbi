@@ -291,6 +291,7 @@ export function useScrubber({
 const baseTransformStyle = {
   transformOrigin: 'top left',
   willChange: 'transform',
+  transition: 'transform 0.25s ease-out',
 };
 
 function getTimelineStyle(isMixerOpen: boolean, timelineScaleFactor: number) {
