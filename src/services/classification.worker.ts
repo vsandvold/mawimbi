@@ -153,6 +153,26 @@ async function initializeContext(): Promise<InferenceContext> {
   return { effnetSession, instrumentSession, ort };
 }
 
+// --- Output selection ---
+
+type TensorLike = { data: Float32Array; dims: number[] };
+
+// Discogs-EffNet produces two outputs: genre predictions ([n, 400]) and
+// embeddings ([n, 1280]). The instrument classification head needs the
+// embeddings. Select the output with the largest second dimension.
+function selectEmbeddingOutput(
+  outputs: Record<string, TensorLike>,
+): TensorLike {
+  const candidates = Object.values(outputs) as TensorLike[];
+  let best = candidates[0];
+  for (let i = 1; i < candidates.length; i++) {
+    if (candidates[i].dims[1] > best.dims[1]) {
+      best = candidates[i];
+    }
+  }
+  return best;
+}
+
 // --- Inference ---
 
 async function classify(
@@ -177,7 +197,7 @@ async function classify(
     );
   }
 
-  // Run EffNet on each patch to get 1280-dim embeddings
+  // Run EffNet on each patch to get embeddings
   const batchSize = patches.length;
   const inputData = new Float32Array(batchSize * PATCH_FRAMES * MEL_BANDS);
   for (let i = 0; i < batchSize; i++) {
@@ -197,16 +217,18 @@ async function classify(
   const effnetOutput = await effnetSession.run({
     [effnetInputName]: effnetInput,
   });
-  const embeddings = Object.values(effnetOutput)[0] as {
-    data: Float32Array;
-    dims: number[];
-  };
+
+  // Discogs-EffNet produces two outputs:
+  //   PartitionedCall:0 → [n, 400]  (genre predictions)
+  //   PartitionedCall:1 → [n, 1280] (embeddings for downstream heads)
+  // Select the embedding output (largest second dimension).
+  const embeddings = selectEmbeddingOutput(effnetOutput);
   workerLog(
     'debug',
     `[classification:worker] EffNet embeddings: [${embeddings.dims.join(', ')}]`,
   );
 
-  // Average embeddings across patches → [1, 1280]
+  // Average embeddings across patches
   const embeddingDim = embeddings.dims[1];
   const avgEmbedding = new Float32Array(embeddingDim);
   for (let p = 0; p < batchSize; p++) {

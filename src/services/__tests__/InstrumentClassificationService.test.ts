@@ -10,9 +10,24 @@ vi.mock('../melSpectrogram', () => ({
 
 const mockInferenceSessionCreate = vi.fn();
 
+type MockTensorInstance = {
+  type: string;
+  data: Float32Array;
+  dims: number[];
+};
+
 vi.mock('onnxruntime-web', () => {
   // Tensor must be a real constructor (not arrow function) to support `new`
-  function MockTensor() {}
+  function MockTensor(
+    this: MockTensorInstance,
+    type: string,
+    data: Float32Array,
+    dims: number[],
+  ) {
+    this.type = type;
+    this.data = data;
+    this.dims = dims;
+  }
   return {
     InferenceSession: {
       create: (...args: unknown[]) => mockInferenceSessionCreate(...args),
@@ -87,14 +102,22 @@ function simulateDownloadProgress(progress: number): void {
   } as MessageEvent);
 }
 
-// Set up main-thread fallback mocks — returns 'electricguitar' as top Jamendo class
+// Set up main-thread fallback mocks — returns 'electricguitar' as top Jamendo class.
+// The real Discogs-EffNet model produces TWO outputs:
+//   PartitionedCall:0 → [n, 400] (genre predictions)
+//   PartitionedCall:1 → [n, 1280] (embeddings for downstream heads)
+// The instrument classification head expects the 1280-dim embeddings.
 function setupMainThreadMocks(): void {
   mockFetchModel.mockResolvedValue(new ArrayBuffer(8));
 
   const mockEffnetSession = {
     inputNames: ['melspectrogram'],
     run: vi.fn().mockResolvedValue({
-      output: {
+      'PartitionedCall:0': {
+        data: new Float32Array(400).fill(0.1),
+        dims: [1, 400],
+      },
+      'PartitionedCall:1': {
         data: new Float32Array(1280).fill(0.5),
         dims: [1, 1280],
       },
@@ -478,6 +501,30 @@ describe('InstrumentClassificationService', () => {
 
       expect(mockFetchModel).toHaveBeenCalledTimes(2);
       expect(mockInferenceSessionCreate).toHaveBeenCalledTimes(2);
+    });
+
+    it('selects the 1280-dim embedding output, not the 400-dim prediction output', async () => {
+      const buffer = createAudioBuffer();
+
+      // Force fallback to main thread
+      const promise = service.classify('track-1', buffer);
+      simulateWorkerError('Worker failed');
+      await promise;
+
+      // The instrument head should receive 1280-dim embeddings, not 400-dim predictions.
+      // The real Discogs-EffNet model produces two outputs:
+      //   PartitionedCall:0 → [n, 400] (genre predictions)
+      //   PartitionedCall:1 → [n, 1280] (embeddings)
+      // If the code incorrectly picks the first output (400-dim), the instrument
+      // head receives wrong-sized input and OrtRun() fails with:
+      // "Got invalid dimensions for input: embeddings — index: 1 Got: 400 Expected: 1280"
+      const instrumentSession =
+        await mockInferenceSessionCreate.mock.results[1].value;
+      const instrumentFeed = instrumentSession.run.mock.calls[0][0];
+      const inputTensor = Object.values(
+        instrumentFeed,
+      )[0] as MockTensorInstance;
+      expect(inputTensor.dims).toEqual([1, 1280]);
     });
 
     it('uses session inputNames for ONNX feed keys', async () => {
