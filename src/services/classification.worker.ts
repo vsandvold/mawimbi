@@ -43,7 +43,16 @@ export type DownloadProgressMessage = {
   progress: number;
 };
 
-export type WorkerMessage = ClassifyResponse | DownloadProgressMessage;
+export type WorkerLogMessage = {
+  type: 'log';
+  level: 'log' | 'warn' | 'error' | 'debug';
+  message: string;
+};
+
+export type WorkerMessage =
+  | ClassifyResponse
+  | DownloadProgressMessage
+  | WorkerLogMessage;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type OnnxSession = any;
@@ -90,7 +99,7 @@ function reportProgress(url: string, loaded: number, total: number): void {
 }
 
 async function initializeContext(): Promise<InferenceContext> {
-  console.log('[classification:worker] Loading ONNX models...');
+  workerLog('log', '[classification:worker] Loading ONNX models...');
   const ort = await import('onnxruntime-web');
 
   // Disable multithreading to avoid SharedArrayBuffer requirement
@@ -103,9 +112,15 @@ async function initializeContext(): Promise<InferenceContext> {
   const allCached = effnetCached && instrumentCached;
 
   if (allCached) {
-    console.log('[classification:worker] Models found in cache, loading...');
+    workerLog(
+      'log',
+      '[classification:worker] Models found in cache, loading...',
+    );
   } else {
-    console.log('[classification:worker] Downloading models from network...');
+    workerLog(
+      'log',
+      '[classification:worker] Downloading models from network...',
+    );
   }
 
   const onEffnetProgress = allCached
@@ -122,13 +137,19 @@ async function initializeContext(): Promise<InferenceContext> {
     fetchModel(INSTRUMENT_HEAD_URL, onInstrumentProgress),
   ]);
 
-  console.log('[classification:worker] Creating ONNX inference sessions...');
+  workerLog(
+    'log',
+    '[classification:worker] Creating ONNX inference sessions...',
+  );
   const [effnetSession, instrumentSession] = await Promise.all([
     ort.InferenceSession.create(effnetBuffer),
     ort.InferenceSession.create(instrumentBuffer),
   ]);
 
-  console.log('[classification:worker] Models loaded and sessions created');
+  workerLog(
+    'log',
+    '[classification:worker] Models loaded and sessions created',
+  );
   return { effnetSession, instrumentSession, ort };
 }
 
@@ -141,11 +162,13 @@ async function classify(
   const { effnetSession, instrumentSession, ort } = ctx;
 
   // Compute mel spectrogram patches
-  console.log(
+  workerLog(
+    'log',
     `[classification:worker] Computing mel spectrogram from ${monoAudio.length} samples (${(monoAudio.length / MODEL_SAMPLE_RATE).toFixed(2)}s)...`,
   );
   const patches = await computeMelSpectrogram(monoAudio);
-  console.log(
+  workerLog(
+    'log',
     `[classification:worker] Mel spectrogram: ${patches.length} patches from ${monoAudio.length} samples (${(monoAudio.length / MODEL_SAMPLE_RATE).toFixed(2)}s at ${MODEL_SAMPLE_RATE} Hz)`,
   );
   if (patches.length === 0) {
@@ -161,7 +184,8 @@ async function classify(
     inputData.set(patches[i], i * PATCH_FRAMES * MEL_BANDS);
   }
 
-  console.log(
+  workerLog(
+    'log',
     `[classification:worker] Running EffNet on ${batchSize} patches (input shape: [${batchSize}, ${PATCH_FRAMES}, ${MEL_BANDS}])...`,
   );
   const effnetInput = new ort.Tensor('float32', inputData, [
@@ -176,7 +200,8 @@ async function classify(
     data: Float32Array;
     dims: number[];
   };
-  console.log(
+  workerLog(
+    'log',
     `[classification:worker] EffNet embeddings: [${embeddings.dims.join(', ')}]`,
   );
 
@@ -190,7 +215,8 @@ async function classify(
   }
 
   // Run instrument classification head → 40 sigmoid predictions
-  console.log(
+  workerLog(
+    'log',
     `[classification:worker] Running instrument head (embedding dim: ${embeddingDim})...`,
   );
   const instrumentInput = new ort.Tensor('float32', avgEmbedding, [
@@ -218,7 +244,8 @@ async function classify(
   const scored = Array.from(predictions.data)
     .map((score, i) => ({ label: JAMENDO_CLASSES[i], score }))
     .sort((a, b) => b.score - a.score);
-  console.log(
+  workerLog(
+    'log',
     `[classification:worker] Top predictions: ${scored
       .slice(0, 3)
       .map((p) => `${p.label}=${p.score.toFixed(3)}`)
@@ -282,13 +309,25 @@ type WorkerSelf = {
 
 const workerSelf = self as unknown as WorkerSelf;
 
+// Forward log messages to the main thread for display in the UI overlay.
+// Workers don't have access to LogService, so we post messages that the
+// main thread handler picks up and routes to LogService.
+function workerLog(level: WorkerLogMessage['level'], message: string): void {
+  workerSelf.postMessage({
+    type: 'log',
+    level,
+    message,
+  } satisfies WorkerLogMessage);
+}
+
 workerSelf.onmessage = async (event: MessageEvent<ClassifyRequest>) => {
   const { id, channelData, sampleRate, length } = event.data;
 
   const channels = channelData.length;
   const firstChannelLength = channelData[0]?.length ?? 0;
   const durationSeconds = length / sampleRate;
-  console.log(
+  workerLog(
+    'log',
     `[classification:worker] Received audio: ${channels}ch, ${length} samples (actual first channel: ${firstChannelLength}), ${sampleRate} Hz, ${durationSeconds.toFixed(2)}s`,
   );
 
@@ -306,7 +345,8 @@ workerSelf.onmessage = async (event: MessageEvent<ClassifyRequest>) => {
     const ctx = await loadContext();
     const monoSamples = downmixToMono(channelData, sampleRate, length);
 
-    console.log(
+    workerLog(
+      'log',
       `[classification:worker] Mono audio after downmix: ${monoSamples.length} samples at ${MODEL_SAMPLE_RATE} Hz (${(monoSamples.length / MODEL_SAMPLE_RATE).toFixed(2)}s)`,
     );
 
@@ -321,7 +361,10 @@ workerSelf.onmessage = async (event: MessageEvent<ClassifyRequest>) => {
     workerSelf.postMessage(response);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`[classification:worker] Classification failed: ${message}`);
+    workerLog(
+      'error',
+      `[classification:worker] Classification failed: ${message}`,
+    );
     const response: ClassifyResponse = { id, type: 'error', message };
     workerSelf.postMessage(response);
   }

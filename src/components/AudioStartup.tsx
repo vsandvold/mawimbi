@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import AudioService from '../services/AudioService';
+import LogService from '../services/LogService';
 import useMessage from './message';
 
 const AudioStartup = () => {
@@ -11,7 +12,7 @@ const AudioStartup = () => {
     startedRef.current = true;
 
     AudioService.startAudio()
-      .then(() => console.log('audio is ready'))
+      .then(() => LogService.log('audio is ready'))
       .catch(() => {
         message('failed to start audio', {
           type: 'error',

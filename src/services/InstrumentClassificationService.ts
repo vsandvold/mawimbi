@@ -19,6 +19,7 @@ import {
   mapToInstrumentLabel,
   type InstrumentLabel,
 } from './instrumentLabels';
+import LogService from './LogService';
 import { computeMelSpectrogram } from './melSpectrogram';
 import { fetchModel } from './ModelCache';
 
@@ -138,7 +139,7 @@ class InstrumentClassificationService {
     if (this.cache.has(trackId)) {
       const cached = this.cache.get(trackId)!;
       if (cached.state === 'done' && cached.result) {
-        console.debug(
+        LogService.debug(
           `[classification] Track ${trackId} already classified as "${cached.result.label}" (cached)`,
         );
         return cached.result.label;
@@ -146,12 +147,12 @@ class InstrumentClassificationService {
     }
 
     const durationSeconds = audioBuffer.length / audioBuffer.sampleRate;
-    console.debug(
+    LogService.debug(
       `[classification] Track ${trackId}: ${audioBuffer.numberOfChannels}ch, ${audioBuffer.length} samples, ${audioBuffer.sampleRate} Hz, ${durationSeconds.toFixed(2)}s`,
     );
 
     if (durationSeconds < MIN_AUDIO_DURATION_SECONDS) {
-      console.log(
+      LogService.log(
         `[classification] Track ${trackId} too short (${durationSeconds.toFixed(1)}s < ${MIN_AUDIO_DURATION_SECONDS}s) — skipping`,
       );
       const result: ClassificationResult = {
@@ -164,12 +165,12 @@ class InstrumentClassificationService {
 
     const excerpt = trimSilence(audioBuffer);
     const trimmedDuration = excerpt.length / excerpt.sampleRate;
-    console.debug(
+    LogService.debug(
       `[classification] Track ${trackId} after silence trim: ${excerpt.length} samples, ${trimmedDuration.toFixed(2)}s (removed ${(durationSeconds - trimmedDuration).toFixed(2)}s of silence)`,
     );
 
     if (trimmedDuration < MIN_AUDIO_DURATION_SECONDS) {
-      console.log(
+      LogService.log(
         `[classification] Track ${trackId} too short after trimming (${trimmedDuration.toFixed(1)}s < ${MIN_AUDIO_DURATION_SECONDS}s) — skipping`,
       );
       const result: ClassificationResult = {
@@ -181,14 +182,14 @@ class InstrumentClassificationService {
     }
 
     this.setEntry(trackId, { state: 'classifying' });
-    console.log(`[classification] Classifying track ${trackId}`);
+    LogService.log(`[classification] Classifying track ${trackId}`);
 
     try {
       const rawResult = await this.runInference(excerpt);
       return this.applyResult(trackId, rawResult);
     } catch (error) {
       const detail = error instanceof Error ? error.message : String(error);
-      console.error(
+      LogService.error(
         `[classification] Classification failed for track ${trackId}: ${detail}`,
       );
       this.setEntry(trackId, { state: 'error' });
@@ -203,12 +204,12 @@ class InstrumentClassificationService {
   ): Promise<RawClassificationResult> {
     const excerptDuration = (excerpt.length / excerpt.sampleRate).toFixed(2);
     if (this.workerFailed) {
-      console.debug(
+      LogService.debug(
         `[classification] Using main-thread inference (worker previously failed): ${excerpt.channelData.length}ch, ${excerpt.length} samples, ${excerpt.sampleRate} Hz, ${excerptDuration}s`,
       );
       return this.classifyOnMainThread(excerpt);
     }
-    console.debug(
+    LogService.debug(
       `[classification] Sending to worker: ${excerpt.channelData.length}ch, ${excerpt.length} samples, ${excerpt.sampleRate} Hz, ${excerptDuration}s`,
     );
     try {
@@ -219,7 +220,7 @@ class InstrumentClassificationService {
         workerError instanceof Error
           ? workerError.message
           : String(workerError);
-      console.warn(
+      LogService.warn(
         `[classification] Worker failed, falling back to main thread: ${errorDetail}`,
       );
       return this.classifyOnMainThread(excerpt);
@@ -235,7 +236,7 @@ class InstrumentClassificationService {
       score: rawResult.score,
     };
     this.setEntry(trackId, { state: 'done', result });
-    console.log(
+    LogService.log(
       `[classification] Track ${trackId} classified as "${result.label}" (raw: "${rawResult.label}", score: ${result.score.toFixed(3)})`,
     );
     return result.label;
@@ -281,10 +282,17 @@ class InstrumentClassificationService {
       this.worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
         const { type } = event.data;
 
+        // Forward worker log messages to LogService
+        if (type === 'log') {
+          const { level, message } = event.data;
+          LogService[level](message);
+          return;
+        }
+
         // Handle download progress updates (service-level, not per-request)
         if (type === 'download-progress') {
           this._downloadProgress.value = event.data.progress;
-          console.debug(
+          LogService.debug(
             `[classification] Model download progress: ${event.data.progress}%`,
           );
           return;
@@ -293,7 +301,7 @@ class InstrumentClassificationService {
         const response = event.data as ClassifyResponse;
         const pending = this.pendingRequests.get(response.id);
         if (!pending) {
-          console.warn(
+          LogService.warn(
             `[classification] Received worker response for unknown request id=${response.id}`,
           );
           return;
@@ -304,12 +312,12 @@ class InstrumentClassificationService {
         this._downloadProgress.value = null;
 
         if (response.type === 'error') {
-          console.error(
+          LogService.error(
             `[classification] Worker returned error for request id=${response.id}: ${response.message}`,
           );
           pending.reject(new Error(response.message));
         } else {
-          console.debug(
+          LogService.debug(
             `[classification] Worker result for request id=${response.id}: "${response.label}" (score: ${response.score.toFixed(3)})`,
           );
           pending.resolve({
@@ -319,7 +327,7 @@ class InstrumentClassificationService {
         }
       };
       this.worker.onerror = (event) => {
-        console.error('[classification] Worker crashed (onerror):', event);
+        LogService.error('[classification] Worker crashed (onerror):', event);
         this._downloadProgress.value = null;
         this.rejectAllPending(
           new Error(
@@ -343,12 +351,12 @@ class InstrumentClassificationService {
   private async classifyOnMainThread(
     excerpt: AudioExcerpt,
   ): Promise<{ label: string; score: number }> {
-    console.debug(
+    LogService.debug(
       '[classification] Loading classifier for main-thread inference...',
     );
     const classify = await this.loadClassifier();
     const monoSamples = downmixExcerptToMono(excerpt, MODEL_SAMPLE_RATE);
-    console.debug(
+    LogService.debug(
       `[classification] Main-thread mono audio: ${monoSamples.length} samples at ${MODEL_SAMPLE_RATE} Hz (${(monoSamples.length / MODEL_SAMPLE_RATE).toFixed(2)}s)`,
     );
     return classify(monoSamples);
@@ -365,7 +373,7 @@ class InstrumentClassificationService {
   }
 
   private async initializeClassifier(): Promise<Classifier> {
-    console.log('[classification] Loading ONNX models on main thread...');
+    LogService.log('[classification] Loading ONNX models on main thread...');
     const ort = await import('onnxruntime-web');
     ort.env.wasm.numThreads = 1;
 
@@ -379,14 +387,14 @@ class InstrumentClassificationService {
       ort.InferenceSession.create(instrumentBuffer),
     ]);
 
-    console.log('[classification] Models loaded on main thread');
+    LogService.log('[classification] Models loaded on main thread');
 
     return async (monoAudio: Float32Array) => {
-      console.debug(
+      LogService.debug(
         `[classification] Computing mel spectrogram from ${monoAudio.length} samples (${(monoAudio.length / MODEL_SAMPLE_RATE).toFixed(2)}s)...`,
       );
       const patches = await computeMelSpectrogram(monoAudio);
-      console.log(
+      LogService.log(
         `[classification] Mel spectrogram: ${patches.length} patches from ${monoAudio.length} samples (${(monoAudio.length / MODEL_SAMPLE_RATE).toFixed(2)}s at ${MODEL_SAMPLE_RATE} Hz)`,
       );
       if (patches.length === 0) {
@@ -402,7 +410,7 @@ class InstrumentClassificationService {
         inputData.set(patches[i], i * PATCH_FRAMES * MEL_BANDS);
       }
 
-      console.debug(
+      LogService.debug(
         `[classification] Running EffNet on ${batchSize} patches...`,
       );
       const effnetInput = new ort.Tensor('float32', inputData, [
@@ -417,7 +425,7 @@ class InstrumentClassificationService {
         data: Float32Array;
         dims: readonly number[];
       };
-      console.debug(
+      LogService.debug(
         `[classification] EffNet embeddings: [${embeddings.dims.join(', ')}]`,
       );
 
@@ -431,7 +439,7 @@ class InstrumentClassificationService {
       }
 
       // Run instrument classification head
-      console.debug(
+      LogService.debug(
         `[classification] Running instrument head (embedding dim: ${embeddingDim})...`,
       );
       const instrumentInput = new ort.Tensor('float32', avgEmbedding, [
@@ -459,7 +467,7 @@ class InstrumentClassificationService {
       const scored = Array.from(predictions.data)
         .map((score, i) => ({ label: JAMENDO_CLASSES[i], score }))
         .sort((a, b) => b.score - a.score);
-      console.log(
+      LogService.log(
         `[classification] Top predictions: ${scored
           .slice(0, 3)
           .map((p) => `${p.label}=${p.score.toFixed(3)}`)
@@ -547,7 +555,7 @@ function trimSilence(audioBuffer: AudioBuffer): AudioExcerpt {
 
   // If the entire audio is silent, return the full buffer untrimmed
   if (trimStart >= trimEnd) {
-    console.debug(
+    LogService.debug(
       `[classification] Entire audio appears silent (threshold=${SILENCE_THRESHOLD}), using full buffer`,
     );
     const channelData: Float32Array[] = [];

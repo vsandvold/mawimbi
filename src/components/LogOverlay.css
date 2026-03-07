@@ -1,0 +1,111 @@
+.log-overlay-toggle {
+  position: fixed;
+  bottom: 8px;
+  right: 8px;
+  z-index: 9999;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-family: monospace;
+  background: #1f1f1f;
+  color: #d9d9d9;
+  border: 1px solid #434343;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.log-overlay-toggle:active {
+  opacity: 1;
+}
+
+.log-overlay {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  height: 40vh;
+  display: flex;
+  flex-direction: column;
+  background: #141414;
+  border-top: 1px solid #434343;
+  font-family: monospace;
+  font-size: 11px;
+}
+
+.log-overlay-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 8px;
+  background: #1f1f1f;
+  color: #d9d9d9;
+  border-bottom: 1px solid #434343;
+  flex-shrink: 0;
+}
+
+.log-overlay-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.log-overlay-actions button {
+  padding: 2px 8px;
+  font-size: 11px;
+  font-family: monospace;
+  background: #2a2a2a;
+  color: #d9d9d9;
+  border: 1px solid #434343;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.log-overlay-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+.log-entry {
+  display: flex;
+  gap: 6px;
+  padding: 1px 8px;
+  color: #d9d9d9;
+  word-break: break-all;
+}
+
+.log-entry-level {
+  flex-shrink: 0;
+  width: 28px;
+  color: #8c8c8c;
+}
+
+.log-entry-time {
+  flex-shrink: 0;
+  color: #595959;
+}
+
+.log-entry-message {
+  white-space: pre-wrap;
+}
+
+.log-entry-warn {
+  color: #faad14;
+}
+
+.log-entry-warn .log-entry-level {
+  color: #faad14;
+}
+
+.log-entry-error {
+  color: #ff4d4f;
+}
+
+.log-entry-error .log-entry-level {
+  color: #ff4d4f;
+}
+
+.log-entry-debug {
+  color: #8c8c8c;
+}
