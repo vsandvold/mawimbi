@@ -57,11 +57,11 @@ export async function computeMelSpectrogram(
 ): Promise<Float32Array[]> {
   const extractor = await getExtractor();
 
-  // computeFrameWise returns { melSpectrum, melBandsSize, patchSize, ... }
-  // melSpectrum is a flat Float32Array: totalFrames × melBandsSize
+  // computeFrameWise returns { melSpectrum, ... } where melSpectrum is an
+  // array of per-frame arrays (each of length MEL_BANDS), NOT a flat buffer.
   const features = extractor.computeFrameWise(monoAudio, HOP_SIZE);
-  const melSpectrum: Float32Array = features.melSpectrum;
-  const totalFrames = melSpectrum.length / MEL_BANDS;
+  const melFrames: ArrayLike<number>[] = features.melSpectrum;
+  const totalFrames = melFrames.length;
   const patchCount = Math.floor(totalFrames / PATCH_SIZE);
 
   const patches: Float32Array[] = [];
@@ -70,11 +70,11 @@ export async function computeMelSpectrogram(
     const startFrame = p * PATCH_SIZE;
 
     for (let f = 0; f < PATCH_SIZE; f++) {
+      const frame = melFrames[startFrame + f];
       for (let b = 0; b < MEL_BANDS; b++) {
-        const rawValue = melSpectrum[(startFrame + f) * MEL_BANDS + b];
         // Log compression: log10(1 + 10000 * x)
         patch[f * MEL_BANDS + b] = Math.log10(
-          1 + LOG_COMPRESSION_FACTOR * rawValue,
+          1 + LOG_COMPRESSION_FACTOR * frame[b],
         );
       }
     }
