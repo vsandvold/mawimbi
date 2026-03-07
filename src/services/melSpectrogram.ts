@@ -28,8 +28,7 @@ async function getExtractor() {
       import('essentia.js/dist/essentia.js-model.es.js'),
     ]);
 
-    const wasmModule = await EssentiaWASM();
-    extractorInstance = new EssentiaTFInputExtractor(wasmModule, 'musicnn');
+    extractorInstance = new EssentiaTFInputExtractor(EssentiaWASM, 'musicnn');
     return extractorInstance;
   })();
 
