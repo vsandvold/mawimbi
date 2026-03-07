@@ -14,6 +14,8 @@ const defaultProps = {
   uploadFile: mockUploadFile,
   isFullscreen: false,
   toggleFullscreen: vi.fn(),
+  isLogOverlayOpen: false,
+  toggleLogOverlay: vi.fn(),
   undo: mockUndo,
   redo: mockRedo,
   canUndo: false,

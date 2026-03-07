@@ -138,7 +138,7 @@ async function initializeContext(): Promise<InferenceContext> {
   ]);
 
   workerLog(
-    'log',
+    'debug',
     '[classification:worker] Creating ONNX inference sessions...',
   );
   const [effnetSession, instrumentSession] = await Promise.all([
@@ -163,12 +163,12 @@ async function classify(
 
   // Compute mel spectrogram patches
   workerLog(
-    'log',
+    'debug',
     `[classification:worker] Computing mel spectrogram from ${monoAudio.length} samples (${(monoAudio.length / MODEL_SAMPLE_RATE).toFixed(2)}s)...`,
   );
   const patches = await computeMelSpectrogram(monoAudio);
   workerLog(
-    'log',
+    'debug',
     `[classification:worker] Mel spectrogram: ${patches.length} patches from ${monoAudio.length} samples (${(monoAudio.length / MODEL_SAMPLE_RATE).toFixed(2)}s at ${MODEL_SAMPLE_RATE} Hz)`,
   );
   if (patches.length === 0) {
@@ -185,7 +185,7 @@ async function classify(
   }
 
   workerLog(
-    'log',
+    'debug',
     `[classification:worker] Running EffNet on ${batchSize} patches (input shape: [${batchSize}, ${PATCH_FRAMES}, ${MEL_BANDS}])...`,
   );
   const effnetInput = new ort.Tensor('float32', inputData, [
@@ -201,7 +201,7 @@ async function classify(
     dims: number[];
   };
   workerLog(
-    'log',
+    'debug',
     `[classification:worker] EffNet embeddings: [${embeddings.dims.join(', ')}]`,
   );
 
@@ -216,7 +216,7 @@ async function classify(
 
   // Run instrument classification head → 40 sigmoid predictions
   workerLog(
-    'log',
+    'debug',
     `[classification:worker] Running instrument head (embedding dim: ${embeddingDim})...`,
   );
   const instrumentInput = new ort.Tensor('float32', avgEmbedding, [
@@ -310,8 +310,8 @@ type WorkerSelf = {
 const workerSelf = self as unknown as WorkerSelf;
 
 // Forward log messages to the main thread for display in the UI overlay.
-// Workers don't have access to LogService, so we post messages that the
-// main thread handler picks up and routes to LogService.
+// Workers don't have access to the intercepted console, so we post messages
+// that the main thread handler picks up and routes to console.
 function workerLog(level: WorkerLogMessage['level'], message: string): void {
   workerSelf.postMessage({
     type: 'log',
@@ -327,7 +327,7 @@ workerSelf.onmessage = async (event: MessageEvent<ClassifyRequest>) => {
   const firstChannelLength = channelData[0]?.length ?? 0;
   const durationSeconds = length / sampleRate;
   workerLog(
-    'log',
+    'debug',
     `[classification:worker] Received audio: ${channels}ch, ${length} samples (actual first channel: ${firstChannelLength}), ${sampleRate} Hz, ${durationSeconds.toFixed(2)}s`,
   );
 
@@ -346,7 +346,7 @@ workerSelf.onmessage = async (event: MessageEvent<ClassifyRequest>) => {
     const monoSamples = downmixToMono(channelData, sampleRate, length);
 
     workerLog(
-      'log',
+      'debug',
       `[classification:worker] Mono audio after downmix: ${monoSamples.length} samples at ${MODEL_SAMPLE_RATE} Hz (${(monoSamples.length / MODEL_SAMPLE_RATE).toFixed(2)}s)`,
     );
 

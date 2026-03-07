@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import useLogService from '../hooks/useLogService';
 import type { LogLevel } from '../services/LogService';
 import './LogOverlay.css';
@@ -10,9 +10,14 @@ const LEVEL_LABELS: Record<LogLevel, string> = {
   debug: 'DBG',
 };
 
-const LogOverlay = () => {
+type LogOverlayProps = {
+  isOpen: boolean;
+  onClose: () => void;
+};
+
+const LogOverlay = (props: LogOverlayProps) => {
+  const { isOpen, onClose } = props;
   const { entries, clear } = useLogService();
-  const [isOpen, setIsOpen] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
   // Auto-scroll to bottom when new entries arrive
@@ -22,14 +27,8 @@ const LogOverlay = () => {
     }
   }, [entries, isOpen]);
 
-  const badge = entries.length > 0 ? ` (${entries.length})` : '';
-
   if (!isOpen) {
-    return (
-      <button className="log-overlay-toggle" onClick={() => setIsOpen(true)}>
-        Logs{badge}
-      </button>
-    );
+    return null;
   }
 
   return (
@@ -38,7 +37,7 @@ const LogOverlay = () => {
         <span>Logs ({entries.length})</span>
         <div className="log-overlay-actions">
           <button onClick={clear}>Clear</button>
-          <button onClick={() => setIsOpen(false)}>Close</button>
+          <button onClick={onClose}>Close</button>
         </div>
       </div>
       <div className="log-overlay-list" ref={listRef}>

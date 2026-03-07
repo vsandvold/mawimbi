@@ -5,8 +5,11 @@ import { BrowserRouter } from 'react-router-dom';
 import { BrowserSupportProvider } from './browserSupport';
 import App from './components/App';
 import AudioStartup from './components/AudioStartup';
-import LogOverlay from './components/LogOverlay';
+import LogService from './services/LogService';
 import './index.css';
+
+// Intercept console methods before any logging occurs
+LogService.install();
 
 const root = createRoot(document.getElementById('root')!);
 root.render(
@@ -26,7 +29,6 @@ root.render(
             <App />
           </BrowserRouter>
         </BrowserSupportProvider>
-        <LogOverlay />
       </AntApp>
     </ConfigProvider>
   </StyleProvider>,
