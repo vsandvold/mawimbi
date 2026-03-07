@@ -1,0 +1,46 @@
+.mixer-bottom-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  background-color: var(--component-background);
+  border-radius: 12px 12px 0 0;
+  overflow: hidden;
+  transition: height 0.25s ease-out;
+  pointer-events: auto;
+}
+
+.mixer-bottom-sheet__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 48px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.mixer-bottom-sheet__header:active {
+  cursor: grabbing;
+}
+
+.mixer-bottom-sheet__handle-bar {
+  width: 48px;
+  height: 4px;
+  margin-top: 8px;
+  border-radius: 2px;
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+.mixer-bottom-sheet__title {
+  margin: 0;
+  padding-top: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.mixer-bottom-sheet__content {
+  overflow-y: auto;
+}

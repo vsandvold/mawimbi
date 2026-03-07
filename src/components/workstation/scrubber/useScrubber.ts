@@ -19,7 +19,6 @@ import { type TrackFrequencyInput } from './plasmaRenderer';
 
 type UseScrubberOptions = {
   drawerHeight: number;
-  isMixerOpen: boolean;
   pixelsPerSecond: number;
   tracks: Track[];
 };
@@ -30,7 +29,6 @@ const SCROLL_DEBOUNCE_MS = 200;
 
 export function useScrubber({
   drawerHeight,
-  isMixerOpen,
   pixelsPerSecond,
   tracks,
 }: UseScrubberOptions) {
@@ -266,10 +264,9 @@ export function useScrubber({
     return () => observer.disconnect();
   }, [drawerHeight]);
 
-  const timelineScaleStyle = getTimelineStyle(isMixerOpen, timelineScaleFactor);
+  const timelineScaleStyle = getTimelineStyle(timelineScaleFactor);
 
   const rewindButtonStyle = getRewindButtonStyle(
-    isMixerOpen,
     drawerHeight,
     timelineScaleFactor,
   );
@@ -288,29 +285,27 @@ export function useScrubber({
   };
 }
 
-const defaultTransformStyle = {
+const baseTransformStyle = {
   transformOrigin: 'top left',
-  transition: 'transform 0.3s',
   willChange: 'transform',
+  transition: 'transform 0.25s ease-out',
 };
 
-function getTimelineStyle(isMixerOpen: boolean, timelineScaleFactor: number) {
-  return isMixerOpen
-    ? { ...defaultTransformStyle, transform: `scaleY(${timelineScaleFactor})` }
-    : defaultTransformStyle;
+function getTimelineStyle(timelineScaleFactor: number) {
+  return {
+    ...baseTransformStyle,
+    transform: `scaleY(${timelineScaleFactor})`,
+  };
 }
 
 function getRewindButtonStyle(
-  isMixerOpen: boolean,
   drawerHeight: number,
   timelineScaleFactor: number,
 ) {
   const translateAmount =
     drawerHeight - TIMELINE_MARGIN * (1 - timelineScaleFactor);
-  return isMixerOpen
-    ? {
-        ...defaultTransformStyle,
-        transform: `translateY(-${translateAmount}px)`,
-      }
-    : defaultTransformStyle;
+  return {
+    ...baseTransformStyle,
+    transform: `translateY(-${translateAmount}px)`,
+  };
 }
