@@ -25,15 +25,19 @@ export function useChannelControls(trackId: TrackId) {
     trackHook.unfocusTrack(trackId);
   };
 
-  const updateMute = () => {
-    if (trackSignals) {
-      trackSignals.mute.value = !mute;
-    }
-  };
+  const cycleState = () => {
+    if (!trackSignals) return;
 
-  const updateSolo = () => {
-    if (trackSignals) {
-      trackSignals.solo.value = !solo;
+    if (solo) {
+      // solo → on
+      trackSignals.solo.value = false;
+    } else if (mute) {
+      // mute → solo
+      trackSignals.mute.value = false;
+      trackSignals.solo.value = true;
+    } else {
+      // on → mute
+      trackSignals.mute.value = true;
     }
   };
 
@@ -44,7 +48,6 @@ export function useChannelControls(trackId: TrackId) {
     startFocus,
     updateVolume,
     commitVolume,
-    updateMute,
-    updateSolo,
+    cycleState,
   };
 }

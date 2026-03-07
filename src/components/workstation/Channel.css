@@ -24,12 +24,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-.channel__solo {
-  flex: 0;
-  margin-right: 8px;
-}
-
-.channel__mute {
+.channel__mute-solo {
   flex: 0;
   margin-right: 8px;
 }
