@@ -7,7 +7,6 @@ import Workstation from '../Workstation';
 import {
   useClassificationMessages,
   useCountIn,
-  useMixerHeight,
   useSpacebarPlaybackToggle,
   useTotalTime,
 } from '../workstationEffects';
@@ -16,6 +15,9 @@ vi.mock('../EmptyTimeline', () => ({
   default: () => <div data-testid="empty-timeline"></div>,
 }));
 vi.mock('../Mixer');
+vi.mock('../MixerBottomSheet', () => ({
+  default: () => <div data-testid="mixer-bottom-sheet"></div>,
+}));
 vi.mock('../scrubber/Scrubber', () => ({
   default: ({ children }: { children: ReactNode }) => (
     <div data-testid="scrubber">{children}</div>
@@ -61,12 +63,10 @@ it('renders regular timeline when tracks are non-empty', () => {
   expect(getByTestId('regular-timeline')).toBeInTheDocument();
 });
 
-it('renders closed mixer by default', () => {
-  const { container } = render(<Workstation {...defaultProps} />);
+it('renders mixer bottom sheet', () => {
+  const { getByTestId } = render(<Workstation {...defaultProps} />);
 
-  const mixer = container.querySelector('.editor__mixer');
-
-  expect(mixer).toHaveClass('editor__mixer--closed');
+  expect(getByTestId('mixer-bottom-sheet')).toBeInTheDocument();
 });
 
 it('renders dropzone hidden by default', () => {
@@ -81,7 +81,6 @@ it('uses workstation effect hooks', () => {
   render(<Workstation {...defaultProps} />);
 
   expect(useFileDropzone).toHaveBeenCalled();
-  expect(useMixerHeight).toHaveBeenCalled();
   expect(useSpacebarPlaybackToggle).toHaveBeenCalled();
   expect(useClassificationMessages).toHaveBeenCalled();
   expect(useTotalTime).toHaveBeenCalled();
@@ -92,10 +91,6 @@ function mockWorkstationEffects() {
   return {
     useClassificationMessages: vi.fn(),
     useCountIn: vi.fn(() => null),
-    useMixerHeight: vi.fn(() => ({
-      mixerContainerRef: { current: null },
-      mixerHeight: 0,
-    })),
     useSpacebarPlaybackToggle: vi.fn(),
     useTotalTime: vi.fn(),
     useMicrophone: vi.fn(),

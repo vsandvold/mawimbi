@@ -23,33 +23,6 @@
   display: flex;
 }
 
-.editor__mixer {
-  flex: 1;
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 120px;
-  overflow-y: scroll;
-  transition: transform 0.3s;
-  background-color: var(--component-background);
-  will-change: transform;
-}
-
-.editor__mixer--closed {
-  transform: translateY(120px);
-}
-
-@media (min-height: 426px) {
-  .editor__mixer {
-    height: 240px;
-  }
-
-  .editor__mixer--closed {
-    transform: translateY(240px);
-  }
-}
-
 .editor__dropzone {
   position: absolute;
   top: 0;

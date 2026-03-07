@@ -3,7 +3,7 @@ import { useClassificationService } from '../../hooks/useClassificationService';
 import { usePlaybackService } from '../../hooks/usePlaybackService';
 import { useRecordingService } from '../../hooks/useRecordingService';
 import { useTrackService } from '../../hooks/useTrackService';
-import { useContainerHeight } from '../../hooks/useContainerHeight';
+
 import useKeypress from '../../hooks/useKeypress';
 import { saveAudioData } from '../../services/ProjectStorageService';
 import useMessage from '../message';
@@ -259,14 +259,4 @@ export const useMicrophone = (isRecording: boolean) => {
     }
     // Hook objects reference stable service singletons via getters
   }, [isRecording]); // eslint-disable-line react-hooks/exhaustive-deps
-};
-
-export const useMixerHeight = () => {
-  const { containerRef: mixerContainerRef, height: mixerHeight } =
-    useContainerHeight();
-
-  return {
-    mixerContainerRef,
-    mixerHeight,
-  };
 };

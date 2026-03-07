@@ -288,16 +288,17 @@ export function useScrubber({
   };
 }
 
-const defaultTransformStyle = {
+const baseTransformStyle = {
   transformOrigin: 'top left',
-  transition: 'transform 0.3s',
   willChange: 'transform',
 };
 
 function getTimelineStyle(isMixerOpen: boolean, timelineScaleFactor: number) {
-  return isMixerOpen
-    ? { ...defaultTransformStyle, transform: `scaleY(${timelineScaleFactor})` }
-    : defaultTransformStyle;
+  if (!isMixerOpen) return baseTransformStyle;
+  return {
+    ...baseTransformStyle,
+    transform: `scaleY(${timelineScaleFactor})`,
+  };
 }
 
 function getRewindButtonStyle(
@@ -305,12 +306,11 @@ function getRewindButtonStyle(
   drawerHeight: number,
   timelineScaleFactor: number,
 ) {
+  if (!isMixerOpen) return baseTransformStyle;
   const translateAmount =
     drawerHeight - TIMELINE_MARGIN * (1 - timelineScaleFactor);
-  return isMixerOpen
-    ? {
-        ...defaultTransformStyle,
-        transform: `translateY(-${translateAmount}px)`,
-      }
-    : defaultTransformStyle;
+  return {
+    ...baseTransformStyle,
+    transform: `translateY(-${translateAmount}px)`,
+  };
 }
