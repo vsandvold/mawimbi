@@ -44,9 +44,9 @@ const MODEL_SAMPLE_RATE = 16_000;
 // Rounded up to give a small margin.
 const MIN_AUDIO_DURATION_SECONDS = 2.1;
 
-// Duration of the loudest excerpt extracted before classification (seconds).
-// Keeps inference fast while providing enough context (~2–3 patches).
-const EXCERPT_DURATION_SECONDS = 5;
+// RMS threshold below which a sample frame is considered silence.
+// Chosen to be just above the noise floor for typical recordings.
+const SILENCE_THRESHOLD = 0.01;
 
 // Same-origin paths proxied to essentia.upf.edu (Vite proxy in dev,
 // Netlify redirect in production) to avoid CORS restrictions.
@@ -138,14 +138,21 @@ class InstrumentClassificationService {
     if (this.cache.has(trackId)) {
       const cached = this.cache.get(trackId)!;
       if (cached.state === 'done' && cached.result) {
+        console.debug(
+          `[classification] Track ${trackId} already classified as "${cached.result.label}" (cached)`,
+        );
         return cached.result.label;
       }
     }
 
     const durationSeconds = audioBuffer.length / audioBuffer.sampleRate;
+    console.debug(
+      `[classification] Track ${trackId}: ${audioBuffer.numberOfChannels}ch, ${audioBuffer.length} samples, ${audioBuffer.sampleRate} Hz, ${durationSeconds.toFixed(2)}s`,
+    );
+
     if (durationSeconds < MIN_AUDIO_DURATION_SECONDS) {
       console.log(
-        `[classification] Track ${trackId} too short (${durationSeconds.toFixed(1)}s) — skipping`,
+        `[classification] Track ${trackId} too short (${durationSeconds.toFixed(1)}s < ${MIN_AUDIO_DURATION_SECONDS}s) — skipping`,
       );
       const result: ClassificationResult = {
         label: FALLBACK_LABEL,
@@ -155,10 +162,23 @@ class InstrumentClassificationService {
       return FALLBACK_LABEL;
     }
 
-    const excerpt = extractLoudestExcerpt(
-      audioBuffer,
-      EXCERPT_DURATION_SECONDS,
+    const excerpt = trimSilence(audioBuffer);
+    const trimmedDuration = excerpt.length / excerpt.sampleRate;
+    console.debug(
+      `[classification] Track ${trackId} after silence trim: ${excerpt.length} samples, ${trimmedDuration.toFixed(2)}s (removed ${(durationSeconds - trimmedDuration).toFixed(2)}s of silence)`,
     );
+
+    if (trimmedDuration < MIN_AUDIO_DURATION_SECONDS) {
+      console.log(
+        `[classification] Track ${trackId} too short after trimming (${trimmedDuration.toFixed(1)}s < ${MIN_AUDIO_DURATION_SECONDS}s) — skipping`,
+      );
+      const result: ClassificationResult = {
+        label: FALLBACK_LABEL,
+        score: 0,
+      };
+      this.setEntry(trackId, { state: 'done', result });
+      return FALLBACK_LABEL;
+    }
 
     this.setEntry(trackId, { state: 'classifying' });
     console.log(`[classification] Classifying track ${trackId}`);
@@ -181,9 +201,16 @@ class InstrumentClassificationService {
   private async runInference(
     excerpt: AudioExcerpt,
   ): Promise<RawClassificationResult> {
+    const excerptDuration = (excerpt.length / excerpt.sampleRate).toFixed(2);
     if (this.workerFailed) {
+      console.debug(
+        `[classification] Using main-thread inference (worker previously failed): ${excerpt.channelData.length}ch, ${excerpt.length} samples, ${excerpt.sampleRate} Hz, ${excerptDuration}s`,
+      );
       return this.classifyOnMainThread(excerpt);
     }
+    console.debug(
+      `[classification] Sending to worker: ${excerpt.channelData.length}ch, ${excerpt.length} samples, ${excerpt.sampleRate} Hz, ${excerptDuration}s`,
+    );
     try {
       return await this.classifyInWorker(excerpt);
     } catch (workerError) {
@@ -194,9 +221,6 @@ class InstrumentClassificationService {
           : String(workerError);
       console.warn(
         `[classification] Worker failed, falling back to main thread: ${errorDetail}`,
-      );
-      console.warn(
-        `[classification] Excerpt: ${excerpt.channelData.length}ch, ${excerpt.length} samples, ${excerpt.sampleRate} Hz, ${(excerpt.length / excerpt.sampleRate).toFixed(2)}s`,
       );
       return this.classifyOnMainThread(excerpt);
     }
@@ -260,27 +284,42 @@ class InstrumentClassificationService {
         // Handle download progress updates (service-level, not per-request)
         if (type === 'download-progress') {
           this._downloadProgress.value = event.data.progress;
+          console.debug(
+            `[classification] Model download progress: ${event.data.progress}%`,
+          );
           return;
         }
 
         const response = event.data as ClassifyResponse;
         const pending = this.pendingRequests.get(response.id);
-        if (!pending) return;
+        if (!pending) {
+          console.warn(
+            `[classification] Received worker response for unknown request id=${response.id}`,
+          );
+          return;
+        }
         this.pendingRequests.delete(response.id);
 
         // Model is loaded — clear download progress
         this._downloadProgress.value = null;
 
         if (response.type === 'error') {
+          console.error(
+            `[classification] Worker returned error for request id=${response.id}: ${response.message}`,
+          );
           pending.reject(new Error(response.message));
         } else {
+          console.debug(
+            `[classification] Worker result for request id=${response.id}: "${response.label}" (score: ${response.score.toFixed(3)})`,
+          );
           pending.resolve({
             label: response.label,
             score: response.score,
           });
         }
       };
-      this.worker.onerror = () => {
+      this.worker.onerror = (event) => {
+        console.error('[classification] Worker crashed (onerror):', event);
         this._downloadProgress.value = null;
         this.rejectAllPending(
           new Error(
@@ -304,8 +343,14 @@ class InstrumentClassificationService {
   private async classifyOnMainThread(
     excerpt: AudioExcerpt,
   ): Promise<{ label: string; score: number }> {
+    console.debug(
+      '[classification] Loading classifier for main-thread inference...',
+    );
     const classify = await this.loadClassifier();
     const monoSamples = downmixExcerptToMono(excerpt, MODEL_SAMPLE_RATE);
+    console.debug(
+      `[classification] Main-thread mono audio: ${monoSamples.length} samples at ${MODEL_SAMPLE_RATE} Hz (${(monoSamples.length / MODEL_SAMPLE_RATE).toFixed(2)}s)`,
+    );
     return classify(monoSamples);
   }
 
@@ -337,6 +382,9 @@ class InstrumentClassificationService {
     console.log('[classification] Models loaded on main thread');
 
     return async (monoAudio: Float32Array) => {
+      console.debug(
+        `[classification] Computing mel spectrogram from ${monoAudio.length} samples (${(monoAudio.length / MODEL_SAMPLE_RATE).toFixed(2)}s)...`,
+      );
       const patches = await computeMelSpectrogram(monoAudio);
       console.log(
         `[classification] Mel spectrogram: ${patches.length} patches from ${monoAudio.length} samples (${(monoAudio.length / MODEL_SAMPLE_RATE).toFixed(2)}s at ${MODEL_SAMPLE_RATE} Hz)`,
@@ -354,6 +402,9 @@ class InstrumentClassificationService {
         inputData.set(patches[i], i * PATCH_FRAMES * MEL_BANDS);
       }
 
+      console.debug(
+        `[classification] Running EffNet on ${batchSize} patches...`,
+      );
       const effnetInput = new ort.Tensor('float32', inputData, [
         batchSize,
         PATCH_FRAMES,
@@ -366,6 +417,9 @@ class InstrumentClassificationService {
         data: Float32Array;
         dims: readonly number[];
       };
+      console.debug(
+        `[classification] EffNet embeddings: [${embeddings.dims.join(', ')}]`,
+      );
 
       // Average embeddings across patches
       const embeddingDim = embeddings.dims[1];
@@ -377,6 +431,9 @@ class InstrumentClassificationService {
       }
 
       // Run instrument classification head
+      console.debug(
+        `[classification] Running instrument head (embedding dim: ${embeddingDim})...`,
+      );
       const instrumentInput = new ort.Tensor('float32', avgEmbedding, [
         1,
         embeddingDim,
@@ -397,6 +454,17 @@ class InstrumentClassificationService {
           bestIndex = i;
         }
       }
+
+      // Log top-3 predictions for debugging
+      const scored = Array.from(predictions.data)
+        .map((score, i) => ({ label: JAMENDO_CLASSES[i], score }))
+        .sort((a, b) => b.score - a.score);
+      console.log(
+        `[classification] Top predictions: ${scored
+          .slice(0, 3)
+          .map((p) => `${p.label}=${p.score.toFixed(3)}`)
+          .join(', ')}`,
+      );
 
       return {
         label: JAMENDO_CLASSES[bestIndex],
@@ -429,67 +497,72 @@ class InstrumentClassificationService {
   }
 }
 
-// --- Audio excerpt extraction ---
+// --- Silence trimming ---
 
-function extractLoudestExcerpt(
-  audioBuffer: AudioBuffer,
-  excerptSeconds: number,
-): AudioExcerpt {
+function trimSilence(audioBuffer: AudioBuffer): AudioExcerpt {
   const sampleRate = audioBuffer.sampleRate;
-  const excerptSamples = Math.min(
-    Math.round(excerptSeconds * sampleRate),
-    audioBuffer.length,
-  );
+  const totalSamples = audioBuffer.length;
 
-  // Audio is shorter than the excerpt duration — use full audio
-  if (audioBuffer.length <= excerptSamples) {
-    const channelData: Float32Array[] = [];
-    for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) {
-      channelData.push(new Float32Array(audioBuffer.getChannelData(ch)));
-    }
-    return { channelData, sampleRate, length: audioBuffer.length };
-  }
-
-  // Downmix to mono for energy calculation
-  const mono = new Float32Array(audioBuffer.length);
+  // Downmix to mono for RMS calculation
+  const mono = new Float32Array(totalSamples);
   for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) {
     const data = audioBuffer.getChannelData(ch);
-    for (let i = 0; i < audioBuffer.length; i++) {
+    for (let i = 0; i < totalSamples; i++) {
       mono[i] += data[i] / audioBuffer.numberOfChannels;
     }
   }
 
-  // Cumulative energy for O(1) window energy queries
-  const cumEnergy = new Float64Array(audioBuffer.length + 1);
-  for (let i = 0; i < audioBuffer.length; i++) {
-    cumEnergy[i + 1] = cumEnergy[i] + mono[i] * mono[i];
-  }
+  // Use a small window (10ms) to compute local RMS for silence detection
+  const windowSize = Math.max(1, Math.round(sampleRate * 0.01));
 
-  // Slide a window in 100ms steps to find the loudest segment
-  const step = Math.max(1, Math.round(sampleRate * 0.1));
-  let bestStart = 0;
-  let bestEnergy = -1;
-  for (
-    let start = 0;
-    start <= audioBuffer.length - excerptSamples;
-    start += step
-  ) {
-    const energy = cumEnergy[start + excerptSamples] - cumEnergy[start];
-    if (energy > bestEnergy) {
-      bestEnergy = energy;
-      bestStart = start;
+  // Find first non-silent sample from the start
+  let trimStart = 0;
+  for (let i = 0; i < totalSamples - windowSize; i += windowSize) {
+    const end = Math.min(i + windowSize, totalSamples);
+    let sumSq = 0;
+    for (let j = i; j < end; j++) {
+      sumSq += mono[j] * mono[j];
+    }
+    const rms = Math.sqrt(sumSq / (end - i));
+    if (rms >= SILENCE_THRESHOLD) {
+      trimStart = i;
+      break;
     }
   }
 
+  // Find last non-silent sample from the end
+  let trimEnd = totalSamples;
+  for (let i = totalSamples; i > trimStart + windowSize; i -= windowSize) {
+    const start = Math.max(i - windowSize, 0);
+    let sumSq = 0;
+    for (let j = start; j < i; j++) {
+      sumSq += mono[j] * mono[j];
+    }
+    const rms = Math.sqrt(sumSq / (i - start));
+    if (rms >= SILENCE_THRESHOLD) {
+      trimEnd = i;
+      break;
+    }
+  }
+
+  // If the entire audio is silent, return the full buffer untrimmed
+  if (trimStart >= trimEnd) {
+    console.debug(
+      `[classification] Entire audio appears silent (threshold=${SILENCE_THRESHOLD}), using full buffer`,
+    );
+    const channelData: Float32Array[] = [];
+    for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) {
+      channelData.push(new Float32Array(audioBuffer.getChannelData(ch)));
+    }
+    return { channelData, sampleRate, length: totalSamples };
+  }
+
+  const trimmedLength = trimEnd - trimStart;
   const channelData: Float32Array[] = [];
   for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) {
-    channelData.push(
-      audioBuffer
-        .getChannelData(ch)
-        .slice(bestStart, bestStart + excerptSamples),
-    );
+    channelData.push(audioBuffer.getChannelData(ch).slice(trimStart, trimEnd));
   }
-  return { channelData, sampleRate, length: excerptSamples };
+  return { channelData, sampleRate, length: trimmedLength };
 }
 
 // --- Audio utilities (main-thread fallback) ---
