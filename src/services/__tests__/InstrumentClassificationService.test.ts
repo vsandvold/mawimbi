@@ -820,6 +820,91 @@ describe('InstrumentClassificationService', () => {
     });
   });
 
+  describe('sequential session execution', () => {
+    it('runs classification heads sequentially to avoid ONNX "Session already started" error', async () => {
+      // ONNX Runtime Web's WASM backend (numThreads=1) cannot handle
+      // concurrent run() calls — even across different sessions — because
+      // they share a single WASM inference runner. If two sessions run in
+      // parallel via Promise.all, the second one rejects with
+      // "Session already started". The fix is to run them sequentially.
+      mockInferenceSessionCreate.mockReset();
+      mockFetchModel.mockResolvedValue(new ArrayBuffer(8));
+
+      let activeSessions = 0;
+
+      // Simulate ONNX RT behavior: reject if another session is already running
+      function createConcurrencyGuardedRun(
+        result: Record<string, unknown>,
+      ): ReturnType<typeof vi.fn> {
+        return vi.fn().mockImplementation(() => {
+          activeSessions++;
+          if (activeSessions > 1) {
+            activeSessions--;
+            return Promise.reject(new Error('Session already started'));
+          }
+          return new Promise((resolve) => {
+            setTimeout(() => {
+              activeSessions--;
+              resolve(result);
+            }, 0);
+          });
+        });
+      }
+
+      const mockEffnetSession = {
+        inputNames: ['melspectrogram'],
+        run: createConcurrencyGuardedRun({
+          'PartitionedCall:0': {
+            data: new Float32Array(400).fill(0.1),
+            dims: [1, 400],
+          },
+          'PartitionedCall:1': {
+            data: new Float32Array(1280).fill(0.5),
+            dims: [1, 1280],
+          },
+        }),
+      };
+      const mockInstrumentSession = {
+        inputNames: ['model_output'],
+        run: createConcurrencyGuardedRun({
+          output: (() => {
+            const data = new Float32Array(40).fill(0.1);
+            data[15] = 0.85;
+            return { data };
+          })(),
+        }),
+      };
+      const mockVoiceInstrumentalSession = {
+        inputNames: ['model_output'],
+        run: createConcurrencyGuardedRun({
+          output: {
+            data: new Float32Array([0.85, 0.15]),
+            dims: [1, 2],
+          },
+        }),
+      };
+
+      mockInferenceSessionCreate
+        .mockResolvedValueOnce(mockEffnetSession)
+        .mockResolvedValueOnce(mockInstrumentSession)
+        .mockResolvedValueOnce(mockVoiceInstrumentalSession);
+
+      const patch = new Float32Array(128 * 96).fill(0.5);
+      mockComputeMelSpectrogram.mockResolvedValue([patch]);
+
+      const buffer = createAudioBuffer();
+      const promise = service.classify('track-1', buffer);
+
+      // Force fallback to main thread where we control the mock sessions
+      simulateWorkerError('Worker failed');
+      const label = await promise;
+
+      expect(label).toBe('guitar');
+      expect(mockInstrumentSession.run).toHaveBeenCalledTimes(1);
+      expect(mockVoiceInstrumentalSession.run).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('removeClassification', () => {
     it('removes a classification entry', async () => {
       const buffer = createAudioBuffer();

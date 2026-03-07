@@ -463,10 +463,15 @@ class InstrumentClassificationService {
       const instrumentInputName = instrumentSession.inputNames[0];
       const voiceInputName = voiceInstrumentalSession.inputNames[0];
 
-      const [instrumentOutput, voiceOutput] = await Promise.all([
-        instrumentSession.run({ [instrumentInputName]: embeddingTensor }),
-        voiceInstrumentalSession.run({ [voiceInputName]: embeddingTensor }),
-      ]);
+      // Run heads sequentially — ONNX Runtime Web's WASM backend (numThreads=1)
+      // shares a single inference runner across sessions, so concurrent run()
+      // calls fail with "Session already started".
+      const instrumentOutput = await instrumentSession.run({
+        [instrumentInputName]: embeddingTensor,
+      });
+      const voiceOutput = await voiceInstrumentalSession.run({
+        [voiceInputName]: embeddingTensor,
+      });
 
       // --- Voice/instrumental classification ---
       const voicePredictions = Object.values(voiceOutput)[0] as {
