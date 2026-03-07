@@ -22,17 +22,23 @@ beforeEach(() => {
   mockComputeFrameWise.mockReset();
 });
 
+// Builds a mock return value matching the real essentia.js computeFrameWise
+// output: melSpectrum is an array of arrays (one array of MEL_BANDS values per
+// frame), NOT a flat Float32Array.
+function mockMelSpectrum(totalFrames: number, fillValue = 0.001) {
+  const melSpectrum: Float32Array[] = [];
+  for (let i = 0; i < totalFrames; i++) {
+    const frame = new Float32Array(MEL_BANDS);
+    frame.fill(fillValue);
+    melSpectrum.push(frame);
+  }
+  return { melSpectrum, melBandsSize: MEL_BANDS, patchSize: 187 };
+}
+
 describe('computeMelSpectrogram', () => {
   it('returns patches of 128 frames x 96 mel bands', async () => {
     const totalFrames = PATCH_SIZE * 2;
-    const melSpectrum = new Float32Array(totalFrames * MEL_BANDS);
-    melSpectrum.fill(0.001);
-
-    mockComputeFrameWise.mockReturnValue({
-      melSpectrum,
-      melBandsSize: MEL_BANDS,
-      patchSize: 187,
-    });
+    mockComputeFrameWise.mockReturnValue(mockMelSpectrum(totalFrames));
 
     const patches = await computeMelSpectrogram(new Float32Array(16000));
 
@@ -44,14 +50,7 @@ describe('computeMelSpectrogram', () => {
   it('discards leftover frames that do not fill a complete patch', async () => {
     // 128 + 64 = 192 frames — only 1 full patch
     const totalFrames = PATCH_SIZE + 64;
-    const melSpectrum = new Float32Array(totalFrames * MEL_BANDS);
-    melSpectrum.fill(0.001);
-
-    mockComputeFrameWise.mockReturnValue({
-      melSpectrum,
-      melBandsSize: MEL_BANDS,
-      patchSize: 187,
-    });
+    mockComputeFrameWise.mockReturnValue(mockMelSpectrum(totalFrames));
 
     const patches = await computeMelSpectrogram(new Float32Array(16000));
 
@@ -59,14 +58,7 @@ describe('computeMelSpectrogram', () => {
   });
 
   it('returns empty array when audio is too short for one patch', async () => {
-    const totalFrames = 64;
-    const melSpectrum = new Float32Array(totalFrames * MEL_BANDS);
-
-    mockComputeFrameWise.mockReturnValue({
-      melSpectrum,
-      melBandsSize: MEL_BANDS,
-      patchSize: 187,
-    });
+    mockComputeFrameWise.mockReturnValue(mockMelSpectrum(64));
 
     const patches = await computeMelSpectrogram(new Float32Array(1000));
 
@@ -74,16 +66,10 @@ describe('computeMelSpectrogram', () => {
   });
 
   it('applies log compression: log10(1 + 10000 * x)', async () => {
-    const totalFrames = PATCH_SIZE;
-    const melSpectrum = new Float32Array(totalFrames * MEL_BANDS);
     const testValue = 0.05;
-    melSpectrum.fill(testValue);
-
-    mockComputeFrameWise.mockReturnValue({
-      melSpectrum,
-      melBandsSize: MEL_BANDS,
-      patchSize: 187,
-    });
+    mockComputeFrameWise.mockReturnValue(
+      mockMelSpectrum(PATCH_SIZE, testValue),
+    );
 
     const patches = await computeMelSpectrogram(new Float32Array(16000));
     const expected = Math.log10(1 + 10000 * testValue);
@@ -94,13 +80,7 @@ describe('computeMelSpectrogram', () => {
 
   it('passes audio to the extractor', async () => {
     const audio = new Float32Array([0.1, 0.2, 0.3]);
-    const melSpectrum = new Float32Array(0);
-
-    mockComputeFrameWise.mockReturnValue({
-      melSpectrum,
-      melBandsSize: MEL_BANDS,
-      patchSize: 187,
-    });
+    mockComputeFrameWise.mockReturnValue(mockMelSpectrum(0));
 
     await computeMelSpectrogram(audio);
 
