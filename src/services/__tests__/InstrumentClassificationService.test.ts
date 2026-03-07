@@ -107,6 +107,7 @@ function simulateDownloadProgress(progress: number): void {
 //   PartitionedCall:0 → [n, 400] (genre predictions)
 //   PartitionedCall:1 → [n, 1280] (embeddings for downstream heads)
 // The instrument classification head expects the 1280-dim embeddings.
+// The voice/instrumental head detects vocal vs instrumental (defaults to instrumental).
 function setupMainThreadMocks(): void {
   mockFetchModel.mockResolvedValue(new ArrayBuffer(8));
 
@@ -134,10 +135,21 @@ function setupMainThreadMocks(): void {
       })(),
     }),
   };
+  const mockVoiceInstrumentalSession = {
+    inputNames: ['model_output'],
+    run: vi.fn().mockResolvedValue({
+      output: (() => {
+        // [instrumental, voice] — instrumental is dominant (no vocals)
+        const data = new Float32Array([0.85, 0.15]);
+        return { data, dims: [1, 2] };
+      })(),
+    }),
+  };
 
   mockInferenceSessionCreate
     .mockResolvedValueOnce(mockEffnetSession)
-    .mockResolvedValueOnce(mockInstrumentSession);
+    .mockResolvedValueOnce(mockInstrumentSession)
+    .mockResolvedValueOnce(mockVoiceInstrumentalSession);
 
   // computeMelSpectrogram returns one patch
   const patch = new Float32Array(128 * 96).fill(0.5);
@@ -499,8 +511,8 @@ describe('InstrumentClassificationService', () => {
       simulateWorkerError('Worker failed');
       await promise;
 
-      expect(mockFetchModel).toHaveBeenCalledTimes(2);
-      expect(mockInferenceSessionCreate).toHaveBeenCalledTimes(2);
+      expect(mockFetchModel).toHaveBeenCalledTimes(3);
+      expect(mockInferenceSessionCreate).toHaveBeenCalledTimes(3);
     });
 
     it('selects the 1280-dim embedding output, not the 400-dim prediction output', async () => {
@@ -567,8 +579,8 @@ describe('InstrumentClassificationService', () => {
       await service.classify('track-2', buffer);
 
       // Models fetched and sessions created only once
-      expect(mockFetchModel).toHaveBeenCalledTimes(2);
-      expect(mockInferenceSessionCreate).toHaveBeenCalledTimes(2);
+      expect(mockFetchModel).toHaveBeenCalledTimes(3);
+      expect(mockInferenceSessionCreate).toHaveBeenCalledTimes(3);
     });
   });
 
@@ -721,6 +733,90 @@ describe('InstrumentClassificationService', () => {
 
       expect(label).toBe('unknown');
       expect(service.getClassificationState('track-short-trim')).toBe('done');
+    });
+  });
+
+  describe('vocal classification', () => {
+    it('classifies as vocals when voice/instrumental head detects voice', async () => {
+      const buffer = createAudioBuffer();
+      const promise = service.classify('track-vocal', buffer);
+
+      // Worker returns 'drums' from the instrument head — but the real pipeline
+      // should detect vocals via the voice/instrumental head and override.
+      simulateWorkerResult('voice', 0.92);
+      const label = await promise;
+
+      expect(label).toBe('vocals');
+      expect(service.getClassification('track-vocal')?.label).toBe('vocals');
+    });
+
+    it('uses instrument head prediction when voice/instrumental head detects instrumental', async () => {
+      const buffer = createAudioBuffer();
+      const promise = service.classify('track-instrument', buffer);
+
+      simulateWorkerResult('drums', 0.85);
+      const label = await promise;
+
+      expect(label).toBe('drums');
+    });
+
+    it('classifies as vocals on main-thread fallback when voice/instrumental head detects voice', async () => {
+      // Override instrument session to return 'drums' as top instrument prediction,
+      // but voice/instrumental session to detect voice
+      mockInferenceSessionCreate.mockReset();
+      mockFetchModel.mockResolvedValue(new ArrayBuffer(8));
+
+      const mockEffnetSession = {
+        inputNames: ['melspectrogram'],
+        run: vi.fn().mockResolvedValue({
+          'PartitionedCall:0': {
+            data: new Float32Array(400).fill(0.1),
+            dims: [1, 400],
+          },
+          'PartitionedCall:1': {
+            data: new Float32Array(1280).fill(0.5),
+            dims: [1, 1280],
+          },
+        }),
+      };
+      const mockInstrumentSession = {
+        inputNames: ['model_output'],
+        run: vi.fn().mockResolvedValue({
+          output: (() => {
+            // 40 predictions, drums (index 14) has highest score
+            const data = new Float32Array(40).fill(0.1);
+            data[14] = 0.85; // drums
+            return { data };
+          })(),
+        }),
+      };
+      const mockVoiceInstrumentalSession = {
+        inputNames: ['model_output'],
+        run: vi.fn().mockResolvedValue({
+          output: (() => {
+            // [instrumental, voice] — voice is dominant
+            const data = new Float32Array([0.15, 0.85]);
+            return { data, dims: [1, 2] };
+          })(),
+        }),
+      };
+
+      mockInferenceSessionCreate
+        .mockResolvedValueOnce(mockEffnetSession)
+        .mockResolvedValueOnce(mockInstrumentSession)
+        .mockResolvedValueOnce(mockVoiceInstrumentalSession);
+
+      const patch = new Float32Array(128 * 96).fill(0.5);
+      mockComputeMelSpectrogram.mockResolvedValue([patch]);
+
+      const buffer = createAudioBuffer();
+      const promise = service.classify('track-vocal', buffer);
+
+      // Force fallback to main thread
+      simulateWorkerError('Worker failed');
+      const label = await promise;
+
+      expect(label).toBe('vocals');
     });
   });
 

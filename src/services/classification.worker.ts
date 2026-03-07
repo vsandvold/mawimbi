@@ -19,6 +19,8 @@ const EFFNET_URL =
   '/models/feature-extractors/discogs-effnet/discogs-effnet-bsdynamic-1.onnx';
 const INSTRUMENT_HEAD_URL =
   '/models/classification-heads/mtg_jamendo_instrument/mtg_jamendo_instrument-discogs-effnet-1.onnx';
+const VOICE_INSTRUMENTAL_URL =
+  '/models/classification-heads/voice_instrumental/voice_instrumental-discogs-effnet-1.onnx';
 
 // EffNet expects 16 kHz mono audio
 const MODEL_SAMPLE_RATE = 16_000;
@@ -61,6 +63,7 @@ type OnnxSession = any;
 type InferenceContext = {
   effnetSession: OnnxSession;
   instrumentSession: OnnxSession;
+  voiceInstrumentalSession: OnnxSession;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ort: any;
 };
@@ -106,11 +109,12 @@ async function initializeContext(): Promise<InferenceContext> {
   // Disable multithreading to avoid SharedArrayBuffer requirement
   ort.env.wasm.numThreads = 1;
 
-  const [effnetCached, instrumentCached] = await Promise.all([
+  const [effnetCached, instrumentCached, voiceCached] = await Promise.all([
     isModelCached(EFFNET_URL),
     isModelCached(INSTRUMENT_HEAD_URL),
+    isModelCached(VOICE_INSTRUMENTAL_URL),
   ]);
-  const allCached = effnetCached && instrumentCached;
+  const allCached = effnetCached && instrumentCached && voiceCached;
 
   if (allCached) {
     workerLog(
@@ -132,26 +136,33 @@ async function initializeContext(): Promise<InferenceContext> {
     ? undefined
     : (loaded: number, total: number) =>
         reportProgress(INSTRUMENT_HEAD_URL, loaded, total);
+  const onVoiceProgress = allCached
+    ? undefined
+    : (loaded: number, total: number) =>
+        reportProgress(VOICE_INSTRUMENTAL_URL, loaded, total);
 
-  const [effnetBuffer, instrumentBuffer] = await Promise.all([
+  const [effnetBuffer, instrumentBuffer, voiceBuffer] = await Promise.all([
     fetchModel(EFFNET_URL, onEffnetProgress),
     fetchModel(INSTRUMENT_HEAD_URL, onInstrumentProgress),
+    fetchModel(VOICE_INSTRUMENTAL_URL, onVoiceProgress),
   ]);
 
   workerLog(
     'debug',
     '[classification:worker] Creating ONNX inference sessions...',
   );
-  const [effnetSession, instrumentSession] = await Promise.all([
-    ort.InferenceSession.create(effnetBuffer),
-    ort.InferenceSession.create(instrumentBuffer),
-  ]);
+  const [effnetSession, instrumentSession, voiceInstrumentalSession] =
+    await Promise.all([
+      ort.InferenceSession.create(effnetBuffer),
+      ort.InferenceSession.create(instrumentBuffer),
+      ort.InferenceSession.create(voiceBuffer),
+    ]);
 
   workerLog(
     'log',
     '[classification:worker] Models loaded and sessions created',
   );
-  return { effnetSession, instrumentSession, ort };
+  return { effnetSession, instrumentSession, voiceInstrumentalSession, ort };
 }
 
 // --- Output selection ---
@@ -176,11 +187,17 @@ function selectEmbeddingOutput(
 
 // --- Inference ---
 
+// Voice/instrumental model outputs softmax over [instrumental, voice].
+// Index 1 is the "voice" probability.
+const VOICE_CLASS_INDEX = 1;
+const VOICE_THRESHOLD = 0.5;
+
 async function classify(
   ctx: InferenceContext,
   monoAudio: Float32Array,
 ): Promise<{ label: string; score: number }> {
-  const { effnetSession, instrumentSession, ort } = ctx;
+  const { effnetSession, instrumentSession, voiceInstrumentalSession, ort } =
+    ctx;
 
   // Compute mel spectrogram patches
   workerLog(
@@ -238,19 +255,40 @@ async function classify(
     }
   }
 
-  // Run instrument classification head → 40 sigmoid predictions
+  // Run both classification heads in parallel on the averaged embedding
+  const embeddingTensor = new ort.Tensor('float32', avgEmbedding, [
+    1,
+    embeddingDim,
+  ]);
+
   workerLog(
     'debug',
     `[classification:worker] Running instrument head (embedding dim: ${embeddingDim})...`,
   );
-  const instrumentInput = new ort.Tensor('float32', avgEmbedding, [
-    1,
-    embeddingDim,
-  ]);
   const instrumentInputName = instrumentSession.inputNames[0];
-  const instrumentOutput = await instrumentSession.run({
-    [instrumentInputName]: instrumentInput,
-  });
+  const voiceInputName = voiceInstrumentalSession.inputNames[0];
+
+  const [instrumentOutput, voiceOutput] = await Promise.all([
+    instrumentSession.run({ [instrumentInputName]: embeddingTensor }),
+    voiceInstrumentalSession.run({ [voiceInputName]: embeddingTensor }),
+  ]);
+
+  // --- Voice/instrumental classification ---
+  const voicePredictions = Object.values(voiceOutput)[0] as {
+    data: Float32Array;
+  };
+  const voiceScore = voicePredictions.data[VOICE_CLASS_INDEX];
+  const isVocal = voiceScore >= VOICE_THRESHOLD;
+  workerLog(
+    'debug',
+    `[classification:worker] Voice/instrumental: voice=${voiceScore.toFixed(3)}, instrumental=${voicePredictions.data[0].toFixed(3)} → ${isVocal ? 'voice' : 'instrumental'}`,
+  );
+
+  if (isVocal) {
+    return { label: 'voice', score: voiceScore };
+  }
+
+  // --- Instrument classification (when not vocal) ---
   const predictions = Object.values(instrumentOutput)[0] as {
     data: Float32Array;
   };
