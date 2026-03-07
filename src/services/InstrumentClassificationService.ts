@@ -515,9 +515,8 @@ type TensorLike = { data: Float32Array; dims: readonly number[] };
 // Discogs-EffNet produces two outputs: genre predictions ([n, 400]) and
 // embeddings ([n, 1280]). The instrument classification head needs the
 // embeddings. Select the output with the largest second dimension.
-function selectEmbeddingOutput(
-  outputs: Record<string, TensorLike>,
-): TensorLike {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function selectEmbeddingOutput(outputs: Record<string, any>): TensorLike {
   const candidates = Object.values(outputs) as TensorLike[];
   let best = candidates[0];
   for (let i = 1; i < candidates.length; i++) {
