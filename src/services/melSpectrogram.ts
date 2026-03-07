@@ -17,8 +17,8 @@ const MEL_BANDS = 96;
 // between 2.1s and 4.1s.
 const HOP_SIZE = 256;
 
-// Log compression matching Essentia's TensorflowInputMusiCNN
-const LOG_COMPRESSION_FACTOR = 10_000;
+// TensorflowInputMusiCNN already applies log compression: log10(1 + 10000 * x).
+// No additional compression needed — values from computeFrameWise are ready to use.
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let extractorInstance: any = null;
@@ -72,10 +72,7 @@ export async function computeMelSpectrogram(
     for (let f = 0; f < PATCH_SIZE; f++) {
       const frame = melFrames[startFrame + f];
       for (let b = 0; b < MEL_BANDS; b++) {
-        // Log compression: log10(1 + 10000 * x)
-        patch[f * MEL_BANDS + b] = Math.log10(
-          1 + LOG_COMPRESSION_FACTOR * frame[b],
-        );
+        patch[f * MEL_BANDS + b] = frame[b];
       }
     }
 

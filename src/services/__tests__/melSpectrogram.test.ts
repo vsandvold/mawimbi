@@ -65,17 +65,18 @@ describe('computeMelSpectrogram', () => {
     expect(patches).toHaveLength(0);
   });
 
-  it('applies log compression: log10(1 + 10000 * x)', async () => {
-    const testValue = 0.05;
+  it('passes through already log-compressed values from TensorflowInputMusiCNN', async () => {
+    // TensorflowInputMusiCNN already applies log10(1 + 10000 * x) internally.
+    // computeMelSpectrogram must NOT apply log compression again.
+    const alreadyCompressed = 2.699; // typical log-compressed mel value
     mockComputeFrameWise.mockReturnValue(
-      mockMelSpectrum(PATCH_SIZE, testValue),
+      mockMelSpectrum(PATCH_SIZE, alreadyCompressed),
     );
 
     const patches = await computeMelSpectrogram(new Float32Array(16000));
-    const expected = Math.log10(1 + 10000 * testValue);
 
-    expect(patches[0][0]).toBeCloseTo(expected);
-    expect(patches[0][MEL_BANDS - 1]).toBeCloseTo(expected);
+    expect(patches[0][0]).toBeCloseTo(alreadyCompressed);
+    expect(patches[0][MEL_BANDS - 1]).toBeCloseTo(alreadyCompressed);
   });
 
   it('passes audio to the extractor', async () => {
