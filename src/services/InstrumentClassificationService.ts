@@ -14,6 +14,7 @@ import { signal, type ReadonlySignal } from '@preact/signals-react';
 import type { TrackId } from '../types/track';
 import type { WorkerMessage, ClassifyResponse } from './classification.worker';
 import {
+  FALLBACK_LABEL,
   JAMENDO_CLASSES,
   mapToInstrumentLabel,
   type InstrumentLabel,
@@ -38,6 +39,15 @@ export type { InstrumentLabel };
 // EffNet expects 16 kHz mono audio
 const MODEL_SAMPLE_RATE = 16_000;
 
+// Minimum audio duration (seconds) for one 128-frame mel spectrogram patch.
+// At 16 kHz with frame=512 and hop=256: (128-1)*256 + 512 = 33,024 samples ≈ 2.07s.
+// Rounded up to give a small margin.
+const MIN_AUDIO_DURATION_SECONDS = 2.1;
+
+// Duration of the loudest excerpt extracted before classification (seconds).
+// Keeps inference fast while providing enough context (~2–3 patches).
+const EXCERPT_DURATION_SECONDS = 5;
+
 // Same-origin paths proxied to essentia.upf.edu (Vite proxy in dev,
 // Netlify redirect in production) to avoid CORS restrictions.
 const EFFNET_URL =
@@ -48,6 +58,12 @@ const INSTRUMENT_HEAD_URL =
 // EffNet input dimensions
 const PATCH_FRAMES = 128;
 const MEL_BANDS = 96;
+
+type AudioExcerpt = {
+  channelData: Float32Array[];
+  sampleRate: number;
+  length: number;
+};
 
 type Classifier = (
   audio: Float32Array,
@@ -126,13 +142,31 @@ class InstrumentClassificationService {
       }
     }
 
+    const durationSeconds = audioBuffer.length / audioBuffer.sampleRate;
+    if (durationSeconds < MIN_AUDIO_DURATION_SECONDS) {
+      console.log(
+        `[classification] Track ${trackId} too short (${durationSeconds.toFixed(1)}s) — skipping`,
+      );
+      const result: ClassificationResult = {
+        label: FALLBACK_LABEL,
+        score: 0,
+      };
+      this.setEntry(trackId, { state: 'done', result });
+      return FALLBACK_LABEL;
+    }
+
+    const excerpt = extractLoudestExcerpt(
+      audioBuffer,
+      EXCERPT_DURATION_SECONDS,
+    );
+
     this.setEntry(trackId, { state: 'classifying' });
     console.log(`[classification] Classifying track ${trackId}`);
 
     try {
       const rawResult = this.workerFailed
-        ? await this.classifyOnMainThread(audioBuffer)
-        : await this.classifyInWorker(audioBuffer);
+        ? await this.classifyOnMainThread(excerpt)
+        : await this.classifyInWorker(excerpt);
 
       const result: ClassificationResult = {
         label: mapToInstrumentLabel(rawResult.label),
@@ -153,7 +187,7 @@ class InstrumentClassificationService {
           workerError,
         );
         try {
-          const rawResult = await this.classifyOnMainThread(audioBuffer);
+          const rawResult = await this.classifyOnMainThread(excerpt);
           const result: ClassificationResult = {
             label: mapToInstrumentLabel(rawResult.label),
             score: rawResult.score,
@@ -178,15 +212,15 @@ class InstrumentClassificationService {
   // --- Worker-based inference ---
 
   private classifyInWorker(
-    audioBuffer: AudioBuffer,
+    excerpt: AudioExcerpt,
   ): Promise<{ label: string; score: number }> {
     const worker = this.getWorker();
     const id = this.nextMessageId++;
 
-    const channelData: Float32Array[] = [];
     const transferables: Transferable[] = [];
-    for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) {
-      const copy = new Float32Array(audioBuffer.getChannelData(ch));
+    const channelData: Float32Array[] = [];
+    for (const channel of excerpt.channelData) {
+      const copy = new Float32Array(channel);
       channelData.push(copy);
       transferables.push(copy.buffer);
     }
@@ -198,8 +232,8 @@ class InstrumentClassificationService {
           id,
           type: 'classify',
           channelData,
-          sampleRate: audioBuffer.sampleRate,
-          length: audioBuffer.length,
+          sampleRate: excerpt.sampleRate,
+          length: excerpt.length,
         },
         transferables,
       );
@@ -260,10 +294,10 @@ class InstrumentClassificationService {
   // --- Main-thread fallback ---
 
   private async classifyOnMainThread(
-    audioBuffer: AudioBuffer,
+    excerpt: AudioExcerpt,
   ): Promise<{ label: string; score: number }> {
     const classify = await this.loadClassifier();
-    const monoSamples = downmixToMono(audioBuffer, MODEL_SAMPLE_RATE);
+    const monoSamples = downmixExcerptToMono(excerpt, MODEL_SAMPLE_RATE);
     return classify(monoSamples);
   }
 
@@ -382,21 +416,86 @@ class InstrumentClassificationService {
   }
 }
 
+// --- Audio excerpt extraction ---
+
+function extractLoudestExcerpt(
+  audioBuffer: AudioBuffer,
+  excerptSeconds: number,
+): AudioExcerpt {
+  const sampleRate = audioBuffer.sampleRate;
+  const excerptSamples = Math.min(
+    Math.round(excerptSeconds * sampleRate),
+    audioBuffer.length,
+  );
+
+  // Audio is shorter than the excerpt duration — use full audio
+  if (audioBuffer.length <= excerptSamples) {
+    const channelData: Float32Array[] = [];
+    for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) {
+      channelData.push(new Float32Array(audioBuffer.getChannelData(ch)));
+    }
+    return { channelData, sampleRate, length: audioBuffer.length };
+  }
+
+  // Downmix to mono for energy calculation
+  const mono = new Float32Array(audioBuffer.length);
+  for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) {
+    const data = audioBuffer.getChannelData(ch);
+    for (let i = 0; i < audioBuffer.length; i++) {
+      mono[i] += data[i] / audioBuffer.numberOfChannels;
+    }
+  }
+
+  // Cumulative energy for O(1) window energy queries
+  const cumEnergy = new Float64Array(audioBuffer.length + 1);
+  for (let i = 0; i < audioBuffer.length; i++) {
+    cumEnergy[i + 1] = cumEnergy[i] + mono[i] * mono[i];
+  }
+
+  // Slide a window in 100ms steps to find the loudest segment
+  const step = Math.max(1, Math.round(sampleRate * 0.1));
+  let bestStart = 0;
+  let bestEnergy = -1;
+  for (
+    let start = 0;
+    start <= audioBuffer.length - excerptSamples;
+    start += step
+  ) {
+    const energy = cumEnergy[start + excerptSamples] - cumEnergy[start];
+    if (energy > bestEnergy) {
+      bestEnergy = energy;
+      bestStart = start;
+    }
+  }
+
+  const channelData: Float32Array[] = [];
+  for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) {
+    channelData.push(
+      audioBuffer
+        .getChannelData(ch)
+        .slice(bestStart, bestStart + excerptSamples),
+    );
+  }
+  return { channelData, sampleRate, length: excerptSamples };
+}
+
 // --- Audio utilities (main-thread fallback) ---
 
-function downmixToMono(
-  audioBuffer: AudioBuffer,
+function downmixExcerptToMono(
+  excerpt: AudioExcerpt,
   targetSampleRate: number,
 ): Float32Array {
-  const numberOfChannels = audioBuffer.numberOfChannels;
-  const sourceSampleRate = audioBuffer.sampleRate;
-  const sourceLength = audioBuffer.length;
+  const {
+    channelData,
+    sampleRate: sourceSampleRate,
+    length: sourceLength,
+  } = excerpt;
+  const numberOfChannels = channelData.length;
 
   const mono = new Float32Array(sourceLength);
   for (let ch = 0; ch < numberOfChannels; ch++) {
-    const channelData = audioBuffer.getChannelData(ch);
     for (let i = 0; i < sourceLength; i++) {
-      mono[i] += channelData[i] / numberOfChannels;
+      mono[i] += channelData[ch][i] / numberOfChannels;
     }
   }
 

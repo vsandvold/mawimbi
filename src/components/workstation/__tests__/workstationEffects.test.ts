@@ -169,9 +169,10 @@ describe('useClassificationMessages', () => {
 
   const mockAudioBuffer = {
     numberOfChannels: 1,
-    length: 100,
+    length: 132300,
     sampleRate: 44100,
-    getChannelData: () => new Float32Array(100),
+    duration: 3,
+    getChannelData: () => new Float32Array(132300),
   } as unknown as AudioBuffer;
 
   beforeEach(() => {
