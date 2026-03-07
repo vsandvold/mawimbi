@@ -9,6 +9,14 @@
 const PATCH_SIZE = 128;
 const MEL_BANDS = 96;
 
+// Hop size for frame generation. Must match the value used in the
+// MIN_AUDIO_DURATION_SECONDS calculation in InstrumentClassificationService.
+// At 16 kHz with frame=512 and hop=256: (128-1)*256 + 512 = 33,024 samples ≈ 2.07s.
+// Without this, essentia.js defaults hop to frameSize (512), requiring ~4.1s
+// for one 128-frame patch — causing "Audio too short" errors for recordings
+// between 2.1s and 4.1s.
+const HOP_SIZE = 256;
+
 // Log compression matching Essentia's TensorflowInputMusiCNN
 const LOG_COMPRESSION_FACTOR = 10_000;
 
@@ -51,7 +59,7 @@ export async function computeMelSpectrogram(
 
   // computeFrameWise returns { melSpectrum, melBandsSize, patchSize, ... }
   // melSpectrum is a flat Float32Array: totalFrames × melBandsSize
-  const features = extractor.computeFrameWise(monoAudio);
+  const features = extractor.computeFrameWise(monoAudio, HOP_SIZE);
   const melSpectrum: Float32Array = features.melSpectrum;
   const totalFrames = melSpectrum.length / MEL_BANDS;
   const patchCount = Math.floor(totalFrames / PATCH_SIZE);

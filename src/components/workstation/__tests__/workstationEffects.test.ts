@@ -202,7 +202,7 @@ describe('useClassificationMessages', () => {
     rerender({ tracks: [track1] });
 
     expect(mockMessage).toHaveBeenCalledWith(
-      'Instrument detection failed',
+      'Instrument detection failed — audio may be too short',
       expect.objectContaining({ type: 'error' }),
     );
   });

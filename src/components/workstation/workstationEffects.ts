@@ -185,7 +185,7 @@ export const useClassificationMessages = (tracks: Track[]) => {
         });
       } else if (state === 'error') {
         reportedRef.current.add(trackKey);
-        message('Instrument detection failed', {
+        message('Instrument detection failed — audio may be too short', {
           type: 'error',
           key: 'classification',
         });
