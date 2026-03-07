@@ -8,7 +8,7 @@ const PATCH_SIZE = 128;
 const mockComputeFrameWise = vi.fn();
 
 vi.mock('essentia.js/dist/essentia-wasm.es.js', () => ({
-  EssentiaWASM: vi.fn().mockResolvedValue({}),
+  EssentiaWASM: {},
 }));
 
 vi.mock('essentia.js/dist/essentia.js-model.es.js', () => {
