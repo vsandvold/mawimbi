@@ -1,8 +1,9 @@
 import { type DBSchema, type IDBPDatabase, openDB } from 'idb';
+import { type MelodyNote } from './MelodyExtractor';
 import { type Track } from '../types/track';
 
 const DB_NAME = 'mawimbi-db';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export type StoredProject = {
   id: string;
@@ -23,6 +24,12 @@ export type SpectrogramStoreData = {
   duration: number;
 };
 
+export type MelodyStoreData = {
+  trackId: string;
+  notes: MelodyNote[];
+  timeResolution: number;
+};
+
 interface MawimbiDB extends DBSchema {
   projects: {
     key: string;
@@ -37,6 +44,10 @@ interface MawimbiDB extends DBSchema {
     key: string;
     value: SpectrogramStoreData;
   };
+  melodies: {
+    key: string;
+    value: MelodyStoreData;
+  };
 }
 
 let dbPromise: Promise<IDBPDatabase<MawimbiDB>> | null = null;
@@ -44,14 +55,19 @@ let dbPromise: Promise<IDBPDatabase<MawimbiDB>> | null = null;
 function getDB(): Promise<IDBPDatabase<MawimbiDB>> {
   if (!dbPromise) {
     dbPromise = openDB<MawimbiDB>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        const projectStore = db.createObjectStore('projects', {
-          keyPath: 'id',
-        });
-        projectStore.createIndex('by-updatedAt', 'updatedAt');
+      upgrade(db, oldVersion) {
+        if (oldVersion < 1) {
+          const projectStore = db.createObjectStore('projects', {
+            keyPath: 'id',
+          });
+          projectStore.createIndex('by-updatedAt', 'updatedAt');
 
-        db.createObjectStore('audioData', { keyPath: 'trackId' });
-        db.createObjectStore('spectrograms', { keyPath: 'trackId' });
+          db.createObjectStore('audioData', { keyPath: 'trackId' });
+          db.createObjectStore('spectrograms', { keyPath: 'trackId' });
+        }
+        if (oldVersion < 2) {
+          db.createObjectStore('melodies', { keyPath: 'trackId' });
+        }
       },
     });
   }
@@ -81,13 +97,14 @@ export async function deleteProject(id: string): Promise<void> {
   if (project) {
     const trackIds = project.tracks.map((t) => t.trackId);
     const tx = db.transaction(
-      ['projects', 'audioData', 'spectrograms'],
+      ['projects', 'audioData', 'spectrograms', 'melodies'],
       'readwrite',
     );
     tx.objectStore('projects').delete(id);
     for (const trackId of trackIds) {
       tx.objectStore('audioData').delete(trackId);
       tx.objectStore('spectrograms').delete(trackId);
+      tx.objectStore('melodies').delete(trackId);
     }
     await tx.done;
   }
@@ -132,6 +149,24 @@ export async function loadSpectrogramData(
 export async function deleteSpectrogramData(trackId: string): Promise<void> {
   const db = await getDB();
   await db.delete('spectrograms', trackId);
+}
+
+export async function saveMelodyData(data: MelodyStoreData): Promise<void> {
+  const db = await getDB();
+  await db.put('melodies', data);
+}
+
+export async function loadMelodyData(
+  trackId: string,
+): Promise<MelodyStoreData | null> {
+  const db = await getDB();
+  const entry = await db.get('melodies', trackId);
+  return entry ?? null;
+}
+
+export async function deleteMelodyData(trackId: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('melodies', trackId);
 }
 
 export async function getStorageEstimate(): Promise<StorageEstimate> {

@@ -11,10 +11,14 @@ import {
   saveSpectrogramData,
   loadSpectrogramData,
   deleteSpectrogramData,
+  saveMelodyData,
+  loadMelodyData,
+  deleteMelodyData,
   getStorageEstimate,
   resetDB,
   type StoredProject,
   type SpectrogramStoreData,
+  type MelodyStoreData,
 } from '../ProjectStorageService';
 
 function createProject(overrides: Partial<StoredProject> = {}): StoredProject {
@@ -38,6 +42,17 @@ function createSpectrogramData(trackId: string): SpectrogramStoreData {
     frequencyBinCount: 128,
     sampleRate: 44100,
     duration: 2.5,
+  };
+}
+
+function createMelodyData(trackId: string): MelodyStoreData {
+  return {
+    trackId,
+    notes: [
+      { startTime: 0.1, endTime: 0.5, midiNote: 60, confidence: 0.9 },
+      { startTime: 0.6, endTime: 1.0, midiNote: 64, confidence: 0.85 },
+    ],
+    timeResolution: 0.0029,
   };
 }
 
@@ -122,7 +137,7 @@ describe('ProjectStorageService', () => {
   });
 
   describe('deleteProject cleans up related data', () => {
-    it('deletes associated audio and spectrogram data', async () => {
+    it('deletes associated audio, spectrogram, and melody data', async () => {
       const project = createProject({
         tracks: [
           {
@@ -144,6 +159,8 @@ describe('ProjectStorageService', () => {
       await saveAudioData('track-2', new ArrayBuffer(200));
       await saveSpectrogramData(createSpectrogramData('track-1'));
       await saveSpectrogramData(createSpectrogramData('track-2'));
+      await saveMelodyData(createMelodyData('track-1'));
+      await saveMelodyData(createMelodyData('track-2'));
 
       await deleteProject('project-1');
 
@@ -151,6 +168,8 @@ describe('ProjectStorageService', () => {
       expect(await loadAudioData('track-2')).toBeNull();
       expect(await loadSpectrogramData('track-1')).toBeNull();
       expect(await loadSpectrogramData('track-2')).toBeNull();
+      expect(await loadMelodyData('track-1')).toBeNull();
+      expect(await loadMelodyData('track-2')).toBeNull();
     });
   });
 
@@ -233,6 +252,51 @@ describe('ProjectStorageService', () => {
       await expect(
         deleteSpectrogramData('does-not-exist'),
       ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('melody data CRUD', () => {
+    it('saves and loads melody data', async () => {
+      const data = createMelodyData('track-1');
+      await saveMelodyData(data);
+
+      const loaded = await loadMelodyData('track-1');
+      expect(loaded?.trackId).toBe('track-1');
+      expect(loaded?.timeResolution).toBe(0.0029);
+      expect(loaded?.notes).toHaveLength(2);
+      expect(loaded?.notes[0]).toEqual({
+        startTime: 0.1,
+        endTime: 0.5,
+        midiNote: 60,
+        confidence: 0.9,
+      });
+    });
+
+    it('returns null for non-existent melody data', async () => {
+      const loaded = await loadMelodyData('does-not-exist');
+      expect(loaded).toBeNull();
+    });
+
+    it('overwrites existing melody data', async () => {
+      await saveMelodyData(createMelodyData('track-1'));
+      const updated = createMelodyData('track-1');
+      updated.timeResolution = 0.005;
+      await saveMelodyData(updated);
+
+      const loaded = await loadMelodyData('track-1');
+      expect(loaded?.timeResolution).toBe(0.005);
+    });
+
+    it('deletes melody data', async () => {
+      await saveMelodyData(createMelodyData('track-1'));
+      await deleteMelodyData('track-1');
+
+      const loaded = await loadMelodyData('track-1');
+      expect(loaded).toBeNull();
+    });
+
+    it('deleting non-existent melody data does not throw', async () => {
+      await expect(deleteMelodyData('does-not-exist')).resolves.toBeUndefined();
     });
   });
 
