@@ -183,8 +183,8 @@ test.describe('Mixer', () => {
     await page.getByTitle('Show mixer').click();
     await expect(bottomSheet).toBeVisible();
 
-    // Click Hide mixer → bottom sheet disappears
-    await page.getByTitle('Hide mixer').click();
+    // Close via the close button (bottom sheet covers the toolbar)
+    await bottomSheet.getByTitle('Close').click();
     await expect(bottomSheet).toHaveCount(0);
   });
 
