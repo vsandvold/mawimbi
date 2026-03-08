@@ -2,7 +2,7 @@ import {
   GripVertical,
   Headphones,
   Loader2,
-  MicOff,
+  Volume,
   Volume2,
 } from 'lucide-react';
 import { Slider } from '../ui/slider';
@@ -123,7 +123,7 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
 
 function getChannelStateIcon(mute: boolean, solo: boolean) {
   if (solo) return <Headphones />;
-  if (mute) return <MicOff />;
+  if (mute) return <Volume />;
   return <Volume2 />;
 }
 

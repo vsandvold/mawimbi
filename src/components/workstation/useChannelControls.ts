@@ -28,16 +28,16 @@ export function useChannelControls(trackId: TrackId) {
   const cycleState = () => {
     if (!trackSignals) return;
 
-    if (solo) {
-      // solo → on
-      trackSignals.solo.value = false;
-    } else if (mute) {
-      // mute → solo
+    if (mute) {
+      // mute → on
       trackSignals.mute.value = false;
-      trackSignals.solo.value = true;
-    } else {
-      // on → mute
+    } else if (solo) {
+      // solo → mute
+      trackSignals.solo.value = false;
       trackSignals.mute.value = true;
+    } else {
+      // on → solo
+      trackSignals.solo.value = true;
     }
   };
 
