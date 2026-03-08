@@ -5,7 +5,7 @@ import {
   MenuOutlined,
   SoundOutlined,
 } from '@ant-design/icons';
-import { Slider } from 'antd';
+import { Slider } from '../ui/slider';
 import { Button } from '../ui/button';
 import classNames from 'classnames';
 import { useClassificationService } from '../../hooks/useClassificationService';
@@ -45,6 +45,10 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
     (classificationState === 'error' ? FALLBACK_LABEL : undefined);
   const isDownloading =
     classificationState === 'classifying' && downloadProgress !== null;
+
+  const handleValueChange = (values: number[]) => {
+    updateVolume(values[0]);
+  };
 
   const { r, g, b } = color;
   const channelOpacity = isMuted ? 0 : convertToOpacity(volume);
@@ -94,11 +98,11 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
       <div className="channel__volume" onPointerDown={startFocus}>
         <Slider
           className="channel-slider"
-          defaultValue={volume}
+          defaultValue={[volume]}
           min={0}
           max={100}
-          onChange={updateVolume}
-          onChangeComplete={commitVolume}
+          onValueChange={handleValueChange}
+          onValueCommit={commitVolume}
         />
       </div>
       <div className="channel__move" {...dragHandleProps}>
