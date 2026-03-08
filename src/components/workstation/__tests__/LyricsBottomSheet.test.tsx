@@ -1,7 +1,7 @@
 import { render } from '@testing-library/react';
 import { vi } from 'vitest';
 import { mockTrack } from '../../../testUtils';
-import TextBottomSheet from '../TextBottomSheet';
+import LyricsBottomSheet from '../LyricsBottomSheet';
 
 vi.mock('../BottomSheet', () => ({
   default: ({
@@ -25,7 +25,7 @@ const defaultProps = {
 };
 
 it('shows empty state when no vocal tracks exist', () => {
-  const { getByText } = render(<TextBottomSheet {...defaultProps} />);
+  const { getByText } = render(<LyricsBottomSheet {...defaultProps} />);
 
   expect(getByText('No vocal tracks detected')).toBeInTheDocument();
 });
@@ -37,7 +37,7 @@ it('shows empty state when tracks exist but none are vocals', () => {
   ];
 
   const { getByText } = render(
-    <TextBottomSheet {...defaultProps} tracks={tracks} />,
+    <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
   );
 
   expect(getByText('No vocal tracks detected')).toBeInTheDocument();
@@ -53,7 +53,7 @@ it('displays vocal tracks with filename and transcribe button', () => {
   ];
 
   const { getByText } = render(
-    <TextBottomSheet {...defaultProps} tracks={tracks} />,
+    <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
   );
 
   expect(getByText('vocals.wav')).toBeInTheDocument();
@@ -70,10 +70,10 @@ it('renders color indicator for vocal tracks', () => {
   ];
 
   const { container } = render(
-    <TextBottomSheet {...defaultProps} tracks={tracks} />,
+    <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
   );
 
-  const colorDot = container.querySelector('.text-bottom-sheet__color');
+  const colorDot = container.querySelector('.lyrics-bottom-sheet__color');
 
   expect(colorDot).toHaveStyle({ backgroundColor: 'rgb(100,200,50)' });
 });
@@ -98,7 +98,7 @@ it('filters out non-vocal tracks', () => {
   ];
 
   const { getByText, queryByText } = render(
-    <TextBottomSheet {...defaultProps} tracks={tracks} />,
+    <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
   );
 
   expect(getByText('vocals.wav')).toBeInTheDocument();
@@ -110,14 +110,14 @@ it('renders transcribe button as disabled placeholder', () => {
   const tracks = [mockTrack({ trackId: 'track-1', instrument: 'voice' })];
 
   const { getByText } = render(
-    <TextBottomSheet {...defaultProps} tracks={tracks} />,
+    <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
   );
 
   expect(getByText('Transcribe')).toBeDisabled();
 });
 
-it('passes title "Text" to BottomSheet', () => {
-  const { getByTestId } = render(<TextBottomSheet {...defaultProps} />);
+it('passes title "Lyrics" to BottomSheet', () => {
+  const { getByTestId } = render(<LyricsBottomSheet {...defaultProps} />);
 
-  expect(getByTestId('bottom-sheet')).toHaveAttribute('data-title', 'Text');
+  expect(getByTestId('bottom-sheet')).toHaveAttribute('data-title', 'Lyrics');
 });

@@ -1,23 +1,23 @@
 import { type Track } from '../../types/track';
 import { Button } from '../ui/button';
 import BottomSheet from './BottomSheet';
-import './TextBottomSheet.css';
+import './LyricsBottomSheet.css';
 
 const VOICE_INSTRUMENT = 'voice';
 
-type TextBottomSheetProps = {
+type LyricsBottomSheetProps = {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onHeightChange: (height: number) => void;
   tracks: Track[];
 };
 
-const TextBottomSheet = ({
+const LyricsBottomSheet = ({
   isOpen,
   onOpenChange,
   onHeightChange,
   tracks,
-}: TextBottomSheetProps) => {
+}: LyricsBottomSheetProps) => {
   const vocalTracks = tracks.filter(
     (track) => track.instrument === VOICE_INSTRUMENT,
   );
@@ -27,21 +27,21 @@ const TextBottomSheet = ({
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       onHeightChange={onHeightChange}
-      title="Text"
+      title="Lyrics"
     >
       {vocalTracks.length === 0 ? (
-        <p className="text-bottom-sheet__empty">No vocal tracks detected</p>
+        <p className="lyrics-bottom-sheet__empty">No vocal tracks detected</p>
       ) : (
-        <ul className="text-bottom-sheet__list">
+        <ul className="lyrics-bottom-sheet__list">
           {vocalTracks.map((track) => (
-            <li key={track.trackId} className="text-bottom-sheet__item">
+            <li key={track.trackId} className="lyrics-bottom-sheet__item">
               <span
-                className="text-bottom-sheet__color"
+                className="lyrics-bottom-sheet__color"
                 style={{
                   backgroundColor: `rgb(${track.color.r},${track.color.g},${track.color.b})`,
                 }}
               />
-              <span className="text-bottom-sheet__filename">
+              <span className="lyrics-bottom-sheet__filename">
                 {track.fileName}
               </span>
               <Button variant="outline" size="sm" disabled>
@@ -55,4 +55,4 @@ const TextBottomSheet = ({
   );
 };
 
-export default TextBottomSheet;
+export default LyricsBottomSheet;

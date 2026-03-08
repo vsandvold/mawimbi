@@ -7,7 +7,7 @@ import Dropzone from '../dropzone/Dropzone';
 import { useFileDropzone } from '../dropzone/useFileDropzone';
 import EmptyTimeline from './EmptyTimeline';
 import MixerBottomSheet from './MixerBottomSheet';
-import TextBottomSheet from './TextBottomSheet';
+import LyricsBottomSheet from './LyricsBottomSheet';
 import Scrubber from './scrubber/Scrubber';
 import Timeline from './Timeline';
 import Toolbar from './Toolbar';
@@ -159,7 +159,7 @@ const Workstation = (props: WorkstationProps) => {
         onHeightChange={handleDrawerHeightChange}
         tracks={tracks}
       />
-      <TextBottomSheet
+      <LyricsBottomSheet
         isOpen={isLyricsOpen}
         onOpenChange={handleLyricsOpenChange}
         onHeightChange={handleDrawerHeightChange}
