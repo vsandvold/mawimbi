@@ -17,9 +17,6 @@ root.render(
     <ConfigProvider
       theme={{
         algorithm: theme.darkAlgorithm,
-        // antd v5 Layout.Header defaults to #001529 even in dark mode;
-        // override to match colorBgContainer (#141414) used in antd v4 dark theme
-        components: { Layout: { headerBg: '#141414' } },
       }}
     >
       <AntApp>
