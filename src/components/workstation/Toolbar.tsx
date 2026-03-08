@@ -1,10 +1,4 @@
-import Icon, {
-  AudioFilled,
-  AudioOutlined,
-  CaretRightOutlined,
-  PauseOutlined,
-  StepBackwardOutlined,
-} from '@ant-design/icons';
+import { Mic, Pause, Play, SkipBack } from 'lucide-react';
 import { Button } from '../ui/button';
 import classNames from 'classnames';
 import ControlSvg from '../../icons/control.svg?react';
@@ -25,8 +19,14 @@ const Toolbar = (props: ToolbarProps) => {
   const { isMixerOpen, isEmpty, onToggleMixer, onToggleRecording } = props;
   const isRecordActive = recordingState !== 'idle';
 
-  const mixerIconClass = classNames({ 'show-mixer': isMixerOpen });
-  const mixerIcon = <Icon component={ControlSvg} className={mixerIconClass} />;
+  const mixerIconClass = classNames('custom-icon', {
+    'show-mixer': isMixerOpen,
+  });
+  const mixerIcon = (
+    <span className={mixerIconClass}>
+      <ControlSvg />
+    </span>
+  );
 
   const mixerButton = (
     <Button
@@ -50,7 +50,7 @@ const Toolbar = (props: ToolbarProps) => {
       onClick={rewind}
       disabled={isEmpty || isTransportLocked || isStopped}
     >
-      <StepBackwardOutlined />
+      <SkipBack />
     </Button>
   );
 
@@ -63,7 +63,7 @@ const Toolbar = (props: ToolbarProps) => {
       onClick={togglePlayback}
       disabled={isEmpty || isTransportLocked}
     >
-      {isPlaying ? <PauseOutlined /> : <CaretRightOutlined />}
+      {isPlaying ? <Pause /> : <Play />}
     </Button>
   );
 
@@ -75,7 +75,7 @@ const Toolbar = (props: ToolbarProps) => {
       title="Record"
       onClick={onToggleRecording}
     >
-      {isRecordActive ? <AudioFilled /> : <AudioOutlined />}
+      {isRecordActive ? <Mic className="text-red-500" /> : <Mic />}
     </Button>
   );
 

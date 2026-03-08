@@ -214,7 +214,7 @@ it('shows no icon in instrument div when classification is idle and no instrumen
   const { container } = render(<Channel {...defaultProps} />);
 
   const instrumentDiv = container.querySelector('.channel__instrument');
-  expect(instrumentDiv?.querySelector('[role="img"]')).not.toBeInTheDocument();
+  expect(instrumentDiv?.querySelector('svg')).not.toBeInTheDocument();
 });
 
 it('shows loading indicator in instrument div when classification is in progress', () => {
@@ -223,7 +223,7 @@ it('shows loading indicator in instrument div when classification is in progress
   const { container } = render(<Channel {...defaultProps} />);
 
   const instrumentDiv = container.querySelector('.channel__instrument');
-  expect(instrumentDiv?.querySelector('[role="img"]')).toBeInTheDocument();
+  expect(instrumentDiv?.querySelector('svg')).toBeInTheDocument();
 });
 
 it('shows instrument icon in instrument div when classification is done', () => {
@@ -233,7 +233,7 @@ it('shows instrument icon in instrument div when classification is done', () => 
   const { container } = render(<Channel {...defaultProps} />);
 
   const instrumentDiv = container.querySelector('.channel__instrument');
-  expect(instrumentDiv?.querySelector('[role="img"]')).toBeInTheDocument();
+  expect(instrumentDiv?.querySelector('svg')).toBeInTheDocument();
 });
 
 it('shows instrument icon from track prop when service has no classification', () => {
@@ -244,7 +244,7 @@ it('shows instrument icon from track prop when service has no classification', (
   const { container } = render(<Channel {...{ ...defaultProps, track }} />);
 
   const instrumentDiv = container.querySelector('.channel__instrument');
-  expect(instrumentDiv?.querySelector('[role="img"]')).toBeInTheDocument();
+  expect(instrumentDiv?.querySelector('svg')).toBeInTheDocument();
 });
 
 it('prefers service classification over track instrument prop', () => {
@@ -255,7 +255,7 @@ it('prefers service classification over track instrument prop', () => {
   const { container } = render(<Channel {...{ ...defaultProps, track }} />);
 
   const instrumentDiv = container.querySelector('.channel__instrument');
-  expect(instrumentDiv?.querySelector('[role="img"]')).toBeInTheDocument();
+  expect(instrumentDiv?.querySelector('svg')).toBeInTheDocument();
 });
 
 it('shows download progress percentage when model is downloading', () => {
@@ -279,7 +279,7 @@ it('shows loading spinner when classifying without download', () => {
   expect(progressEl).not.toBeInTheDocument();
 
   const instrumentDiv = container.querySelector('.channel__instrument');
-  expect(instrumentDiv?.querySelector('[role="img"]')).toBeInTheDocument();
+  expect(instrumentDiv?.querySelector('svg')).toBeInTheDocument();
 });
 
 it('sets title attribute with download progress', () => {

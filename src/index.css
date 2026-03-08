@@ -187,6 +187,19 @@ html {
   border: none;
 }
 
+/* Custom SVG icon wrapper — replaces @ant-design/icons Icon component */
+.custom-icon {
+  display: inline-flex;
+  align-items: center;
+  line-height: 0;
+}
+
+.custom-icon > svg {
+  width: 1em;
+  height: 1em;
+  fill: currentColor;
+}
+
 @media (max-width: 768px) {
   .hidden-lt768 {
     display: none !important;

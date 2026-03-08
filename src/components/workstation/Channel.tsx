@@ -1,10 +1,10 @@
 import {
-  AudioMutedOutlined,
-  CustomerServiceOutlined,
-  LoadingOutlined,
-  MenuOutlined,
-  SoundOutlined,
-} from '@ant-design/icons';
+  GripVertical,
+  Headphones,
+  Loader2,
+  MicOff,
+  Volume2,
+} from 'lucide-react';
 import { Slider } from '../ui/slider';
 import { Button } from '../ui/button';
 import classNames from 'classnames';
@@ -76,7 +76,7 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
               {downloadProgress}%
             </span>
           ) : (
-            <LoadingOutlined />
+            <Loader2 className="animate-spin" />
           )
         ) : (
           instrument !== undefined && getInstrumentIcon(instrument)
@@ -114,7 +114,7 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
           title="Move"
           disabled
         >
-          <MenuOutlined />
+          <GripVertical />
         </Button>
       </div>
     </div>
@@ -122,9 +122,9 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
 };
 
 function getChannelStateIcon(mute: boolean, solo: boolean) {
-  if (solo) return <CustomerServiceOutlined />;
-  if (mute) return <AudioMutedOutlined />;
-  return <SoundOutlined />;
+  if (solo) return <Headphones />;
+  if (mute) return <MicOff />;
+  return <Volume2 />;
 }
 
 function getChannelStateTitle(mute: boolean, solo: boolean) {

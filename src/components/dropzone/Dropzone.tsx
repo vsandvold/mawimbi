@@ -1,4 +1,4 @@
-import { UploadOutlined } from '@ant-design/icons';
+import { Upload } from 'lucide-react';
 import classNames from 'classnames';
 import React from 'react';
 import './Dropzone.css';
@@ -24,7 +24,7 @@ const Dropzone = (props: DropzoneProps) => {
       <input {...inputProps} />
       <div className="dropzone__content">
         <span>
-          <UploadOutlined className="upload-icon" />
+          <Upload className="upload-icon" />
         </span>
         {isDragAccept && (
           <h4 className="text-xl font-semibold">

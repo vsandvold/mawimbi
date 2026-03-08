@@ -53,7 +53,7 @@ it('renders play icon when stopped', () => {
   const { getByTitle } = render(<Toolbar {...defaultProps} />);
 
   const playButton = getByTitle('Play');
-  const playIcon = playButton.querySelector('[aria-label="caret-right"]');
+  const playIcon = playButton.querySelector('svg');
 
   expect(playButton).toBeInTheDocument();
   expect(playIcon).toBeInTheDocument();
@@ -65,7 +65,7 @@ it('renders pause icon when playing', () => {
   const { getByTitle } = render(<Toolbar {...defaultProps} />);
 
   const pauseButton = getByTitle('Pause');
-  const pauseIcon = pauseButton.querySelector('[aria-label="pause"]');
+  const pauseIcon = pauseButton.querySelector('svg');
 
   expect(pauseButton).toBeInTheDocument();
   expect(pauseIcon).toBeInTheDocument();
@@ -75,7 +75,7 @@ it('renders microphone icon', () => {
   const { getByTitle } = render(<Toolbar {...defaultProps} />);
 
   const recordButton = getByTitle('Record');
-  const recordIcon = recordButton.querySelector('[aria-label="audio"]');
+  const recordIcon = recordButton.querySelector('svg');
 
   expect(recordButton).toBeInTheDocument();
   expect(recordIcon).toBeInTheDocument();

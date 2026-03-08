@@ -1,4 +1,4 @@
-import { MinusOutlined, PlusOutlined } from '@ant-design/icons';
+import { Minus, Plus } from 'lucide-react';
 import { Button } from '../ui/button';
 import { type CSSProperties } from 'react';
 import { useRecordingService } from '../../hooks/useRecordingService';
@@ -23,7 +23,7 @@ const ZoomControls = ({ style }: ZoomControlsProps) => {
         onClick={zoomIn}
         disabled={isMaxZoom || isRecording}
       >
-        <PlusOutlined />
+        <Plus />
       </Button>
       <Button
         variant="ghost"
@@ -33,7 +33,7 @@ const ZoomControls = ({ style }: ZoomControlsProps) => {
         onClick={zoomOut}
         disabled={isMinZoom || isRecording}
       >
-        <MinusOutlined />
+        <Minus />
       </Button>
     </div>
   );

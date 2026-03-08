@@ -1,4 +1,4 @@
-import { StepBackwardOutlined } from '@ant-design/icons';
+import { SkipBack } from 'lucide-react';
 import { Button } from '../../ui/button';
 import classNames from 'classnames';
 import { PropsWithChildren } from 'react';
@@ -78,7 +78,7 @@ const Scrubber = (props: ScrubberProps) => {
           title="Rewind"
           onClick={handleStopAndRewind}
         >
-          <StepBackwardOutlined />
+          <SkipBack />
         </Button>
       </div>
       <ZoomControls style={rewindButtonStyle} />
