@@ -227,18 +227,18 @@ test.describe('Mixer', () => {
 
     const track = page.locator('.timeline__track');
 
-    // Click once: on → mute
+    // Click once: on → solo
     await page.getByTitle('On').click();
-    await expect(track).toHaveClass(/timeline__track--muted/);
-    await expect(page.getByTitle('Muted')).toBeVisible();
-
-    // Click again: mute → solo
-    await page.getByTitle('Muted').click();
     await expect(track).not.toHaveClass(/timeline__track--muted/);
     await expect(page.getByTitle('Solo')).toBeVisible();
 
-    // Click again: solo → on
+    // Click again: solo → mute
     await page.getByTitle('Solo').click();
+    await expect(track).toHaveClass(/timeline__track--muted/);
+    await expect(page.getByTitle('Muted')).toBeVisible();
+
+    // Click again: mute → on
+    await page.getByTitle('Muted').click();
     await expect(page.getByTitle('On')).toBeVisible();
   });
 
@@ -249,10 +249,9 @@ test.describe('Mixer', () => {
 
     await page.getByTitle('Show mixer').click();
 
-    // Cycle the first channel button to solo (on → mute → solo)
+    // Cycle the first channel button to solo (on → solo)
     const channelButtons = page.getByTitle('On');
-    await channelButtons.first().click(); // on → mute
-    await page.getByTitle('Muted').click(); // mute → solo
+    await channelButtons.first().click(); // on → solo
 
     // The non-solo track should be muted
     const tracks = page.locator('.timeline__track');
@@ -477,7 +476,8 @@ test.describe('Visual regression - audio states', () => {
     await expect(page.locator('.timeline__track')).toBeVisible();
 
     await page.getByTitle('Show mixer').click();
-    await page.getByTitle('On').click(); // on → mute
+    await page.getByTitle('On').click(); // on → solo
+    await page.getByTitle('Solo').click(); // solo → mute
     await expect(
       page.locator('.timeline__track--muted'),
     ).toBeVisible();
@@ -494,10 +494,9 @@ test.describe('Visual regression - audio states', () => {
     await expect(page.locator('.timeline__track')).toHaveCount(2);
 
     await page.getByTitle('Show mixer').click();
-    // Cycle first channel to solo (on → mute → solo)
+    // Cycle first channel to solo (on → solo)
     const channelButtons = page.getByTitle('On');
-    await channelButtons.first().click(); // on → mute
-    await page.getByTitle('Muted').click(); // mute → solo
+    await channelButtons.first().click(); // on → solo
     await expect(page.locator('.timeline__track--muted')).toHaveCount(1);
 
     await expect(page.locator('.workstation')).toHaveScreenshot(
