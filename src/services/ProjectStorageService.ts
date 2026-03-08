@@ -83,6 +83,15 @@ function getDB(): Promise<IDBPDatabase<MawimbiDB>> {
           db.createObjectStore('transcriptions', { keyPath: 'trackId' });
         }
       },
+      blocked() {
+        // Version upgrade blocked by another tab holding an older connection.
+        // The openDB promise will hang until that tab closes or refreshes.
+        console.warn('Database upgrade blocked. Close other tabs to continue.');
+      },
+    }).catch((error) => {
+      // Reset so the next call retries instead of returning this cached rejection
+      dbPromise = null;
+      throw error;
     });
   }
   return dbPromise;
