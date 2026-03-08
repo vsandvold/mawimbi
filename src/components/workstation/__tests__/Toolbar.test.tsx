@@ -8,15 +8,15 @@ const playbackService = audioService.playbackService;
 const recordingService = audioService.recordingService;
 
 const mockToggleMixer = vi.fn();
-const mockToggleText = vi.fn();
+const mockToggleLyrics = vi.fn();
 const mockToggleRecording = vi.fn();
 
 const defaultProps = {
   isMixerOpen: false,
-  isTextOpen: false,
+  isLyricsOpen: false,
   isEmpty: false,
   onToggleMixer: mockToggleMixer,
-  onToggleText: mockToggleText,
+  onToggleLyrics: mockToggleLyrics,
   onToggleRecording: mockToggleRecording,
 };
 
@@ -36,7 +36,7 @@ it('disables buttons when tracks are empty', () => {
     <Toolbar {...{ ...defaultProps, isEmpty: true }} />,
   );
 
-  expect(getByTitle('Show text')).toBeDisabled();
+  expect(getByTitle('Show lyrics')).toBeDisabled();
   expect(getByTitle('Show mixer')).toBeDisabled();
   expect(getByTitle('Play')).toBeDisabled();
   expect(getByTitle('Rewind')).toBeDisabled();
@@ -48,7 +48,7 @@ it('enables non-transport buttons when tracks are not empty', () => {
     <Toolbar {...{ ...defaultProps, isEmpty: false }} />,
   );
 
-  expect(getByTitle('Show text')).toBeEnabled();
+  expect(getByTitle('Show lyrics')).toBeEnabled();
   expect(getByTitle('Show mixer')).toBeEnabled();
   expect(getByTitle('Play')).toBeEnabled();
   expect(getByTitle('Record')).toBeEnabled();
@@ -156,23 +156,23 @@ it('enables rewind button when playing', () => {
   expect(getByTitle('Rewind')).toBeEnabled();
 });
 
-it('applies active class to text icon when text is open', () => {
+it('applies active class to lyrics icon when lyrics is open', () => {
   const { getByTitle } = render(
-    <Toolbar {...{ ...defaultProps, isTextOpen: true }} />,
+    <Toolbar {...{ ...defaultProps, isLyricsOpen: true }} />,
   );
 
-  const textButton = getByTitle('Hide text');
+  const textButton = getByTitle('Hide lyrics');
 
-  expect(textButton.querySelector('.show-text')).toBeInTheDocument();
+  expect(textButton.querySelector('.show-lyrics')).toBeInTheDocument();
 });
 
-it('toggles text when text show/hide is clicked', () => {
+it('toggles lyrics when lyrics show/hide is clicked', () => {
   const { getByTitle } = render(
-    <Toolbar {...{ ...defaultProps, isTextOpen: false }} />,
+    <Toolbar {...{ ...defaultProps, isLyricsOpen: false }} />,
   );
 
-  const textButton = getByTitle('Show text');
+  const textButton = getByTitle('Show lyrics');
   fireEvent.click(textButton);
 
-  expect(mockToggleText).toHaveBeenCalledTimes(1);
+  expect(mockToggleLyrics).toHaveBeenCalledTimes(1);
 });
