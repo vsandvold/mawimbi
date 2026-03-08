@@ -5,7 +5,7 @@
 }
 
 .home__header {
-  background: linear-gradient(to bottom, #1a6b3c, #2d8f55);
+  border-bottom: 1px solid var(--border);
   padding: 48px 24px 32px;
   display: flex;
   flex-direction: column;
@@ -21,7 +21,7 @@
 .home__title {
   font-size: 28px;
   font-weight: 700;
-  color: #fff;
+  color: var(--foreground);
   margin: 0;
 }
 
