@@ -4,7 +4,7 @@ import { beforeAll, vi } from 'vitest';
 import type { StoredProject } from '../../../services/ProjectStorageService';
 import HomePage from '../HomePage';
 
-// Ant Design List uses responsive breakpoints via window.matchMedia
+// matchMedia is used by responsive components
 beforeAll(() => {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,
@@ -164,15 +164,15 @@ it('deletes a project after confirmation', async () => {
   const deleteButtons = screen.getAllByText('Delete');
   fireEvent.click(deleteButtons[0]);
 
-  // Popconfirm should appear
+  // AlertDialog should appear
   await waitFor(() => {
     expect(screen.getByText('Delete project?')).toBeInTheDocument();
   });
 
-  // Confirm via the OK button in Popconfirm (the danger primary button)
+  // Confirm via the destructive action button in the AlertDialog
   const confirmButtons = screen.getAllByRole('button', { name: 'Delete' });
-  const confirmButton = confirmButtons.find((btn) =>
-    btn.classList.contains('ant-btn-primary'),
+  const confirmButton = confirmButtons.find(
+    (btn) => btn.closest('[data-slot="alert-dialog-content"]') !== null,
   )!;
   fireEvent.click(confirmButton);
 

@@ -102,7 +102,7 @@ body {
   height: 100%;
 }
 
-/* AntApp renders a div wrapper that must also fill the full height */
+/* AntApp renders a div wrapper that must also fill the full height (removed in #294) */
 .ant-app {
   height: 100%;
 }

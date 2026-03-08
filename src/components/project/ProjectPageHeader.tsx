@@ -5,11 +5,23 @@ import {
   UndoOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
-import { Dropdown, Input, Modal, Typography, Upload } from 'antd';
-import { Button } from '../ui/button';
-import type { MenuProps, UploadProps } from 'antd';
 import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Button } from '../ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
+import { Input } from '../ui/input';
 import './ProjectPageHeader.css';
 
 type ProjectPageHeaderProps = {
@@ -29,7 +41,6 @@ type ProjectPageHeaderProps = {
 const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
   const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState(props.title);
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const openRenameModal = () => {
     setNewTitle(props.title);
@@ -44,12 +55,8 @@ const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
     setIsRenameModalOpen(false);
   };
 
-  const handleCancel = () => {
-    setIsRenameModalOpen(false);
-  };
-
   return (
-    <div className="project-page-header" ref={containerRef}>
+    <div className="project-page-header">
       <Link to="/" className="back-link" aria-label="Back">
         <Button
           variant="ghost"
@@ -60,28 +67,33 @@ const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
           <ArrowLeftOutlined />
         </Button>
       </Link>
-      <Typography.Title
-        level={4}
-        className="project-page-header__title"
-        onClick={openRenameModal}
-      >
+      <h4 className="project-page-header__title" onClick={openRenameModal}>
         {props.title}
-      </Typography.Title>
-      <Modal
-        title="Rename project"
-        open={isRenameModalOpen}
-        onOk={handleRename}
-        onCancel={handleCancel}
-        okText="Update"
-        getContainer={() => containerRef.current!}
-      >
-        <Input
-          value={newTitle}
-          onChange={(e) => setNewTitle(e.target.value)}
-          onPressEnter={handleRename}
-          autoFocus
-        />
-      </Modal>
+      </h4>
+      <Dialog open={isRenameModalOpen} onOpenChange={setIsRenameModalOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename project</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleRename();
+            }}
+            autoFocus
+          />
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsRenameModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleRename}>Update</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div className="project-page-header__extra">
         <Button
           variant="ghost"
@@ -109,7 +121,6 @@ const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
           toggleFullscreen={props.toggleFullscreen}
           isLogOverlayOpen={props.isLogOverlayOpen}
           toggleLogOverlay={props.toggleLogOverlay}
-          getPopupContainer={() => containerRef.current!}
         />
       </div>
     </div>
@@ -122,24 +133,38 @@ type UploadButtonProps = {
 
 const UploadButton = (props: UploadButtonProps) => {
   const { uploadFile } = props;
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const uploadProps: UploadProps = {
-    accept: 'audio/*',
-    multiple: true,
-    showUploadList: false,
-    beforeUpload: (file) => {
-      uploadFile(file);
-      return false;
-    },
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      for (const file of files) {
+        uploadFile(file);
+      }
+    }
+    // Reset so the same file can be uploaded again
+    e.target.value = '';
   };
 
   return (
-    <Upload {...uploadProps}>
-      <Button variant="ghost" className="button">
+    <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="audio/*"
+        multiple
+        className="hidden"
+        onChange={handleFileChange}
+      />
+      <Button
+        variant="ghost"
+        className="button"
+        onClick={() => fileInputRef.current?.click()}
+      >
         <UploadOutlined />
         <span className="hidden-lt768">Upload files</span>
       </Button>
-    </Upload>
+    </>
   );
 };
 
@@ -148,47 +173,33 @@ type OverflowMenuProps = {
   toggleFullscreen: (state?: boolean) => void;
   isLogOverlayOpen: boolean;
   toggleLogOverlay: () => void;
-  getPopupContainer: () => HTMLElement;
 };
 
 const OverflowMenu = (props: OverflowMenuProps) => {
-  const {
-    isFullscreen,
-    toggleFullscreen,
-    isLogOverlayOpen,
-    toggleLogOverlay,
-    getPopupContainer,
-  } = props;
-
-  const items: MenuProps['items'] = [
-    {
-      key: 'fullscreen',
-      label: isFullscreen ? 'Exit Full Screen' : 'Enter Full Screen',
-      onClick: () => toggleFullscreen(),
-    },
-    {
-      key: 'logs',
-      label: isLogOverlayOpen ? 'Hide Logs' : 'View Logs',
-      onClick: toggleLogOverlay,
-    },
-  ];
+  const { isFullscreen, toggleFullscreen, isLogOverlayOpen, toggleLogOverlay } =
+    props;
 
   return (
-    <Dropdown
-      menu={{ items }}
-      trigger={['click']}
-      getPopupContainer={getPopupContainer}
-    >
-      <Button
-        variant="ghost"
-        size="icon"
-        className="button overflow-button"
-        aria-label="More"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <EllipsisOutlined />
-      </Button>
-    </Dropdown>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="button overflow-button"
+          aria-label="More"
+        >
+          <EllipsisOutlined />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => toggleFullscreen()}>
+          {isFullscreen ? 'Exit Full Screen' : 'Enter Full Screen'}
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={toggleLogOverlay}>
+          {isLogOverlayOpen ? 'Hide Logs' : 'View Logs'}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };
 

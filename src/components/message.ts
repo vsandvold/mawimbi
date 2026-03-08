@@ -1,5 +1,5 @@
-import { App } from 'antd';
 import { useCallback } from 'react';
+import { toast } from 'sonner';
 
 type MessageType = 'error' | 'info' | 'loading' | 'success' | 'warning';
 
@@ -9,14 +9,10 @@ type MessageOptions = {
 };
 
 const useMessage = () => {
-  const { message: antdMessage } = App.useApp();
-
-  return useCallback(
-    (msg: string, { type, key }: MessageOptions) => {
-      antdMessage[type]({ content: msg, key });
-    },
-    [antdMessage],
-  );
+  return useCallback((msg: string, { type, key }: MessageOptions) => {
+    const id = key;
+    toast[type](msg, { id });
+  }, []);
 };
 
 export default useMessage;

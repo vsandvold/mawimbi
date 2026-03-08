@@ -9,7 +9,9 @@
 }
 
 .project-page-header__title {
-  margin: 0 !important;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
