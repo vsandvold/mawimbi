@@ -56,35 +56,35 @@ it('renders move button', () => {
   expect(getByTitle('Move')).toBeInTheDocument();
 });
 
-it('cycles from on to mute on first click', () => {
+it('cycles from on to solo on first click', () => {
   const { getByTitle } = render(<Channel {...defaultProps} />);
 
   fireEvent.click(getByTitle('On'));
 
   const signals = trackService.getSignals('track-1')!;
-  expect(signals.mute.value).toBe(true);
-  expect(signals.solo.value).toBe(false);
-});
-
-it('cycles from mute to solo on second click', () => {
-  const signals = trackService.getSignals('track-1')!;
-  signals.mute.value = true;
-
-  const { getByTitle } = render(<Channel {...defaultProps} />);
-
-  fireEvent.click(getByTitle('Muted'));
-
   expect(signals.mute.value).toBe(false);
   expect(signals.solo.value).toBe(true);
 });
 
-it('cycles from solo to on on third click', () => {
+it('cycles from solo to mute on second click', () => {
   const signals = trackService.getSignals('track-1')!;
   signals.solo.value = true;
 
   const { getByTitle } = render(<Channel {...defaultProps} />);
 
   fireEvent.click(getByTitle('Solo'));
+
+  expect(signals.solo.value).toBe(false);
+  expect(signals.mute.value).toBe(true);
+});
+
+it('cycles from mute to on on third click', () => {
+  const signals = trackService.getSignals('track-1')!;
+  signals.mute.value = true;
+
+  const { getByTitle } = render(<Channel {...defaultProps} />);
+
+  fireEvent.click(getByTitle('Muted'));
 
   expect(signals.mute.value).toBe(false);
   expect(signals.solo.value).toBe(false);
