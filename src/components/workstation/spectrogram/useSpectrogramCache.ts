@@ -96,6 +96,13 @@ export function useSpectrogramCache(
         if (storedMelody) {
           const melody = fromMelodyStoreData(storedMelody);
           audioService.spectrogramCache.setMelody(trackId, melody);
+          console.log(
+            `[melody] Restored ${melody.notes.length} cached notes for track ${trackId} from IndexedDB`,
+          );
+        } else {
+          console.debug(
+            `[melody] No cached melody data for track ${trackId} in IndexedDB`,
+          );
         }
 
         setEntry(audioService.spectrogramCache.getEntry(trackId));
@@ -145,11 +152,17 @@ function extractAndCacheMelody(
   audioService.spectrogramCache
     .extractMelodyInWorker(audioBuffer)
     .then((melody) => {
+      console.log(
+        `[melody] Melody extraction complete for track ${trackId}: ${melody.notes.length} notes`,
+      );
       audioService.spectrogramCache.setMelody(trackId, melody);
       saveMelodyData(toMelodyStoreData(trackId, melody));
       onComplete();
     })
-    .catch(() => {
-      // Melody extraction is non-critical; silently ignore failures
+    .catch((error) => {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[melody] Melody extraction failed for track ${trackId}: ${detail}`,
+      );
     });
 }

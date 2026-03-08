@@ -89,6 +89,11 @@ class SpectrogramCache {
   }
 
   extractMelodyInWorker(audioBuffer: AudioBuffer): Promise<MelodyData> {
+    const durationSeconds = audioBuffer.length / audioBuffer.sampleRate;
+    console.log(
+      `[melody] Sending melody extraction to worker: ${audioBuffer.numberOfChannels}ch, ${audioBuffer.length} samples, ${audioBuffer.sampleRate} Hz, ${durationSeconds.toFixed(2)}s`,
+    );
+
     const worker = this.getWorker();
     const id = this.nextMessageId++;
 
@@ -128,14 +133,23 @@ class SpectrogramCache {
         this.pendingRequests.delete(id);
 
         if (type === 'error') {
+          if (pending.kind === 'melody') {
+            console.error(
+              `[melody] Worker returned error: ${event.data.message}`,
+            );
+          }
           pending.reject(new Error(event.data.message));
         } else if (type === 'melody-result' && pending.kind === 'melody') {
+          console.log(
+            `[melody] Worker returned ${event.data.data.notes.length} notes`,
+          );
           pending.resolve(event.data.data);
         } else if (type === 'result' && pending.kind === 'spectrogram') {
           pending.resolve({ data: event.data.data, tiles: event.data.tiles });
         }
       };
-      this.worker.onerror = () => {
+      this.worker.onerror = (event) => {
+        console.error('[melody] Spectrogram worker crashed:', event);
         this.workerFailed = true;
         this.rejectAllPending(
           new Error('Spectrogram worker failed; falling back to main thread'),
