@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { FolderOpen, Trash2 } from 'lucide-react';
 import { Button } from '../ui/button';
 import {
   AlertDialog,
@@ -43,17 +44,31 @@ const ProjectList = ({ projects, onOpen, onDelete }: ProjectListProps) => {
                 </span>
               </div>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-destructive hover:text-destructive"
-              onClick={(e) => {
-                e.stopPropagation();
-                setDeleteTarget(project.id);
-              }}
-            >
-              Delete
-            </Button>
+            <div className="home__project-actions">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpen(project.id);
+                }}
+                aria-label="Open project"
+              >
+                <FolderOpen size={16} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="text-destructive hover:text-destructive"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDeleteTarget(project.id);
+                }}
+                aria-label="Delete project"
+              >
+                <Trash2 size={16} />
+              </Button>
+            </div>
           </li>
         ))}
       </ul>
