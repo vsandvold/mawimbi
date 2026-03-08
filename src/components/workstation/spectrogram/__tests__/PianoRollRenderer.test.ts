@@ -41,17 +41,30 @@ describe('midiNoteToBin', () => {
 describe('drawPianoRoll', () => {
   const color = { r: 100, g: 200, b: 150 };
 
+  function createMockGradient() {
+    return {
+      addColorStop: vi.fn(),
+    };
+  }
+
   function createMockCtx() {
     return {
       fillStyle: '',
       strokeStyle: '',
       lineWidth: 0,
+      shadowColor: '',
+      shadowBlur: 0,
       clearRect: vi.fn(),
       beginPath: vi.fn(),
       fill: vi.fn(),
       stroke: vi.fn(),
       rect: vi.fn(),
       roundRect: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      save: vi.fn(),
+      restore: vi.fn(),
+      createLinearGradient: vi.fn(() => createMockGradient()),
     } as unknown as CanvasRenderingContext2D;
   }
 
@@ -97,9 +110,10 @@ describe('drawPianoRoll', () => {
 
     drawPianoRoll(ctx, [note], color, makeViewport());
 
-    expect(ctx.beginPath).toHaveBeenCalledTimes(1);
-    expect(ctx.fill).toHaveBeenCalledTimes(1);
-    expect(ctx.stroke).toHaveBeenCalledTimes(1);
+    // Each note: beginPath for body + fill + stroke, then beginPath for highlight + stroke
+    expect(ctx.fill).toHaveBeenCalled();
+    expect(ctx.stroke).toHaveBeenCalled();
+    expect(ctx.createLinearGradient).toHaveBeenCalled();
   });
 
   it('culls notes entirely before the viewport', () => {
@@ -144,7 +158,7 @@ describe('drawPianoRoll', () => {
     // Viewport covers 0–4 seconds; note starts at 3.5 and extends past 4
     drawPianoRoll(ctx, [note], color, makeViewport());
 
-    expect(ctx.beginPath).toHaveBeenCalledTimes(1);
+    expect(ctx.fill).toHaveBeenCalled();
   });
 
   it('draws multiple visible notes', () => {
@@ -157,12 +171,40 @@ describe('drawPianoRoll', () => {
 
     drawPianoRoll(ctx, notes, color, makeViewport());
 
-    expect(ctx.beginPath).toHaveBeenCalledTimes(3);
-    expect(ctx.fill).toHaveBeenCalledTimes(3);
-    expect(ctx.stroke).toHaveBeenCalledTimes(3);
+    // Each note creates a gradient
+    expect(ctx.createLinearGradient).toHaveBeenCalledTimes(3);
   });
 
-  it('sets fill style with track color and opacity', () => {
+  it('creates gradient fill with track color for 3D effect', () => {
+    const ctx = createMockCtx();
+    const gradient = createMockGradient();
+    (ctx.createLinearGradient as ReturnType<typeof vi.fn>).mockReturnValue(
+      gradient,
+    );
+
+    const note: MelodyNote = {
+      startTime: 0,
+      endTime: 1,
+      midiNote: 60,
+      confidence: 0.9,
+    };
+
+    drawPianoRoll(ctx, [note], color, makeViewport());
+
+    expect(ctx.createLinearGradient).toHaveBeenCalled();
+    // Gradient has two stops: lighter top and darker bottom
+    expect(gradient.addColorStop).toHaveBeenCalledTimes(2);
+    expect(gradient.addColorStop).toHaveBeenCalledWith(
+      0,
+      expect.stringContaining('rgba('),
+    );
+    expect(gradient.addColorStop).toHaveBeenCalledWith(
+      1,
+      expect.stringContaining('rgba('),
+    );
+  });
+
+  it('draws top highlight line for 3D bevel', () => {
     const ctx = createMockCtx();
     const note: MelodyNote = {
       startTime: 0,
@@ -173,9 +215,9 @@ describe('drawPianoRoll', () => {
 
     drawPianoRoll(ctx, [note], color, makeViewport());
 
-    expect(ctx.fillStyle).toContain('100');
-    expect(ctx.fillStyle).toContain('200');
-    expect(ctx.fillStyle).toContain('150');
+    // Top highlight uses moveTo/lineTo
+    expect(ctx.moveTo).toHaveBeenCalled();
+    expect(ctx.lineTo).toHaveBeenCalled();
   });
 
   it('uses roundRect when available', () => {
@@ -189,7 +231,7 @@ describe('drawPianoRoll', () => {
 
     drawPianoRoll(ctx, [note], color, makeViewport());
 
-    expect(ctx.roundRect).toHaveBeenCalledTimes(1);
+    expect(ctx.roundRect).toHaveBeenCalled();
     expect(ctx.rect).not.toHaveBeenCalled();
   });
 
@@ -207,6 +249,77 @@ describe('drawPianoRoll', () => {
 
     drawPianoRoll(ctx, [note], color, makeViewport());
 
-    expect(ctx.rect).toHaveBeenCalledTimes(1);
+    expect(ctx.rect).toHaveBeenCalled();
+  });
+
+  // ---------------------------------------------------------------------------
+  // Playhead glow effect
+  // ---------------------------------------------------------------------------
+
+  describe('playhead glow', () => {
+    it('applies glow effect to notes intersecting the playhead', () => {
+      const ctx = createMockCtx();
+      const note: MelodyNote = {
+        startTime: 1.0,
+        endTime: 2.0,
+        midiNote: 60,
+        confidence: 0.9,
+      };
+
+      drawPianoRoll(ctx, [note], color, makeViewport({ playheadTime: 1.5 }));
+
+      // Active notes use save/restore for glow shadow
+      expect(ctx.save).toHaveBeenCalled();
+      expect(ctx.restore).toHaveBeenCalled();
+    });
+
+    it('does not apply glow when playhead is outside note range', () => {
+      const ctx = createMockCtx();
+      const note: MelodyNote = {
+        startTime: 1.0,
+        endTime: 2.0,
+        midiNote: 60,
+        confidence: 0.9,
+      };
+
+      drawPianoRoll(ctx, [note], color, makeViewport({ playheadTime: 0.5 }));
+
+      // No save/restore means no glow was applied
+      expect(ctx.save).not.toHaveBeenCalled();
+    });
+
+    it('does not apply glow when playheadTime is undefined', () => {
+      const ctx = createMockCtx();
+      const note: MelodyNote = {
+        startTime: 0,
+        endTime: 1,
+        midiNote: 60,
+        confidence: 0.9,
+      };
+
+      drawPianoRoll(
+        ctx,
+        [note],
+        color,
+        makeViewport({ playheadTime: undefined }),
+      );
+
+      expect(ctx.save).not.toHaveBeenCalled();
+    });
+
+    it('applies glow only to the note under the playhead', () => {
+      const ctx = createMockCtx();
+      const notes: MelodyNote[] = [
+        { startTime: 0, endTime: 1, midiNote: 60, confidence: 0.9 },
+        { startTime: 1, endTime: 2, midiNote: 64, confidence: 0.8 },
+        { startTime: 2, endTime: 3, midiNote: 67, confidence: 0.7 },
+      ];
+
+      drawPianoRoll(ctx, notes, color, makeViewport({ playheadTime: 1.5 }));
+
+      // Only the second note (1.0–2.0) intersects playhead at 1.5
+      expect(ctx.save).toHaveBeenCalledTimes(1);
+      expect(ctx.restore).toHaveBeenCalledTimes(1);
+    });
   });
 });

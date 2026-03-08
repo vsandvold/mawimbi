@@ -135,6 +135,9 @@ const Spectrogram = ({
         color,
         frequencyBinCount,
         duration,
+        startTime,
+        playback.getEngineTime(),
+        playback.isPlaying,
         lastDrawnOverlayRef,
       );
     }
@@ -330,6 +333,9 @@ function drawMelodyOverlay(
   color: TrackColor,
   frequencyBinCount: number,
   duration: number,
+  startTime: number,
+  playheadTime: number,
+  isPlaying: boolean,
   lastDrawnOverlayRef: React.MutableRefObject<{
     offset: number;
     pps: number;
@@ -356,8 +362,11 @@ function drawMelodyOverlay(
   const needsResize =
     canvas.width !== viewportWidth || canvas.height !== height;
 
+  // During playback, always redraw to update the playhead glow effect.
+  // When stopped, use memoization to skip unchanged frames.
   const last = lastDrawnOverlayRef.current;
   if (
+    !isPlaying &&
     !needsResize &&
     contentOffset === last.offset &&
     pixelsPerSecond === last.pps &&
@@ -378,12 +387,16 @@ function drawMelodyOverlay(
   if (!ctx) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  // Playhead time relative to this track's start time
+  const trackPlayheadTime = playheadTime - startTime;
+
   const viewport: PianoRollViewport = {
     pixelsPerSecond,
     contentOffset,
     viewportWidth,
     canvasHeight: height,
     frequencyBinCount,
+    playheadTime: trackPlayheadTime,
   };
 
   drawPianoRoll(ctx, notes, color, viewport);
