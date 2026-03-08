@@ -1,8 +1,6 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 
-@layer antd;
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -102,18 +100,7 @@ body {
   height: 100%;
 }
 
-/* AntApp renders a div wrapper that must also fill the full height (removed in #294) */
-.ant-app {
-  height: 100%;
-}
-
 html {
-  --body-background: #000;
-  --component-background: #141414;
-  --border-color: #434343;
-  --success-color: #52c41a;
-  --error-color: #ff4d4f;
-
   /* Timeline layout: the cursor sits at 75% of viewport width */
   --cursor-position: 0.75;
   --timeline-margin: 40px;
@@ -187,7 +174,7 @@ html {
   border: none;
 }
 
-/* Custom SVG icon wrapper — replaces @ant-design/icons Icon component */
+/* Custom SVG icon wrapper */
 .custom-icon {
   display: inline-flex;
   align-items: center;
