@@ -4,7 +4,7 @@
   left: 0;
   right: 0;
   z-index: 2;
-  background-color: var(--component-background);
+  background-color: var(--surface);
   border-radius: 12px 12px 0 0;
   overflow: hidden;
   transition: height 0.25s ease-out;
