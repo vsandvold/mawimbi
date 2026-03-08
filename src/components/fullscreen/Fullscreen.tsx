@@ -1,5 +1,6 @@
 import { FullscreenOutlined } from '@ant-design/icons';
-import { Button, Typography } from 'antd';
+import { Typography } from 'antd';
+import { Button } from '../ui/button';
 import React, { useState } from 'react';
 import { FullScreen, FullScreenHandle } from 'react-full-screen';
 import './Fullscreen.css';
@@ -50,7 +51,11 @@ const Fullscreen = (props: FullscreenProps) => {
               <FullscreenOutlined className="fullscreen-icon" />
             </Text>
             <Title level={4}>Tap to enter full screen</Title>
-            <Button type="link" className="button" onClick={dismissFullscreen}>
+            <Button
+              variant="ghost"
+              className="button"
+              onClick={dismissFullscreen}
+            >
               Dismiss
             </Button>
           </div>
