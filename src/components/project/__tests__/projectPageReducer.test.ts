@@ -5,6 +5,7 @@ import {
   DELETE_TRACK,
   MOVE_TRACK,
   RENAME_PROJECT,
+  SET_INSTRUMENT,
   ProjectAction,
   projectReducer,
   ProjectState,
@@ -168,6 +169,33 @@ describe('reverseProjectAction', () => {
     const reverse = reverseProjectAction(state, action);
 
     expect(reverse).toBeNull();
+  });
+});
+
+describe('SET_INSTRUMENT', () => {
+  it('sets instrument on the matching track', () => {
+    const state = createState([track1, track2]);
+
+    const result = projectReducer(state, [
+      SET_INSTRUMENT,
+      { trackId: 'track-1', instrument: 'vocals' },
+    ]);
+
+    expect(result.tracks[0].instrument).toBe('vocals');
+    expect(result.tracks[1].instrument).toBeUndefined();
+  });
+
+  it('does not mutate other tracks', () => {
+    const state = createState([track1, track2, track3]);
+
+    const result = projectReducer(state, [
+      SET_INSTRUMENT,
+      { trackId: 'track-2', instrument: 'drums' },
+    ]);
+
+    expect(result.tracks[1].instrument).toBe('drums');
+    expect(result.tracks[0]).toEqual(track1);
+    expect(result.tracks[2]).toEqual(track3);
   });
 });
 

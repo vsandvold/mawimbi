@@ -26,6 +26,11 @@ type MoveTrackPayload = {
   toIndex: number;
 };
 
+type SetInstrumentPayload = {
+  trackId: TrackId;
+  instrument: string;
+};
+
 type RenameProjectPayload = {
   title: string;
 };
@@ -34,6 +39,7 @@ export type ProjectAction =
   | [typeof ADD_TRACK, AddTrackPayload]
   | [typeof DELETE_TRACK, DeleteTrackPayload]
   | [typeof MOVE_TRACK, MoveTrackPayload]
+  | [typeof SET_INSTRUMENT, SetInstrumentPayload]
   | [typeof RENAME_PROJECT, RenameProjectPayload];
 
 export const COLOR_PALETTE: TrackColor[] = [
@@ -47,6 +53,7 @@ export const COLOR_PALETTE: TrackColor[] = [
 export const ADD_TRACK = 'ADD_TRACK';
 export const DELETE_TRACK = 'DELETE_TRACK';
 export const MOVE_TRACK = 'MOVE_TRACK';
+export const SET_INSTRUMENT = 'SET_INSTRUMENT';
 export const RENAME_PROJECT = 'RENAME_PROJECT';
 
 export function projectReducer(
@@ -60,6 +67,8 @@ export function projectReducer(
       return deleteTrack(state, action[1]);
     case MOVE_TRACK:
       return { ...state, tracks: moveTrack(state.tracks, action[1]) };
+    case SET_INSTRUMENT:
+      return setInstrument(state, action[1]);
     case RENAME_PROJECT:
       return { ...state, title: action[1].title };
     default:
@@ -132,6 +141,18 @@ function createTrack(
     trackId,
     index,
     startTime: startTime ?? 0,
+  };
+}
+
+function setInstrument(
+  state: ProjectState,
+  { trackId, instrument }: SetInstrumentPayload,
+): ProjectState {
+  return {
+    ...state,
+    tracks: state.tracks.map((track) =>
+      track.trackId === trackId ? { ...track, instrument } : track,
+    ),
   };
 }
 

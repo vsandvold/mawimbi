@@ -5,7 +5,7 @@ import * as Tone from 'tone';
 import AudioService from '../../../services/AudioService';
 import { mockTrack } from '../../../testUtils';
 import {
-  useClassificationMessages,
+  useClassificationSync,
   useSpacebarPlaybackToggle,
   useMicrophone,
 } from '../workstationEffects';
@@ -164,7 +164,7 @@ describe('useMicrophone', () => {
   });
 });
 
-describe('useClassificationMessages', () => {
+describe('useClassificationSync', () => {
   const track1 = mockTrack({ trackId: 'track-1' });
 
   const mockAudioBuffer = {
@@ -175,69 +175,64 @@ describe('useClassificationMessages', () => {
     getChannelData: () => new Float32Array(132300),
   } as unknown as AudioBuffer;
 
-  beforeEach(() => {
+  it('dispatches SET_INSTRUMENT when classification completes', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const service = classificationService as any;
-    vi.spyOn(service, 'classifyInWorker').mockRejectedValue(
-      new Error('worker failed'),
-    );
-    vi.spyOn(service, 'classifyOnMainThread').mockRejectedValue(
-      new Error('main thread failed'),
-    );
-  });
+    vi.spyOn(service, 'classifyInWorker').mockResolvedValue({
+      label: 'voice',
+      score: 0.93,
+    });
 
-  it('shows error message when classification fails for a track', async () => {
     const { rerender } = renderHook(
-      ({ tracks }) => useClassificationMessages(tracks),
+      ({ tracks }) => useClassificationSync(tracks),
       { initialProps: { tracks: [track1] } },
     );
 
-    // Let the classify promise settle (worker fails → main-thread fails → error state)
     await act(async () => {
-      await classificationService
-        .classify('track-1', mockAudioBuffer)
-        .catch(() => {});
+      await classificationService.classify('track-1', mockAudioBuffer);
     });
 
     rerender({ tracks: [track1] });
 
-    expect(mockMessage).toHaveBeenCalledWith(
-      'Instrument detection failed — audio may be too short',
-      expect.objectContaining({ type: 'error' }),
-    );
+    expect(mockProjectDispatch).toHaveBeenCalledWith([
+      'SET_INSTRUMENT',
+      { trackId: 'track-1', instrument: 'vocals' },
+    ]);
   });
 
-  it('does not show error message when classification succeeds', () => {
-    renderHook(({ tracks }) => useClassificationMessages(tracks), {
+  it('does not dispatch when classification is not done', () => {
+    renderHook(({ tracks }) => useClassificationSync(tracks), {
       initialProps: { tracks: [track1] },
     });
 
-    expect(mockMessage).not.toHaveBeenCalledWith(
-      expect.any(String),
-      expect.objectContaining({ type: 'error' }),
+    expect(mockProjectDispatch).not.toHaveBeenCalledWith(
+      expect.arrayContaining(['SET_INSTRUMENT']),
     );
   });
 
-  it('does not show duplicate error messages for the same track', async () => {
+  it('does not dispatch duplicate SET_INSTRUMENT for the same track', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const service = classificationService as any;
+    vi.spyOn(service, 'classifyInWorker').mockResolvedValue({
+      label: 'voice',
+      score: 0.93,
+    });
+
     const { rerender } = renderHook(
-      ({ tracks }) => useClassificationMessages(tracks),
+      ({ tracks }) => useClassificationSync(tracks),
       { initialProps: { tracks: [track1] } },
     );
 
     await act(async () => {
-      await classificationService
-        .classify('track-1', mockAudioBuffer)
-        .catch(() => {});
+      await classificationService.classify('track-1', mockAudioBuffer);
     });
 
     rerender({ tracks: [track1] });
-
-    // Re-render again — should not show another error
     rerender({ tracks: [track1] });
 
-    const errorCalls = mockMessage.mock.calls.filter(
-      (call) => call[1]?.type === 'error',
+    const instrumentCalls = mockProjectDispatch.mock.calls.filter(
+      (call) => call[0]?.[0] === 'SET_INSTRUMENT',
     );
-    expect(errorCalls).toHaveLength(1);
+    expect(instrumentCalls).toHaveLength(1);
   });
 });
