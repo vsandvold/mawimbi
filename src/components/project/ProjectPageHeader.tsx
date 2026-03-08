@@ -1,10 +1,4 @@
-import {
-  ArrowLeftOutlined,
-  EllipsisOutlined,
-  RedoOutlined,
-  UndoOutlined,
-  UploadOutlined,
-} from '@ant-design/icons';
+import { ArrowLeft, Ellipsis, Redo, Undo, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '../ui/button';
@@ -64,7 +58,7 @@ const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
           className="button back-button"
           tabIndex={-1}
         >
-          <ArrowLeftOutlined />
+          <ArrowLeft />
         </Button>
       </Link>
       <h4 className="project-page-header__title" onClick={openRenameModal}>
@@ -103,7 +97,7 @@ const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
           disabled={!props.canUndo}
           onClick={props.undo}
         >
-          <UndoOutlined />
+          <Undo />
         </Button>
         <Button
           variant="ghost"
@@ -113,7 +107,7 @@ const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
           disabled={!props.canRedo}
           onClick={props.redo}
         >
-          <RedoOutlined />
+          <Redo />
         </Button>
         <UploadButton uploadFile={props.uploadFile} />
         <OverflowMenu
@@ -161,7 +155,7 @@ const UploadButton = (props: UploadButtonProps) => {
         className="button"
         onClick={() => fileInputRef.current?.click()}
       >
-        <UploadOutlined />
+        <Upload />
         <span className="hidden-lt768">Upload files</span>
       </Button>
     </>
@@ -188,7 +182,7 @@ const OverflowMenu = (props: OverflowMenuProps) => {
           className="button overflow-button"
           aria-label="More"
         >
-          <EllipsisOutlined />
+          <Ellipsis />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">

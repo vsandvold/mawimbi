@@ -39,7 +39,7 @@ test.describe('Instrument classification on upload', () => {
     await expect(page.locator('.channel')).toBeVisible();
 
     // Wait for classification to finish (loading spinner should disappear).
-    // The channel__instrument div shows a LoadingOutlined icon while
+    // The channel__instrument div shows a Loader2 spinner while
     // classifying, then switches to an instrument icon or nothing.
     const instrumentDiv = page.locator('.channel__instrument');
 
@@ -48,7 +48,7 @@ test.describe('Instrument classification on upload', () => {
     // the main-thread fallback also fails, so classification enters 'error'
     // state and shows the unknown icon. Without the bug, models would load
     // and classification would show the correct instrument icon.
-    await expect(instrumentDiv.locator('.anticon-loading')).toBeHidden({
+    await expect(instrumentDiv.locator('.animate-spin')).toBeHidden({
       timeout: 15_000,
     });
 

@@ -1,4 +1,3 @@
-import Icon from '@ant-design/icons';
 import type { InstrumentLabel } from '../../services/instrumentLabels';
 
 import BassSvg from '../../icons/bass.svg?react';
@@ -33,5 +32,9 @@ export function getInstrumentIcon(label: string | undefined): React.ReactNode {
       ? INSTRUMENT_ICONS[label as InstrumentLabel]
       : INSTRUMENT_ICONS.unknown;
 
-  return <Icon component={SvgComponent} />;
+  return (
+    <span className="custom-icon">
+      <SvgComponent />
+    </span>
+  );
 }

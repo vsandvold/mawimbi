@@ -1,4 +1,4 @@
-import { FullscreenOutlined } from '@ant-design/icons';
+import { Maximize } from 'lucide-react';
 import { Button } from '../ui/button';
 import React, { useState } from 'react';
 import { FullScreen, FullScreenHandle } from 'react-full-screen';
@@ -45,7 +45,7 @@ const Fullscreen = (props: FullscreenProps) => {
         <div className="fullscreen__overlay">
           <div className="overlay-content" onClick={activateFullscreen}>
             <span>
-              <FullscreenOutlined className="fullscreen-icon" />
+              <Maximize className="fullscreen-icon" />
             </span>
             <h4 className="text-xl font-semibold">Tap to enter full screen</h4>
             <Button

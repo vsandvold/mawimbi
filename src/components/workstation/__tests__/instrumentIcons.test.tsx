@@ -22,7 +22,7 @@ it.each(ALL_LABELS)('returns an icon for "%s"', (label) => {
 
   const { container } = render(<>{icon}</>);
 
-  expect(container.querySelector('.anticon')).toBeInTheDocument();
+  expect(container.querySelector('.custom-icon')).toBeInTheDocument();
 });
 
 it('returns fallback icon for undefined label', () => {
@@ -30,7 +30,7 @@ it('returns fallback icon for undefined label', () => {
 
   const { container } = render(<>{icon}</>);
 
-  expect(container.querySelector('.anticon')).toBeInTheDocument();
+  expect(container.querySelector('.custom-icon')).toBeInTheDocument();
 });
 
 it('returns fallback icon for unknown label', () => {
@@ -38,7 +38,7 @@ it('returns fallback icon for unknown label', () => {
 
   const { container } = render(<>{icon}</>);
 
-  expect(container.querySelector('.anticon')).toBeInTheDocument();
+  expect(container.querySelector('.custom-icon')).toBeInTheDocument();
 });
 
 it('returns different icons for different labels', () => {
