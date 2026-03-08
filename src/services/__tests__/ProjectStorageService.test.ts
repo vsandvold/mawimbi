@@ -14,11 +14,15 @@ import {
   saveMelodyData,
   loadMelodyData,
   deleteMelodyData,
+  saveTranscription,
+  loadTranscription,
+  deleteTranscription,
   getStorageEstimate,
   resetDB,
   type StoredProject,
   type SpectrogramStoreData,
   type MelodyStoreData,
+  type TranscriptionStoreData,
 } from '../ProjectStorageService';
 
 function createProject(overrides: Partial<StoredProject> = {}): StoredProject {
@@ -53,6 +57,24 @@ function createMelodyData(trackId: string): MelodyStoreData {
       { startTime: 0.6, endTime: 1.0, midiNote: 64, confidence: 0.85 },
     ],
     timeResolution: 0.0029,
+  };
+}
+
+function createTranscriptionData(trackId: string): TranscriptionStoreData {
+  return {
+    trackId,
+    language: 'en',
+    segments: [
+      {
+        text: 'Hello world',
+        start: 0.0,
+        end: 1.5,
+        words: [
+          { text: 'Hello', start: 0.0, end: 0.7 },
+          { text: 'world', start: 0.8, end: 1.5 },
+        ],
+      },
+    ],
   };
 }
 
@@ -137,7 +159,7 @@ describe('ProjectStorageService', () => {
   });
 
   describe('deleteProject cleans up related data', () => {
-    it('deletes associated audio, spectrogram, and melody data', async () => {
+    it('deletes associated audio, spectrogram, melody, and transcription data', async () => {
       const project = createProject({
         tracks: [
           {
@@ -161,6 +183,8 @@ describe('ProjectStorageService', () => {
       await saveSpectrogramData(createSpectrogramData('track-2'));
       await saveMelodyData(createMelodyData('track-1'));
       await saveMelodyData(createMelodyData('track-2'));
+      await saveTranscription(createTranscriptionData('track-1'));
+      await saveTranscription(createTranscriptionData('track-2'));
 
       await deleteProject('project-1');
 
@@ -170,6 +194,8 @@ describe('ProjectStorageService', () => {
       expect(await loadSpectrogramData('track-2')).toBeNull();
       expect(await loadMelodyData('track-1')).toBeNull();
       expect(await loadMelodyData('track-2')).toBeNull();
+      expect(await loadTranscription('track-1')).toBeNull();
+      expect(await loadTranscription('track-2')).toBeNull();
     });
   });
 
@@ -297,6 +323,54 @@ describe('ProjectStorageService', () => {
 
     it('deleting non-existent melody data does not throw', async () => {
       await expect(deleteMelodyData('does-not-exist')).resolves.toBeUndefined();
+    });
+  });
+
+  describe('transcription data CRUD', () => {
+    it('saves and loads transcription data', async () => {
+      const data = createTranscriptionData('track-1');
+      await saveTranscription(data);
+
+      const loaded = await loadTranscription('track-1');
+      expect(loaded?.trackId).toBe('track-1');
+      expect(loaded?.language).toBe('en');
+      expect(loaded?.segments).toHaveLength(1);
+      expect(loaded?.segments[0].text).toBe('Hello world');
+      expect(loaded?.segments[0].words).toHaveLength(2);
+      expect(loaded?.segments[0].words[0]).toEqual({
+        text: 'Hello',
+        start: 0.0,
+        end: 0.7,
+      });
+    });
+
+    it('returns null for non-existent transcription data', async () => {
+      const loaded = await loadTranscription('does-not-exist');
+      expect(loaded).toBeNull();
+    });
+
+    it('overwrites existing transcription data', async () => {
+      await saveTranscription(createTranscriptionData('track-1'));
+      const updated = createTranscriptionData('track-1');
+      updated.language = 'fr';
+      await saveTranscription(updated);
+
+      const loaded = await loadTranscription('track-1');
+      expect(loaded?.language).toBe('fr');
+    });
+
+    it('deletes transcription data', async () => {
+      await saveTranscription(createTranscriptionData('track-1'));
+      await deleteTranscription('track-1');
+
+      const loaded = await loadTranscription('track-1');
+      expect(loaded).toBeNull();
+    });
+
+    it('deleting non-existent transcription data does not throw', async () => {
+      await expect(
+        deleteTranscription('does-not-exist'),
+      ).resolves.toBeUndefined();
     });
   });
 

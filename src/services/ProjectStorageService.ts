@@ -1,9 +1,10 @@
 import { type DBSchema, type IDBPDatabase, openDB } from 'idb';
 import { type MelodyNote } from './MelodyExtractor';
 import { type Track } from '../types/track';
+import { type TranscriptionSegment } from '../types/transcription';
 
 const DB_NAME = 'mawimbi-db';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export type StoredProject = {
   id: string;
@@ -30,6 +31,12 @@ export type MelodyStoreData = {
   timeResolution: number;
 };
 
+export type TranscriptionStoreData = {
+  trackId: string;
+  language: string;
+  segments: TranscriptionSegment[];
+};
+
 interface MawimbiDB extends DBSchema {
   projects: {
     key: string;
@@ -47,6 +54,10 @@ interface MawimbiDB extends DBSchema {
   melodies: {
     key: string;
     value: MelodyStoreData;
+  };
+  transcriptions: {
+    key: string;
+    value: TranscriptionStoreData;
   };
 }
 
@@ -67,6 +78,9 @@ function getDB(): Promise<IDBPDatabase<MawimbiDB>> {
         }
         if (oldVersion < 2) {
           db.createObjectStore('melodies', { keyPath: 'trackId' });
+        }
+        if (oldVersion < 3) {
+          db.createObjectStore('transcriptions', { keyPath: 'trackId' });
         }
       },
     });
@@ -97,7 +111,7 @@ export async function deleteProject(id: string): Promise<void> {
   if (project) {
     const trackIds = project.tracks.map((t) => t.trackId);
     const tx = db.transaction(
-      ['projects', 'audioData', 'spectrograms', 'melodies'],
+      ['projects', 'audioData', 'spectrograms', 'melodies', 'transcriptions'],
       'readwrite',
     );
     tx.objectStore('projects').delete(id);
@@ -105,6 +119,7 @@ export async function deleteProject(id: string): Promise<void> {
       tx.objectStore('audioData').delete(trackId);
       tx.objectStore('spectrograms').delete(trackId);
       tx.objectStore('melodies').delete(trackId);
+      tx.objectStore('transcriptions').delete(trackId);
     }
     await tx.done;
   }
@@ -167,6 +182,26 @@ export async function loadMelodyData(
 export async function deleteMelodyData(trackId: string): Promise<void> {
   const db = await getDB();
   await db.delete('melodies', trackId);
+}
+
+export async function saveTranscription(
+  data: TranscriptionStoreData,
+): Promise<void> {
+  const db = await getDB();
+  await db.put('transcriptions', data);
+}
+
+export async function loadTranscription(
+  trackId: string,
+): Promise<TranscriptionStoreData | null> {
+  const db = await getDB();
+  const entry = await db.get('transcriptions', trackId);
+  return entry ?? null;
+}
+
+export async function deleteTranscription(trackId: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('transcriptions', trackId);
 }
 
 export async function getStorageEstimate(): Promise<StorageEstimate> {
