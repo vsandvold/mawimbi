@@ -8,12 +8,15 @@ const playbackService = audioService.playbackService;
 const recordingService = audioService.recordingService;
 
 const mockToggleMixer = vi.fn();
+const mockToggleLyrics = vi.fn();
 const mockToggleRecording = vi.fn();
 
 const defaultProps = {
   isMixerOpen: false,
+  isLyricsOpen: false,
   isEmpty: false,
   onToggleMixer: mockToggleMixer,
+  onToggleLyrics: mockToggleLyrics,
   onToggleRecording: mockToggleRecording,
 };
 
@@ -25,7 +28,7 @@ afterEach(() => {
 it('renders all buttons', () => {
   const { getAllByRole } = render(<Toolbar {...defaultProps} />);
 
-  expect(getAllByRole('button')).toHaveLength(4);
+  expect(getAllByRole('button')).toHaveLength(5);
 });
 
 it('disables buttons when tracks are empty', () => {
@@ -33,6 +36,7 @@ it('disables buttons when tracks are empty', () => {
     <Toolbar {...{ ...defaultProps, isEmpty: true }} />,
   );
 
+  expect(getByTitle('Show lyrics')).toBeDisabled();
   expect(getByTitle('Show mixer')).toBeDisabled();
   expect(getByTitle('Play')).toBeDisabled();
   expect(getByTitle('Rewind')).toBeDisabled();
@@ -44,6 +48,7 @@ it('enables non-transport buttons when tracks are not empty', () => {
     <Toolbar {...{ ...defaultProps, isEmpty: false }} />,
   );
 
+  expect(getByTitle('Show lyrics')).toBeEnabled();
   expect(getByTitle('Show mixer')).toBeEnabled();
   expect(getByTitle('Play')).toBeEnabled();
   expect(getByTitle('Record')).toBeEnabled();
@@ -149,4 +154,25 @@ it('enables rewind button when playing', () => {
   const { getByTitle } = render(<Toolbar {...defaultProps} />);
 
   expect(getByTitle('Rewind')).toBeEnabled();
+});
+
+it('applies active class to lyrics icon when lyrics is open', () => {
+  const { getByTitle } = render(
+    <Toolbar {...{ ...defaultProps, isLyricsOpen: true }} />,
+  );
+
+  const textButton = getByTitle('Hide lyrics');
+
+  expect(textButton.querySelector('.show-lyrics')).toBeInTheDocument();
+});
+
+it('toggles lyrics when lyrics show/hide is clicked', () => {
+  const { getByTitle } = render(
+    <Toolbar {...{ ...defaultProps, isLyricsOpen: false }} />,
+  );
+
+  const textButton = getByTitle('Show lyrics');
+  fireEvent.click(textButton);
+
+  expect(mockToggleLyrics).toHaveBeenCalledTimes(1);
 });
