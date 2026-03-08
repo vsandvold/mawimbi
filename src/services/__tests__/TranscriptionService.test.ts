@@ -2,6 +2,16 @@ import { vi } from 'vitest';
 import TranscriptionService from '../TranscriptionService';
 import type { TranscriptionSegment } from '../../types/transcription';
 
+// Mock @huggingface/transformers for main-thread fallback tests
+const mockTranscriberFn = vi.fn();
+
+vi.mock('@huggingface/transformers', () => ({
+  pipeline: vi
+    .fn()
+    .mockImplementation(() => Promise.resolve(mockTranscriberFn)),
+  env: { allowLocalModels: true },
+}));
+
 type MockWorker = {
   postMessage: ReturnType<typeof vi.fn>;
   onmessage: ((event: MessageEvent) => void) | null;
@@ -77,10 +87,23 @@ function simulateDownloadProgress(progress: number): void {
   } as MessageEvent);
 }
 
+// Set up main-thread fallback mock — returns sample transcription result
+function setupMainThreadMocks(): void {
+  mockTranscriberFn.mockResolvedValue({
+    language: 'en',
+    chunks: [
+      { text: ' Hello', timestamp: [0.0, 0.7] },
+      { text: ' world', timestamp: [0.8, 1.5] },
+    ],
+  });
+}
+
 let service: TranscriptionService;
 
 beforeEach(() => {
   service = new TranscriptionService();
+  mockTranscriberFn.mockReset();
+  setupMainThreadMocks();
 });
 
 describe('TranscriptionService', () => {
@@ -99,6 +122,15 @@ describe('TranscriptionService', () => {
 
     it('starts with null download progress', () => {
       expect(service.downloadProgress).toBeNull();
+    });
+
+    it('uses default model ID when not specified', () => {
+      expect(service.modelId).toBe('onnx-community/whisper-base');
+    });
+
+    it('accepts a custom model ID', () => {
+      const custom = new TranscriptionService('onnx-community/whisper-small');
+      expect(custom.modelId).toBe('onnx-community/whisper-small');
     });
   });
 
@@ -129,7 +161,7 @@ describe('TranscriptionService', () => {
       expect(Worker).toHaveBeenCalledTimes(1);
     });
 
-    it('posts channel data, sampleRate, and length to the worker', async () => {
+    it('posts channel data, sampleRate, length, and modelId to the worker', async () => {
       const buffer = createAudioBuffer();
       const promise = service.transcribe('track-1', buffer);
 
@@ -142,6 +174,7 @@ describe('TranscriptionService', () => {
           type: 'transcribe',
           sampleRate: 16000,
           length: 48000,
+          modelId: 'onnx-community/whisper-base',
         }),
         expect.any(Array),
       );
@@ -149,6 +182,18 @@ describe('TranscriptionService', () => {
       const postedMessage = mockWorker.postMessage.mock.calls[0][0];
       expect(postedMessage.channelData).toHaveLength(1);
       expect(postedMessage.channelData[0]).toBeInstanceOf(Float32Array);
+    });
+
+    it('sends custom model ID to the worker', async () => {
+      const custom = new TranscriptionService('onnx-community/whisper-small');
+      const buffer = createAudioBuffer();
+      const promise = custom.transcribe('track-1', buffer);
+
+      simulateWorkerResult('en', sampleSegments);
+      await promise;
+
+      const postedMessage = mockWorker.postMessage.mock.calls[0][0];
+      expect(postedMessage.modelId).toBe('onnx-community/whisper-small');
     });
 
     it('transfers channel data ArrayBuffers to avoid copying', async () => {
@@ -317,31 +362,47 @@ describe('TranscriptionService', () => {
 
       simulateDownloadProgress(50);
 
+      // Trigger onerror (catastrophic worker failure) — rejects all pending
+      // requests and falls back to main-thread inference.
       mockWorker.onerror!({} as ErrorEvent);
+      await promise;
 
-      await expect(promise).rejects.toThrow();
       expect(service.downloadProgress).toBeNull();
     });
   });
 
-  describe('worker error handling', () => {
-    it('sets state to error when the worker responds with an error', async () => {
+  describe('worker error handling with main-thread fallback', () => {
+    it('falls back to main thread when the worker responds with an error', async () => {
       const buffer = createAudioBuffer();
       const promise = service.transcribe('track-1', buffer);
 
       simulateWorkerError('Whisper pipeline failed');
+      await promise;
 
-      await expect(promise).rejects.toThrow(
-        'Transcription failed for track track-1',
-      );
-      expect(service.getTranscriptionState('track-1')).toBe('error');
+      // Should have fallen back to main-thread pipeline
+      expect(mockTranscriberFn).toHaveBeenCalled();
+      expect(service.getTranscriptionState('track-1')).toBe('done');
+      expect(service.getTranscription('track-1')?.segments).toHaveLength(1);
     });
 
-    it('sets state to error when the worker crashes', async () => {
+    it('falls back to main thread when the worker crashes (onerror)', async () => {
       const buffer = createAudioBuffer();
       const promise = service.transcribe('track-1', buffer);
 
       mockWorker.onerror!({} as ErrorEvent);
+      await promise;
+
+      expect(mockTranscriberFn).toHaveBeenCalled();
+      expect(service.getTranscriptionState('track-1')).toBe('done');
+    });
+
+    it('sets state to error when both worker and main thread fail', async () => {
+      mockTranscriberFn.mockRejectedValue(new Error('model load error'));
+
+      const buffer = createAudioBuffer();
+      const promise = service.transcribe('track-1', buffer);
+
+      simulateWorkerError('Worker failed');
 
       await expect(promise).rejects.toThrow(
         'Transcription failed for track track-1',
@@ -349,15 +410,87 @@ describe('TranscriptionService', () => {
       expect(service.getTranscriptionState('track-1')).toBe('error');
     });
 
-    it('rejects all pending requests when the worker crashes', async () => {
+    it('uses main thread directly after worker has failed once', async () => {
       const buffer = createAudioBuffer();
+
+      // First call — worker error triggers fallback
       const promise1 = service.transcribe('track-1', buffer);
-      const promise2 = service.transcribe('track-2', buffer);
+      simulateWorkerError('Worker failed');
+      await promise1;
 
-      mockWorker.onerror!({} as ErrorEvent);
+      // Second call — should go directly to main thread (no worker message)
+      const postMessageCallCount = mockWorker.postMessage.mock.calls.length;
 
-      await expect(promise1).rejects.toThrow();
-      await expect(promise2).rejects.toThrow();
+      mockTranscriberFn.mockResolvedValueOnce({
+        language: 'en',
+        chunks: [{ text: ' test', timestamp: [0.0, 0.5] }],
+      });
+      await service.transcribe('track-2', buffer);
+
+      expect(mockWorker.postMessage.mock.calls.length).toBe(
+        postMessageCallCount,
+      );
+    });
+
+    it('reuses the pipeline across multiple fallback calls', async () => {
+      const { pipeline: createPipeline } =
+        await import('@huggingface/transformers');
+
+      const buffer = createAudioBuffer();
+
+      // First call — trigger fallback
+      const promise1 = service.transcribe('track-1', buffer);
+      simulateWorkerError('Worker failed');
+      await promise1;
+
+      // Second call — reuses pipeline
+      mockTranscriberFn.mockResolvedValueOnce({
+        language: 'en',
+        chunks: [{ text: ' test', timestamp: [0.0, 0.5] }],
+      });
+      await service.transcribe('track-2', buffer);
+
+      // Pipeline created only once
+      expect(createPipeline).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('main-thread fallback audio preprocessing', () => {
+    it('downmixes stereo to mono for main-thread fallback', async () => {
+      const buffer = createAudioBuffer(2, 48000, 16000);
+
+      const promise = service.transcribe('track-1', buffer);
+      simulateWorkerError('Worker failed');
+      await promise;
+
+      // The main-thread transcriber should receive a Float32Array (mono)
+      const audioArg = mockTranscriberFn.mock.calls[0][0] as Float32Array;
+      expect(audioArg).toBeInstanceOf(Float32Array);
+      expect(audioArg.length).toBe(48000);
+    });
+
+    it('resamples from 44100 to 16000 for main-thread fallback', async () => {
+      // 3 seconds at 44100 Hz = 132300 samples
+      const buffer = createAudioBuffer(1, 132300, 44100);
+
+      const promise = service.transcribe('track-1', buffer);
+      simulateWorkerError('Worker failed');
+      await promise;
+
+      // After resampling: 3s * 16000 = 48000 samples
+      const audioArg = mockTranscriberFn.mock.calls[0][0] as Float32Array;
+      expect(audioArg.length).toBe(48000);
+    });
+
+    it('does not resample when already at 16 kHz', async () => {
+      const buffer = createAudioBuffer(1, 48000, 16000);
+
+      const promise = service.transcribe('track-1', buffer);
+      simulateWorkerError('Worker failed');
+      await promise;
+
+      const audioArg = mockTranscriberFn.mock.calls[0][0] as Float32Array;
+      expect(audioArg.length).toBe(48000);
     });
   });
 

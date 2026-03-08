@@ -15,8 +15,9 @@ import type {
 // Whisper expects 16 kHz mono audio
 const MODEL_SAMPLE_RATE = 16_000;
 
-// Use whisper-base for the balance of quality and download size (~142 MB)
-const MODEL_ID = 'onnx-community/whisper-base';
+// Default Whisper model — whisper-base for the balance of quality and
+// download size (~142 MB). Can be overridden per request.
+const DEFAULT_MODEL_ID = 'onnx-community/whisper-base';
 
 export type TranscribeRequest = {
   id: number;
@@ -24,6 +25,7 @@ export type TranscribeRequest = {
   channelData: Float32Array[];
   sampleRate: number;
   length: number;
+  modelId?: string;
 };
 
 export type TranscribeResponse =
@@ -56,14 +58,19 @@ type Pipeline = any;
 
 let pipeline: Pipeline | null = null;
 let pipelinePromise: Promise<Pipeline> | null = null;
+let loadedModelId: string | null = null;
 
-async function loadPipeline(): Promise<Pipeline> {
-  if (pipeline) return pipeline;
-  if (pipelinePromise) return pipelinePromise;
+async function loadPipeline(modelId: string): Promise<Pipeline> {
+  // Reuse existing pipeline if the model hasn't changed
+  if (pipeline && loadedModelId === modelId) return pipeline;
+  if (pipelinePromise && loadedModelId === modelId) return pipelinePromise;
 
-  pipelinePromise = initializePipeline();
+  // Different model requested — discard the old pipeline
+  pipeline = null;
+  pipelinePromise = initializePipeline(modelId);
   pipeline = await pipelinePromise;
   pipelinePromise = null;
+  loadedModelId = modelId;
   return pipeline;
 }
 
@@ -86,18 +93,21 @@ function reportProgress(file: string, loaded: number, total: number): void {
   } satisfies DownloadProgressMessage);
 }
 
-async function initializePipeline(): Promise<Pipeline> {
-  workerLog('log', '[transcription:worker] Loading Whisper model...');
+async function initializePipeline(modelId: string): Promise<Pipeline> {
+  workerLog(
+    'log',
+    `[transcription:worker] Loading Whisper model "${modelId}"...`,
+  );
 
   const { pipeline: createPipeline, env } =
     await import('@huggingface/transformers');
 
-  // Allow local model loading and configure cache
+  // Disable local model loading — always fetch from Hugging Face Hub
   env.allowLocalModels = false;
 
   const transcriber = await createPipeline(
     'automatic-speech-recognition',
-    MODEL_ID,
+    modelId,
     {
       dtype: 'q8',
       device: 'wasm',
@@ -271,7 +281,8 @@ function workerLog(level: WorkerLogMessage['level'], message: string): void {
 }
 
 workerSelf.onmessage = async (event: MessageEvent<TranscribeRequest>) => {
-  const { id, channelData, sampleRate, length } = event.data;
+  const { id, channelData, sampleRate, length, modelId } = event.data;
+  const resolvedModelId = modelId ?? DEFAULT_MODEL_ID;
 
   const channels = channelData.length;
   const durationSeconds = length / sampleRate;
@@ -291,7 +302,7 @@ workerSelf.onmessage = async (event: MessageEvent<TranscribeRequest>) => {
   }
 
   try {
-    const transcriber = await loadPipeline();
+    const transcriber = await loadPipeline(resolvedModelId);
 
     const mono = downmixToMono(channelData, length);
     const resampled = resampleLinear(mono, sampleRate, MODEL_SAMPLE_RATE);
