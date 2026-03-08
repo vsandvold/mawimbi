@@ -6,15 +6,14 @@ type EmptyProjectListProps = {
 
 const EmptyProjectList = ({ onCreate }: EmptyProjectListProps) => {
   return (
-    <>
-      <h1 className="text-4xl font-semibold tracking-tight">Mawimbi</h1>
+    <div className="home__empty">
       <span className="text-muted-foreground">
         No projects yet. Create one to get started.
       </span>
       <Button size="lg" onClick={onCreate}>
         Create Project
       </Button>
-    </>
+    </div>
   );
 };
 

@@ -6,6 +6,7 @@ import {
   listProjects,
   type StoredProject,
 } from '../../services/ProjectStorageService';
+import { Button } from '../ui/button';
 import { PageContent, PageLayout } from '../layout/PageLayout';
 import EmptyProjectList from './EmptyProjectList';
 import ProjectList from './ProjectList';
@@ -80,19 +81,28 @@ const HomePage = () => {
     <PageLayout>
       <PageContent>
         <div className="home">
-          {hasProjects ? (
-            <ProjectList
-              projects={projects}
-              onOpen={handleOpen}
-              onCreate={handleCreate}
-              onDelete={handleDelete}
-            />
-          ) : (
-            <EmptyProjectList onCreate={handleCreate} />
-          )}
-          {hasProjects && (
-            <StorageUsage usage={storage.usage} quota={storage.quota} />
-          )}
+          <div className="home__header">
+            <div className="home__header-row">
+              <h1 className="home__title">Mawimbi</h1>
+              <Button variant="secondary" size="sm" onClick={handleCreate}>
+                New Project
+              </Button>
+            </div>
+          </div>
+          <div className="home__body">
+            {hasProjects ? (
+              <ProjectList
+                projects={projects}
+                onOpen={handleOpen}
+                onDelete={handleDelete}
+              />
+            ) : (
+              <EmptyProjectList onCreate={handleCreate} />
+            )}
+            {hasProjects && (
+              <StorageUsage usage={storage.usage} quota={storage.quota} />
+            )}
+          </div>
         </div>
       </PageContent>
     </PageLayout>

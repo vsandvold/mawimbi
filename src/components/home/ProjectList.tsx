@@ -16,24 +16,14 @@ import { formatRelativeTime } from './formatRelativeTime';
 type ProjectListProps = {
   projects: StoredProject[];
   onOpen: (id: string) => void;
-  onCreate: () => void;
   onDelete: (id: string) => void;
 };
 
-const ProjectList = ({
-  projects,
-  onOpen,
-  onCreate,
-  onDelete,
-}: ProjectListProps) => {
+const ProjectList = ({ projects, onOpen, onDelete }: ProjectListProps) => {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   return (
     <div className="home__project-list">
-      <div className="home__project-list-header">
-        <span className="font-semibold">Projects</span>
-        <Button onClick={onCreate}>New Project</Button>
-      </div>
       <ul className="home__project-items">
         {projects.map((project) => (
           <li
@@ -42,7 +32,7 @@ const ProjectList = ({
             onClick={() => onOpen(project.id)}
           >
             <div className="home__project-meta">
-              <span className="text-foreground">{project.title}</span>
+              <span className="home__project-title">{project.title}</span>
               <div className="home__project-info">
                 <span className="text-muted-foreground">
                   {project.tracks.length}{' '}
