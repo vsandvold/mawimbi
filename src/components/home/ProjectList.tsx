@@ -1,9 +1,7 @@
-import { List, Popconfirm, Typography } from 'antd';
+import { List, Popconfirm } from 'antd';
 import { Button } from '../ui/button';
 import { type StoredProject } from '../../services/ProjectStorageService';
 import { formatRelativeTime } from './formatRelativeTime';
-
-const { Text } = Typography;
 
 type ProjectListProps = {
   projects: StoredProject[];
@@ -23,7 +21,7 @@ const ProjectList = ({
       <List
         header={
           <>
-            <Text strong>Projects</Text>
+            <span className="font-semibold">Projects</span>
             <Button onClick={onCreate}>New Project</Button>
           </>
         }
@@ -61,13 +59,13 @@ const ProjectList = ({
               title={project.title}
               description={
                 <div className="home__project-info">
-                  <Text type="secondary">
+                  <span className="text-muted-foreground">
                     {project.tracks.length}{' '}
                     {project.tracks.length === 1 ? 'track' : 'tracks'}
-                  </Text>
-                  <Text type="secondary">
+                  </span>
+                  <span className="text-muted-foreground">
                     {formatRelativeTime(project.updatedAt)}
-                  </Text>
+                  </span>
                 </div>
               }
             />

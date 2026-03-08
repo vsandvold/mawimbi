@@ -1,7 +1,4 @@
-import { Typography } from 'antd';
 import { Button } from '../ui/button';
-
-const { Title, Text } = Typography;
 
 type EmptyProjectListProps = {
   onCreate: () => void;
@@ -10,8 +7,10 @@ type EmptyProjectListProps = {
 const EmptyProjectList = ({ onCreate }: EmptyProjectListProps) => {
   return (
     <>
-      <Title>Mawimbi</Title>
-      <Text type="secondary">No projects yet. Create one to get started.</Text>
+      <h1 className="text-4xl font-semibold tracking-tight">Mawimbi</h1>
+      <span className="text-muted-foreground">
+        No projects yet. Create one to get started.
+      </span>
       <Button size="lg" onClick={onCreate}>
         Create Project
       </Button>

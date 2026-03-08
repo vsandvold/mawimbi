@@ -1,5 +1,4 @@
 import { FullscreenOutlined } from '@ant-design/icons';
-import { Typography } from 'antd';
 import { Button } from '../ui/button';
 import React, { useState } from 'react';
 import { FullScreen, FullScreenHandle } from 'react-full-screen';
@@ -39,18 +38,16 @@ const Fullscreen = (props: FullscreenProps) => {
     setFullscreen(state);
   };
 
-  const { Title, Text } = Typography;
-
   return (
     <FullScreen handle={handle} onChange={onFullscreenChanged}>
       {props.children}
       {showOverlay && (
         <div className="fullscreen__overlay">
           <div className="overlay-content" onClick={activateFullscreen}>
-            <Text>
+            <span>
               <FullscreenOutlined className="fullscreen-icon" />
-            </Text>
-            <Title level={4}>Tap to enter full screen</Title>
+            </span>
+            <h4 className="text-xl font-semibold">Tap to enter full screen</h4>
             <Button
               variant="ghost"
               className="button"
