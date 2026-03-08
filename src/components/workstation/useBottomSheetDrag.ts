@@ -4,22 +4,17 @@ type UseBottomSheetDragOptions = {
   snapPoints: number[];
   isDraggingRef: MutableRefObject<boolean>;
   onHeightChange: (height: number) => void;
-  onClose: () => void;
 };
-
-// Minimum drag distance before the sheet snaps closed
-const CLOSE_THRESHOLD = 40;
 
 /**
  * Pointer-event-based drag handler for resizing a bottom sheet.
  * Dragging up increases height; dragging down decreases it.
- * On release, snaps to the nearest snap point or closes if dragged below threshold.
+ * On release, snaps to the nearest snap point.
  */
 export function useBottomSheetDrag({
   snapPoints,
   isDraggingRef,
   onHeightChange,
-  onClose,
 }: UseBottomSheetDragOptions) {
   const startYRef = useRef(0);
   const startHeightRef = useRef(0);
@@ -44,13 +39,13 @@ export function useBottomSheetDrag({
       if (!startYRef.current) return;
       const deltaY = startYRef.current - e.clientY;
       const newHeight = Math.max(
-        0,
+        minSnap,
         Math.min(startHeightRef.current + deltaY, maxSnap),
       );
       currentHeightRef.current = newHeight;
       onHeightChange(newHeight);
     },
-    [maxSnap, onHeightChange],
+    [minSnap, maxSnap, onHeightChange],
   );
 
   const handlePointerUp = useCallback(() => {
@@ -58,16 +53,10 @@ export function useBottomSheetDrag({
     startYRef.current = 0;
     isDraggingRef.current = false;
 
-    if (height < minSnap - CLOSE_THRESHOLD) {
-      currentHeightRef.current = 0;
-      onHeightChange(0);
-      onClose();
-    } else {
-      const nearest = findNearestSnapPoint(height, snapPoints);
-      currentHeightRef.current = nearest;
-      onHeightChange(nearest);
-    }
-  }, [minSnap, snapPoints, isDraggingRef, onHeightChange, onClose]);
+    const nearest = findNearestSnapPoint(height, snapPoints);
+    currentHeightRef.current = nearest;
+    onHeightChange(nearest);
+  }, [snapPoints, isDraggingRef, onHeightChange]);
 
   const setHeight = useCallback((height: number) => {
     currentHeightRef.current = height;

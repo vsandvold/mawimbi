@@ -15,8 +15,10 @@ vi.mock('../EmptyTimeline', () => ({
   default: () => <div data-testid="empty-timeline"></div>,
 }));
 vi.mock('../Mixer');
-vi.mock('../MixerBottomSheet', () => ({
-  default: () => <div data-testid="mixer-bottom-sheet"></div>,
+vi.mock('../BottomSheet', () => ({
+  default: ({ title }: { title: string }) => (
+    <div data-testid="bottom-sheet">{title}</div>
+  ),
 }));
 vi.mock('../scrubber/Scrubber', () => ({
   default: ({ children }: { children: ReactNode }) => (
@@ -66,7 +68,7 @@ it('renders regular timeline when tracks are non-empty', () => {
 it('renders mixer bottom sheet', () => {
   const { getByTestId } = render(<Workstation {...defaultProps} />);
 
-  expect(getByTestId('mixer-bottom-sheet')).toBeInTheDocument();
+  expect(getByTestId('bottom-sheet')).toBeInTheDocument();
 });
 
 it('renders dropzone hidden by default', () => {
