@@ -175,8 +175,8 @@ test.describe('Mixer', () => {
   });
 
   test('opens and closes the mixer panel', async ({ page }) => {
-    // Mixer bottom sheet is initially not rendered
-    const bottomSheet = page.locator('.mixer-bottom-sheet');
+    // Bottom sheet is initially not rendered
+    const bottomSheet = page.locator('.bottom-sheet');
     await expect(bottomSheet).toHaveCount(0);
 
     // Click Show mixer → bottom sheet appears
@@ -185,6 +185,17 @@ test.describe('Mixer', () => {
 
     // Click Hide mixer → bottom sheet disappears
     await page.getByTitle('Hide mixer').click();
+    await expect(bottomSheet).toHaveCount(0);
+  });
+
+  test('closes the mixer panel via the close button', async ({ page }) => {
+    const bottomSheet = page.locator('.bottom-sheet');
+
+    await page.getByTitle('Show mixer').click();
+    await expect(bottomSheet).toBeVisible();
+
+    // Click the close button in the bottom sheet header
+    await bottomSheet.getByTitle('Close').click();
     await expect(bottomSheet).toHaveCount(0);
   });
 
@@ -455,7 +466,7 @@ test.describe('Visual regression - audio states', () => {
     await page.getByTitle('Show mixer').click();
     await expect(page.locator('.channel')).toBeVisible();
 
-    await expect(page.locator('.mixer-bottom-sheet')).toHaveScreenshot(
+    await expect(page.locator('.bottom-sheet')).toHaveScreenshot(
       'mixer-one-channel.png',
     );
   });

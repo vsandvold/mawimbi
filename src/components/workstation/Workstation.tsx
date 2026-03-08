@@ -19,6 +19,8 @@ import {
   useTotalTime,
 } from './workstationEffects';
 
+type ActiveSheet = 'mixer' | null;
+
 type WorkstationProps = {
   recordingColor: TrackColor;
   tracks: Track[];
@@ -28,7 +30,7 @@ type WorkstationProps = {
 const Workstation = (props: WorkstationProps) => {
   const recording = useRecordingService();
   const { pixelsPerSecond } = useWorkstation();
-  const [isMixerOpen, setIsMixerOpen] = useState(false);
+  const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isCountingIn, setIsCountingIn] = useState(false);
   const [drawerHeight, setDrawerHeight] = useState(0);
@@ -36,6 +38,7 @@ const Workstation = (props: WorkstationProps) => {
 
   const { recordingColor, tracks, uploadFile } = props;
   const hasTracks = tracks.length > 0;
+  const isMixerOpen = activeSheet === 'mixer';
 
   const { isDragActive, isDragAccept, isDragReject, rootProps, inputProps } =
     useFileDropzone(uploadFile);
@@ -52,7 +55,8 @@ const Workstation = (props: WorkstationProps) => {
   const countInBeat = useCountIn(isCountingIn, handleCountInComplete);
   useMicrophone(isRecording);
 
-  const toggleMixer = () => setIsMixerOpen((prev) => !prev);
+  const toggleMixer = () =>
+    setActiveSheet((prev) => (prev === 'mixer' ? null : 'mixer'));
   const toggleRecording = () => {
     if (isCountingIn) {
       setIsCountingIn(false);
@@ -79,6 +83,10 @@ const Workstation = (props: WorkstationProps) => {
     // for scaling, so subtract the toolbar height.
     const toolbarHeight = toolbarRef.current?.offsetHeight ?? 0;
     setDrawerHeight(Math.max(0, height - toolbarHeight));
+  }, []);
+
+  const handleMixerOpenChange = useCallback((open: boolean) => {
+    setActiveSheet(open ? 'mixer' : null);
   }, []);
 
   // Show the timeline when tracks exist or when recording is active.
@@ -137,7 +145,7 @@ const Workstation = (props: WorkstationProps) => {
       </div>
       <MixerBottomSheet
         isOpen={isMixerOpen}
-        onOpenChange={setIsMixerOpen}
+        onOpenChange={handleMixerOpenChange}
         onHeightChange={handleDrawerHeightChange}
         tracks={tracks}
       />
