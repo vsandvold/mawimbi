@@ -322,6 +322,14 @@ Vitest + React Testing Library. Test setup (`setupTests.ts`) globally mocks:
 
 Tests read service state through plain getters (`service.playbackState`, `getFocusedTracks()`, `getPixelsPerSecond()`), not through `.signals.*.value`. This keeps tests decoupled from signal internals and makes assertions more readable.
 
+### E2E Tests
+
+Playwright e2e tests live in `e2e/`. Visual regression snapshots are stored in `e2e/__screenshots__/`. After completing implementation changes that affect the UI, always:
+
+1. Run the e2e tests to check for failures: `npx playwright test e2e/`
+2. If a visual regression test fails because the UI intentionally changed, update the snapshot: `npx playwright test e2e/visual.spec.ts -g "<test name>" --update-snapshots`
+3. Commit the updated snapshot(s) alongside your code changes
+
 ## Pull Requests
 
 After all tasks are done — code changes committed and pushed — create a pull request using `gh pr create --repo vsandvold/mawimbi`. Target the `master` branch. Include a summary of what changed and a test plan in the PR body.

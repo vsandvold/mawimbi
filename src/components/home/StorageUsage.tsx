@@ -12,7 +12,7 @@ const StorageUsage = ({ usage, quota }: StorageUsageProps) => {
   const percent = quota > 0 ? (usage / quota) * 100 : 0;
 
   return (
-    <div className="home__project-list">
+    <div className="home__storage">
       <span className="text-muted-foreground">
         Using {formatBytes(usage)} of {formatBytes(quota)}
       </span>
