@@ -1,4 +1,5 @@
-import { Button, List, Popconfirm, Typography } from 'antd';
+import { List, Popconfirm, Typography } from 'antd';
+import { Button } from '../ui/button';
 import { type StoredProject } from '../../services/ProjectStorageService';
 import { formatRelativeTime } from './formatRelativeTime';
 
@@ -23,9 +24,7 @@ const ProjectList = ({
         header={
           <>
             <Text strong>Projects</Text>
-            <Button type="primary" onClick={onCreate}>
-              New Project
-            </Button>
+            <Button onClick={onCreate}>New Project</Button>
           </>
         }
         dataSource={projects}
@@ -48,9 +47,9 @@ const ProjectList = ({
                 okButtonProps={{ danger: true }}
               >
                 <Button
-                  type="text"
-                  danger
-                  size="small"
+                  variant="ghost"
+                  size="sm"
+                  className="text-destructive hover:text-destructive"
                   onClick={(e) => e.stopPropagation()}
                 >
                   Delete

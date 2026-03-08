@@ -1,5 +1,5 @@
 import { StepBackwardOutlined } from '@ant-design/icons';
-import { Button } from 'antd';
+import { Button } from '../../ui/button';
 import classNames from 'classnames';
 import { PropsWithChildren } from 'react';
 import { usePlaybackService } from '../../../hooks/usePlaybackService';
@@ -72,13 +72,14 @@ const Scrubber = (props: ScrubberProps) => {
       </div>
       <div className={rewindButtonClass} style={rewindButtonStyle}>
         <Button
-          type="link"
-          size="large"
+          variant="ghost"
+          size="icon-lg"
           className="button"
           title="Rewind"
-          icon={<StepBackwardOutlined />}
           onClick={handleStopAndRewind}
-        />
+        >
+          <StepBackwardOutlined />
+        </Button>
       </div>
       <ZoomControls style={rewindButtonStyle} />
     </div>

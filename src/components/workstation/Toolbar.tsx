@@ -5,7 +5,7 @@ import Icon, {
   PauseOutlined,
   StepBackwardOutlined,
 } from '@ant-design/icons';
-import { Button } from 'antd';
+import { Button } from '../ui/button';
 import classNames from 'classnames';
 import ControlSvg from '../../icons/control.svg?react';
 import { usePlaybackService } from '../../hooks/usePlaybackService';
@@ -30,49 +30,53 @@ const Toolbar = (props: ToolbarProps) => {
 
   const mixerButton = (
     <Button
-      type="link"
-      size="large"
+      variant="ghost"
+      size="icon-lg"
       className="button"
-      icon={mixerIcon}
       title={isMixerOpen ? 'Hide mixer' : 'Show mixer'}
       onClick={onToggleMixer}
       disabled={isEmpty}
-    />
+    >
+      {mixerIcon}
+    </Button>
   );
 
   const rewindButton = (
     <Button
-      type="link"
-      size="large"
+      variant="ghost"
+      size="icon-lg"
       className="button"
-      icon={<StepBackwardOutlined />}
       title="Rewind"
       onClick={rewind}
       disabled={isEmpty || isTransportLocked || isStopped}
-    />
+    >
+      <StepBackwardOutlined />
+    </Button>
   );
 
   const playPauseButton = (
     <Button
-      type="link"
-      size="large"
+      variant="ghost"
+      size="icon-lg"
       className="button"
-      icon={isPlaying ? <PauseOutlined /> : <CaretRightOutlined />}
       title={isPlaying ? 'Pause' : 'Play'}
       onClick={togglePlayback}
       disabled={isEmpty || isTransportLocked}
-    />
+    >
+      {isPlaying ? <PauseOutlined /> : <CaretRightOutlined />}
+    </Button>
   );
 
   const microphoneButton = (
     <Button
-      type="link"
-      size="large"
+      variant="ghost"
+      size="icon-lg"
       className="button"
-      icon={isRecordActive ? <AudioFilled /> : <AudioOutlined />}
       title="Record"
       onClick={onToggleRecording}
-    />
+    >
+      {isRecordActive ? <AudioFilled /> : <AudioOutlined />}
+    </Button>
   );
 
   return (
