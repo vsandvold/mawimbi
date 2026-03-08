@@ -3,6 +3,9 @@
  * as semi-transparent rectangular blocks aligned to the CQT spectrogram's
  * log-frequency axis.
  *
+ * Notes have a 3D appearance with gradient fills and distinct borders.
+ * Notes currently intersecting the playhead receive a bright glow effect.
+ *
  * The CQT spectrogram uses 24 bins/octave starting at C1 (32.7 Hz).
  * MIDI note numbers map to the same log scale:
  *   binIndex = 24 × log2(freq / 32.7)
@@ -31,13 +34,28 @@ const NOTE_HEIGHT_BINS = 2;
 const NOTE_FILL_OPACITY = 0.6;
 
 /** Note block border opacity (0–1). */
-const NOTE_BORDER_OPACITY = 0.8;
+const NOTE_BORDER_OPACITY = 0.85;
 
 /** Note block corner radius in pixels. */
 const CORNER_RADIUS = 2;
 
 /** Note block border width in pixels. */
-const BORDER_WIDTH = 1;
+const BORDER_WIDTH = 1.5;
+
+/** Opacity boost for notes intersecting the playhead (0–1). */
+const ACTIVE_FILL_OPACITY = 0.9;
+
+/** Glow blur radius in pixels for active notes. */
+const ACTIVE_GLOW_BLUR = 8;
+
+/** Glow opacity for active notes (0–1). */
+const ACTIVE_GLOW_OPACITY = 0.5;
+
+/** Top highlight opacity multiplier for 3D gradient (relative to fill). */
+const HIGHLIGHT_LIGHTNESS_BOOST = 40;
+
+/** Bottom shadow darkening factor (0–1, lower = darker). */
+const SHADOW_DARKENING_FACTOR = 0.55;
 
 // ---------------------------------------------------------------------------
 // Coordinate mapping
@@ -68,10 +86,15 @@ export type PianoRollViewport = {
   canvasHeight: number;
   /** Total number of CQT frequency bins (determines y-axis scale). */
   frequencyBinCount: number;
+  /** Current playhead time in seconds (-1 or undefined = no glow effect). */
+  playheadTime?: number;
 };
 
 /**
  * Draws melody notes as semi-transparent blocks onto a 2D canvas context.
+ *
+ * Notes have a gradient fill for a 3D appearance and a distinct border.
+ * Notes intersecting the playhead receive a bright glow effect.
  *
  * Only notes within the visible viewport are rendered (horizontal culling).
  * Vertical positions are mapped from MIDI note → CQT bin → canvas pixel.
@@ -88,6 +111,7 @@ export function drawPianoRoll(
     viewportWidth,
     canvasHeight,
     frequencyBinCount,
+    playheadTime,
   } = viewport;
 
   if (notes.length === 0 || frequencyBinCount === 0) return;
@@ -97,12 +121,8 @@ export function drawPianoRoll(
   const viewEndTime = (contentOffset + viewportWidth) / pixelsPerSecond;
 
   const { r, g, b } = color;
-  const fillStyle = `rgba(${r}, ${g}, ${b}, ${NOTE_FILL_OPACITY})`;
-  const strokeStyle = `rgba(${(r * 0.7) | 0}, ${(g * 0.7) | 0}, ${(b * 0.7) | 0}, ${NOTE_BORDER_OPACITY})`;
-
-  ctx.fillStyle = fillStyle;
-  ctx.strokeStyle = strokeStyle;
-  ctx.lineWidth = BORDER_WIDTH;
+  const hasPlayhead =
+    playheadTime !== undefined && playheadTime !== null && playheadTime >= 0;
 
   for (let i = 0; i < notes.length; i++) {
     const note = notes[i];
@@ -127,16 +147,93 @@ export function drawPianoRoll(
 
     if (height < 1) continue;
 
-    drawRoundedRect(ctx, x, y, width, height, CORNER_RADIUS);
+    const isActive =
+      hasPlayhead &&
+      playheadTime >= note.startTime &&
+      playheadTime < note.endTime;
+
+    drawNote(ctx, x, y, width, height, r, g, b, isActive);
   }
 }
 
 /**
- * Draws a filled and stroked rounded rectangle.
- * Uses the canvas roundRect API if available, otherwise falls back to
- * a simple rect (no rounded corners).
+ * Draws a single note block with gradient fill, border, and optional glow.
  */
-function drawRoundedRect(
+function drawNote(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  r: number,
+  g: number,
+  b: number,
+  isActive: boolean,
+): void {
+  const fillOpacity = isActive ? ACTIVE_FILL_OPACITY : NOTE_FILL_OPACITY;
+
+  // Active notes: draw glow behind the note
+  if (isActive) {
+    ctx.save();
+    ctx.shadowColor = `rgba(${r}, ${g}, ${b}, ${ACTIVE_GLOW_OPACITY})`;
+    ctx.shadowBlur = ACTIVE_GLOW_BLUR;
+    ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${fillOpacity})`;
+    drawRoundedPath(ctx, x, y, width, height, CORNER_RADIUS);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // 3D gradient fill: lighter at top, darker at bottom
+  const gradient = ctx.createLinearGradient(x, y, x, y + height);
+  const rTop = Math.min(255, r + HIGHLIGHT_LIGHTNESS_BOOST);
+  const gTop = Math.min(255, g + HIGHLIGHT_LIGHTNESS_BOOST);
+  const bTop = Math.min(255, b + HIGHLIGHT_LIGHTNESS_BOOST);
+  const rBot = (r * SHADOW_DARKENING_FACTOR) | 0;
+  const gBot = (g * SHADOW_DARKENING_FACTOR) | 0;
+  const bBot = (b * SHADOW_DARKENING_FACTOR) | 0;
+
+  gradient.addColorStop(0, `rgba(${rTop}, ${gTop}, ${bTop}, ${fillOpacity})`);
+  gradient.addColorStop(1, `rgba(${rBot}, ${gBot}, ${bBot}, ${fillOpacity})`);
+
+  ctx.fillStyle = gradient;
+  ctx.strokeStyle = `rgba(${(r * 0.6) | 0}, ${(g * 0.6) | 0}, ${(b * 0.6) | 0}, ${NOTE_BORDER_OPACITY})`;
+  ctx.lineWidth = BORDER_WIDTH;
+
+  drawRoundedPath(ctx, x, y, width, height, CORNER_RADIUS);
+  ctx.fill();
+  ctx.stroke();
+
+  // Inner top highlight line for extra depth
+  drawTopHighlight(ctx, x, y, width, r, g, b, fillOpacity);
+}
+
+/**
+ * Draws a thin highlight line along the top edge of a note for a 3D bevel.
+ */
+function drawTopHighlight(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  r: number,
+  g: number,
+  b: number,
+  baseOpacity: number,
+): void {
+  const highlightOpacity = Math.min(1, baseOpacity * 0.5);
+  ctx.strokeStyle = `rgba(${Math.min(255, r + 80)}, ${Math.min(255, g + 80)}, ${Math.min(255, b + 80)}, ${highlightOpacity})`;
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(x + CORNER_RADIUS, y + 0.5);
+  ctx.lineTo(x + width - CORNER_RADIUS, y + 0.5);
+  ctx.stroke();
+}
+
+/**
+ * Creates a rounded-rectangle path without filling or stroking.
+ * Uses the canvas roundRect API if available, otherwise falls back to rect.
+ */
+function drawRoundedPath(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
@@ -150,6 +247,4 @@ function drawRoundedRect(
   } else {
     ctx.rect(x, y, width, height);
   }
-  ctx.fill();
-  ctx.stroke();
 }

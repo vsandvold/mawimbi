@@ -230,6 +230,7 @@ it('draws piano roll notes on the overlay canvas when melody data exists', () =>
   mockRetrieveAudioBuffer.mockReturnValue(audioBuffer);
   mockGetEntry.mockReturnValue(cachedEntry);
 
+  const mockGradient = { addColorStop: vi.fn() };
   const mockCtx = {
     clearRect: vi.fn(),
     drawImage: vi.fn(),
@@ -237,13 +238,18 @@ it('draws piano roll notes on the overlay canvas when melody data exists', () =>
     fillStyle: '' as string,
     strokeStyle: '' as string,
     lineWidth: 0,
+    shadowColor: '' as string,
+    shadowBlur: 0,
     beginPath: vi.fn(),
     fill: vi.fn(),
     stroke: vi.fn(),
     rect: vi.fn(),
     roundRect: vi.fn(),
+    moveTo: vi.fn(),
+    lineTo: vi.fn(),
     save: vi.fn(),
     restore: vi.fn(),
+    createLinearGradient: vi.fn(() => mockGradient),
     globalCompositeOperation: 'source-over' as string,
     canvas: { width: VIEWPORT_WIDTH, height: 128 },
   };
@@ -274,10 +280,13 @@ it('draws piano roll notes on the overlay canvas when melody data exists', () =>
   const callback = calls[calls.length - 1]?.[0];
   callback?.();
 
-  // drawPianoRoll should call beginPath once per visible note (2 notes)
-  expect(mockCtx.beginPath).toHaveBeenCalledTimes(2);
+  // drawPianoRoll draws each note with a gradient body + top highlight line
+  // Each note: beginPath (body) + beginPath (highlight) = 2 per note
+  expect(mockCtx.beginPath).toHaveBeenCalledTimes(4);
+  // Each note: fill (body) + stroke (body) + stroke (highlight)
   expect(mockCtx.fill).toHaveBeenCalledTimes(2);
-  expect(mockCtx.stroke).toHaveBeenCalledTimes(2);
+  expect(mockCtx.stroke).toHaveBeenCalledTimes(4);
+  expect(mockCtx.createLinearGradient).toHaveBeenCalledTimes(2);
 
   vi.restoreAllMocks();
 });
