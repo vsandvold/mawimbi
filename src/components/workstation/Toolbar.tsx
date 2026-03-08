@@ -1,4 +1,4 @@
-import { Mic, Pause, Play, SkipBack } from 'lucide-react';
+import { FileText, Mic, Pause, Play, SkipBack } from 'lucide-react';
 import { Button } from '../ui/button';
 import classNames from 'classnames';
 import ControlSvg from '../../icons/control.svg?react';
@@ -8,16 +8,39 @@ import './Toolbar.css';
 
 type ToolbarProps = {
   isMixerOpen: boolean;
+  isTextOpen: boolean;
   isEmpty: boolean;
   onToggleMixer: () => void;
+  onToggleText: () => void;
   onToggleRecording: () => void;
 };
 
 const Toolbar = (props: ToolbarProps) => {
   const { isPlaying, isStopped, rewind, togglePlayback } = usePlaybackService();
   const { isTransportLocked, recordingState } = useRecordingService();
-  const { isMixerOpen, isEmpty, onToggleMixer, onToggleRecording } = props;
+  const {
+    isMixerOpen,
+    isTextOpen,
+    isEmpty,
+    onToggleMixer,
+    onToggleText,
+    onToggleRecording,
+  } = props;
   const isRecordActive = recordingState !== 'idle';
+
+  const textIconClass = classNames({ 'show-text': isTextOpen });
+  const textButton = (
+    <Button
+      variant="ghost"
+      size="icon-lg"
+      className="button"
+      title={isTextOpen ? 'Hide text' : 'Show text'}
+      onClick={onToggleText}
+      disabled={isEmpty}
+    >
+      <FileText className={textIconClass} />
+    </Button>
+  );
 
   const mixerIconClass = classNames('custom-icon', {
     'show-mixer': isMixerOpen,
@@ -81,6 +104,7 @@ const Toolbar = (props: ToolbarProps) => {
 
   return (
     <div className="toolbar">
+      <div className="toolbar__button">{textButton}</div>
       <div className="toolbar__button">{mixerButton}</div>
       <div className="toolbar__button">{rewindButton}</div>
       <div className="toolbar__button">{playPauseButton}</div>

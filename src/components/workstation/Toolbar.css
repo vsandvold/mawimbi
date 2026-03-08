@@ -12,6 +12,10 @@
   margin-right: 0;
 }
 
+.show-text {
+  color: var(--ant-color-primary);
+}
+
 .fader-1,
 .fader-2 {
   transition: transform 0.3s;

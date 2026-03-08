@@ -19,7 +19,7 @@ import {
   useTotalTime,
 } from './workstationEffects';
 
-type ActiveSheet = 'mixer' | null;
+type ActiveSheet = 'mixer' | 'text' | null;
 
 type WorkstationProps = {
   recordingColor: TrackColor;
@@ -39,6 +39,7 @@ const Workstation = (props: WorkstationProps) => {
   const { recordingColor, tracks, uploadFile } = props;
   const hasTracks = tracks.length > 0;
   const isMixerOpen = activeSheet === 'mixer';
+  const isTextOpen = activeSheet === 'text';
 
   const { isDragActive, isDragAccept, isDragReject, rootProps, inputProps } =
     useFileDropzone(uploadFile);
@@ -55,6 +56,8 @@ const Workstation = (props: WorkstationProps) => {
   const countInBeat = useCountIn(isCountingIn, handleCountInComplete);
   useMicrophone(isRecording);
 
+  const toggleText = () =>
+    setActiveSheet((prev) => (prev === 'text' ? null : 'text'));
   const toggleMixer = () =>
     setActiveSheet((prev) => (prev === 'mixer' ? null : 'mixer'));
   const toggleRecording = () => {
@@ -138,8 +141,10 @@ const Workstation = (props: WorkstationProps) => {
       <div ref={toolbarRef} className="workstation__toolbar">
         <Toolbar
           isMixerOpen={isMixerOpen}
+          isTextOpen={isTextOpen}
           isEmpty={!hasTracks}
           onToggleMixer={toggleMixer}
+          onToggleText={toggleText}
           onToggleRecording={toggleRecording}
         />
       </div>

@@ -8,12 +8,15 @@ const playbackService = audioService.playbackService;
 const recordingService = audioService.recordingService;
 
 const mockToggleMixer = vi.fn();
+const mockToggleText = vi.fn();
 const mockToggleRecording = vi.fn();
 
 const defaultProps = {
   isMixerOpen: false,
+  isTextOpen: false,
   isEmpty: false,
   onToggleMixer: mockToggleMixer,
+  onToggleText: mockToggleText,
   onToggleRecording: mockToggleRecording,
 };
 
@@ -25,7 +28,7 @@ afterEach(() => {
 it('renders all buttons', () => {
   const { getAllByRole } = render(<Toolbar {...defaultProps} />);
 
-  expect(getAllByRole('button')).toHaveLength(4);
+  expect(getAllByRole('button')).toHaveLength(5);
 });
 
 it('disables buttons when tracks are empty', () => {
@@ -33,6 +36,7 @@ it('disables buttons when tracks are empty', () => {
     <Toolbar {...{ ...defaultProps, isEmpty: true }} />,
   );
 
+  expect(getByTitle('Show text')).toBeDisabled();
   expect(getByTitle('Show mixer')).toBeDisabled();
   expect(getByTitle('Play')).toBeDisabled();
   expect(getByTitle('Rewind')).toBeDisabled();
@@ -44,6 +48,7 @@ it('enables non-transport buttons when tracks are not empty', () => {
     <Toolbar {...{ ...defaultProps, isEmpty: false }} />,
   );
 
+  expect(getByTitle('Show text')).toBeEnabled();
   expect(getByTitle('Show mixer')).toBeEnabled();
   expect(getByTitle('Play')).toBeEnabled();
   expect(getByTitle('Record')).toBeEnabled();
@@ -149,4 +154,25 @@ it('enables rewind button when playing', () => {
   const { getByTitle } = render(<Toolbar {...defaultProps} />);
 
   expect(getByTitle('Rewind')).toBeEnabled();
+});
+
+it('applies active class to text icon when text is open', () => {
+  const { getByTitle } = render(
+    <Toolbar {...{ ...defaultProps, isTextOpen: true }} />,
+  );
+
+  const textButton = getByTitle('Hide text');
+
+  expect(textButton.querySelector('.show-text')).toBeInTheDocument();
+});
+
+it('toggles text when text show/hide is clicked', () => {
+  const { getByTitle } = render(
+    <Toolbar {...{ ...defaultProps, isTextOpen: false }} />,
+  );
+
+  const textButton = getByTitle('Show text');
+  fireEvent.click(textButton);
+
+  expect(mockToggleText).toHaveBeenCalledTimes(1);
 });
