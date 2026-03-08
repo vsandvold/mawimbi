@@ -1,5 +1,5 @@
 import { MinusOutlined, PlusOutlined } from '@ant-design/icons';
-import { Button } from 'antd';
+import { Button } from '../ui/button';
 import { type CSSProperties } from 'react';
 import { useRecordingService } from '../../hooks/useRecordingService';
 import { useWorkstation } from '../../hooks/useWorkstation';
@@ -16,23 +16,25 @@ const ZoomControls = ({ style }: ZoomControlsProps) => {
   return (
     <div className="zoom-controls" style={style}>
       <Button
-        type="link"
-        size="small"
+        variant="ghost"
+        size="icon-sm"
         className="button zoom-controls__button"
-        icon={<PlusOutlined />}
         title="Zoom in"
         onClick={zoomIn}
         disabled={isMaxZoom || isRecording}
-      />
+      >
+        <PlusOutlined />
+      </Button>
       <Button
-        type="link"
-        size="small"
+        variant="ghost"
+        size="icon-sm"
         className="button zoom-controls__button"
-        icon={<MinusOutlined />}
         title="Zoom out"
         onClick={zoomOut}
         disabled={isMinZoom || isRecording}
-      />
+      >
+        <MinusOutlined />
+      </Button>
     </div>
   );
 };

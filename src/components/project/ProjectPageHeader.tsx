@@ -5,7 +5,8 @@ import {
   UndoOutlined,
   UploadOutlined,
 } from '@ant-design/icons';
-import { Button, Dropdown, Input, Modal, Typography, Upload } from 'antd';
+import { Dropdown, Input, Modal, Typography, Upload } from 'antd';
+import { Button } from '../ui/button';
 import type { MenuProps, UploadProps } from 'antd';
 import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -51,11 +52,13 @@ const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
     <div className="project-page-header" ref={containerRef}>
       <Link to="/" className="back-link" aria-label="Back">
         <Button
-          type="link"
+          variant="ghost"
+          size="icon"
           className="button back-button"
-          icon={<ArrowLeftOutlined />}
           tabIndex={-1}
-        />
+        >
+          <ArrowLeftOutlined />
+        </Button>
       </Link>
       <Typography.Title
         level={4}
@@ -81,21 +84,25 @@ const ProjectPageHeader = (props: ProjectPageHeaderProps) => {
       </Modal>
       <div className="project-page-header__extra">
         <Button
-          type="link"
+          variant="ghost"
+          size="icon"
           className="button"
-          icon={<UndoOutlined />}
           aria-label="Undo"
           disabled={!props.canUndo}
           onClick={props.undo}
-        />
+        >
+          <UndoOutlined />
+        </Button>
         <Button
-          type="link"
+          variant="ghost"
+          size="icon"
           className="button"
-          icon={<RedoOutlined />}
           aria-label="Redo"
           disabled={!props.canRedo}
           onClick={props.redo}
-        />
+        >
+          <RedoOutlined />
+        </Button>
         <UploadButton uploadFile={props.uploadFile} />
         <OverflowMenu
           isFullscreen={props.isFullscreen}
@@ -128,7 +135,7 @@ const UploadButton = (props: UploadButtonProps) => {
 
   return (
     <Upload {...uploadProps}>
-      <Button type="link" className="button">
+      <Button variant="ghost" className="button">
         <UploadOutlined />
         <span className="hidden-lt768">Upload files</span>
       </Button>
@@ -173,12 +180,14 @@ const OverflowMenu = (props: OverflowMenuProps) => {
       getPopupContainer={getPopupContainer}
     >
       <Button
-        type="link"
+        variant="ghost"
+        size="icon"
         className="button overflow-button"
-        icon={<EllipsisOutlined />}
         aria-label="More"
         onClick={(e) => e.stopPropagation()}
-      />
+      >
+        <EllipsisOutlined />
+      </Button>
     </Dropdown>
   );
 };

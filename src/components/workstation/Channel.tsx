@@ -5,7 +5,8 @@ import {
   MenuOutlined,
   SoundOutlined,
 } from '@ant-design/icons';
-import { Button, Slider } from 'antd';
+import { Slider } from 'antd';
+import { Button } from '../ui/button';
 import classNames from 'classnames';
 import { useClassificationService } from '../../hooks/useClassificationService';
 import { FALLBACK_LABEL } from '../../services/instrumentLabels';
@@ -79,14 +80,16 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
       </div>
       <div className="channel__mute-solo">
         <Button
+          variant="ghost"
+          size="icon"
           className={classNames('channel-button', {
             'channel-button--active': mute || solo,
           })}
-          icon={getChannelStateIcon(mute, solo)}
-          type="link"
           title={getChannelStateTitle(mute, solo)}
           onClick={cycleState}
-        />
+        >
+          {getChannelStateIcon(mute, solo)}
+        </Button>
       </div>
       <div className="channel__volume" onPointerDown={startFocus}>
         <Slider
@@ -100,13 +103,15 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
       </div>
       <div className="channel__move" {...dragHandleProps}>
         <Button
+          variant="ghost"
+          size="icon"
           className="channel-button"
           style={{ pointerEvents: 'none' }}
-          icon={<MenuOutlined />}
-          type="link"
           title="Move"
           disabled
-        />
+        >
+          <MenuOutlined />
+        </Button>
       </div>
     </div>
   );
