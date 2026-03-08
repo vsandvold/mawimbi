@@ -1,16 +1,18 @@
 .spectrogram {
   position: relative;
+  display: grid;
 }
 
 .spectrogram__canvas {
+  grid-area: 1 / 1;
   position: sticky;
   left: 0;
   display: block;
 }
 
 .spectrogram__overlay {
-  position: absolute;
-  top: 0;
+  grid-area: 1 / 1;
+  position: sticky;
   left: 0;
   display: block;
   pointer-events: none;

@@ -57,10 +57,17 @@ const workerSelf = self as unknown as WorkerSelf;
 // module is ready when melody extraction is requested later. Failure is
 // non-fatal — CQT analysis continues to work regardless.
 function preWarmEssentia(): void {
-  getEssentia().catch(() => {
-    // Silently ignore — essentia is optional for spectrogram rendering.
-    // Melody extraction will retry initialization when invoked.
-  });
+  console.debug('[melody] Pre-warming essentia WASM in worker...');
+  getEssentia()
+    .then(() => {
+      console.debug('[melody] Essentia WASM pre-warmed successfully');
+    })
+    .catch((error) => {
+      // Essentia is optional for spectrogram rendering.
+      // Melody extraction will retry initialization when invoked.
+      const detail = error instanceof Error ? error.message : String(error);
+      console.warn(`[melody] Essentia pre-warm failed: ${detail}`);
+    });
 }
 
 let essentiaPreWarmed = false;
@@ -87,14 +94,26 @@ async function handleSpectrogram(request: AnalyseRequest): Promise<void> {
 
 async function handleMelody(request: MelodyRequest): Promise<void> {
   const { id, channelData, sampleRate, length } = request;
+  const durationSeconds = length / sampleRate;
+
+  console.log(
+    `[melody] Worker received melody request: ${channelData.length}ch, ${length} samples, ${sampleRate} Hz, ${durationSeconds.toFixed(2)}s`,
+  );
 
   try {
     const mono = mixToMono(channelData, length);
+    console.debug(
+      `[melody] Mixed ${channelData.length} channels to mono (${mono.length} samples)`,
+    );
     const data = await extractMelody(mono, sampleRate);
+    console.log(
+      `[melody] Worker melody extraction complete: ${data.notes.length} notes`,
+    );
     const response: MelodyResponse = { id, type: 'melody-result', data };
     workerSelf.postMessage(response);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    console.error(`[melody] Worker melody extraction failed: ${message}`);
     const response: MelodyResponse = { id, type: 'error', message };
     workerSelf.postMessage(response);
   }

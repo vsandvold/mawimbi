@@ -155,15 +155,26 @@ export async function extractMelody(
   monoSignal: Float32Array,
   sampleRate: number,
 ): Promise<MelodyData> {
+  const durationSeconds = monoSignal.length / sampleRate;
+  console.debug(
+    `[melody] Starting extraction: ${monoSignal.length} samples, ${sampleRate} Hz, ${durationSeconds.toFixed(2)}s`,
+  );
+
+  console.debug('[melody] Loading essentia WASM...');
   const essentia = await getEssentia();
+  console.debug('[melody] Essentia WASM loaded');
 
   const inputVector = essentia.arrayToVector(monoSignal);
 
   // Pre-process with EqualLoudness filter for perceptual weighting
+  console.debug('[melody] Applying EqualLoudness filter...');
   const filtered = essentia.EqualLoudness(inputVector, sampleRate);
   const filteredSignal = filtered.signal;
 
   // Run MELODIA with recommended defaults, adjusted frequency range
+  console.debug(
+    `[melody] Running PredominantPitchMelodia (hopSize=${MELODIA_HOP_SIZE}, freq=${MIN_FREQUENCY}–${MAX_FREQUENCY} Hz)...`,
+  );
   const result = essentia.PredominantPitchMelodia(
     filteredSignal,
     /* binResolution */ 10,
@@ -184,6 +195,8 @@ export async function extractMelody(
     result.pitchConfidence,
   );
 
+  console.debug(`[melody] MELODIA returned ${pitchValues.length} pitch frames`);
+
   const notes = pitchContourToNotes(
     pitchValues,
     confidenceValues,
@@ -192,6 +205,10 @@ export async function extractMelody(
   );
 
   const timeResolution = MELODIA_HOP_SIZE / sampleRate;
+
+  console.log(
+    `[melody] Extracted ${notes.length} notes from ${pitchValues.length} frames (${durationSeconds.toFixed(2)}s audio)`,
+  );
 
   return { notes, timeResolution };
 }
