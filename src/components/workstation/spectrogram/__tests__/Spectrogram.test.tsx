@@ -189,6 +189,99 @@ it('overlay canvas has pointer-events none to pass through interactions', () => 
   expect(overlay?.classList.contains('spectrogram__overlay')).toBe(true);
 });
 
+it('overlay canvas uses sticky positioning to stay aligned with spectrogram canvas', async () => {
+  // The overlay canvas must use position: sticky (like the spectrogram canvas)
+  // so it stays in the scroll viewport. With position: absolute, the overlay
+  // scrolls out of view while the spectrogram canvas stays visible, making
+  // the piano roll invisible.
+  const fs = await import('fs');
+  const path = await import('path');
+  const cssPath = path.resolve(__dirname, '../Spectrogram.css');
+  const css = fs.readFileSync(cssPath, 'utf-8');
+
+  // Extract the .spectrogram__overlay rule
+  const overlayRule = css.match(/\.spectrogram__overlay\s*\{([^}]+)\}/)?.[1];
+  expect(overlayRule).toBeDefined();
+  expect(overlayRule).toMatch(/position:\s*sticky/);
+});
+
+it('draws piano roll notes on the overlay canvas when melody data exists', () => {
+  const VIEWPORT_WIDTH = 800;
+  const DURATION = 5.0;
+
+  const melodyNotes = [
+    { startTime: 0.5, endTime: 1.0, midiNote: 60, confidence: 0.9 },
+    { startTime: 1.5, endTime: 2.0, midiNote: 64, confidence: 0.8 },
+  ];
+
+  const cachedEntry = {
+    data: {
+      frequencyFrames: Array.from({ length: 100 }, () => new Uint8Array(192)),
+      timeResolution: 0.025,
+      frequencyBinCount: 192,
+      sampleRate: 44100,
+      duration: DURATION,
+    },
+    tiles: [{ close: vi.fn(), width: 4096, height: 192 }],
+    melody: { notes: melodyNotes, timeResolution: 0.0029 },
+  };
+
+  const audioBuffer = { duration: DURATION } as AudioBuffer;
+  mockRetrieveAudioBuffer.mockReturnValue(audioBuffer);
+  mockGetEntry.mockReturnValue(cachedEntry);
+
+  const mockCtx = {
+    clearRect: vi.fn(),
+    drawImage: vi.fn(),
+    fillRect: vi.fn(),
+    fillStyle: '' as string,
+    strokeStyle: '' as string,
+    lineWidth: 0,
+    beginPath: vi.fn(),
+    fill: vi.fn(),
+    stroke: vi.fn(),
+    rect: vi.fn(),
+    roundRect: vi.fn(),
+    save: vi.fn(),
+    restore: vi.fn(),
+    globalCompositeOperation: 'source-over' as string,
+    canvas: { width: VIEWPORT_WIDTH, height: 128 },
+  };
+  vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
+    mockCtx as unknown as CanvasRenderingContext2D,
+  );
+
+  const { container } = render(
+    <div className="timeline">
+      <div className="scrubber__timeline">
+        <Spectrogram {...defaultProps} />
+      </div>
+    </div>,
+  );
+
+  const scrollContainer = container.querySelector('.scrubber__timeline')!;
+  Object.defineProperty(scrollContainer, 'scrollLeft', {
+    value: 0,
+    configurable: true,
+  });
+  Object.defineProperty(scrollContainer, 'clientWidth', {
+    value: VIEWPORT_WIDTH,
+    configurable: true,
+  });
+
+  // Trigger animation frame
+  const calls = vi.mocked(useAnimationFrame).mock.calls;
+  const callback = calls[calls.length - 1]?.[0];
+  callback?.();
+
+  // drawPianoRoll should call beginPath once per visible note (2 notes)
+  expect(mockCtx.beginPath).toHaveBeenCalledTimes(2);
+  expect(mockCtx.fill).toHaveBeenCalledTimes(2);
+  expect(mockCtx.stroke).toHaveBeenCalledTimes(2);
+
+  vi.restoreAllMocks();
+});
+
 it('renders spectrogram container with correct opacity from volume signal', () => {
   trackService.getSignals(TRACK_ID)!.volume.value = 50;
   const { container } = render(<Spectrogram {...defaultProps} />);
