@@ -13,14 +13,34 @@
   max-width: 640px;
 }
 
-.home__project-list .ant-list-header {
+.home__project-list-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.home__project-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
 }
 
 .home__project-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
   cursor: pointer;
+}
+
+.home__project-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 }
 
 .home__project-info {

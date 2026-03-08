@@ -1,4 +1,4 @@
-import { Progress } from 'antd';
+import { Progress } from '../ui/progress';
 import { formatBytes } from './formatBytes';
 
 type StorageUsageProps = {
@@ -16,11 +16,7 @@ const StorageUsage = ({ usage, quota }: StorageUsageProps) => {
       <span className="text-muted-foreground">
         Using {formatBytes(usage)} of {formatBytes(quota)}
       </span>
-      <Progress
-        percent={Number(percent.toFixed(1))}
-        size="small"
-        showInfo={false}
-      />
+      <Progress value={Number(percent.toFixed(1))} className="h-1.5" />
     </div>
   );
 };

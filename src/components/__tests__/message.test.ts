@@ -1,45 +1,29 @@
-import { App } from 'antd';
 import { renderHook } from '@testing-library/react';
+import { toast } from 'sonner';
 import { vi } from 'vitest';
 import useMessage from '../message';
 
-const mockSuccess = vi.fn();
-const mockError = vi.fn();
-const mockInfo = vi.fn();
-const mockLoading = vi.fn();
-const mockWarning = vi.fn();
-
-vi.mock('antd', async () => {
-  const actual = await vi.importActual<typeof import('antd')>('antd');
-  return {
-    ...actual,
-    App: {
-      ...actual.App,
-      useApp: () => ({
-        message: {
-          success: mockSuccess,
-          error: mockError,
-          info: mockInfo,
-          loading: mockLoading,
-          warning: mockWarning,
-        },
-      }),
-    },
-  };
-});
+vi.mock('sonner', () => ({
+  toast: {
+    success: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    loading: vi.fn(),
+    warning: vi.fn(),
+  },
+}));
 
 afterEach(() => {
   vi.clearAllMocks();
 });
 
-it('calls antd message with type, content, and key', () => {
+it('calls sonner toast with type, message, and id', () => {
   const { result } = renderHook(() => useMessage());
 
   result.current('it works!', { type: 'success', key: 'messageKey' });
 
-  expect(mockSuccess).toHaveBeenCalledWith({
-    content: 'it works!',
-    key: 'messageKey',
+  expect(toast.success).toHaveBeenCalledWith('it works!', {
+    id: 'messageKey',
   });
 });
 
@@ -51,19 +35,15 @@ it('supports all message types', () => {
   result.current('wait', { type: 'loading' });
   result.current('warn', { type: 'warning' });
 
-  expect(mockError).toHaveBeenCalledWith({ content: 'fail', key: undefined });
-  expect(mockInfo).toHaveBeenCalledWith({ content: 'note', key: undefined });
-  expect(mockLoading).toHaveBeenCalledWith({ content: 'wait', key: undefined });
-  expect(mockWarning).toHaveBeenCalledWith({
-    content: 'warn',
-    key: undefined,
-  });
+  expect(toast.error).toHaveBeenCalledWith('fail', { id: undefined });
+  expect(toast.info).toHaveBeenCalledWith('note', { id: undefined });
+  expect(toast.loading).toHaveBeenCalledWith('wait', { id: undefined });
+  expect(toast.warning).toHaveBeenCalledWith('warn', { id: undefined });
 });
 
-it('uses instance-based API from App.useApp()', () => {
-  const useAppSpy = vi.spyOn(App, 'useApp');
-
-  renderHook(() => useMessage());
-
-  expect(useAppSpy).toHaveBeenCalled();
+it('returns a stable callback reference', () => {
+  const { result, rerender } = renderHook(() => useMessage());
+  const first = result.current;
+  rerender();
+  expect(result.current).toBe(first);
 });

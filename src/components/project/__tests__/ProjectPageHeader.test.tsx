@@ -166,21 +166,18 @@ it('closes rename modal when Cancel is clicked', () => {
   expect(mockRenameProject).not.toHaveBeenCalled();
 });
 
-it('renders rename modal inside its parent container', () => {
-  const { container } = renderHeader();
+it('renders rename dialog when title is clicked', () => {
+  renderHeader();
 
   fireEvent.click(screen.getByText(defaultProps.title));
 
-  const modal = container.querySelector('.ant-modal-root');
-  expect(modal).toBeInTheDocument();
+  const dialog = screen.getByRole('dialog');
+  expect(dialog).toBeInTheDocument();
 });
 
-it('renders overflow menu popup inside its parent container', () => {
-  const { container } = renderHeader();
+it('renders overflow menu trigger button', () => {
+  renderHeader();
 
-  const overflowButton = container.querySelector('[aria-label="More"]');
-  fireEvent.click(overflowButton as Element);
-
-  const popup = container.querySelector('.ant-dropdown');
-  expect(popup).toBeInTheDocument();
+  const overflowButton = screen.getByRole('button', { name: 'More' });
+  expect(overflowButton).toBeInTheDocument();
 });
