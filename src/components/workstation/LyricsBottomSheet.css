@@ -1,0 +1,35 @@
+.lyrics-bottom-sheet__empty {
+  padding: 16px;
+  color: rgba(255, 255, 255, 0.45);
+  text-align: center;
+  font-size: 14px;
+}
+
+.lyrics-bottom-sheet__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lyrics-bottom-sheet__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+}
+
+.lyrics-bottom-sheet__color {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.lyrics-bottom-sheet__filename {
+  flex: 1;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.85);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -65,10 +65,14 @@ it('renders regular timeline when tracks are non-empty', () => {
   expect(getByTestId('regular-timeline')).toBeInTheDocument();
 });
 
-it('renders mixer bottom sheet', () => {
-  const { getByTestId } = render(<Workstation {...defaultProps} />);
+it('renders mixer and lyrics bottom sheets', () => {
+  const { getAllByTestId } = render(<Workstation {...defaultProps} />);
 
-  expect(getByTestId('bottom-sheet')).toBeInTheDocument();
+  const sheets = getAllByTestId('bottom-sheet');
+
+  expect(sheets).toHaveLength(2);
+  expect(sheets[0]).toHaveTextContent('Mixer');
+  expect(sheets[1]).toHaveTextContent('Lyrics');
 });
 
 it('renders dropzone hidden by default', () => {

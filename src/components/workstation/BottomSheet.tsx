@@ -12,7 +12,7 @@ import './BottomSheet.css';
 import { useBottomSheetDrag } from './useBottomSheetDrag';
 
 // Height of the header area (handle + title row)
-const HEADER_HEIGHT = 48;
+const HEADER_HEIGHT = 56;
 
 // Default snap point heights (px)
 const SNAP_POINT_PX = 240;

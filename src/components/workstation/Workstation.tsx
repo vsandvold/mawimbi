@@ -7,6 +7,7 @@ import Dropzone from '../dropzone/Dropzone';
 import { useFileDropzone } from '../dropzone/useFileDropzone';
 import EmptyTimeline from './EmptyTimeline';
 import MixerBottomSheet from './MixerBottomSheet';
+import LyricsBottomSheet from './LyricsBottomSheet';
 import Scrubber from './scrubber/Scrubber';
 import Timeline from './Timeline';
 import Toolbar from './Toolbar';
@@ -92,6 +93,10 @@ const Workstation = (props: WorkstationProps) => {
     setActiveSheet(open ? 'mixer' : null);
   }, []);
 
+  const handleLyricsOpenChange = useCallback((open: boolean) => {
+    setActiveSheet(open ? 'lyrics' : null);
+  }, []);
+
   // Show the timeline when tracks exist or when recording is active.
   // Use the recording state machine signal (not local state) so the
   // timeline stays visible during the async stop-recording transition
@@ -151,6 +156,12 @@ const Workstation = (props: WorkstationProps) => {
       <MixerBottomSheet
         isOpen={isMixerOpen}
         onOpenChange={handleMixerOpenChange}
+        onHeightChange={handleDrawerHeightChange}
+        tracks={tracks}
+      />
+      <LyricsBottomSheet
+        isOpen={isLyricsOpen}
+        onOpenChange={handleLyricsOpenChange}
         onHeightChange={handleDrawerHeightChange}
         tracks={tracks}
       />
