@@ -1,7 +1,5 @@
-import { Progress, Typography } from 'antd';
+import { Progress } from 'antd';
 import { formatBytes } from './formatBytes';
-
-const { Text } = Typography;
 
 type StorageUsageProps = {
   usage: number | undefined;
@@ -15,9 +13,9 @@ const StorageUsage = ({ usage, quota }: StorageUsageProps) => {
 
   return (
     <div className="home__project-list">
-      <Text type="secondary">
+      <span className="text-muted-foreground">
         Using {formatBytes(usage)} of {formatBytes(quota)}
-      </Text>
+      </span>
       <Progress
         percent={Number(percent.toFixed(1))}
         size="small"

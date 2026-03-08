@@ -49,7 +49,7 @@ test.describe('dark theme properties', () => {
     expect(color).not.toBe('rgb(0, 0, 0)');
   });
 
-  test('toolbar buttons use custom white color, not antd link blue', async ({
+  test('toolbar buttons use custom white color, not default link blue', async ({
     page,
   }) => {
     await page.goto('/project/test-id');
@@ -58,7 +58,7 @@ test.describe('dark theme properties', () => {
     const color = await button.evaluate(
       (el) => window.getComputedStyle(el).color,
     );
-    // Buttons should use custom white-ish color, not antd default link blue
+    // Buttons should use custom white-ish color, not default link blue
     expect(color).not.toBe('rgb(22, 104, 220)');
   });
 
@@ -69,7 +69,7 @@ test.describe('dark theme properties', () => {
     const padding = await header.evaluate(
       (el) => window.getComputedStyle(el).padding,
     );
-    // Header padding should be overridden to 0, not antd default 0 50px
+    // Header padding should be overridden to 0
     expect(padding).toBe('0px');
   });
 
@@ -82,7 +82,7 @@ test.describe('dark theme properties', () => {
     const padding = await headerInner.evaluate(
       (el) => window.getComputedStyle(el).padding,
     );
-    // Inner header container should have 16px 24px padding matching antd v4 PageHeader default
+    // Inner header container should have 16px 24px padding
     expect(padding).toBe('16px 24px');
   });
 
@@ -93,7 +93,7 @@ test.describe('dark theme properties', () => {
     const fontSize = await title.evaluate(
       (el) => window.getComputedStyle(el).fontSize,
     );
-    // Title should be 20px (antd h4 / Typography.Title level={4}), matching antd v4 PageHeader title
+    // Title should be 20px (h4 with Tailwind text-xl)
     expect(fontSize).toBe('20px');
   });
 

@@ -1,5 +1,4 @@
 import { UploadOutlined } from '@ant-design/icons';
-import { Typography } from 'antd';
 import classNames from 'classnames';
 import React from 'react';
 import './Dropzone.css';
@@ -20,22 +19,24 @@ const Dropzone = (props: DropzoneProps) => {
     'dropzone--reject': isDragReject,
   });
 
-  const { Title, Text } = Typography;
-
   return (
     <div className={dropzoneClass}>
       <input {...inputProps} />
       <div className="dropzone__content">
-        <Text>
+        <span>
           <UploadOutlined className="upload-icon" />
-        </Text>
+        </span>
         {isDragAccept && (
-          <Title level={4}>Drag and drop audio files here</Title>
+          <h4 className="text-xl font-semibold">
+            Drag and drop audio files here
+          </h4>
         )}
         {isDragReject && (
-          <Title level={4}>Oops, this does not look like an audio file</Title>
+          <h4 className="text-xl font-semibold">
+            Oops, this does not look like an audio file
+          </h4>
         )}
-        <Text>All audio files are accepted</Text>
+        <span>All audio files are accepted</span>
       </div>
     </div>
   );

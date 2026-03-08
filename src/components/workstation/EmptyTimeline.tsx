@@ -1,4 +1,3 @@
-import { Typography } from 'antd';
 import { useBrowserSupport } from '../../browserSupport';
 
 type EmptyTimelineProps = {
@@ -6,21 +5,21 @@ type EmptyTimelineProps = {
 };
 
 const EmptyTimeline = ({ isDragActive }: EmptyTimelineProps) => {
-  const { Title, Text } = Typography;
-
   const browserSupport = useBrowserSupport();
 
   return isDragActive ? null : (
     <div className="empty-timeline">
-      <Title level={4} type="secondary">
+      <h4 className="text-xl font-semibold text-muted-foreground">
         Start recording, or upload some audio files
-      </Title>
+      </h4>
       {browserSupport.touchEvents ? (
-        <Text type="secondary">Use the upload button above</Text>
+        <span className="text-muted-foreground">
+          Use the upload button above
+        </span>
       ) : (
-        <Text type="secondary">
+        <span className="text-muted-foreground">
           Drop files here, or use the upload button above
-        </Text>
+        </span>
       )}
     </div>
   );
