@@ -119,56 +119,39 @@
   }
 }
 
-/* Channel slider (antd v5: visible handle is ::after pseudo-element) */
-.channel-slider .ant-slider-handle::after {
+/* Channel slider */
+.channel-slider [data-slot='slider-thumb'] {
   background-color: rgba(0, 0, 0, 0.9);
-  box-shadow: none;
+  border-color: rgba(0, 0, 0, 0.9);
 }
 
-.channel-slider .ant-slider-handle:focus::after,
-.channel-slider .ant-slider-handle.ant-tooltip-open::after {
+.channel-slider [data-slot='slider-thumb']:focus-visible {
   background-color: rgba(0, 0, 0, 1);
   box-shadow: 0 0 0 5px rgba(0, 0, 0, 0.12);
 }
 
-.channel-slider.ant-slider:hover
-  .ant-slider-handle:not(.ant-tooltip-open)::after {
-  box-shadow: 0 0 0 5px rgba(0, 0, 0, 0.12);
-}
-
-.channel-slider .ant-slider-rail,
-.channel-slider.ant-slider:hover .ant-slider-rail {
+.channel-slider [data-slot='slider-track'] {
   background-color: rgba(0, 0, 0, 0.35);
 }
 
-.channel-slider .ant-slider-track,
-.channel-slider.ant-slider:hover .ant-slider-track {
+.channel-slider [data-slot='slider-range'] {
   background-color: rgba(0, 0, 0, 0.65);
 }
 
-.channel--inverted .channel-slider .ant-slider-handle::after {
+.channel--inverted .channel-slider [data-slot='slider-thumb'] {
   background-color: rgba(255, 255, 255, 0.9);
-  box-shadow: none;
+  border-color: rgba(255, 255, 255, 0.9);
 }
 
-.channel--inverted .channel-slider .ant-slider-handle:focus::after,
-.channel--inverted .channel-slider .ant-slider-handle.ant-tooltip-open::after {
+.channel--inverted .channel-slider [data-slot='slider-thumb']:focus-visible {
   background-color: rgba(255, 255, 255, 1);
   box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.12);
 }
 
-.channel--inverted
-  .channel-slider.ant-slider:hover
-  .ant-slider-handle:not(.ant-tooltip-open)::after {
-  box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.12);
-}
-
-.channel--inverted .channel-slider .ant-slider-rail,
-.channel--inverted .channel-slider.ant-slider:hover .ant-slider-rail {
+.channel--inverted .channel-slider [data-slot='slider-track'] {
   background-color: rgba(255, 255, 255, 0.35);
 }
 
-.channel--inverted .channel-slider .ant-slider-track,
-.channel--inverted .channel-slider.ant-slider:hover .ant-slider-track {
+.channel--inverted .channel-slider [data-slot='slider-range'] {
   background-color: rgba(255, 255, 255, 0.65);
 }
