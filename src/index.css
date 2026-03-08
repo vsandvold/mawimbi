@@ -149,12 +149,15 @@ html {
 .button,
 .button:hover {
   color: rgba(255, 255, 255, 0.65);
+  background-color: transparent;
+  border: none;
   border-radius: 2px;
   transition: initial;
 }
 
 .button:focus {
   color: rgba(255, 255, 255, 0.65);
+  background-color: transparent;
   border: 1px solid rgba(255, 255, 255, 0.65);
 }
 
