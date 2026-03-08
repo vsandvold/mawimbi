@@ -1,12 +1,14 @@
 import { Route, Routes, useLocation } from 'react-router-dom';
 import HomePage from './home/HomePage';
 import ProjectPage from './project/ProjectPage';
+import SettingsPage from './settings/SettingsPage';
 
 const App = () => {
   return (
     <Routes>
       <Route path="/" element={<HomePage />} />
       <Route path="/project/:id" element={<ProjectPage />} />
+      <Route path="/settings" element={<SettingsPage />} />
       <Route path="*" element={<NoMatch />} />
     </Routes>
   );

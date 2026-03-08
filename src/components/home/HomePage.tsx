@@ -11,6 +11,7 @@ import { PageContent, PageLayout } from '../layout/PageLayout';
 import EmptyProjectList from './EmptyProjectList';
 import ProjectList from './ProjectList';
 import StorageUsage from './StorageUsage';
+import SettingsButton from './SettingsButton';
 import './HomePage.css';
 
 export type StorageInfo = {
@@ -84,9 +85,12 @@ const HomePage = () => {
           <div className="home__header">
             <div className="home__header-row">
               <h1 className="home__title">Mawimbi</h1>
-              <Button variant="secondary" size="sm" onClick={handleCreate}>
-                New Project
-              </Button>
+              <div className="home__header-actions">
+                <Button variant="secondary" size="sm" onClick={handleCreate}>
+                  New Project
+                </Button>
+                <SettingsButton />
+              </div>
             </div>
           </div>
           <div className="home__body">

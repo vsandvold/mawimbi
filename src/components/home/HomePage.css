@@ -18,6 +18,12 @@
   align-items: center;
 }
 
+.home__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .home__title {
   font-size: 28px;
   font-weight: 700;

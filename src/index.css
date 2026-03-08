@@ -109,6 +109,11 @@ html {
 @media (hover: hover) and (pointer: fine) {
   /* Style scrollbar on desktop devices only. */
   html {
+    --scrollbar-track-color: #f5f5f5;
+    --scrollbar-thumb-color: rgba(0, 0, 0, 0.35);
+  }
+
+  .dark {
     --scrollbar-track-color: #141414;
     --scrollbar-thumb-color: rgba(255, 255, 255, 0.65);
   }
