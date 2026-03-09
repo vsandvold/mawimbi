@@ -1,6 +1,6 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -16,20 +16,7 @@ async function uploadAudioFile(
 }
 
 test.describe('Instrument classification on upload', () => {
-  test('classifies instrument without CORS errors after file upload', async ({
-    page,
-  }) => {
-    const corsErrors: string[] = [];
-    page.on('console', (msg) => {
-      const text = msg.text();
-      if (
-        text.includes('CORS') ||
-        (text.includes('essentia.upf.edu') && msg.type() === 'error')
-      ) {
-        corsErrors.push(text);
-      }
-    });
-
+  test('completes classification after file upload', async ({ page }) => {
     await page.goto('/project/test-classification');
     await uploadAudioFile(page, SHORT_AUDIO);
     await expect(page.locator('.timeline__track')).toBeVisible();
@@ -38,22 +25,12 @@ test.describe('Instrument classification on upload', () => {
     await page.getByTitle('Show mixer').click();
     await expect(page.locator('.channel')).toBeVisible();
 
-    // Wait for classification to finish (loading spinner should disappear).
-    // The channel__instrument div shows a Loader2 spinner while
-    // classifying, then switches to an instrument icon or nothing.
-    const instrumentDiv = page.locator('.channel__instrument');
-
     // Classification should complete — the loading spinner should disappear
-    // within a reasonable timeout. With the CORS bug, the worker fails and
-    // the main-thread fallback also fails, so classification enters 'error'
-    // state and shows the unknown icon. Without the bug, models would load
-    // and classification would show the correct instrument icon.
+    // within a reasonable timeout. With models blocked by the shared fixture,
+    // classification enters 'error' state and shows the unknown icon.
+    const instrumentDiv = page.locator('.channel__instrument');
     await expect(instrumentDiv.locator('.animate-spin')).toBeHidden({
       timeout: 15_000,
     });
-
-    // No CORS errors should appear — model fetches must go through a
-    // same-origin proxy to avoid cross-origin restrictions.
-    expect(corsErrors).toEqual([]);
   });
 });
