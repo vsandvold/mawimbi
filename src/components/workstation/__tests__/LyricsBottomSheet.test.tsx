@@ -75,6 +75,7 @@ const defaultProps = {
   isOpen: true,
   onOpenChange: vi.fn(),
   onHeightChange: vi.fn(),
+  onSeekTo: mockSeekTo,
   tracks: [] as ReturnType<typeof mockTrack>[],
 };
 

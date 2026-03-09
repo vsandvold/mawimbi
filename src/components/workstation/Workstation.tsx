@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react';
+import { usePlaybackService } from '../../hooks/usePlaybackService';
 import { useRecordingService } from '../../hooks/useRecordingService';
 import { useWorkstation } from '../../hooks/useWorkstation';
 import { type Track, type TrackColor } from '../../types/track';
@@ -8,7 +9,7 @@ import { useFileDropzone } from '../dropzone/useFileDropzone';
 import EmptyTimeline from './EmptyTimeline';
 import MixerBottomSheet from './MixerBottomSheet';
 import LyricsBottomSheet from './LyricsBottomSheet';
-import Scrubber from './scrubber/Scrubber';
+import Scrubber, { type ScrubberHandle } from './scrubber/Scrubber';
 import Timeline from './Timeline';
 import Toolbar from './Toolbar';
 import './Workstation.css';
@@ -29,6 +30,7 @@ type WorkstationProps = {
 };
 
 const Workstation = (props: WorkstationProps) => {
+  const playback = usePlaybackService();
   const recording = useRecordingService();
   const { pixelsPerSecond } = useWorkstation();
   const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
@@ -36,6 +38,7 @@ const Workstation = (props: WorkstationProps) => {
   const [isCountingIn, setIsCountingIn] = useState(false);
   const [drawerHeight, setDrawerHeight] = useState(0);
   const toolbarRef = useRef<HTMLDivElement>(null);
+  const scrubberRef = useRef<ScrubberHandle>(null);
 
   const { recordingColor, tracks, uploadFile } = props;
   const hasTracks = tracks.length > 0;
@@ -97,6 +100,16 @@ const Workstation = (props: WorkstationProps) => {
     setActiveSheet(open ? 'lyrics' : null);
   }, []);
 
+  const handleLyricsSeekTo = useCallback(
+    (time: number) => {
+      playback.seekTo(time);
+      scrubberRef.current?.syncScrollToTime(time);
+    },
+    // playback is a stable ref from context
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
   // Show the timeline when tracks exist or when recording is active.
   // Use the recording state machine signal (not local state) so the
   // timeline stays visible during the async stop-recording transition
@@ -119,6 +132,7 @@ const Workstation = (props: WorkstationProps) => {
         <div className="editor__timeline">
           {showTimeline ? (
             <Scrubber
+              ref={scrubberRef}
               drawerHeight={drawerHeight}
               onStopRecording={handleStopRecording}
               pixelsPerSecond={pixelsPerSecond}
@@ -163,6 +177,7 @@ const Workstation = (props: WorkstationProps) => {
         isOpen={isLyricsOpen}
         onOpenChange={handleLyricsOpenChange}
         onHeightChange={handleDrawerHeightChange}
+        onSeekTo={handleLyricsSeekTo}
         tracks={tracks}
       />
       {countInBeat !== null && <CountIn beat={countInBeat} />}

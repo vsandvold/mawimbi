@@ -1,7 +1,7 @@
 import { SkipBack } from 'lucide-react';
 import { Button } from '../../ui/button';
 import classNames from 'classnames';
-import { PropsWithChildren } from 'react';
+import { forwardRef, PropsWithChildren, useImperativeHandle } from 'react';
 import { usePlaybackService } from '../../../hooks/usePlaybackService';
 import { useRecordingService } from '../../../hooks/useRecordingService';
 import { type Track } from '../../../types/track';
@@ -10,6 +10,10 @@ import PlasmaPlayhead from './PlasmaPlayhead';
 import './Scrubber.css';
 import { useScrubber } from './useScrubber';
 
+export type ScrubberHandle = {
+  syncScrollToTime: (time: number) => void;
+};
+
 type ScrubberProps = PropsWithChildren<{
   drawerHeight: number;
   onStopRecording: () => void;
@@ -17,7 +21,7 @@ type ScrubberProps = PropsWithChildren<{
   tracks: Track[];
 }>;
 
-const Scrubber = (props: ScrubberProps) => {
+const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
   const playback = usePlaybackService();
   const recording = useRecordingService();
   const { drawerHeight, onStopRecording, pixelsPerSecond, tracks } = props;
@@ -33,7 +37,10 @@ const Scrubber = (props: ScrubberProps) => {
     handleWheel,
     handleTouchMove,
     handleStopAndRewind,
+    syncScrollToTime,
   } = useScrubber({ drawerHeight, pixelsPerSecond, tracks });
+
+  useImperativeHandle(ref, () => ({ syncScrollToTime }), [syncScrollToTime]);
 
   const handleTimelineClick = () => {
     if (recording.isCountingIn || recording.isActivelyRecording) {
@@ -84,6 +91,8 @@ const Scrubber = (props: ScrubberProps) => {
       <ZoomControls style={rewindButtonStyle} />
     </div>
   );
-};
+});
+
+Scrubber.displayName = 'Scrubber';
 
 export default Scrubber;
