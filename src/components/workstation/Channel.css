@@ -1,5 +1,6 @@
 .channel {
   display: flex;
+  align-items: center;
   padding: 4px 8px;
   transition: background-color 0.1s;
 }
