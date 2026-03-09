@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test.describe('Home page', () => {
   test('displays title and Create Project button, navigates to project', async ({

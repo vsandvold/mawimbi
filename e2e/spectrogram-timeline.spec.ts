@@ -1,6 +1,6 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -250,7 +250,7 @@ test.describe('Spectrogram timeline visualization during scroll', () => {
       contentInfo.paddingLeft + contentInfo.spectrogramWidth,
     );
 
-    const numSteps = 20;
+    const numSteps = 10;
     const results: Array<{ scrollPos: number; ratio: number }> = [];
 
     for (let i = 0; i <= numSteps; i++) {

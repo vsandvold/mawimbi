@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 test.describe('Project page', () => {
   test('header shows back button, upload button, and overflow menu', async ({
