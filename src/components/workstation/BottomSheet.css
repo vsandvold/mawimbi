@@ -30,7 +30,7 @@
   height: 4px;
   margin-top: 8px;
   border-radius: 2px;
-  background-color: rgba(255, 255, 255, 0.3);
+  background-color: var(--foreground-faint);
 }
 
 .bottom-sheet__title-row {
@@ -45,13 +45,13 @@
   margin: 0;
   font-size: 20px;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--foreground);
   text-align: left;
 }
 
 .bottom-sheet__close {
   flex-shrink: 0;
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--foreground-muted);
 }
 
 .bottom-sheet__content {

@@ -7,8 +7,8 @@
   height: 40vh;
   display: flex;
   flex-direction: column;
-  background: #141414;
-  border-top: 1px solid #434343;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
   font-family: monospace;
   font-size: 11px;
 }
@@ -18,9 +18,9 @@
   justify-content: space-between;
   align-items: center;
   padding: 4px 8px;
-  background: #1f1f1f;
-  color: #d9d9d9;
-  border-bottom: 1px solid #434343;
+  background: var(--card);
+  color: var(--foreground);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
@@ -33,9 +33,9 @@
   padding: 2px 8px;
   font-size: 11px;
   font-family: monospace;
-  background: #2a2a2a;
-  color: #d9d9d9;
-  border: 1px solid #434343;
+  background: var(--secondary);
+  color: var(--foreground);
+  border: 1px solid var(--border);
   border-radius: 3px;
   cursor: pointer;
 }
@@ -51,19 +51,19 @@
   display: flex;
   gap: 6px;
   padding: 1px 8px;
-  color: #d9d9d9;
+  color: var(--foreground);
   word-break: break-all;
 }
 
 .log-entry-level {
   flex-shrink: 0;
   width: 28px;
-  color: #8c8c8c;
+  color: var(--muted-foreground);
 }
 
 .log-entry-time {
   flex-shrink: 0;
-  color: #595959;
+  color: var(--foreground-faint);
 }
 
 .log-entry-message {
@@ -87,5 +87,5 @@
 }
 
 .log-entry-debug {
-  color: #8c8c8c;
+  color: var(--muted-foreground);
 }

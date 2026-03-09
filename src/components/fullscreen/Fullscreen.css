@@ -21,10 +21,10 @@
   justify-content: center;
   align-items: center;
   background: linear-gradient(
-    rgba(0, 0, 0, 0.65),
-    #000 25%,
-    #000 75%,
-    rgba(0, 0, 0, 0.65) 75%
+    var(--overlay-bg),
+    var(--overlay-solid) 25%,
+    var(--overlay-solid) 75%,
+    var(--overlay-bg) 75%
   );
 }
 

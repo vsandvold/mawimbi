@@ -9,14 +9,14 @@
   justify-content: center;
   z-index: 9999;
   pointer-events: none;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(var(--shade-color), 0.2);
 }
 
 .count-in__beat {
   font-size: 12rem;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.9);
-  text-shadow: 0 0 40px rgba(0, 0, 0, 0.5);
+  color: var(--foreground);
+  text-shadow: 0 0 40px rgba(var(--shade-color), 0.5);
   animation: count-in-pulse 450ms ease-out forwards;
   user-select: none;
 }
