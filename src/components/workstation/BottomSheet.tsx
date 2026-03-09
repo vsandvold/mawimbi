@@ -15,8 +15,8 @@ import { useBottomSheetDrag } from './useBottomSheetDrag';
 const HEADER_HEIGHT = 56;
 
 // Default snap point heights (px)
-const SNAP_POINT_PX = 240;
-const SNAP_POINT_SMALL_PX = 120;
+const SNAP_POINT_PX = 280;
+const SNAP_POINT_SMALL_PX = 160;
 const SMALL_SCREEN_BREAKPOINT = 425;
 
 // Near-top snap point (fraction of viewport)

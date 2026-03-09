@@ -52,6 +52,8 @@
 .bottom-sheet__close {
   flex-shrink: 0;
   color: var(--foreground-muted);
+  border-radius: 50%;
+  background-color: var(--secondary);
 }
 
 .bottom-sheet__content {

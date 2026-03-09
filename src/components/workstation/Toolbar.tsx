@@ -1,4 +1,4 @@
-import { Mic, Pause, PenLine, Play, SkipBack } from 'lucide-react';
+import { Mic, Pause, PenLine, Play } from 'lucide-react';
 import { Button } from '../ui/button';
 import classNames from 'classnames';
 import ControlSvg from '../../icons/control.svg?react';
@@ -16,7 +16,7 @@ type ToolbarProps = {
 };
 
 const Toolbar = (props: ToolbarProps) => {
-  const { isPlaying, isStopped, rewind, togglePlayback } = usePlaybackService();
+  const { isPlaying, togglePlayback } = usePlaybackService();
   const { isTransportLocked, recordingState } = useRecordingService();
   const {
     isMixerOpen,
@@ -64,19 +64,6 @@ const Toolbar = (props: ToolbarProps) => {
     </Button>
   );
 
-  const rewindButton = (
-    <Button
-      variant="ghost"
-      size="icon-lg"
-      className="button"
-      title="Rewind"
-      onClick={rewind}
-      disabled={isEmpty || isTransportLocked || isStopped}
-    >
-      <SkipBack />
-    </Button>
-  );
-
   const playPauseButton = (
     <Button
       variant="ghost"
@@ -106,7 +93,6 @@ const Toolbar = (props: ToolbarProps) => {
     <div className="toolbar">
       <div className="toolbar__button">{lyricsButton}</div>
       <div className="toolbar__button">{mixerButton}</div>
-      <div className="toolbar__button">{rewindButton}</div>
       <div className="toolbar__button">{playPauseButton}</div>
       <div className="toolbar__button">{microphoneButton}</div>
     </div>
