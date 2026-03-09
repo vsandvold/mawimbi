@@ -1,46 +1,48 @@
 .scrubber {
   flex: 1;
   display: flex;
+  flex-direction: column;
   width: 100vw;
   position: relative;
 }
 
 .scrubber--firefox-scroll-fix {
   /* Fix for flex scroll bug in Firefox https://stackoverflow.com/a/28639686 */
-  min-width: 0;
+  min-height: 0;
 }
 
 .scrubber__timeline {
   display: flex;
-  min-width: 100vw;
-  padding: var(--timeline-margin) 0;
-  overflow-x: scroll;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 0 0;
+  overflow-y: scroll;
 }
 
 .scrubber__shade {
   position: absolute;
   top: 0;
-  bottom: var(--timeline-margin);
+  bottom: var(--timeline-margin-bottom);
   left: 0;
   right: 0;
-  padding-top: var(--timeline-margin);
+  padding-top: var(--timeline-margin-top);
   pointer-events: none;
 }
 
 .scrubber__cursor {
   position: absolute;
-  top: 0;
-  left: calc(var(--cursor-position) * 100vw - 120px);
-  bottom: var(--timeline-margin);
-  padding-top: var(--timeline-margin);
-  width: 240px;
+  top: calc(var(--cursor-position) * 100vh - 120px);
+  left: 0;
+  right: 0;
+  padding-top: var(--timeline-margin-top);
+  height: 240px;
   pointer-events: none;
 }
 
 .scrubber__rewind {
   position: absolute;
   left: 8px;
-  bottom: 28px;
+  top: 8px;
 }
 
 .scrubber__rewind--hidden {
@@ -51,9 +53,9 @@
 .shade {
   height: 100%;
   background-image: linear-gradient(
-    to right,
+    to bottom,
     rgb(var(--shade-color)),
-    rgba(var(--shade-color), 0) 75%,
+    rgba(var(--shade-color), 0) 25%,
     rgba(var(--shade-color), 0.8) 75%,
     rgb(var(--shade-color)) 100%
   );

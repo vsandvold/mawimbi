@@ -420,7 +420,7 @@ function renderBeamToImageData(
 function renderEtchMarksToImageData(
   imageData: ImageData,
   state: PlasmaState,
-  scrollLeft: number,
+  scrollPosition: number,
   playheadScreenX: number,
   now: number,
 ): void {
@@ -432,7 +432,9 @@ function renderEtchMarksToImageData(
     const alpha = mark.intensity * fade * 0.35;
     if (alpha < 0.01) continue;
 
-    const screenX = Math.round(playheadScreenX - (scrollLeft - mark.scrollPx));
+    const screenX = Math.round(
+      playheadScreenX - (scrollPosition - mark.scrollPx),
+    );
     if (screenX < -1 || screenX > width + 1) continue;
 
     for (let dx = -1; dx <= 1; dx++) {
@@ -567,7 +569,7 @@ export function renderPlasmaFrame(
   loudness: number,
   height: number,
   canvasWidth: number,
-  scrollLeft: number,
+  scrollPosition: number,
   playheadScreenX: number,
   now: number,
   deltaTime: number,
@@ -579,7 +581,7 @@ export function renderPlasmaFrame(
   const isBeat = updateBeatDetection(state, loudness, deltaTime);
   if (isBeat) {
     spawnSparks(state, playheadScreenX, height, loudness);
-    stampEtchMark(state, scrollLeft, loudness, now);
+    stampEtchMark(state, scrollPosition, loudness, now);
   }
   updateSparks(state, deltaTime);
   pruneEtchMarks(state, now);
@@ -619,7 +621,7 @@ export function renderPlasmaFrame(
   renderEtchMarksToImageData(
     imageData,
     state,
-    scrollLeft,
+    scrollPosition,
     playheadScreenX,
     now,
   );

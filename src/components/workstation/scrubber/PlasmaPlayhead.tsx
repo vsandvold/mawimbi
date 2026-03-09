@@ -12,7 +12,7 @@ export type PlasmaPlayheadHandle = {
   render: (
     frequencyData: Uint8Array | null,
     loudness: number,
-    scrollLeft: number,
+    scrollPosition: number,
     trackFrequencyInputs: TrackFrequencyInput[],
   ) => void;
   renderIdle: () => void;
@@ -35,7 +35,7 @@ const PlasmaPlayhead = forwardRef<PlasmaPlayheadHandle, PlasmaPlayheadProps>(
       render(
         frequencyData: Uint8Array | null,
         loudness: number,
-        scrollLeft: number,
+        scrollPosition: number,
         trackFrequencyInputs: TrackFrequencyInput[],
       ) {
         const canvas = canvasRef.current;
@@ -57,7 +57,7 @@ const PlasmaPlayhead = forwardRef<PlasmaPlayheadHandle, PlasmaPlayheadProps>(
           loudness,
           canvas.height,
           PLASMA_WIDTH,
-          scrollLeft,
+          scrollPosition,
           centerX,
           now,
           deltaTime,
