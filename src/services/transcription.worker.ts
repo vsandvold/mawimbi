@@ -17,7 +17,7 @@ const MODEL_SAMPLE_RATE = 16_000;
 
 // Default Whisper model — whisper-base for the balance of quality and
 // download size (~142 MB). Can be overridden per request.
-const DEFAULT_MODEL_ID = 'onnx-community/whisper-base';
+const DEFAULT_MODEL_ID = 'onnx-community/whisper-base_timestamped';
 
 export type TranscribeRequest = {
   id: number;

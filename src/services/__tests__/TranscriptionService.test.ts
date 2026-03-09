@@ -125,7 +125,7 @@ describe('TranscriptionService', () => {
     });
 
     it('uses default model ID when not specified', () => {
-      expect(service.modelId).toBe('onnx-community/whisper-base');
+      expect(service.modelId).toBe('onnx-community/whisper-base_timestamped');
     });
 
     it('accepts a custom model ID', () => {
@@ -174,7 +174,7 @@ describe('TranscriptionService', () => {
           type: 'transcribe',
           sampleRate: 16000,
           length: 48000,
-          modelId: 'onnx-community/whisper-base',
+          modelId: 'onnx-community/whisper-base_timestamped',
         }),
         expect.any(Array),
       );

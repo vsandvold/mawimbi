@@ -19,7 +19,7 @@ import type { WorkerMessage, TranscribeResponse } from './transcription.worker';
 export type TranscriptionState = 'idle' | 'transcribing' | 'done' | 'error';
 
 // Default Whisper model — matches the worker default.
-const DEFAULT_MODEL_ID = 'onnx-community/whisper-base';
+const DEFAULT_MODEL_ID = 'onnx-community/whisper-base_timestamped';
 
 type TranscriptionEntry = {
   state: TranscriptionState;
