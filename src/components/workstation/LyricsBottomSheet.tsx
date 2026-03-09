@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import { useClassificationService } from '../../hooks/useClassificationService';
+import { usePlaybackService } from '../../hooks/usePlaybackService';
 import { useTrackService } from '../../hooks/useTrackService';
 import { useTranscriptionService } from '../../hooks/useTranscriptionService';
 import { type Track, type TrackId } from '../../types/track';
@@ -30,6 +31,7 @@ const LyricsBottomSheet = ({
   tracks,
 }: LyricsBottomSheetProps) => {
   const classification = useClassificationService();
+  const playback = usePlaybackService();
   const trackService = useTrackService();
   const transcription = useTranscriptionService();
   const vocalTracks = tracks.filter(
@@ -67,6 +69,7 @@ const LyricsBottomSheet = ({
               state={transcription.getTranscriptionState(track.trackId)}
               segments={transcription.getTranscription(track.trackId)?.segments}
               downloadProgress={transcription.downloadProgress}
+              transportTime={playback.transportTime}
               onTranscribe={handleTranscribe}
             />
           ))}
@@ -83,6 +86,7 @@ type TrackTranscriptionProps = {
   state: TranscriptionState;
   segments: TranscriptionSegment[] | undefined;
   downloadProgress: number | null;
+  transportTime: number;
   onTranscribe: (trackId: TrackId) => void;
 };
 
@@ -91,6 +95,7 @@ const TrackTranscription = ({
   state,
   segments,
   downloadProgress,
+  transportTime,
   onTranscribe,
 }: TrackTranscriptionProps) => {
   const handleClick = useCallback(() => {
@@ -113,6 +118,7 @@ const TrackTranscription = ({
         state={state}
         segments={segments}
         downloadProgress={downloadProgress}
+        transportTime={transportTime}
       />
     </li>
   );
@@ -162,12 +168,14 @@ type TrackContentProps = {
   state: TranscriptionState;
   segments: TranscriptionSegment[] | undefined;
   downloadProgress: number | null;
+  transportTime: number;
 };
 
 const TrackContent = ({
   state,
   segments,
   downloadProgress,
+  transportTime,
 }: TrackContentProps) => {
   if (state === 'transcribing') {
     const showProgress = downloadProgress !== null;
@@ -206,7 +214,11 @@ const TrackContent = ({
     return (
       <div className="lyrics-bottom-sheet__segments">
         {segments.map((segment, index) => (
-          <SegmentPhrases key={index} segment={segment} />
+          <SegmentPhrases
+            key={index}
+            segment={segment}
+            transportTime={transportTime}
+          />
         ))}
       </div>
     );
@@ -221,31 +233,43 @@ const TrackContent = ({
 // Gap between words (in seconds) that indicates a new phrase
 const PHRASE_GAP_THRESHOLD_SECONDS = 0.3;
 
-function groupWordsIntoPhrases(words: TranscriptionWord[]): string[] {
+function groupWordsIntoPhrases(
+  words: TranscriptionWord[],
+): TranscriptionWord[][] {
   if (words.length === 0) return [];
 
-  const phrases: string[] = [];
-  let currentPhrase: string[] = [words[0].text];
+  const phrases: TranscriptionWord[][] = [];
+  let currentPhrase: TranscriptionWord[] = [words[0]];
 
   for (let i = 1; i < words.length; i++) {
     const gap = words[i].start - words[i - 1].end;
 
     if (gap >= PHRASE_GAP_THRESHOLD_SECONDS) {
-      phrases.push(currentPhrase.join(' '));
+      phrases.push(currentPhrase);
       currentPhrase = [];
     }
 
-    currentPhrase.push(words[i].text);
+    currentPhrase.push(words[i]);
   }
 
   if (currentPhrase.length > 0) {
-    phrases.push(currentPhrase.join(' '));
+    phrases.push(currentPhrase);
   }
 
   return phrases;
 }
 
-const SegmentPhrases = ({ segment }: { segment: TranscriptionSegment }) => {
+function wordClassName(word: TranscriptionWord, transportTime: number): string {
+  if (transportTime <= word.start) return 'lyrics-bottom-sheet__word';
+  return 'lyrics-bottom-sheet__word lyrics-bottom-sheet__word--played';
+}
+
+type SegmentPhrasesProps = {
+  segment: TranscriptionSegment;
+  transportTime: number;
+};
+
+const SegmentPhrases = ({ segment, transportTime }: SegmentPhrasesProps) => {
   // Fall back to full text when word-level timestamps are unavailable
   if (segment.words.length === 0) {
     return <p className="lyrics-bottom-sheet__segment">{segment.text}</p>;
@@ -255,9 +279,17 @@ const SegmentPhrases = ({ segment }: { segment: TranscriptionSegment }) => {
 
   return (
     <div className="lyrics-bottom-sheet__segment">
-      {phrases.map((phrase, index) => (
-        <p key={index} className="lyrics-bottom-sheet__phrase">
-          {phrase}
+      {phrases.map((phrase, phraseIndex) => (
+        <p key={phraseIndex} className="lyrics-bottom-sheet__phrase">
+          {phrase.map((word, wordIndex) => (
+            <span
+              key={wordIndex}
+              className={wordClassName(word, transportTime)}
+            >
+              {wordIndex > 0 ? ' ' : ''}
+              {word.text}
+            </span>
+          ))}
         </p>
       ))}
     </div>
