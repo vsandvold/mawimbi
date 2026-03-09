@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Plus } from 'lucide-react';
 import {
   deleteProject,
   getStorageEstimate,
@@ -86,26 +87,33 @@ const HomePage = () => {
             <div className="home__header-row">
               <h1 className="home__title">Mawimbi</h1>
               <div className="home__header-actions">
-                <Button variant="secondary" size="sm" onClick={handleCreate}>
-                  New Project
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={handleCreate}
+                  aria-label="New project"
+                >
+                  <Plus size={20} />
                 </Button>
                 <SettingsButton />
               </div>
             </div>
           </div>
           <div className="home__body">
-            {hasProjects ? (
-              <ProjectList
-                projects={projects}
-                onOpen={handleOpen}
-                onDelete={handleDelete}
-              />
-            ) : (
-              <EmptyProjectList onCreate={handleCreate} />
-            )}
-            {hasProjects && (
-              <StorageUsage usage={storage.usage} quota={storage.quota} />
-            )}
+            <div className="home__list-container">
+              {hasProjects ? (
+                <ProjectList
+                  projects={projects}
+                  onOpen={handleOpen}
+                  onDelete={handleDelete}
+                />
+              ) : (
+                <EmptyProjectList onCreate={handleCreate} />
+              )}
+              {hasProjects && (
+                <StorageUsage usage={storage.usage} quota={storage.quota} />
+              )}
+            </div>
           </div>
         </div>
       </PageContent>

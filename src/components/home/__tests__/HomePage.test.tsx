@@ -108,10 +108,10 @@ it('navigates to new project with UUID on create', async () => {
   render(<HomePage />);
 
   await waitFor(() => {
-    expect(screen.getByText('New Project')).toBeInTheDocument();
+    expect(screen.getByLabelText('New project')).toBeInTheDocument();
   });
 
-  fireEvent.click(screen.getByText('New Project'));
+  fireEvent.click(screen.getByLabelText('New project'));
 
   const navigate = useNavigate();
   expect(navigate).toHaveBeenCalledWith(
@@ -161,7 +161,7 @@ it('deletes a project after confirmation', async () => {
     expect(screen.getByText('My Song')).toBeInTheDocument();
   });
 
-  const deleteButtons = screen.getAllByText('Delete');
+  const deleteButtons = screen.getAllByLabelText('Delete project');
   fireEvent.click(deleteButtons[0]);
 
   // AlertDialog should appear
