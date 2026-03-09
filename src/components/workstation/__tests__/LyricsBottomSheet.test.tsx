@@ -51,6 +51,7 @@ vi.mock('../../../hooks/useClassificationService', () => ({
 }));
 
 const mockTranscribe = vi.fn();
+const mockLoadCachedTranscription = vi.fn().mockResolvedValue(null);
 const mockGetTranscriptionState = vi.fn<(id: TrackId) => TranscriptionState>(
   () => 'idle',
 );
@@ -66,6 +67,7 @@ vi.mock('../../../hooks/useTranscriptionService', () => ({
       return mockDownloadProgress;
     },
     transcribe: mockTranscribe,
+    loadCachedTranscription: mockLoadCachedTranscription,
   }),
 }));
 
@@ -648,4 +650,83 @@ it('words have cursor pointer style', () => {
   expect(word?.tagName).toBe('SPAN');
   // Word should be clickable — verify it has a click handler by checking role
   expect(word).toHaveAttribute('role', 'button');
+});
+
+// --- Track color on active word ---
+
+it('uses track color as active word background', () => {
+  mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
+  mockGetTranscriptionState.mockReturnValue('done');
+  mockGetTranscription.mockReturnValue({
+    trackId: 'track-1',
+    language: 'en',
+    segments: [
+      {
+        text: 'Hello world',
+        start: 0,
+        end: 1,
+        words: [
+          { text: 'Hello', start: 0, end: 0.3 },
+          { text: 'world', start: 0.35, end: 0.7 },
+        ],
+      },
+    ],
+  });
+  mockTransportTime = 0.5;
+
+  const tracks = [
+    mockTrack({ trackId: 'track-1', color: { r: 77, g: 238, b: 234 } }),
+  ];
+
+  const { container } = render(
+    <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
+  );
+
+  const activeWord = container.querySelector(
+    '.lyrics-bottom-sheet__word--active',
+  );
+
+  expect(activeWord).toHaveStyle({
+    backgroundColor: 'rgba(77,238,234,0.3)',
+  });
+});
+
+// --- Load cached transcriptions on open ---
+
+it('loads cached transcriptions from IndexedDB when sheet opens', () => {
+  mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
+  mockGetTranscriptionState.mockReturnValue('idle');
+
+  const tracks = [
+    mockTrack({ trackId: 'track-1' }),
+    mockTrack({ trackId: 'track-2' }),
+  ];
+
+  render(<LyricsBottomSheet {...defaultProps} isOpen={true} tracks={tracks} />);
+
+  expect(mockLoadCachedTranscription).toHaveBeenCalledWith('track-1');
+  expect(mockLoadCachedTranscription).toHaveBeenCalledWith('track-2');
+});
+
+it('does not load cached transcriptions when sheet is closed', () => {
+  mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
+
+  const tracks = [mockTrack({ trackId: 'track-1' })];
+
+  render(
+    <LyricsBottomSheet {...defaultProps} isOpen={false} tracks={tracks} />,
+  );
+
+  expect(mockLoadCachedTranscription).not.toHaveBeenCalled();
+});
+
+it('does not load cached transcriptions for tracks already transcribed', () => {
+  mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
+  mockGetTranscriptionState.mockReturnValue('done');
+
+  const tracks = [mockTrack({ trackId: 'track-1' })];
+
+  render(<LyricsBottomSheet {...defaultProps} isOpen={true} tracks={tracks} />);
+
+  expect(mockLoadCachedTranscription).not.toHaveBeenCalled();
 });

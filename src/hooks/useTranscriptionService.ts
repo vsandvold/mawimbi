@@ -37,6 +37,13 @@ export function useTranscriptionService() {
     transcribe: (trackId: TrackId, audioBuffer: AudioBuffer) =>
       service.transcribe(trackId, audioBuffer),
 
+    // --- Persistence ---
+
+    loadCachedTranscription: (trackId: TrackId) =>
+      service.loadCachedTranscription(trackId),
+    deletePersistedTranscription: (trackId: TrackId) =>
+      service.deletePersistedTranscription(trackId),
+
     // --- Cleanup ---
 
     removeTranscription: (trackId: TrackId) =>

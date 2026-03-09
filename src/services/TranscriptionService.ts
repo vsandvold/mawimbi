@@ -15,6 +15,12 @@ import type {
   TranscriptionWord,
 } from '../types/transcription';
 import type { WorkerMessage, TranscribeResponse } from './transcription.worker';
+import {
+  loadTranscription,
+  saveTranscription,
+  deleteTranscription,
+  type TranscriptionStoreData,
+} from './ProjectStorageService';
 
 export type TranscriptionState = 'idle' | 'transcribing' | 'done' | 'error';
 
@@ -94,6 +100,41 @@ class TranscriptionService {
     return this.cache.get(trackId)?.state ?? 'idle';
   }
 
+  // --- Persistence ---
+
+  async loadCachedTranscription(
+    trackId: TrackId,
+  ): Promise<Transcription | null> {
+    const cached = this.cache.get(trackId);
+    if (cached?.state === 'done' && cached.result) {
+      return cached.result;
+    }
+
+    const stored = await loadTranscription(trackId);
+    if (!stored) return null;
+
+    const transcription: Transcription = {
+      trackId: stored.trackId,
+      language: stored.language,
+      segments: stored.segments,
+    };
+    this.setEntry(trackId, { state: 'done', result: transcription });
+    return transcription;
+  }
+
+  async persistTranscription(transcription: Transcription): Promise<void> {
+    const data: TranscriptionStoreData = {
+      trackId: transcription.trackId,
+      language: transcription.language,
+      segments: transcription.segments,
+    };
+    await saveTranscription(data);
+  }
+
+  async deletePersistedTranscription(trackId: TrackId): Promise<void> {
+    await deleteTranscription(trackId);
+  }
+
   // --- Transcription ---
 
   async transcribe(
@@ -165,6 +206,8 @@ class TranscriptionService {
       segments: rawResult.segments,
     };
     this.setEntry(trackId, { state: 'done', result: transcription });
+    // Fire-and-forget — persist to IndexedDB for next session
+    this.persistTranscription(transcription);
     console.log(
       `[transcription] Track ${trackId} transcribed: ${transcription.segments.length} segments, language="${transcription.language}"`,
     );
