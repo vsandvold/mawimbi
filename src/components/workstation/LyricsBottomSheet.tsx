@@ -310,10 +310,6 @@ function wordClassName(word: TranscriptionWord, relativeTime: number): string {
   return base;
 }
 
-// Opacity applied to the track color for the active word highlight background.
-// Provides enough contrast against the dark theme without overpowering the text.
-const ACTIVE_WORD_BG_OPACITY = 0.3;
-
 type SegmentPhrasesProps = {
   segment: TranscriptionSegment;
   relativeTime: number;
@@ -357,7 +353,7 @@ const SegmentPhrases = ({
               relativeTime >= word.start && relativeTime < word.end;
             const style = isActive
               ? {
-                  backgroundColor: `rgba(${trackColor.r},${trackColor.g},${trackColor.b},${ACTIVE_WORD_BG_OPACITY})`,
+                  color: `rgb(${trackColor.r},${trackColor.g},${trackColor.b})`,
                 }
               : undefined;
             return (

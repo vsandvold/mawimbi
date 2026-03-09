@@ -654,7 +654,7 @@ it('words have cursor pointer style', () => {
 
 // --- Track color on active word ---
 
-it('uses track color as active word background', () => {
+it('uses track color as active word text color', () => {
   mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
   mockGetTranscriptionState.mockReturnValue('done');
   mockGetTranscription.mockReturnValue({
@@ -687,7 +687,7 @@ it('uses track color as active word background', () => {
   );
 
   expect(activeWord).toHaveStyle({
-    backgroundColor: 'rgba(77,238,234,0.3)',
+    color: 'rgb(77,238,234)',
   });
 });
 
