@@ -26,6 +26,9 @@
   --color-surface: var(--surface);
   --color-foreground-muted: var(--foreground-muted);
   --color-foreground-faint: var(--foreground-faint);
+  --color-shade: var(--shade-color);
+  --color-overlay-bg: var(--overlay-bg);
+  --color-overlay-solid: var(--overlay-solid);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -33,58 +36,64 @@
 }
 
 :root {
-  --background: hsl(0 0% 100%);
-  --foreground: hsl(0 0% 3.9%);
+  --background: hsl(0 0% 96%);
+  --foreground: hsl(0 0% 9%);
   --card: hsl(0 0% 100%);
-  --card-foreground: hsl(0 0% 3.9%);
+  --card-foreground: hsl(0 0% 9%);
   --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(0 0% 3.9%);
+  --popover-foreground: hsl(0 0% 9%);
   --primary: hsl(0 0% 9%);
   --primary-foreground: hsl(0 0% 98%);
-  --secondary: hsl(0 0% 96.1%);
+  --secondary: hsl(0 0% 92%);
   --secondary-foreground: hsl(0 0% 9%);
-  --muted: hsl(0 0% 96.1%);
-  --muted-foreground: hsl(0 0% 45.1%);
-  --accent: hsl(0 0% 96.1%);
+  --muted: hsl(0 0% 92%);
+  --muted-foreground: hsl(0 0% 40%);
+  --accent: hsl(0 0% 92%);
   --accent-foreground: hsl(0 0% 9%);
   --destructive: hsl(0 84.2% 60.2%);
   --destructive-foreground: hsl(0 0% 98%);
-  --border: hsl(0 0% 89.8%);
-  --input: hsl(0 0% 89.8%);
+  --border: hsl(0 0% 87%);
+  --input: hsl(0 0% 87%);
   --ring: hsl(0 0% 3.9%);
   --radius: 0.5rem;
   --success: #52c41a;
   --error: #ff4d4f;
-  --surface: #f5f5f5;
+  --surface: hsl(0 0% 96%);
   --foreground-muted: rgba(0, 0, 0, 0.65);
   --foreground-faint: rgba(0, 0, 0, 0.3);
+  --shade-color: 255, 255, 255;
+  --overlay-bg: rgba(255, 255, 255, 0.65);
+  --overlay-solid: hsl(0 0% 96%);
 }
 
 .dark {
   --background: hsl(0 0% 0%);
   --foreground: rgba(255, 255, 255, 0.85);
-  --card: hsl(0 0% 7.8%);
+  --card: hsl(0 0% 8%);
   --card-foreground: hsl(0 0% 98%);
-  --popover: hsl(0 0% 7.8%);
+  --popover: hsl(0 0% 8%);
   --popover-foreground: hsl(0 0% 98%);
   --primary: hsl(0 0% 98%);
   --primary-foreground: hsl(0 0% 9%);
-  --secondary: hsl(0 0% 14.9%);
+  --secondary: hsl(0 0% 15%);
   --secondary-foreground: hsl(0 0% 98%);
-  --muted: hsl(0 0% 14.9%);
-  --muted-foreground: hsl(0 0% 63.9%);
-  --accent: hsl(0 0% 14.9%);
+  --muted: hsl(0 0% 15%);
+  --muted-foreground: hsl(0 0% 64%);
+  --accent: hsl(0 0% 15%);
   --accent-foreground: hsl(0 0% 98%);
   --destructive: hsl(0 62.8% 30.6%);
   --destructive-foreground: hsl(0 0% 98%);
-  --border: hsl(0 0% 26.3%);
-  --input: hsl(0 0% 14.9%);
+  --border: hsl(0 0% 20%);
+  --input: hsl(0 0% 15%);
   --ring: hsl(0 0% 83.1%);
   --success: #52c41a;
   --error: #ff4d4f;
-  --surface: #141414;
+  --surface: hsl(0 0% 8%);
   --foreground-muted: rgba(255, 255, 255, 0.65);
   --foreground-faint: rgba(255, 255, 255, 0.3);
+  --shade-color: 0, 0, 0;
+  --overlay-bg: rgba(0, 0, 0, 0.65);
+  --overlay-solid: hsl(0 0% 0%);
 }
 
 body {
@@ -109,12 +118,12 @@ html {
 @media (hover: hover) and (pointer: fine) {
   /* Style scrollbar on desktop devices only. */
   html {
-    --scrollbar-track-color: #f5f5f5;
+    --scrollbar-track-color: hsl(0 0% 96%);
     --scrollbar-thumb-color: rgba(0, 0, 0, 0.35);
   }
 
   .dark {
-    --scrollbar-track-color: #141414;
+    --scrollbar-track-color: hsl(0 0% 8%);
     --scrollbar-thumb-color: rgba(255, 255, 255, 0.65);
   }
 
@@ -140,7 +149,7 @@ html {
 
 .button,
 .button:hover {
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--foreground-muted);
   background-color: transparent;
   border: none;
   border-radius: 2px;
@@ -148,25 +157,25 @@ html {
 }
 
 .button:focus {
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--foreground-muted);
   background-color: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.65);
+  border: 1px solid var(--foreground-muted);
 }
 
 .button:active {
-  color: rgba(255, 255, 255, 1);
-  border: 1px solid rgba(255, 255, 255, 1);
+  color: var(--foreground);
+  border: 1px solid var(--foreground);
 }
 
 @media (hover: hover) and (pointer: fine) {
   /* Style button hover on desktop devices only. */
   .button:hover {
-    color: rgba(255, 255, 255, 1);
+    color: var(--foreground);
   }
 
   .button:hover:focus {
-    color: rgba(255, 255, 255, 1);
-    border: 1px solid rgba(255, 255, 255, 1);
+    color: var(--foreground);
+    border: 1px solid var(--foreground);
   }
 }
 
@@ -175,7 +184,7 @@ html {
 .button[disabled]:focus,
 .button[disabled]:active,
 .button--active[disabled] {
-  color: rgba(255, 255, 255, 0.3);
+  color: var(--foreground-faint);
   border: none;
 }
 

@@ -52,10 +52,10 @@
   height: 100%;
   background-image: linear-gradient(
     to right,
-    #000,
-    #0000 75%,
-    #000c 75%,
-    #000f 100%
+    rgb(var(--shade-color)),
+    rgba(var(--shade-color), 0) 75%,
+    rgba(var(--shade-color), 0.8) 75%,
+    rgb(var(--shade-color)) 100%
   );
 }
 

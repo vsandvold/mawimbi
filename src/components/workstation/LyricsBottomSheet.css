@@ -1,6 +1,6 @@
 .lyrics-bottom-sheet__empty {
   padding: 16px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--muted-foreground);
   text-align: center;
   font-size: 14px;
 }
@@ -31,7 +31,7 @@
 .lyrics-bottom-sheet__filename {
   flex: 1;
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--foreground);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -39,7 +39,7 @@
 
 .lyrics-bottom-sheet__spinner {
   animation: lyrics-spin 1s linear infinite;
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--foreground-muted);
   flex-shrink: 0;
 }
 
@@ -59,21 +59,21 @@
 .lyrics-bottom-sheet__status-text {
   display: block;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--muted-foreground);
   margin-bottom: 6px;
 }
 
 .lyrics-bottom-sheet__error {
   padding: 4px 0 0 24px;
   font-size: 12px;
-  color: #ff4d4f;
+  color: var(--error);
   margin: 0;
 }
 
 .lyrics-bottom-sheet__no-speech {
   padding: 4px 0 0 24px;
   font-size: 13px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--muted-foreground);
   font-style: italic;
   margin: 0;
 }
@@ -84,7 +84,7 @@
 
 .lyrics-bottom-sheet__segment {
   font-size: 18px;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--foreground);
   line-height: 1.6;
   margin: 0 0 12px;
 }
