@@ -26,6 +26,39 @@ const INSTRUMENT_ICONS: Record<InstrumentLabel, React.ComponentType> = {
   unknown: UnknownSvg,
 };
 
+const INSTRUMENT_DISPLAY_NAMES: Record<InstrumentLabel, string> = {
+  vocals: 'Vocals',
+  guitar: 'Guitar',
+  bass: 'Bass',
+  drums: 'Drums',
+  keyboard: 'Keyboard',
+  strings: 'Strings',
+  brass: 'Brass',
+  woodwind: 'Woodwind',
+  synth: 'Synth',
+  percussion: 'Percussion',
+  unknown: 'Unknown',
+};
+
+export const SELECTABLE_INSTRUMENTS: InstrumentLabel[] = [
+  'vocals',
+  'guitar',
+  'bass',
+  'drums',
+  'keyboard',
+  'strings',
+  'brass',
+  'woodwind',
+  'synth',
+  'percussion',
+];
+
+export function getInstrumentDisplayName(label: string): string {
+  return label in INSTRUMENT_DISPLAY_NAMES
+    ? INSTRUMENT_DISPLAY_NAMES[label as InstrumentLabel]
+    : label;
+}
+
 export function getInstrumentIcon(label: string | undefined): React.ReactNode {
   const SvgComponent =
     label && label in INSTRUMENT_ICONS

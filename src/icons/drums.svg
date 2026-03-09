@@ -1,10 +1,16 @@
-<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-  <!-- Snare drum: cylinder with crossed sticks -->
-  <ellipse cx="512" cy="384" rx="288" ry="96" fill="none" stroke="currentColor" stroke-width="64"/>
-  <rect x="224" y="384" width="576" height="256" fill="currentColor"/>
-  <ellipse cx="512" cy="640" rx="288" ry="96" fill="currentColor"/>
-  <ellipse cx="512" cy="640" rx="288" ry="96" fill="none" stroke="currentColor" stroke-width="64"/>
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Drum kit: snare + hi-hat + stick -->
+  <!-- Snare drum (top ellipse) -->
+  <ellipse cx="12" cy="14" rx="7" ry="2.5"/>
+  <!-- Drum body sides -->
+  <line x1="5" y1="14" x2="5" y2="19"/>
+  <line x1="19" y1="14" x2="19" y2="19"/>
+  <!-- Bottom ellipse -->
+  <ellipse cx="12" cy="19" rx="7" ry="2.5"/>
   <!-- Drumsticks crossed -->
-  <rect x="128" y="128" width="320" height="40" rx="20" transform="rotate(35 288 148)" fill="currentColor"/>
-  <rect x="576" y="128" width="320" height="40" rx="20" transform="rotate(-35 736 148)" fill="currentColor"/>
+  <line x1="6" y1="4" x2="14" y2="13"/>
+  <line x1="18" y1="4" x2="10" y2="13"/>
+  <!-- Stick tips -->
+  <circle cx="6" cy="4" r="0.7" fill="currentColor"/>
+  <circle cx="18" cy="4" r="0.7" fill="currentColor"/>
 </svg>

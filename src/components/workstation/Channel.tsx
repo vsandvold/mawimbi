@@ -7,12 +7,24 @@ import {
 } from 'lucide-react';
 import { Slider } from '../ui/slider';
 import { Button } from '../ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
 import classNames from 'classnames';
 import { useClassificationService } from '../../hooks/useClassificationService';
 import { FALLBACK_LABEL } from '../../services/instrumentLabels';
 import { type Track } from '../../types/track';
+import { SET_INSTRUMENT } from '../project/projectPageReducer';
+import useProjectDispatch from '../project/useProjectDispatch';
 import './Channel.css';
-import { getInstrumentIcon } from './instrumentIcons';
+import {
+  getInstrumentDisplayName,
+  getInstrumentIcon,
+  SELECTABLE_INSTRUMENTS,
+} from './instrumentIcons';
 import { useChannelControls } from './useChannelControls';
 
 type ChannelProps = {
@@ -25,6 +37,7 @@ const PERCENT_DIVISOR = 100;
 
 const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
   const { trackId, color } = track;
+  const dispatch = useProjectDispatch();
 
   const {
     volume,
@@ -45,6 +58,11 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
     (classificationState === 'error' ? FALLBACK_LABEL : undefined);
   const isDownloading =
     classificationState === 'classifying' && downloadProgress !== null;
+  const isClassifying = classificationState === 'classifying';
+
+  const handleSelectInstrument = (label: string) => {
+    dispatch([SET_INSTRUMENT, { trackId, instrument: label }]);
+  };
 
   const handleValueChange = (values: number[]) => {
     updateVolume(values[0]);
@@ -64,24 +82,46 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
         backgroundColor: channelColor,
       }}
     >
-      <div
-        className="channel__instrument"
-        title={
-          isDownloading ? `Downloading model: ${downloadProgress}%` : undefined
-        }
-      >
-        {classificationState === 'classifying' ? (
-          isDownloading ? (
-            <span className="channel__download-progress">
-              {downloadProgress}%
-            </span>
-          ) : (
-            <Loader2 className="animate-spin" />
-          )
-        ) : (
-          instrument !== undefined && getInstrumentIcon(instrument)
-        )}
-      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild disabled={isClassifying}>
+          <button
+            className="channel__instrument"
+            title={
+              isDownloading
+                ? `Downloading model: ${downloadProgress}%`
+                : instrument
+                  ? getInstrumentDisplayName(instrument)
+                  : undefined
+            }
+          >
+            {isClassifying ? (
+              isDownloading ? (
+                <span className="channel__download-progress">
+                  {downloadProgress}%
+                </span>
+              ) : (
+                <Loader2 className="animate-spin" />
+              )
+            ) : (
+              instrument !== undefined && getInstrumentIcon(instrument)
+            )}
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="top" align="start">
+          {SELECTABLE_INSTRUMENTS.map((label) => (
+            <DropdownMenuItem
+              key={label}
+              className={classNames('channel__instrument-option', {
+                'channel__instrument-option--selected': instrument === label,
+              })}
+              onSelect={() => handleSelectInstrument(label)}
+            >
+              {getInstrumentIcon(label)}
+              <span>{getInstrumentDisplayName(label)}</span>
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
       <div className="channel__mute-solo">
         <Button
           variant="ghost"
