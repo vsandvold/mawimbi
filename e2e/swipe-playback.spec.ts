@@ -76,56 +76,30 @@ test.describe('Swipe to scrub timeline during playback', () => {
     await expect(page.locator('.fullscreen__overlay')).not.toBeVisible();
   });
 
-  test('swiping the timeline during playback pauses, then resumes at new position', async ({
+  test('swiping during playback pauses, then resumes at new position', async ({
     page,
   }) => {
     // Start playback
     await page.getByTitle('Play').click();
     await expect(page.getByTitle('Pause')).toBeVisible();
-
-    // Let playback advance briefly
     await page.waitForTimeout(300);
 
-    // User swipes the timeline with a touch gesture while playing
+    // Swipe while playing → pauses
     await swipeTimeline(page, 400);
-
-    // Playback should pause during the swipe
     await expect(page.getByTitle('Play')).toBeVisible();
 
-    // Wait for the 200ms debounce to complete and playback to resume
+    // Wait for debounce → resumes
     await page.waitForTimeout(400);
-
-    // Playback should resume at the new position
     await expect(page.getByTitle('Pause')).toBeVisible();
   });
 
-  test('swiping the timeline while paused does not auto-resume', async ({
-    page,
-  }) => {
-    // Ensure we are paused
+  test('swiping while paused does not auto-resume', async ({ page }) => {
     await expect(page.getByTitle('Play')).toBeVisible();
 
-    // Swipe the timeline while paused
     await swipeTimeline(page, 300);
-
-    // Wait for debounce
     await page.waitForTimeout(400);
 
-    // Should still be paused — no auto-resume when not playing
+    // Should still be paused
     await expect(page.getByTitle('Play')).toBeVisible();
-  });
-
-  test('swipe pauses and resumes playback', async ({ page }) => {
-    // Start playback
-    await page.getByTitle('Play').click();
-    await expect(page.getByTitle('Pause')).toBeVisible();
-
-    // Swipe to pause
-    await swipeTimeline(page, 400);
-    await expect(page.getByTitle('Play')).toBeVisible();
-
-    // Wait for debounce and resume
-    await page.waitForTimeout(400);
-    await expect(page.getByTitle('Pause')).toBeVisible();
   });
 });

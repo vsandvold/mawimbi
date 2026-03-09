@@ -38,27 +38,30 @@ test.describe('Drag and scroll timeline to seek while playing', () => {
     await expect(page.locator('.timeline__track')).toBeVisible();
   });
 
-  test('scrolling the timeline during playback pauses, then resumes at new position', async ({
+  test('scrolling during playback pauses, resumes, and updates scroll position', async ({
     page,
   }) => {
+    const timeline = page.locator('.scrubber__timeline');
+    const initialScrollLeft = await timeline.evaluate((el) => el.scrollLeft);
+
     // Start playback
     await page.getByTitle('Play').click();
     await expect(page.getByTitle('Pause')).toBeVisible();
-
-    // Let playback advance briefly
     await page.waitForTimeout(300);
 
-    // User scrolls the timeline with mouse wheel while playing
+    // Scroll while playing → pauses
     await wheelScrollTimeline(page, 400);
-
-    // Playback should pause during the scroll
     await expect(page.getByTitle('Play')).toBeVisible();
 
-    // Wait for the 200ms debounce to complete and playback to resume
+    // Wait for debounce → resumes
     await page.waitForTimeout(400);
-
-    // Playback should resume
     await expect(page.getByTitle('Pause')).toBeVisible();
+
+    // Verify scroll position advanced
+    await page.getByTitle('Pause').click();
+    await page.waitForTimeout(100);
+    const scrollLeft = await timeline.evaluate((el) => el.scrollLeft);
+    expect(scrollLeft).toBeGreaterThan(initialScrollLeft + 50);
   });
 
   test('scrolling the timeline while paused does not auto-resume', async ({
@@ -66,69 +69,14 @@ test.describe('Drag and scroll timeline to seek while playing', () => {
   }) => {
     const timeline = page.locator('.scrubber__timeline');
 
-    // Ensure we are paused
     await expect(page.getByTitle('Play')).toBeVisible();
 
-    // Scroll the timeline while paused (using evaluate since we're paused
-    // and there's no animation loop race)
     await timeline.evaluate((el) => {
       el.scrollLeft = 400;
     });
-
-    // Wait for debounce
     await page.waitForTimeout(400);
 
-    // Should still be paused — no auto-resume when not playing
+    // Should still be paused
     await expect(page.getByTitle('Play')).toBeVisible();
-  });
-
-  test('scroll position updates transport time during playback seek', async ({
-    page,
-  }) => {
-    const timeline = page.locator('.scrubber__timeline');
-
-    // Record initial scroll position
-    const initialScrollLeft = await timeline.evaluate((el) => el.scrollLeft);
-
-    // Start playback
-    await page.getByTitle('Play').click();
-    await expect(page.getByTitle('Pause')).toBeVisible();
-
-    await page.waitForTimeout(200);
-
-    // User scrolls the timeline with mouse wheel while playing
-    await wheelScrollTimeline(page, 400);
-
-    // Playback pauses
-    await expect(page.getByTitle('Play')).toBeVisible();
-
-    // Wait for debounce and resume
-    await page.waitForTimeout(400);
-
-    // Playback resumed
-    await expect(page.getByTitle('Pause')).toBeVisible();
-
-    // Pause to check the scroll position has advanced from wheel scroll
-    await page.getByTitle('Pause').click();
-    await page.waitForTimeout(100);
-
-    const scrollLeft = await timeline.evaluate((el) => el.scrollLeft);
-    // Scroll position should have moved forward from the initial position
-    // by a significant amount due to the wheel scroll + brief resumed playback
-    expect(scrollLeft).toBeGreaterThan(initialScrollLeft + 50);
-  });
-
-  test('scroll pauses and resumes playback', async ({ page }) => {
-    // Start playback
-    await page.getByTitle('Play').click();
-    await expect(page.getByTitle('Pause')).toBeVisible();
-
-    // Scroll to pause
-    await wheelScrollTimeline(page, 400);
-    await expect(page.getByTitle('Play')).toBeVisible();
-
-    // Wait for debounce and resume
-    await page.waitForTimeout(400);
-    await expect(page.getByTitle('Pause')).toBeVisible();
   });
 });

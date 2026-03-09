@@ -6,17 +6,17 @@ test.describe('Navigation', () => {
     await expect(page.getByText('/unknown-route')).toBeVisible();
   });
 
-  test('home page is accessible at root path', async ({ page }) => {
+  test('routes resolve to correct pages', async ({ page }) => {
     await page.goto('/');
     await expect(page).toHaveURL('/');
-    await expect(page.getByRole('heading', { name: 'Mawimbi' })).toBeVisible();
-  });
+    await expect(
+      page.getByRole('heading', { name: 'Mawimbi' }),
+    ).toBeVisible();
 
-  test('project page is accessible at /project/:id', async ({ page }) => {
     await page.goto('/project/test-id');
     await expect(page).toHaveURL('/project/test-id');
     await expect(
-      page.getByText('Start recording, or upload some audio files')
+      page.getByText('Start recording, or upload some audio files'),
     ).toBeVisible();
   });
 });

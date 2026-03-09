@@ -115,14 +115,7 @@ test.describe('Recording', () => {
     await ensureAudioContextRunning(page);
   });
 
-  test('recording creates a track in the timeline', async ({ page }) => {
-    await recordAudio(page);
-
-    const timelineTrack = page.locator('.timeline__track');
-    await expect(timelineTrack).toBeVisible({ timeout: 5000 });
-  });
-
-  test('recorded track has a visible spectrogram', async ({
+  test('recording creates track with spectrogram, rewinds, and plays back', async ({
     page,
   }) => {
     await recordAudio(page);
@@ -130,58 +123,37 @@ test.describe('Recording', () => {
     const timelineTrack = page.locator('.timeline__track');
     await expect(timelineTrack).toBeVisible({ timeout: 5000 });
 
-    // The track should contain a spectrogram canvas
+    // Track has a visible spectrogram canvas with content
     const canvas = timelineTrack.locator('canvas');
     await expect(canvas.first()).toBeVisible({ timeout: 5000 });
-
-    // Verify the canvas has non-empty content (data flowing through graph)
-    const hasContent = await canvas.first().evaluate((el: HTMLCanvasElement) => {
-      const ctx = el.getContext('2d');
-      if (!ctx) return false;
-      const imageData = ctx.getImageData(0, 0, el.width, el.height);
-      return imageData.data.some((value, i) => i % 4 === 3 && value > 0);
-    });
+    const hasContent = await canvas
+      .first()
+      .evaluate((el: HTMLCanvasElement) => {
+        const ctx = el.getContext('2d');
+        if (!ctx) return false;
+        const imageData = ctx.getImageData(0, 0, el.width, el.height);
+        return imageData.data.some((value, i) => i % 4 === 3 && value > 0);
+      });
     expect(hasContent).toBe(true);
-  });
 
-  test('recorded track can be played back', async ({ page }) => {
-    await recordAudio(page);
-
-    await expect(page.locator('.timeline__track')).toBeVisible({
-      timeout: 5000,
-    });
-
-    const playButton = page.getByTitle('Play');
-    await expect(playButton).toBeEnabled({ timeout: 5000 });
-
-    await playButton.click();
-    await expect(page.getByTitle('Pause')).toBeVisible();
-  });
-
-  test('recorded track plays from the beginning after recording stops', async ({
-    page,
-  }) => {
-    await recordAudio(page);
-
-    await expect(page.locator('.timeline__track')).toBeVisible({
-      timeout: 5000,
-    });
-
-    // After recording stops, the transport should have been rewound to the
-    // start. Verify the scrubber's scroll position is at the beginning.
+    // Transport is rewound to the start after recording stops
     const scrollBefore = await page
       .locator('.scrubber__timeline')
       .evaluate((el) => el.scrollLeft);
     expect(scrollBefore).toBe(0);
 
-    // Press play — playback should start from the beginning
-    await page.getByTitle('Play').click();
+    // Recorded track can be played back
+    const playButton = page.getByTitle('Play');
+    await expect(playButton).toBeEnabled({ timeout: 5000 });
+    await playButton.click();
     await expect(page.getByTitle('Pause')).toBeVisible();
   });
 });
 
 test.describe('Recording with existing tracks', () => {
-  test.beforeEach(async ({ page }) => {
+  test('overdub recording adds track and both can play back', async ({
+    page,
+  }) => {
     await installAudioContextSpy(page);
     await page.goto('/project/test-id');
     await ensureAudioContextRunning(page);
@@ -190,21 +162,7 @@ test.describe('Recording with existing tracks', () => {
     const fileInput = page.locator('.project-page-header input[type="file"]');
     await fileInput.setInputFiles(SHORT_AUDIO);
     await expect(page.locator('.timeline__track')).toBeVisible();
-  });
 
-  test('overdub recording adds a second track alongside the uploaded track', async ({
-    page,
-  }) => {
-    await recordAudio(page);
-
-    await expect(page.locator('.timeline__track')).toHaveCount(2, {
-      timeout: 5000,
-    });
-  });
-
-  test('playback after overdub recording plays both tracks', async ({
-    page,
-  }) => {
     await recordAudio(page, 1500);
 
     await expect(page.locator('.timeline__track')).toHaveCount(2, {
