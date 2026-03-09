@@ -1,11 +1,17 @@
-<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-  <!-- Bass guitar: body + long neck + tuning pegs -->
-  <path d="M224 544c0-88 72-160 160-160h32V160h64v224h32c88 0 160 72 160 160v96c0 88-72 160-160 160h-32v64h96v64H352v-64h96v-64h-64c-88 0-160-72-160-160v-96zm160-96c-53 0-96 43-96 96v96c0 53 43 96 96 96h256c53 0 96-43 96-96v-96c0-53-43-96-96-96H384z" fill="currentColor"/>
+<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Bass guitar: long neck with tuning pegs, smaller body -->
+  <!-- Headstock -->
+  <circle cx="6" cy="3.5" r="0.8" fill="currentColor"/>
+  <circle cx="8" cy="3.5" r="0.8" fill="currentColor"/>
+  <!-- Neck -->
+  <line x1="7" y1="4.5" x2="7" y2="14"/>
+  <!-- Body -->
+  <path d="M4 14c-1.5 1-2 3-1.5 4.5S4 21 6 21.5s4-.5 5-2 1-3.5.5-5C11 13 9 12 7 12"/>
+  <path d="M3.5 16c1-.5 2.5-.5 3.5 0"/>
+  <!-- Pickup dots -->
+  <circle cx="6.5" cy="17.5" r="0.5" fill="currentColor"/>
+  <circle cx="8.5" cy="17" r="0.5" fill="currentColor"/>
   <!-- Strings -->
-  <rect x="432" y="160" width="16" height="128" fill="currentColor"/>
-  <rect x="480" y="160" width="16" height="128" fill="currentColor"/>
-  <rect x="432" y="480" width="16" height="192" fill="currentColor"/>
-  <rect x="480" y="480" width="16" height="192" fill="currentColor"/>
-  <rect x="528" y="480" width="16" height="192" fill="currentColor"/>
-  <rect x="576" y="480" width="16" height="192" fill="currentColor"/>
+  <line x1="6.5" y1="5" x2="6.5" y2="14"/>
+  <line x1="7.5" y1="5" x2="7.5" y2="14"/>
 </svg>

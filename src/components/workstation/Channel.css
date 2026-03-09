@@ -9,15 +9,37 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  align-self: stretch;
   width: 40px;
   font-size: 16px;
   color: rgba(0, 0, 0, 0.65);
   background-color: rgba(0, 0, 0, 0.35);
   margin: -4px 8px -4px -8px;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  outline: none;
+}
+
+.channel__instrument:disabled {
+  cursor: default;
 }
 
 .channel--inverted .channel__instrument {
   color: rgba(255, 255, 255, 0.65);
+}
+
+.channel__instrument-option {
+  gap: 8px;
+}
+
+.channel__instrument-option .custom-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.channel__instrument-option--selected {
+  font-weight: 600;
 }
 
 .channel__download-progress {
