@@ -1,7 +1,10 @@
 import { type TrackColor } from '../types/track';
 import { analyseCQT } from './CQTAnalyser';
-import { getEssentia } from './essentiaLoader';
-import { type MelodyData, extractMelody } from './MelodyExtractor';
+import {
+  type MelodyData,
+  extractMelody,
+  preWarmBasicPitch,
+} from './MelodyExtractor';
 import { mixToMono } from './CQTAnalyser';
 import { type SpectrogramData } from './OfflineAnalyser';
 import { renderTiles } from './SpectrogramTileRenderer';
@@ -53,24 +56,10 @@ type WorkerSelf = {
 
 const workerSelf = self as unknown as WorkerSelf;
 
-// Pre-warm essentia WASM after the first CQT analysis completes so the
-// module is ready when melody extraction is requested later. Failure is
-// non-fatal — CQT analysis continues to work regardless.
-function preWarmEssentia(): void {
-  console.debug('[melody] Pre-warming essentia WASM in worker...');
-  getEssentia()
-    .then(() => {
-      console.debug('[melody] Essentia WASM pre-warmed successfully');
-    })
-    .catch((error) => {
-      // Essentia is optional for spectrogram rendering.
-      // Melody extraction will retry initialization when invoked.
-      const detail = error instanceof Error ? error.message : String(error);
-      console.warn(`[melody] Essentia pre-warm failed: ${detail}`);
-    });
-}
-
-let essentiaPreWarmed = false;
+// Pre-warm the Basic Pitch TF.js model after the first CQT analysis
+// completes so the model is ready when melody extraction is requested
+// later. Failure is non-fatal — CQT analysis continues regardless.
+let modelPreWarmed = false;
 
 async function handleSpectrogram(request: AnalyseRequest): Promise<void> {
   const { id, channelData, sampleRate, length, color } = request;
@@ -81,9 +70,10 @@ async function handleSpectrogram(request: AnalyseRequest): Promise<void> {
     const response: AnalyseResponse = { id, type: 'result', data, tiles };
     workerSelf.postMessage(response, tiles as unknown as Transferable[]);
 
-    if (!essentiaPreWarmed) {
-      essentiaPreWarmed = true;
-      preWarmEssentia();
+    if (!modelPreWarmed) {
+      modelPreWarmed = true;
+      console.debug('[melody] Pre-warming Basic Pitch model in worker...');
+      preWarmBasicPitch();
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
