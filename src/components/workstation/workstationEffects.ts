@@ -8,7 +8,7 @@ import useKeypress from '../../hooks/useKeypress';
 import { saveAudioData } from '../../services/ProjectStorageService';
 import useMessage from '../message';
 import { type Track } from '../../types/track';
-import { ADD_TRACK } from '../project/projectPageReducer';
+import { ADD_TRACK, SET_INSTRUMENT } from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
 
 const RECORDING_FILE_NAME = 'Recording';
@@ -158,39 +158,31 @@ export const useTotalTime = (tracks: Track[]) => {
   }, [tracks]); // eslint-disable-line react-hooks/exhaustive-deps
 };
 
-export const useClassificationMessages = (tracks: Track[]) => {
+export const useClassificationSync = (tracks: Track[]) => {
   const classification = useClassificationService();
-  const message = useMessage();
-  const reportedRef = useRef(new Set<string>());
+  const dispatch = useProjectDispatch();
+  const syncedRef = useRef(new Set<string>());
 
   useEffect(() => {
     for (const track of tracks) {
+      if (syncedRef.current.has(track.trackId)) continue;
+
       const state = classification.getClassificationState(track.trackId);
-      const trackKey = `${track.trackId}:${state}`;
+      if (state !== 'done') continue;
 
-      if (reportedRef.current.has(trackKey)) continue;
+      const label = classification.getClassification(track.trackId)?.label;
+      if (!label) continue;
 
-      if (state === 'classifying') {
-        reportedRef.current.add(trackKey);
-        message('Detecting instrument…', {
-          type: 'loading',
-          key: 'classification',
-        });
-      } else if (state === 'done') {
-        reportedRef.current.add(trackKey);
-        const label = classification.getClassification(track.trackId)?.label;
-        message(`Detected instrument: ${label}`, {
-          type: 'success',
-          key: 'classification',
-        });
-      } else if (state === 'error') {
-        reportedRef.current.add(trackKey);
-        message('Instrument detection failed — audio may be too short', {
-          type: 'error',
-          key: 'classification',
-        });
+      syncedRef.current.add(track.trackId);
+
+      if (track.instrument !== label) {
+        dispatch([
+          SET_INSTRUMENT,
+          { trackId: track.trackId, instrument: label },
+        ]);
       }
     }
+    // dispatch is stable across renders
   });
 };
 

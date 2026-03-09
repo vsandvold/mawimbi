@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import { LoaderCircle } from 'lucide-react';
+import { useClassificationService } from '../../hooks/useClassificationService';
 import { useTrackService } from '../../hooks/useTrackService';
 import { useTranscriptionService } from '../../hooks/useTranscriptionService';
 import { type Track, type TrackId } from '../../types/track';
@@ -10,7 +11,7 @@ import { Progress } from '../ui/progress';
 import BottomSheet from './BottomSheet';
 import './LyricsBottomSheet.css';
 
-const VOICE_INSTRUMENT = 'voice';
+const VOCALS_LABEL = 'vocals';
 
 type LyricsBottomSheetProps = {
   isOpen: boolean;
@@ -25,10 +26,12 @@ const LyricsBottomSheet = ({
   onHeightChange,
   tracks,
 }: LyricsBottomSheetProps) => {
+  const classification = useClassificationService();
   const trackService = useTrackService();
   const transcription = useTranscriptionService();
   const vocalTracks = tracks.filter(
-    (track) => track.instrument === VOICE_INSTRUMENT,
+    (track) =>
+      classification.getClassification(track.trackId)?.label === VOCALS_LABEL,
   );
 
   const handleTranscribe = useCallback(

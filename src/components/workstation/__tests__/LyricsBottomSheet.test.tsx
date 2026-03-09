@@ -2,6 +2,7 @@ import { fireEvent, render } from '@testing-library/react';
 import { vi } from 'vitest';
 import { mockTrack } from '../../../testUtils';
 import type { TranscriptionState } from '../../../services/TranscriptionService';
+import type { ClassificationResult } from '../../../services/InstrumentClassificationService';
 import type { Transcription } from '../../../types/transcription';
 import type { TrackId } from '../../../types/track';
 import LyricsBottomSheet from '../LyricsBottomSheet';
@@ -25,6 +26,15 @@ const mockRetrieveAudioBuffer = vi.fn();
 vi.mock('../../../hooks/useTrackService', () => ({
   useTrackService: () => ({
     retrieveAudioBuffer: mockRetrieveAudioBuffer,
+  }),
+}));
+
+const mockGetClassification =
+  vi.fn<(id: TrackId) => ClassificationResult | undefined>();
+
+vi.mock('../../../hooks/useClassificationService', () => ({
+  useClassificationService: () => ({
+    getClassification: mockGetClassification,
   }),
 }));
 
@@ -56,6 +66,7 @@ const defaultProps = {
 
 beforeEach(() => {
   mockDownloadProgress = null;
+  mockGetClassification.mockReturnValue(undefined);
   mockGetTranscriptionState.mockReturnValue('idle');
   mockGetTranscription.mockReturnValue(undefined);
 });
@@ -67,9 +78,17 @@ it('shows empty state when no vocal tracks exist', () => {
 });
 
 it('shows empty state when tracks exist but none are vocals', () => {
+  mockGetClassification.mockImplementation((id: TrackId) => {
+    const map: Record<string, ClassificationResult> = {
+      'track-1': { label: 'drums', score: 0.9 },
+      'track-2': { label: 'guitar', score: 0.8 },
+    };
+    return map[id];
+  });
+
   const tracks = [
-    mockTrack({ trackId: 'track-1', instrument: 'drums' }),
-    mockTrack({ trackId: 'track-2', instrument: 'guitar' }),
+    mockTrack({ trackId: 'track-1' }),
+    mockTrack({ trackId: 'track-2' }),
   ];
 
   const { getByText } = render(
@@ -80,11 +99,12 @@ it('shows empty state when tracks exist but none are vocals', () => {
 });
 
 it('displays vocal tracks with filename and transcribe button', () => {
+  mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
+
   const tracks = [
     mockTrack({
       trackId: 'track-1',
       fileName: 'vocals.wav',
-      instrument: 'voice',
     }),
   ];
 
@@ -97,10 +117,11 @@ it('displays vocal tracks with filename and transcribe button', () => {
 });
 
 it('renders color indicator for vocal tracks', () => {
+  mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
+
   const tracks = [
     mockTrack({
       trackId: 'track-1',
-      instrument: 'voice',
       color: { r: 100, g: 200, b: 50 },
     }),
   ];
@@ -115,21 +136,27 @@ it('renders color indicator for vocal tracks', () => {
 });
 
 it('filters out non-vocal tracks', () => {
+  mockGetClassification.mockImplementation((id: TrackId) => {
+    const map: Record<string, ClassificationResult> = {
+      'track-1': { label: 'vocals', score: 0.93 },
+      'track-2': { label: 'drums', score: 0.9 },
+      'track-3': { label: 'vocals', score: 0.87 },
+    };
+    return map[id];
+  });
+
   const tracks = [
     mockTrack({
       trackId: 'track-1',
       fileName: 'vocals.wav',
-      instrument: 'voice',
     }),
     mockTrack({
       trackId: 'track-2',
       fileName: 'drums.wav',
-      instrument: 'drums',
     }),
     mockTrack({
       trackId: 'track-3',
       fileName: 'backup.wav',
-      instrument: 'voice',
     }),
   ];
 
@@ -151,10 +178,11 @@ it('passes title "Lyrics" to BottomSheet', () => {
 // --- Transcribe button click ---
 
 it('calls transcribe with audioBuffer on Transcribe click', () => {
+  mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
   const fakeBuffer = {} as AudioBuffer;
   mockRetrieveAudioBuffer.mockReturnValue(fakeBuffer);
 
-  const tracks = [mockTrack({ trackId: 'track-1', instrument: 'voice' })];
+  const tracks = [mockTrack({ trackId: 'track-1' })];
 
   const { getByText } = render(
     <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
@@ -167,9 +195,10 @@ it('calls transcribe with audioBuffer on Transcribe click', () => {
 });
 
 it('does not call transcribe when audioBuffer is unavailable', () => {
+  mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
   mockRetrieveAudioBuffer.mockReturnValue(undefined);
 
-  const tracks = [mockTrack({ trackId: 'track-1', instrument: 'voice' })];
+  const tracks = [mockTrack({ trackId: 'track-1' })];
 
   const { getByText } = render(
     <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
@@ -183,9 +212,10 @@ it('does not call transcribe when audioBuffer is unavailable', () => {
 // --- Transcribing state ---
 
 it('shows spinner when track is transcribing', () => {
+  mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
   mockGetTranscriptionState.mockReturnValue('transcribing');
 
-  const tracks = [mockTrack({ trackId: 'track-1', instrument: 'voice' })];
+  const tracks = [mockTrack({ trackId: 'track-1' })];
 
   const { getByLabelText, getByText } = render(
     <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
@@ -196,10 +226,11 @@ it('shows spinner when track is transcribing', () => {
 });
 
 it('shows download progress bar during model download', () => {
+  mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
   mockGetTranscriptionState.mockReturnValue('transcribing');
   mockDownloadProgress = 42;
 
-  const tracks = [mockTrack({ trackId: 'track-1', instrument: 'voice' })];
+  const tracks = [mockTrack({ trackId: 'track-1' })];
 
   const { getByText, getByRole } = render(
     <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
@@ -212,6 +243,7 @@ it('shows download progress bar during model download', () => {
 // --- Done state ---
 
 it('displays transcription segments when done', () => {
+  mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
   mockGetTranscriptionState.mockReturnValue('done');
   mockGetTranscription.mockReturnValue({
     trackId: 'track-1',
@@ -232,7 +264,7 @@ it('displays transcription segments when done', () => {
     ],
   });
 
-  const tracks = [mockTrack({ trackId: 'track-1', instrument: 'voice' })];
+  const tracks = [mockTrack({ trackId: 'track-1' })];
 
   const { getByText, queryByText } = render(
     <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
@@ -245,6 +277,7 @@ it('displays transcription segments when done', () => {
 });
 
 it('shows no-speech message when transcription has zero segments', () => {
+  mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
   mockGetTranscriptionState.mockReturnValue('done');
   mockGetTranscription.mockReturnValue({
     trackId: 'track-1',
@@ -252,7 +285,7 @@ it('shows no-speech message when transcription has zero segments', () => {
     segments: [],
   });
 
-  const tracks = [mockTrack({ trackId: 'track-1', instrument: 'voice' })];
+  const tracks = [mockTrack({ trackId: 'track-1' })];
 
   const { getByText } = render(
     <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
@@ -264,9 +297,10 @@ it('shows no-speech message when transcription has zero segments', () => {
 // --- Error state ---
 
 it('shows error message and retry button on failure', () => {
+  mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
   mockGetTranscriptionState.mockReturnValue('error');
 
-  const tracks = [mockTrack({ trackId: 'track-1', instrument: 'voice' })];
+  const tracks = [mockTrack({ trackId: 'track-1' })];
 
   const { getByText } = render(
     <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
@@ -279,11 +313,12 @@ it('shows error message and retry button on failure', () => {
 });
 
 it('retries transcription on Retry click', () => {
+  mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
   mockGetTranscriptionState.mockReturnValue('error');
   const fakeBuffer = {} as AudioBuffer;
   mockRetrieveAudioBuffer.mockReturnValue(fakeBuffer);
 
-  const tracks = [mockTrack({ trackId: 'track-1', instrument: 'voice' })];
+  const tracks = [mockTrack({ trackId: 'track-1' })];
 
   const { getByText } = render(
     <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
