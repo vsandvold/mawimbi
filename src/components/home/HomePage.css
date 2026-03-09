@@ -5,7 +5,6 @@
 }
 
 .home__header {
-  border-bottom: 1px solid var(--border);
   padding: 48px 24px 32px;
   display: flex;
   flex-direction: column;
@@ -22,6 +21,11 @@
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.home__header-actions [data-slot='button'] {
+  border-radius: 50%;
+  background-color: var(--secondary);
 }
 
 .home__title {

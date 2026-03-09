@@ -28,7 +28,7 @@ afterEach(() => {
 it('renders all buttons', () => {
   const { getAllByRole } = render(<Toolbar {...defaultProps} />);
 
-  expect(getAllByRole('button')).toHaveLength(5);
+  expect(getAllByRole('button')).toHaveLength(4);
 });
 
 it('disables buttons when tracks are empty', () => {
@@ -39,7 +39,6 @@ it('disables buttons when tracks are empty', () => {
   expect(getByTitle('Show lyrics')).toBeDisabled();
   expect(getByTitle('Show mixer')).toBeDisabled();
   expect(getByTitle('Play')).toBeDisabled();
-  expect(getByTitle('Rewind')).toBeDisabled();
   expect(getByTitle('Record')).not.toBeDisabled();
 });
 
@@ -140,20 +139,6 @@ it('keeps record button enabled during count-in for cancellation', () => {
   const { getByTitle } = render(<Toolbar {...defaultProps} />);
 
   expect(getByTitle('Record')).toBeEnabled();
-});
-
-it('disables rewind button when stopped', () => {
-  const { getByTitle } = render(<Toolbar {...defaultProps} />);
-
-  expect(getByTitle('Rewind')).toBeDisabled();
-});
-
-it('enables rewind button when playing', () => {
-  playbackService.play();
-
-  const { getByTitle } = render(<Toolbar {...defaultProps} />);
-
-  expect(getByTitle('Rewind')).toBeEnabled();
 });
 
 it('applies active class to lyrics icon when lyrics is open', () => {

@@ -152,7 +152,7 @@ html {
   color: var(--foreground-muted);
   background-color: transparent;
   border: none;
-  border-radius: 2px;
+  border-radius: 6px;
   transition: initial;
 }
 

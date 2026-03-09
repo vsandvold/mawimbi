@@ -378,34 +378,6 @@ test.describe('Scrubber', () => {
   });
 });
 
-test.describe('Rewind control', () => {
-  test('rewind button appears and resets playback', async ({ page }) => {
-    await page.goto('/project/test-id');
-    await uploadAudioFile(page, LONG_AUDIO);
-    await expect(page.locator('.timeline__track')).toBeVisible();
-
-    // Start playback
-    await page.getByTitle('Play').click();
-    await expect(page.getByTitle('Pause')).toBeVisible();
-
-    // Wait a bit for playback to advance
-    await page.waitForTimeout(500);
-
-    // Pause
-    await page.getByTitle('Pause').click();
-
-    // The toolbar rewind button (scoped to avoid the scrubber's)
-    const rewindButton = page.locator('.toolbar').getByTitle('Rewind');
-
-    // Click rewind if enabled
-    if (await rewindButton.isEnabled()) {
-      await rewindButton.click();
-
-      // Should stop playback and rewind
-      await expect(page.getByTitle('Play')).toBeVisible();
-    }
-  });
-});
 
 test.describe('Visual regression - audio states', () => {
   // Seed Math.random so the track color palette starts at index 0 (teal)
