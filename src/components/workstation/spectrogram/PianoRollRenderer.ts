@@ -36,6 +36,12 @@ const NOTE_FILL_OPACITY = 0.6;
 /** Note block border opacity (0–1). */
 const NOTE_BORDER_OPACITY = 0.85;
 
+/** Pitch bend line opacity (0–1). */
+const PITCH_BEND_OPACITY = 0.8;
+
+/** Pitch bend line width in pixels. */
+const PITCH_BEND_LINE_WIDTH = 1.5;
+
 /** Note block corner radius in pixels. */
 const CORNER_RADIUS = 2;
 
@@ -153,7 +159,73 @@ export function drawPianoRoll(
       playheadTime < note.endTime;
 
     drawNote(ctx, x, y, width, height, r, g, b, isActive);
+
+    // Draw pitch bend line if the note has bend data
+    if (note.pitchBends && note.pitchBends.length > 1) {
+      drawPitchBendLine(
+        ctx,
+        x,
+        width,
+        canvasHeight,
+        pixelsPerBin,
+        note,
+        r,
+        g,
+        b,
+        isActive,
+      );
+    }
   }
+}
+
+/**
+ * Draws a pitch bend line through the center of a note.
+ *
+ * Each pitch bend value represents a deviation in semitones from the note's
+ * base pitch. The line traces these deviations across the note duration,
+ * making slides, vibratos, and bends visible on the piano roll.
+ */
+function drawPitchBendLine(
+  ctx: CanvasRenderingContext2D,
+  noteX: number,
+  noteWidth: number,
+  canvasHeight: number,
+  pixelsPerBin: number,
+  note: MelodyNote,
+  r: number,
+  g: number,
+  b: number,
+  isActive: boolean,
+): void {
+  const bends = note.pitchBends!;
+  const bendCount = bends.length;
+  const pxPerBend = noteWidth / bendCount;
+
+  // Each semitone = 2 CQT bins; bend values are in semitones
+  const baseBin = midiNoteToBin(note.midiNote);
+  const baseY = canvasHeight - baseBin * pixelsPerBin;
+
+  const opacity = isActive ? ACTIVE_FILL_OPACITY : PITCH_BEND_OPACITY;
+  ctx.save();
+  ctx.strokeStyle = `rgba(${Math.min(255, r + 60)}, ${Math.min(255, g + 60)}, ${Math.min(255, b + 60)}, ${opacity})`;
+  ctx.lineWidth = PITCH_BEND_LINE_WIDTH;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+
+  ctx.beginPath();
+  for (let i = 0; i < bendCount; i++) {
+    // Bend in semitones → vertical offset in CQT bins (2 bins/semitone)
+    const bendBins = bends[i] * NOTE_HEIGHT_BINS;
+    const px = noteX + i * pxPerBend;
+    const py = baseY - bendBins * pixelsPerBin;
+    if (i === 0) {
+      ctx.moveTo(px, py);
+    } else {
+      ctx.lineTo(px, py);
+    }
+  }
+  ctx.stroke();
+  ctx.restore();
 }
 
 /**

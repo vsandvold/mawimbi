@@ -254,7 +254,7 @@ it('draws piano roll notes on the overlay canvas when melody data exists', () =>
     canvas: { width: VIEWPORT_WIDTH, height: 128 },
   };
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
-    mockCtx as unknown as CanvasRenderingContext2D,
+    mockCtx as never,
   );
 
   const { container } = render(
@@ -441,7 +441,7 @@ describe('scroll offset for tracks with non-zero start time', () => {
     mockRetrieveStartTime.mockReturnValue(START_TIME);
     mockGetEntry.mockReturnValue(cachedEntry);
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
-      mockCtx as unknown as CanvasRenderingContext2D,
+      mockCtx as never,
     );
     mockCtx.drawImage.mockClear();
     mockCtx.clearRect.mockClear();
@@ -554,7 +554,7 @@ describe('recording mode', () => {
       canvas: { width: 800, height: 128 },
     };
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
-      mockCtx as unknown as CanvasRenderingContext2D,
+      mockCtx as never,
     );
 
     render(<Spectrogram {...recordingProps} />);
@@ -586,7 +586,7 @@ describe('recording mode', () => {
       canvas: { width: 800, height: 128 },
     };
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
-      mockCtx as unknown as CanvasRenderingContext2D,
+      mockCtx as never,
     );
 
     vi.spyOn(recordingService, 'getRecordingStartTime').mockReturnValue(3.0);
@@ -630,7 +630,7 @@ describe('recording mode', () => {
       canvas: { width: 800, height: 128 },
     };
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
-      mockCtx as unknown as CanvasRenderingContext2D,
+      mockCtx as never,
     );
 
     vi.spyOn(recordingService, 'getRecordingStartTime').mockReturnValue(0);
@@ -675,7 +675,7 @@ describe('recording mode', () => {
       canvas: { width: VIEWPORT_WIDTH, height: 128 },
     };
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
-      mockCtx as unknown as CanvasRenderingContext2D,
+      mockCtx as never,
     );
 
     const { container } = render(
@@ -725,7 +725,7 @@ describe('recording mode', () => {
       canvas: { width: 800, height: 128 },
     };
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(
-      mockCtx as unknown as CanvasRenderingContext2D,
+      mockCtx as never,
     );
 
     vi.spyOn(recordingService, 'getRecordingStartTime').mockReturnValue(0);

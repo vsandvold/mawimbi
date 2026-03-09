@@ -1,19 +1,24 @@
 /**
- * Melody extraction using essentia.js PredominantPitchMelodia (MELODIA).
+ * Melody extraction using Spotify Basic Pitch — a lightweight neural network
+ * for polyphonic, instrument-agnostic music transcription with pitch bend
+ * detection.
  *
- * Runs the MELODIA algorithm on a mono audio buffer, then converts the
- * raw pitch contour into discrete note events (MelodyNote[]).
+ * Replaces the previous essentia.js MELODIA algorithm (monophonic only).
  *
  * Pipeline:
- * 1. EqualLoudness filter (perceptual pre-processing)
- * 2. PredominantPitchMelodia (pitch + confidence per frame)
- * 3. Filter unvoiced / low-confidence frames
- * 4. Quantize Hz → MIDI note number
- * 5. Group consecutive same-note frames into note events
- * 6. Discard notes shorter than minimum duration
+ * 1. Resample mono audio to 22 050 Hz (Basic Pitch requirement)
+ * 2. Run Basic Pitch model inference (TensorFlow.js)
+ * 3. Decode frames + onsets into polyphonic note events
+ * 4. Enrich notes with pitch bend data from contour output
+ * 5. Convert frame-based timing to seconds
  */
 
-import { getEssentia } from './essentiaLoader';
+import {
+  BasicPitch,
+  addPitchBendsToNoteEvents,
+  noteFramesToTime,
+  outputToNotesPoly,
+} from '@spotify/basic-pitch';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -24,6 +29,8 @@ export type MelodyNote = {
   endTime: number;
   midiNote: number;
   confidence: number;
+  /** Per-frame pitch bend values in semitones (undefined if no bend). */
+  pitchBends?: number[];
 };
 
 export type MelodyData = {
@@ -35,110 +42,102 @@ export type MelodyData = {
 // Constants
 // ---------------------------------------------------------------------------
 
-/** MELODIA default hop size in samples. */
-const MELODIA_HOP_SIZE = 128;
+/** Basic Pitch model sample rate — audio must be resampled to this rate. */
+const MODEL_SAMPLE_RATE = 22050;
 
-/** Minimum confidence to accept a pitch frame. */
-const CONFIDENCE_THRESHOLD = 0.25;
+/** Basic Pitch FFT hop size (from model constants). */
+const FFT_HOP = 256;
 
-/** Minimum note duration in seconds (~50ms ≈ 2 MELODIA hops at 44.1 kHz). */
-const MIN_NOTE_DURATION = 0.05;
+/** Time resolution of the model output in seconds. */
+const TIME_RESOLUTION = FFT_HOP / MODEL_SAMPLE_RATE;
+
+/** Minimum onset activation threshold for note detection. */
+const ONSET_THRESHOLD = 0.5;
+
+/** Minimum frame activation threshold for note continuation. */
+const FRAME_THRESHOLD = 0.3;
+
+/**
+ * Minimum note length in model frames. At ~11.6 ms/frame, 5 frames ≈ 58 ms.
+ * Comparable to the previous MELODIA MIN_NOTE_DURATION of 50 ms.
+ */
+const MIN_NOTE_LENGTH_FRAMES = 5;
 
 /** Frequency range for melody extraction. */
 const MIN_FREQUENCY = 55;
 const MAX_FREQUENCY = 1760;
 
 // ---------------------------------------------------------------------------
-// Pure conversion functions (exported for testing)
+// Resampling
 // ---------------------------------------------------------------------------
 
 /**
- * Converts a frequency in Hz to the nearest MIDI note number.
- * Returns a rounded integer (0–127 clamped).
- *
- * Formula: round(12 × log2(hz / 440) + 69)
+ * Resamples a mono Float32Array from `sourceSampleRate` to `targetSampleRate`
+ * using linear interpolation. Sufficient quality for neural network inference
+ * where the model's own windowing dominates the frequency resolution.
  */
-export function hzToMidi(hz: number): number {
-  if (hz <= 0) return 0;
-  const midi = Math.round(12 * Math.log2(hz / 440) + 69);
-  return Math.max(0, Math.min(127, midi));
+export function resampleLinear(
+  input: Float32Array,
+  sourceSampleRate: number,
+  targetSampleRate: number,
+): Float32Array {
+  if (sourceSampleRate === targetSampleRate) return input;
+
+  const ratio = sourceSampleRate / targetSampleRate;
+  const outputLength = Math.ceil(input.length / ratio);
+  const output = new Float32Array(outputLength);
+
+  for (let i = 0; i < outputLength; i++) {
+    const srcIndex = i * ratio;
+    const lo = Math.floor(srcIndex);
+    const hi = Math.min(lo + 1, input.length - 1);
+    const frac = srcIndex - lo;
+    output[i] = input[lo] * (1 - frac) + input[hi] * frac;
+  }
+
+  return output;
+}
+
+// ---------------------------------------------------------------------------
+// Model management
+// ---------------------------------------------------------------------------
+
+let basicPitchInstance: BasicPitch | null = null;
+
+/**
+ * Returns a lazily created BasicPitch instance. The TF.js model is loaded
+ * on first use and cached for subsequent calls.
+ *
+ * The model path points to the TF.js model assets copied to the public
+ * directory during project setup.
+ */
+function getBasicPitch(): BasicPitch {
+  if (!basicPitchInstance) {
+    const modelUrl = '/basic-pitch-model/model.json';
+    basicPitchInstance = new BasicPitch(modelUrl);
+  }
+  return basicPitchInstance;
 }
 
 /**
- * Converts a MELODIA pitch contour into discrete MelodyNote events.
- *
- * Steps:
- * 1. Filter frames where pitch = 0 (unvoiced) or confidence < threshold
- * 2. Quantize remaining Hz values to MIDI note numbers
- * 3. Group consecutive frames with the same MIDI note
- * 4. Discard notes shorter than MIN_NOTE_DURATION
+ * Pre-loads the Basic Pitch TF.js model so it is ready when melody
+ * extraction is first requested. Non-blocking — failures are logged
+ * but do not prevent other features from working.
  */
-export function pitchContourToNotes(
-  pitchValues: Float32Array,
-  confidenceValues: Float32Array,
-  sampleRate: number,
-  hopSize: number,
-): MelodyNote[] {
-  const frameTime = hopSize / sampleRate;
-  const frameCount = Math.min(pitchValues.length, confidenceValues.length);
-
-  const grouped: MelodyNote[] = [];
-  let currentNote: MelodyNote | null = null;
-  let confidenceSum = 0;
-  let confidenceCount = 0;
-
-  for (let i = 0; i < frameCount; i++) {
-    const pitch = pitchValues[i];
-    const confidence = confidenceValues[i];
-
-    if (pitch <= 0 || confidence < CONFIDENCE_THRESHOLD) {
-      // Unvoiced or low-confidence frame — close current note
-      if (currentNote) {
-        currentNote.endTime = i * frameTime;
-        currentNote.confidence = confidenceSum / confidenceCount;
-        grouped.push(currentNote);
-        currentNote = null;
-        confidenceSum = 0;
-        confidenceCount = 0;
-      }
-      continue;
-    }
-
-    const midi = hzToMidi(pitch);
-
-    if (currentNote && currentNote.midiNote === midi) {
-      // Same note continues — accumulate confidence
-      confidenceSum += confidence;
-      confidenceCount += 1;
-    } else {
-      // Different note — close previous and start new
-      if (currentNote) {
-        currentNote.endTime = i * frameTime;
-        currentNote.confidence = confidenceSum / confidenceCount;
-        grouped.push(currentNote);
-      }
-      currentNote = {
-        startTime: i * frameTime,
-        endTime: 0,
-        midiNote: midi,
-        confidence: 0,
-      };
-      confidenceSum = confidence;
-      confidenceCount = 1;
-    }
+export async function preWarmBasicPitch(): Promise<void> {
+  try {
+    const bp = getBasicPitch();
+    await bp.model;
+    console.debug('[melody] Basic Pitch model pre-warmed');
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    console.warn(`[melody] Basic Pitch pre-warm failed: ${detail}`);
   }
+}
 
-  // Close final note
-  if (currentNote) {
-    currentNote.endTime = frameCount * frameTime;
-    currentNote.confidence = confidenceSum / confidenceCount;
-    grouped.push(currentNote);
-  }
-
-  // Filter notes shorter than minimum duration
-  return grouped.filter(
-    (note) => note.endTime - note.startTime >= MIN_NOTE_DURATION,
-  );
+/** Resets the cached instance. Intended for testing only. */
+export function resetBasicPitch(): void {
+  basicPitchInstance = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -146,10 +145,11 @@ export function pitchContourToNotes(
 // ---------------------------------------------------------------------------
 
 /**
- * Extracts melody from a mono audio signal using MELODIA.
+ * Extracts melody from a mono audio signal using Spotify Basic Pitch.
  *
- * Requires essentia.js WASM to be available (loaded lazily via getEssentia).
- * Pre-processes the signal with EqualLoudness for best results.
+ * Basic Pitch is a polyphonic, instrument-agnostic neural network that
+ * detects multiple simultaneous notes with pitch bend information.
+ * The input is automatically resampled to 22 050 Hz as required by the model.
  */
 export async function extractMelody(
   monoSignal: Float32Array,
@@ -157,67 +157,88 @@ export async function extractMelody(
 ): Promise<MelodyData> {
   const durationSeconds = monoSignal.length / sampleRate;
   console.debug(
-    `[melody] Starting extraction: ${monoSignal.length} samples, ${sampleRate} Hz, ${durationSeconds.toFixed(2)}s`,
+    `[melody] Starting Basic Pitch extraction: ${monoSignal.length} samples, ${sampleRate} Hz, ${durationSeconds.toFixed(2)}s`,
   );
 
-  console.debug('[melody] Loading essentia WASM...');
-  const essentia = await getEssentia();
-  console.debug('[melody] Essentia WASM loaded');
-
-  const inputVector = essentia.arrayToVector(monoSignal);
-
-  // Pre-process with EqualLoudness filter for perceptual weighting
-  console.debug('[melody] Applying EqualLoudness filter...');
-  const filtered = essentia.EqualLoudness(inputVector, sampleRate);
-  const filteredSignal = filtered.signal;
-
-  // Run MELODIA with recommended defaults, adjusted frequency range
+  // Resample to 22 050 Hz if needed
+  const resampled = resampleLinear(monoSignal, sampleRate, MODEL_SAMPLE_RATE);
   console.debug(
-    `[melody] Running PredominantPitchMelodia (hopSize=${MELODIA_HOP_SIZE}, freq=${MIN_FREQUENCY}–${MAX_FREQUENCY} Hz)...`,
-  );
-  const result = essentia.PredominantPitchMelodia(
-    filteredSignal,
-    /* binResolution */ 10,
-    /* filterIterations */ 3,
-    /* frameSize */ 2048,
-    /* guessUnvoiced */ false,
-    /* harmonicWeight */ 0.8,
-    /* hopSize */ MELODIA_HOP_SIZE,
-    /* magnitudeCompression */ 1,
-    /* magnitudeThreshold */ 40,
-    /* maxFrequency */ MAX_FREQUENCY,
-    /* minDuration */ 100,
-    /* minFrequency */ MIN_FREQUENCY,
+    `[melody] Resampled ${monoSignal.length} → ${resampled.length} samples (${sampleRate} → ${MODEL_SAMPLE_RATE} Hz)`,
   );
 
-  const pitchValues: Float32Array = essentia.vectorToArray(result.pitch);
-  const confidenceValues: Float32Array = essentia.vectorToArray(
-    result.pitchConfidence,
+  // Run Basic Pitch inference
+  const bp = getBasicPitch();
+
+  const allFrames: number[][] = [];
+  const allOnsets: number[][] = [];
+  const allContours: number[][] = [];
+
+  await bp.evaluateModel(
+    resampled,
+    (frames, onsets, contours) => {
+      allFrames.push(...frames);
+      allOnsets.push(...onsets);
+      allContours.push(...contours);
+    },
+    (percent) => {
+      if (percent === 0 || percent === 1 || percent % 0.25 < 0.01) {
+        console.debug(
+          `[melody] Basic Pitch progress: ${(percent * 100).toFixed(0)}%`,
+        );
+      }
+    },
   );
 
-  console.debug(`[melody] MELODIA returned ${pitchValues.length} pitch frames`);
-
-  const notes = pitchContourToNotes(
-    pitchValues,
-    confidenceValues,
-    sampleRate,
-    MELODIA_HOP_SIZE,
+  console.debug(
+    `[melody] Basic Pitch inference complete: ${allFrames.length} frames`,
   );
 
-  const timeResolution = MELODIA_HOP_SIZE / sampleRate;
+  // Decode model output into note events
+  const noteEvents = outputToNotesPoly(
+    allFrames,
+    allOnsets,
+    ONSET_THRESHOLD,
+    FRAME_THRESHOLD,
+    MIN_NOTE_LENGTH_FRAMES,
+    /* inferOnsets */ true,
+    MAX_FREQUENCY,
+    MIN_FREQUENCY,
+  );
+
+  // Enrich notes with pitch bend data from contour output
+  const withBends = addPitchBendsToNoteEvents(allContours, noteEvents);
+
+  // Convert frame-based timing to seconds
+  const noteTimes = noteFramesToTime(withBends);
+
+  // Map to MelodyNote format
+  const notes: MelodyNote[] = noteTimes.map((n) => {
+    const note: MelodyNote = {
+      startTime: n.startTimeSeconds,
+      endTime: n.startTimeSeconds + n.durationSeconds,
+      midiNote: n.pitchMidi,
+      confidence: n.amplitude,
+    };
+    if (n.pitchBends && n.pitchBends.length > 0) {
+      note.pitchBends = n.pitchBends;
+    }
+    return note;
+  });
 
   console.log(
-    `[melody] Extracted ${notes.length} notes from ${pitchValues.length} frames (${durationSeconds.toFixed(2)}s audio)`,
+    `[melody] Extracted ${notes.length} notes from ${allFrames.length} frames (${durationSeconds.toFixed(2)}s audio)`,
   );
 
-  return { notes, timeResolution };
+  return { notes, timeResolution: TIME_RESOLUTION };
 }
 
 // Exported for testing
 export {
-  MELODIA_HOP_SIZE,
-  CONFIDENCE_THRESHOLD,
-  MIN_NOTE_DURATION,
+  MODEL_SAMPLE_RATE,
+  ONSET_THRESHOLD,
+  FRAME_THRESHOLD,
+  MIN_NOTE_LENGTH_FRAMES,
   MIN_FREQUENCY as MELODY_MIN_FREQUENCY,
   MAX_FREQUENCY as MELODY_MAX_FREQUENCY,
+  TIME_RESOLUTION,
 };
