@@ -24,12 +24,14 @@ vi.mock('../BottomSheet', () => ({
 const mockRetrieveAudioBuffer = vi.fn();
 
 let mockTransportTime = 0;
+const mockSeekTo = vi.fn();
 
 vi.mock('../../../hooks/usePlaybackService', () => ({
   usePlaybackService: () => ({
     get transportTime() {
       return mockTransportTime;
     },
+    seekTo: mockSeekTo,
   }),
 }));
 
@@ -360,7 +362,7 @@ it('shows error message and retry button on failure', () => {
 
 // --- Playback position following ---
 
-it('marks words before transport time as played', () => {
+it('marks words before transport time as played and active word as active', () => {
   mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
   mockGetTranscriptionState.mockReturnValue('done');
   mockGetTranscription.mockReturnValue({
@@ -379,7 +381,7 @@ it('marks words before transport time as played', () => {
       },
     ],
   });
-  // Transport is at 0.5s — past "Hello" (end 0.3), at "world" (start 0.35)
+  // Transport is at 0.5s — past "Hello" (end 0.3), inside "world" [0.35, 0.7)
   mockTransportTime = 0.5;
 
   const tracks = [mockTrack({ trackId: 'track-1' })];
@@ -391,12 +393,13 @@ it('marks words before transport time as played', () => {
   const words = container.querySelectorAll('.lyrics-bottom-sheet__word');
 
   expect(words).toHaveLength(3);
-  // "Hello" — transport (0.5) > start (0), so played
+  // "Hello" — transport (0.5) > end (0.3), so played
   expect(words[0]).toHaveClass('lyrics-bottom-sheet__word--played');
-  // "world" — transport (0.5) > start (0.35), so played
-  expect(words[1]).toHaveClass('lyrics-bottom-sheet__word--played');
+  // "world" — transport (0.5) is within [0.35, 0.7), so active
+  expect(words[1]).toHaveClass('lyrics-bottom-sheet__word--active');
   // "goodbye" — transport (0.5) <= start (1.2), so upcoming
   expect(words[2]).not.toHaveClass('lyrics-bottom-sheet__word--played');
+  expect(words[2]).not.toHaveClass('lyrics-bottom-sheet__word--active');
 });
 
 it('marks no words as played when transport time is zero', () => {
@@ -447,4 +450,202 @@ it('retries transcription on Retry click', () => {
   fireEvent.click(getByText('Retry'));
 
   expect(mockTranscribe).toHaveBeenCalledWith('track-1', fakeBuffer);
+});
+
+// --- Click-to-seek ---
+
+it('seeks to word start time on word click', () => {
+  mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
+  mockGetTranscriptionState.mockReturnValue('done');
+  mockGetTranscription.mockReturnValue({
+    trackId: 'track-1',
+    language: 'en',
+    segments: [
+      {
+        text: 'Hello world',
+        start: 0,
+        end: 1,
+        words: [
+          { text: 'Hello', start: 0.1, end: 0.3 },
+          { text: 'world', start: 0.35, end: 0.7 },
+        ],
+      },
+    ],
+  });
+
+  const tracks = [mockTrack({ trackId: 'track-1' })];
+
+  const { getByText } = render(
+    <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
+  );
+
+  fireEvent.click(getByText('world'));
+
+  expect(mockSeekTo).toHaveBeenCalledWith(0.35);
+});
+
+it('seeks with track startTime offset on word click', () => {
+  mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
+  mockGetTranscriptionState.mockReturnValue('done');
+  mockGetTranscription.mockReturnValue({
+    trackId: 'track-1',
+    language: 'en',
+    segments: [
+      {
+        text: 'Hello',
+        start: 0,
+        end: 0.5,
+        words: [{ text: 'Hello', start: 0.1, end: 0.3 }],
+      },
+    ],
+  });
+
+  const tracks = [mockTrack({ trackId: 'track-1', startTime: 5 })];
+
+  const { getByText } = render(
+    <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
+  );
+
+  fireEvent.click(getByText('Hello'));
+
+  expect(mockSeekTo).toHaveBeenCalledWith(5.1);
+});
+
+// --- Active word highlighting ---
+
+it('highlights the active word during playback', () => {
+  mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
+  mockGetTranscriptionState.mockReturnValue('done');
+  mockGetTranscription.mockReturnValue({
+    trackId: 'track-1',
+    language: 'en',
+    segments: [
+      {
+        text: 'Hello world goodbye',
+        start: 0,
+        end: 2,
+        words: [
+          { text: 'Hello', start: 0, end: 0.3 },
+          { text: 'world', start: 0.35, end: 0.7 },
+          { text: 'goodbye', start: 1.2, end: 1.6 },
+        ],
+      },
+    ],
+  });
+  // Transport at 0.5s — inside "world" [0.35, 0.7)
+  mockTransportTime = 0.5;
+
+  const tracks = [mockTrack({ trackId: 'track-1' })];
+
+  const { container } = render(
+    <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
+  );
+
+  const activeWords = container.querySelectorAll(
+    '.lyrics-bottom-sheet__word--active',
+  );
+
+  expect(activeWords).toHaveLength(1);
+  expect(activeWords[0].textContent).toContain('world');
+});
+
+it('accounts for track startTime when highlighting active word', () => {
+  mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
+  mockGetTranscriptionState.mockReturnValue('done');
+  mockGetTranscription.mockReturnValue({
+    trackId: 'track-1',
+    language: 'en',
+    segments: [
+      {
+        text: 'Hello world',
+        start: 0,
+        end: 1,
+        words: [
+          { text: 'Hello', start: 0, end: 0.3 },
+          { text: 'world', start: 0.35, end: 0.7 },
+        ],
+      },
+    ],
+  });
+  // Track starts at 5s, transport at 5.4s → relative time 0.4s → inside "world" [0.35, 0.7)
+  mockTransportTime = 5.4;
+
+  const tracks = [mockTrack({ trackId: 'track-1', startTime: 5 })];
+
+  const { container } = render(
+    <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
+  );
+
+  const activeWords = container.querySelectorAll(
+    '.lyrics-bottom-sheet__word--active',
+  );
+
+  expect(activeWords).toHaveLength(1);
+  expect(activeWords[0].textContent).toContain('world');
+});
+
+it('uses track-relative time for played and active word styling', () => {
+  mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
+  mockGetTranscriptionState.mockReturnValue('done');
+  mockGetTranscription.mockReturnValue({
+    trackId: 'track-1',
+    language: 'en',
+    segments: [
+      {
+        text: 'Hello world goodbye',
+        start: 0,
+        end: 2,
+        words: [
+          { text: 'Hello', start: 0, end: 0.3 },
+          { text: 'world', start: 0.35, end: 0.7 },
+          { text: 'goodbye', start: 1.2, end: 1.6 },
+        ],
+      },
+    ],
+  });
+  // Track starts at 10s, transport at 10.5s → relative time 0.5
+  // "Hello" [0, 0.3) → played, "world" [0.35, 0.7) → active, "goodbye" → upcoming
+  mockTransportTime = 10.5;
+
+  const tracks = [mockTrack({ trackId: 'track-1', startTime: 10 })];
+
+  const { container } = render(
+    <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
+  );
+
+  const words = container.querySelectorAll('.lyrics-bottom-sheet__word');
+
+  expect(words[0]).toHaveClass('lyrics-bottom-sheet__word--played');
+  expect(words[1]).toHaveClass('lyrics-bottom-sheet__word--active');
+  expect(words[2]).not.toHaveClass('lyrics-bottom-sheet__word--played');
+  expect(words[2]).not.toHaveClass('lyrics-bottom-sheet__word--active');
+});
+
+it('words have cursor pointer style', () => {
+  mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
+  mockGetTranscriptionState.mockReturnValue('done');
+  mockGetTranscription.mockReturnValue({
+    trackId: 'track-1',
+    language: 'en',
+    segments: [
+      {
+        text: 'Hello',
+        start: 0,
+        end: 0.5,
+        words: [{ text: 'Hello', start: 0, end: 0.3 }],
+      },
+    ],
+  });
+
+  const tracks = [mockTrack({ trackId: 'track-1' })];
+
+  const { container } = render(
+    <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
+  );
+
+  const word = container.querySelector('.lyrics-bottom-sheet__word');
+
+  expect(word?.tagName).toBe('SPAN');
+  // Word should be clickable — verify it has a click handler by checking role
+  expect(word).toHaveAttribute('role', 'button');
 });

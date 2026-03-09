@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import { useClassificationService } from '../../hooks/useClassificationService';
 import { usePlaybackService } from '../../hooks/usePlaybackService';
@@ -51,6 +51,15 @@ const LyricsBottomSheet = ({
     [],
   );
 
+  const handleSeekTo = useCallback(
+    (time: number) => {
+      playback.seekTo(time);
+    },
+    // playback is a stable ref from context
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
   return (
     <BottomSheet
       isOpen={isOpen}
@@ -71,6 +80,7 @@ const LyricsBottomSheet = ({
               downloadProgress={transcription.downloadProgress}
               transportTime={playback.transportTime}
               onTranscribe={handleTranscribe}
+              onSeekTo={handleSeekTo}
             />
           ))}
         </ul>
@@ -88,6 +98,7 @@ type TrackTranscriptionProps = {
   downloadProgress: number | null;
   transportTime: number;
   onTranscribe: (trackId: TrackId) => void;
+  onSeekTo: (time: number) => void;
 };
 
 const TrackTranscription = ({
@@ -97,10 +108,13 @@ const TrackTranscription = ({
   downloadProgress,
   transportTime,
   onTranscribe,
+  onSeekTo,
 }: TrackTranscriptionProps) => {
   const handleClick = useCallback(() => {
     onTranscribe(track.trackId);
   }, [onTranscribe, track.trackId]);
+
+  const trackStartTime = track.startTime ?? 0;
 
   return (
     <li className="lyrics-bottom-sheet__item">
@@ -119,6 +133,8 @@ const TrackTranscription = ({
         segments={segments}
         downloadProgress={downloadProgress}
         transportTime={transportTime}
+        trackStartTime={trackStartTime}
+        onSeekTo={onSeekTo}
       />
     </li>
   );
@@ -169,6 +185,8 @@ type TrackContentProps = {
   segments: TranscriptionSegment[] | undefined;
   downloadProgress: number | null;
   transportTime: number;
+  trackStartTime: number;
+  onSeekTo: (time: number) => void;
 };
 
 const TrackContent = ({
@@ -176,6 +194,8 @@ const TrackContent = ({
   segments,
   downloadProgress,
   transportTime,
+  trackStartTime,
+  onSeekTo,
 }: TrackContentProps) => {
   if (state === 'transcribing') {
     const showProgress = downloadProgress !== null;
@@ -211,13 +231,16 @@ const TrackContent = ({
         <p className="lyrics-bottom-sheet__no-speech">No speech detected</p>
       );
     }
+    const relativeTime = transportTime - trackStartTime;
     return (
       <div className="lyrics-bottom-sheet__segments">
         {segments.map((segment, index) => (
           <SegmentPhrases
             key={index}
             segment={segment}
-            transportTime={transportTime}
+            relativeTime={relativeTime}
+            trackStartTime={trackStartTime}
+            onSeekTo={onSeekTo}
           />
         ))}
       </div>
@@ -259,17 +282,41 @@ function groupWordsIntoPhrases(
   return phrases;
 }
 
-function wordClassName(word: TranscriptionWord, transportTime: number): string {
-  if (transportTime <= word.start) return 'lyrics-bottom-sheet__word';
-  return 'lyrics-bottom-sheet__word lyrics-bottom-sheet__word--played';
+function wordClassName(word: TranscriptionWord, relativeTime: number): string {
+  const base = 'lyrics-bottom-sheet__word';
+  const isActive = relativeTime >= word.start && relativeTime < word.end;
+  const isPlayed = relativeTime > word.start;
+
+  if (isActive) return `${base} ${base}--active`;
+  if (isPlayed) return `${base} ${base}--played`;
+  return base;
 }
 
 type SegmentPhrasesProps = {
   segment: TranscriptionSegment;
-  transportTime: number;
+  relativeTime: number;
+  trackStartTime: number;
+  onSeekTo: (time: number) => void;
 };
 
-const SegmentPhrases = ({ segment, transportTime }: SegmentPhrasesProps) => {
+const SegmentPhrases = ({
+  segment,
+  relativeTime,
+  trackStartTime,
+  onSeekTo,
+}: SegmentPhrasesProps) => {
+  const activeWordRef = useRef<HTMLSpanElement>(null);
+
+  // Auto-scroll to keep the active word visible
+  useEffect(() => {
+    if (activeWordRef.current?.scrollIntoView) {
+      activeWordRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+      });
+    }
+  }, [relativeTime]);
+
   // Fall back to full text when word-level timestamps are unavailable
   if (segment.words.length === 0) {
     return <p className="lyrics-bottom-sheet__segment">{segment.text}</p>;
@@ -281,15 +328,22 @@ const SegmentPhrases = ({ segment, transportTime }: SegmentPhrasesProps) => {
     <div className="lyrics-bottom-sheet__segment">
       {phrases.map((phrase, phraseIndex) => (
         <p key={phraseIndex} className="lyrics-bottom-sheet__phrase">
-          {phrase.map((word, wordIndex) => (
-            <span
-              key={wordIndex}
-              className={wordClassName(word, transportTime)}
-            >
-              {wordIndex > 0 ? ' ' : ''}
-              {word.text}
-            </span>
-          ))}
+          {phrase.map((word, wordIndex) => {
+            const isActive =
+              relativeTime >= word.start && relativeTime < word.end;
+            return (
+              <span
+                key={wordIndex}
+                ref={isActive ? activeWordRef : undefined}
+                role="button"
+                className={wordClassName(word, relativeTime)}
+                onClick={() => onSeekTo(trackStartTime + word.start)}
+              >
+                {wordIndex > 0 ? ' ' : ''}
+                {word.text}
+              </span>
+            );
+          })}
         </p>
       ))}
     </div>
