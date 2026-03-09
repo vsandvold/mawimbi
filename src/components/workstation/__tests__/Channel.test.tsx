@@ -1,4 +1,5 @@
-import { fireEvent, render } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 
 import { getFocusedTracks } from '../../../signals/focusSignals';
@@ -6,6 +7,12 @@ import AudioService from '../../../services/AudioService';
 import { resetAllSignals } from '../../../signals/__tests__/testUtils';
 import { mockTrack } from '../../../testUtils';
 import Channel from '../Channel';
+
+const mockProjectDispatch = vi.fn();
+
+vi.mock('../../project/useProjectDispatch', () => ({
+  default: () => mockProjectDispatch,
+}));
 
 const mockGetClassification = vi.fn().mockReturnValue(undefined);
 const mockGetClassificationState = vi.fn().mockReturnValue('idle');
@@ -290,4 +297,24 @@ it('sets title attribute with download progress', () => {
 
   const instrumentDiv = container.querySelector('.channel__instrument');
   expect(instrumentDiv).toHaveAttribute('title', 'Downloading model: 72%');
+});
+
+it('dispatches SET_INSTRUMENT when selecting an instrument from dropdown', async () => {
+  const user = userEvent.setup();
+  mockGetClassification.mockReturnValue({ label: 'guitar', score: 0.85 });
+  mockGetClassificationState.mockReturnValue('done');
+
+  const track = mockTrack({ trackId: 'track-1', instrument: 'guitar' });
+  render(<Channel {...{ ...defaultProps, track }} />);
+
+  const trigger = screen.getByTitle('Guitar');
+  await user.click(trigger);
+
+  const drumItem = await screen.findByText('Drums');
+  await user.click(drumItem);
+
+  expect(mockProjectDispatch).toHaveBeenCalledWith([
+    'SET_INSTRUMENT',
+    { trackId: 'track-1', instrument: 'drums' },
+  ]);
 });

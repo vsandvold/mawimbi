@@ -1,4 +1,5 @@
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import AudioService from '../../../services/AudioService';
 import { resetAllSignals } from '../../../signals/__tests__/testUtils';
@@ -11,6 +12,17 @@ const mockProjectDispatch = vi.fn();
 
 vi.mock('../../project/useProjectDispatch', () => ({
   default: () => mockProjectDispatch,
+}));
+
+vi.mock('../../../hooks/useClassificationService', () => ({
+  useClassificationService: () => ({
+    classifications: new Map(),
+    downloadProgress: null,
+    getClassification: () => undefined,
+    getClassificationState: () => 'idle',
+    removeClassification: vi.fn(),
+    reset: vi.fn(),
+  }),
 }));
 
 afterEach(() => {
@@ -36,6 +48,32 @@ it('renders a channel for each track', () => {
   // Each channel renders a mute/solo button
   const channelButtons = getAllByTitle('On');
   expect(channelButtons).toHaveLength(3);
+});
+
+it('closes other instrument dropdowns when one opens', async () => {
+  const user = userEvent.setup();
+  trackService.createSignals('track-1');
+  trackService.createSignals('track-2');
+  const tracks = [
+    mockTrack({ trackId: 'track-1', index: 0, instrument: 'guitar' }),
+    mockTrack({ trackId: 'track-2', index: 1, instrument: 'drums' }),
+  ];
+
+  render(<Mixer tracks={tracks} />);
+
+  const triggers = screen.getAllByRole('button', { name: /Guitar|Drums/ });
+  const guitarTrigger = triggers.find((t) => t.title === 'Guitar')!;
+  const drumsTrigger = triggers.find((t) => t.title === 'Drums')!;
+
+  // Open guitar channel's dropdown
+  await user.click(guitarTrigger);
+  const menus = screen.getAllByRole('menu');
+  expect(menus).toHaveLength(1);
+
+  // Open drums channel's dropdown — guitar's should close
+  await user.click(drumsTrigger);
+  const menusAfter = screen.getAllByRole('menu');
+  expect(menusAfter).toHaveLength(1);
 });
 
 it('marks channel as muted via mute signal', () => {
