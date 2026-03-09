@@ -23,7 +23,7 @@ type UseScrubberOptions = {
   tracks: Track[];
 };
 
-// Keep in sync with --timeline-margin in index.css
+// Keep in sync with --timeline-margin-top / --timeline-margin-bottom in index.css
 const TIMELINE_MARGIN = 40;
 const SCROLL_DEBOUNCE_MS = 200;
 
@@ -80,9 +80,9 @@ export function useScrubber({
     (time: number) => {
       if (timelineScrollRef.current) {
         const scrollPosition = Math.trunc(time * pixelsPerSecond);
-        if (timelineScrollRef.current.scrollLeft !== scrollPosition) {
+        if (timelineScrollRef.current.scrollTop !== scrollPosition) {
           isProgrammaticScrollRef.current = true;
-          timelineScrollRef.current.scrollLeft = scrollPosition;
+          timelineScrollRef.current.scrollTop = scrollPosition;
         }
         setIsRewindButtonHidden(scrollPosition < 10);
       }
@@ -134,24 +134,24 @@ export function useScrubber({
             const color = track.color ?? { r: 100, g: 200, b: 255 };
             return { r: color.r, g: color.g, b: color.b, data: frequencyData };
           });
-        const scrollLeft = timelineScrollRef.current?.scrollLeft ?? 0;
+        const scrollTop = timelineScrollRef.current?.scrollTop ?? 0;
         plasmaRef.current?.render(
           frequencyData,
           currentLoudness,
-          scrollLeft,
+          scrollTop,
           trackFrequencyInputs,
         );
 
         // Skip end-of-scroll detection while recording — the recording
-        // spectrogram grows its container width progressively, so scrollWidth
-        // can momentarily equal clientWidth before new content is laid out.
+        // spectrogram grows its container height progressively, so scrollHeight
+        // can momentarily equal clientHeight before new content is laid out.
         // Stopping playback here would freeze transportTime updates and halt
         // the live spectrogram scroll.
         if (timelineScrollRef.current && !recording.isActivelyRecording) {
           const isEndOfScroll =
-            timelineScrollRef.current.scrollLeft +
-              timelineScrollRef.current.clientWidth >=
-            timelineScrollRef.current.scrollWidth;
+            timelineScrollRef.current.scrollTop +
+              timelineScrollRef.current.clientHeight >=
+            timelineScrollRef.current.scrollHeight;
           if (isEndOfScroll) {
             playback.rewind();
             return;
@@ -180,7 +180,7 @@ export function useScrubber({
 
   const setTransportTimeFromScroll = () => {
     if (timelineScrollRef.current) {
-      const scrollPosition = timelineScrollRef.current.scrollLeft;
+      const scrollPosition = timelineScrollRef.current.scrollTop;
       const time = scrollPosition / pixelsPerSecond;
       playback.seekTo(time);
     }
@@ -224,7 +224,7 @@ export function useScrubber({
     }
 
     if (timelineScrollRef.current) {
-      toggleRewindButton(timelineScrollRef.current.scrollLeft);
+      toggleRewindButton(timelineScrollRef.current.scrollTop);
     }
 
     if (recording.isActivelyRecording) return;
