@@ -1,4 +1,11 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { test, expect } from '@playwright/test';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const SHORT_AUDIO = path.join(__dirname, 'fixtures', 'test-tone-short.wav');
 
 test.describe('visual regression', () => {
   test('home page', async ({ page }) => {
@@ -95,6 +102,26 @@ test.describe('dark theme properties', () => {
     );
     // Title should be 20px (h4 with Tailwind text-xl)
     expect(fontSize).toBe('20px');
+  });
+
+  test('channel items are vertically centered', async ({ page }) => {
+    await page.goto('/project/test-id');
+
+    // Upload a track so the mixer has a channel to display
+    const fileInput = page.locator('.project-page-header input[type="file"]');
+    await fileInput.setInputFiles(SHORT_AUDIO);
+    await expect(page.locator('.timeline__track')).toHaveCount(1);
+
+    // Open the mixer
+    await page.getByTitle('Show mixer').click();
+    await expect(page.locator('.channel')).toHaveCount(1);
+
+    // The channel flex container should vertically center its children
+    const channel = page.locator('.channel').first();
+    const alignItems = await channel.evaluate(
+      (el) => window.getComputedStyle(el).alignItems,
+    );
+    expect(alignItems).toBe('center');
   });
 
 });
