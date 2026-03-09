@@ -4,7 +4,10 @@ import { useClassificationService } from '../../hooks/useClassificationService';
 import { useTrackService } from '../../hooks/useTrackService';
 import { useTranscriptionService } from '../../hooks/useTranscriptionService';
 import { type Track, type TrackId } from '../../types/track';
-import type { TranscriptionSegment } from '../../types/transcription';
+import type {
+  TranscriptionSegment,
+  TranscriptionWord,
+} from '../../types/transcription';
 import type { TranscriptionState } from '../../services/TranscriptionService';
 import { Button } from '../ui/button';
 import { Progress } from '../ui/progress';
@@ -203,9 +206,7 @@ const TrackContent = ({
     return (
       <div className="lyrics-bottom-sheet__segments">
         {segments.map((segment, index) => (
-          <p key={index} className="lyrics-bottom-sheet__segment">
-            {segment.text}
-          </p>
+          <SegmentPhrases key={index} segment={segment} />
         ))}
       </div>
     );
@@ -213,6 +214,54 @@ const TrackContent = ({
 
   // idle
   return null;
+};
+
+// --- Segment with phrase line breaks ---
+
+// Gap between words (in seconds) that indicates a new phrase
+const PHRASE_GAP_THRESHOLD_SECONDS = 0.3;
+
+function groupWordsIntoPhrases(words: TranscriptionWord[]): string[] {
+  if (words.length === 0) return [];
+
+  const phrases: string[] = [];
+  let currentPhrase: string[] = [words[0].text];
+
+  for (let i = 1; i < words.length; i++) {
+    const gap = words[i].start - words[i - 1].end;
+
+    if (gap >= PHRASE_GAP_THRESHOLD_SECONDS) {
+      phrases.push(currentPhrase.join(' '));
+      currentPhrase = [];
+    }
+
+    currentPhrase.push(words[i].text);
+  }
+
+  if (currentPhrase.length > 0) {
+    phrases.push(currentPhrase.join(' '));
+  }
+
+  return phrases;
+}
+
+const SegmentPhrases = ({ segment }: { segment: TranscriptionSegment }) => {
+  // Fall back to full text when word-level timestamps are unavailable
+  if (segment.words.length === 0) {
+    return <p className="lyrics-bottom-sheet__segment">{segment.text}</p>;
+  }
+
+  const phrases = groupWordsIntoPhrases(segment.words);
+
+  return (
+    <div className="lyrics-bottom-sheet__segment">
+      {phrases.map((phrase, index) => (
+        <p key={index} className="lyrics-bottom-sheet__phrase">
+          {phrase}
+        </p>
+      ))}
+    </div>
+  );
 };
 
 export default LyricsBottomSheet;

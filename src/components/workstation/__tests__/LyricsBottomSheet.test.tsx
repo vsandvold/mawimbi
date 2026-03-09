@@ -276,6 +276,38 @@ it('displays transcription segments when done', () => {
   expect(queryByText('Transcribe')).not.toBeInTheDocument();
 });
 
+it('splits segment into phrases based on word timing gaps', () => {
+  mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
+  mockGetTranscriptionState.mockReturnValue('done');
+  mockGetTranscription.mockReturnValue({
+    trackId: 'track-1',
+    language: 'en',
+    segments: [
+      {
+        text: 'Hello world goodbye world',
+        start: 0,
+        end: 5,
+        words: [
+          { text: 'Hello', start: 0, end: 0.3 },
+          { text: 'world', start: 0.35, end: 0.7 },
+          // 0.5s gap — triggers phrase break (>= 0.3s)
+          { text: 'goodbye', start: 1.2, end: 1.6 },
+          { text: 'world', start: 1.65, end: 2.0 },
+        ],
+      },
+    ],
+  });
+
+  const tracks = [mockTrack({ trackId: 'track-1' })];
+
+  const { getByText } = render(
+    <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
+  );
+
+  expect(getByText('Hello world')).toBeInTheDocument();
+  expect(getByText('goodbye world')).toBeInTheDocument();
+});
+
 it('shows no-speech message when transcription has zero segments', () => {
   mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
   mockGetTranscriptionState.mockReturnValue('done');

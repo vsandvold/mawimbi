@@ -83,8 +83,12 @@
 }
 
 .lyrics-bottom-sheet__segment {
-  font-size: 13px;
+  font-size: 18px;
   color: rgba(255, 255, 255, 0.85);
   line-height: 1.6;
-  margin: 0 0 4px;
+  margin: 0 0 12px;
+}
+
+.lyrics-bottom-sheet__phrase {
+  margin: 0;
 }
