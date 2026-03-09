@@ -29,13 +29,21 @@ import { useChannelControls } from './useChannelControls';
 
 type ChannelProps = {
   dragHandleProps?: Record<string, unknown>;
+  isInstrumentDropdownOpen?: boolean;
   isMuted: boolean;
+  onInstrumentDropdownOpenChange?: (open: boolean) => void;
   track: Track;
 };
 
 const PERCENT_DIVISOR = 100;
 
-const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
+const Channel = ({
+  isMuted,
+  isInstrumentDropdownOpen,
+  onInstrumentDropdownOpenChange,
+  track,
+  dragHandleProps = {},
+}: ChannelProps) => {
   const { trackId, color } = track;
   const dispatch = useProjectDispatch();
 
@@ -82,7 +90,11 @@ const Channel = ({ isMuted, track, dragHandleProps = {} }: ChannelProps) => {
         backgroundColor: channelColor,
       }}
     >
-      <DropdownMenu>
+      <DropdownMenu
+        modal={false}
+        open={isInstrumentDropdownOpen}
+        onOpenChange={onInstrumentDropdownOpenChange}
+      >
         <DropdownMenuTrigger asChild disabled={isClassifying}>
           <button
             className="channel__instrument"

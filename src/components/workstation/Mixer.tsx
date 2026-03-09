@@ -1,3 +1,4 @@
+import { useCallback, useState } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -26,9 +27,22 @@ const Mixer = ({ tracks }: MixerProps) => {
   const { mutedTracks } = useTrackService();
   const projectDispatch = useProjectDispatch();
   const sensors = useSensors(useSensor(PointerSensor));
+  const [openDropdownId, setOpenDropdownId] = useState<TrackId | null>(null);
 
   const reversedTracks = tracks.slice().reverse();
   const reversedIds = reversedTracks.map((t) => t.trackId);
+
+  const handleDropdownOpenChange = useCallback(
+    (trackId: TrackId, open: boolean) => {
+      setOpenDropdownId((prev) => {
+        if (open) return trackId;
+        // Only close if this track's dropdown is the one currently open.
+        // Prevents a closing dropdown from overriding a newly opened one.
+        return prev === trackId ? null : prev;
+      });
+    },
+    [],
+  );
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -54,6 +68,8 @@ const Mixer = ({ tracks }: MixerProps) => {
               key={track.trackId}
               track={track}
               isMuted={mutedTracks.includes(track.trackId)}
+              isInstrumentDropdownOpen={openDropdownId === track.trackId}
+              onInstrumentDropdownOpenChange={handleDropdownOpenChange}
             />
           ))}
         </div>
@@ -65,9 +81,16 @@ const Mixer = ({ tracks }: MixerProps) => {
 type SortableChannelItemProps = {
   track: Track;
   isMuted: boolean;
+  isInstrumentDropdownOpen: boolean;
+  onInstrumentDropdownOpenChange: (trackId: TrackId, open: boolean) => void;
 };
 
-const SortableChannelItem = ({ track, isMuted }: SortableChannelItemProps) => {
+const SortableChannelItem = ({
+  track,
+  isMuted,
+  isInstrumentDropdownOpen,
+  onInstrumentDropdownOpenChange,
+}: SortableChannelItemProps) => {
   const { attributes, listeners, setNodeRef, transform, transition } =
     useSortable({ id: track.trackId });
 
@@ -76,10 +99,21 @@ const SortableChannelItem = ({ track, isMuted }: SortableChannelItemProps) => {
     transition,
   };
 
+  const handleDropdownOpenChange = useCallback(
+    (open: boolean) => {
+      onInstrumentDropdownOpenChange(track.trackId, open);
+    },
+    // onInstrumentDropdownOpenChange is stable (useCallback in Mixer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [track.trackId],
+  );
+
   return (
     <div className="mixer__channel" ref={setNodeRef} style={style}>
       <Channel
         isMuted={isMuted}
+        isInstrumentDropdownOpen={isInstrumentDropdownOpen}
+        onInstrumentDropdownOpenChange={handleDropdownOpenChange}
         track={track}
         dragHandleProps={{ ...attributes, ...listeners }}
       />
