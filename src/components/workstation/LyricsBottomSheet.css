@@ -95,8 +95,21 @@
 
 .lyrics-bottom-sheet__word {
   transition: color 0.15s ease;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.lyrics-bottom-sheet__word:hover {
+  text-decoration: underline;
 }
 
 .lyrics-bottom-sheet__word--played {
   color: var(--muted-foreground);
+}
+
+.lyrics-bottom-sheet__word--active {
+  color: var(--foreground);
+  background-color: var(--accent);
+  padding: 1px 2px;
+  margin: -1px -2px;
 }
