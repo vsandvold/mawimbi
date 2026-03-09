@@ -1,6 +1,13 @@
+import 'fake-indexeddb/auto';
+import { IDBFactory } from 'fake-indexeddb';
 import { vi } from 'vitest';
 import TranscriptionService from '../TranscriptionService';
 import type { TranscriptionSegment } from '../../types/transcription';
+import {
+  loadTranscription,
+  saveTranscription,
+  resetDB,
+} from '../ProjectStorageService';
 
 // Mock @huggingface/transformers for main-thread fallback tests
 const mockTranscriberFn = vi.fn();
@@ -101,6 +108,11 @@ function setupMainThreadMocks(): void {
 let service: TranscriptionService;
 
 beforeEach(() => {
+  Object.defineProperty(globalThis, 'indexedDB', {
+    value: new IDBFactory(),
+    configurable: true,
+  });
+  resetDB();
   service = new TranscriptionService();
   mockTranscriberFn.mockReset();
   setupMainThreadMocks();
@@ -524,6 +536,75 @@ describe('TranscriptionService', () => {
       service.reset();
 
       expect(service.transcriptions.size).toBe(0);
+    });
+  });
+
+  describe('persistence', () => {
+    it('auto-saves transcription to IndexedDB after transcription completes', async () => {
+      const buffer = createAudioBuffer();
+      const promise = service.transcribe('track-1', buffer);
+
+      simulateWorkerResult('en', sampleSegments);
+      await promise;
+
+      // Wait for fire-and-forget persist
+      await vi.waitFor(async () => {
+        const stored = await loadTranscription('track-1');
+        expect(stored).not.toBeNull();
+      });
+
+      const stored = await loadTranscription('track-1');
+      expect(stored!.trackId).toBe('track-1');
+      expect(stored!.language).toBe('en');
+      expect(stored!.segments).toEqual(sampleSegments);
+    });
+
+    it('loads cached transcription from IndexedDB', async () => {
+      await saveTranscription({
+        trackId: 'track-1',
+        language: 'fr',
+        segments: sampleSegments,
+      });
+
+      const result = await service.loadCachedTranscription('track-1');
+
+      expect(result).not.toBeNull();
+      expect(result!.trackId).toBe('track-1');
+      expect(result!.language).toBe('fr');
+      expect(result!.segments).toEqual(sampleSegments);
+      expect(service.getTranscriptionState('track-1')).toBe('done');
+    });
+
+    it('returns null when no cached transcription exists', async () => {
+      const result = await service.loadCachedTranscription('nonexistent');
+
+      expect(result).toBeNull();
+      expect(service.getTranscriptionState('nonexistent')).toBe('idle');
+    });
+
+    it('returns in-memory cache instead of hitting IndexedDB when already loaded', async () => {
+      const buffer = createAudioBuffer();
+      const promise = service.transcribe('track-1', buffer);
+      simulateWorkerResult('en', sampleSegments);
+      await promise;
+
+      const result = await service.loadCachedTranscription('track-1');
+
+      expect(result).not.toBeNull();
+      expect(result!.language).toBe('en');
+    });
+
+    it('deletes persisted transcription from IndexedDB', async () => {
+      await saveTranscription({
+        trackId: 'track-1',
+        language: 'en',
+        segments: sampleSegments,
+      });
+
+      await service.deletePersistedTranscription('track-1');
+
+      const stored = await loadTranscription('track-1');
+      expect(stored).toBeNull();
     });
   });
 });

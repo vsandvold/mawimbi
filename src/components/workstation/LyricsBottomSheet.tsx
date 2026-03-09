@@ -10,6 +10,7 @@ import type {
   TranscriptionWord,
 } from '../../types/transcription';
 import type { TranscriptionState } from '../../services/TranscriptionService';
+import type { TrackColor } from '../../types/track';
 import { Button } from '../ui/button';
 import { Progress } from '../ui/progress';
 import BottomSheet from './BottomSheet';
@@ -50,6 +51,19 @@ const LyricsBottomSheet = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
+
+  // Load cached transcriptions from IndexedDB when the sheet opens
+  useEffect(() => {
+    if (!isOpen) return;
+    for (const track of vocalTracks) {
+      if (transcription.getTranscriptionState(track.trackId) === 'idle') {
+        transcription.loadCachedTranscription(track.trackId);
+      }
+    }
+    // Fire once when opened; vocalTracks identity changes on every render
+    // but we only need to load on open, not on every track list change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   const handleSeekTo = useCallback(
     (time: number) => {
@@ -134,6 +148,7 @@ const TrackTranscription = ({
         downloadProgress={downloadProgress}
         transportTime={transportTime}
         trackStartTime={trackStartTime}
+        trackColor={track.color}
         onSeekTo={onSeekTo}
       />
     </li>
@@ -186,6 +201,7 @@ type TrackContentProps = {
   downloadProgress: number | null;
   transportTime: number;
   trackStartTime: number;
+  trackColor: TrackColor;
   onSeekTo: (time: number) => void;
 };
 
@@ -195,6 +211,7 @@ const TrackContent = ({
   downloadProgress,
   transportTime,
   trackStartTime,
+  trackColor,
   onSeekTo,
 }: TrackContentProps) => {
   if (state === 'transcribing') {
@@ -240,6 +257,7 @@ const TrackContent = ({
             segment={segment}
             relativeTime={relativeTime}
             trackStartTime={trackStartTime}
+            trackColor={trackColor}
             onSeekTo={onSeekTo}
           />
         ))}
@@ -296,6 +314,7 @@ type SegmentPhrasesProps = {
   segment: TranscriptionSegment;
   relativeTime: number;
   trackStartTime: number;
+  trackColor: TrackColor;
   onSeekTo: (time: number) => void;
 };
 
@@ -303,6 +322,7 @@ const SegmentPhrases = ({
   segment,
   relativeTime,
   trackStartTime,
+  trackColor,
   onSeekTo,
 }: SegmentPhrasesProps) => {
   const activeWordRef = useRef<HTMLSpanElement>(null);
@@ -331,12 +351,18 @@ const SegmentPhrases = ({
           {phrase.map((word, wordIndex) => {
             const isActive =
               relativeTime >= word.start && relativeTime < word.end;
+            const style = isActive
+              ? {
+                  color: `rgb(${trackColor.r},${trackColor.g},${trackColor.b})`,
+                }
+              : undefined;
             return (
               <span
                 key={wordIndex}
                 ref={isActive ? activeWordRef : undefined}
                 role="button"
                 className={wordClassName(word, relativeTime)}
+                style={style}
                 onClick={() => onSeekTo(trackStartTime + word.start)}
               >
                 {wordIndex > 0 ? ' ' : ''}

@@ -6,9 +6,11 @@ import {
   saveProject,
   saveAudioData,
   saveSpectrogramData,
+  saveTranscription,
   loadProject,
   loadAudioData,
   loadSpectrogramData,
+  loadTranscription,
   resetDB,
   type StoredProject,
 } from '../../../services/ProjectStorageService';
@@ -374,6 +376,34 @@ describe('useDeleteTrackAudio', () => {
     await waitFor(async () => {
       const spectrogram = await loadSpectrogramData('track-1');
       expect(spectrogram).toBeNull();
+    });
+  });
+
+  it('deletes transcription data when a track is removed', async () => {
+    await saveTranscription({
+      trackId: 'track-1',
+      language: 'en',
+      segments: [
+        {
+          text: 'Hello',
+          start: 0,
+          end: 0.5,
+          words: [{ text: 'Hello', start: 0, end: 0.5 }],
+        },
+      ],
+    });
+
+    const initialTracks = [createTrack({ trackId: 'track-1' })];
+    const { rerender } = renderHook(
+      ({ tracks }) => useDeleteTrackAudio(tracks),
+      { initialProps: { tracks: initialTracks } },
+    );
+
+    rerender({ tracks: [] });
+
+    await waitFor(async () => {
+      const transcription = await loadTranscription('track-1');
+      expect(transcription).toBeNull();
     });
   });
 });

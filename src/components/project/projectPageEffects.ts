@@ -4,6 +4,7 @@ import useDebounced from '../../hooks/useDebounced';
 import {
   deleteAudioData,
   deleteSpectrogramData,
+  deleteTranscription,
   loadAudioData,
   loadProject,
   saveAudioData,
@@ -245,6 +246,7 @@ export const useDeleteTrackAudio = (tracks: Track[]) => {
       if (!currIds.has(track.trackId)) {
         deleteAudioData(track.trackId);
         deleteSpectrogramData(track.trackId);
+        deleteTranscription(track.trackId);
       }
     }
 
