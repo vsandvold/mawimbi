@@ -16,7 +16,9 @@ async function uploadAudioFile(
 }
 
 test.describe('Project data persistence across page reload', () => {
-  test('uploaded track survives a hard page reload', async ({ page }) => {
+  test('uploaded track survives reload and project appears on home page', async ({
+    page,
+  }) => {
     // Create a project from the home page
     await page.goto('/');
     await page.getByRole('button', { name: 'Create Project' }).click();
@@ -29,22 +31,11 @@ test.describe('Project data persistence across page reload', () => {
     // Wait for auto-save debounce (250ms) plus buffer
     await page.waitForTimeout(500);
 
-    // Hard reload
+    // Hard reload — track should survive
     await page.reload();
-
-    // Track should still be visible after reload
     await expect(page.locator('.timeline__track')).toBeVisible({
       timeout: 10_000,
     });
-  });
-
-  test('project appears on home page after reload', async ({ page }) => {
-    // Create a project and upload a track
-    await page.goto('/');
-    await page.getByRole('button', { name: 'Create Project' }).click();
-    await uploadAudioFile(page, SHORT_AUDIO);
-    await expect(page.locator('.timeline__track')).toBeVisible();
-    await page.waitForTimeout(500);
 
     // Navigate home — project should be listed with its track count
     await page.goto('/');

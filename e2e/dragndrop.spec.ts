@@ -66,68 +66,39 @@ async function drop(
   await page.dispatchEvent('.editor', 'dragleave', { dataTransfer });
 }
 
-test.describe('Drag and drop – overlay visibility', () => {
-  test.beforeEach(async ({ page }) => {
+test.describe('Drag and drop – overlay and accept/reject', () => {
+  test('overlay shows on drag, accepts audio, rejects non-audio, hides on leave', async ({
+    page,
+  }) => {
     await page.goto('/project/test-id');
-  });
 
-  test('dropzone overlay is hidden before any drag', async ({ page }) => {
+    // Overlay hidden before drag
     await expect(page.locator('.editor__dropzone')).toHaveClass(
       /editor__dropzone--hidden/,
     );
-  });
 
-  test('dropzone overlay appears when dragging audio files over the editor', async ({
-    page,
-  }) => {
-    const dt = await createAudioDataTransfer(page, [SHORT_AUDIO]);
-    await dragOver(page, dt);
-
+    // Accept state for audio files
+    const audioDt = await createAudioDataTransfer(page, [SHORT_AUDIO]);
+    await dragOver(page, audioDt);
     await expect(page.locator('.editor__dropzone')).not.toHaveClass(
       /editor__dropzone--hidden/,
     );
-  });
-
-  test('dropzone overlay disappears when drag leaves the editor', async ({
-    page,
-  }) => {
-    const dt = await createAudioDataTransfer(page, [SHORT_AUDIO]);
-    await dragOver(page, dt);
-    await expect(page.locator('.editor__dropzone')).not.toHaveClass(
-      /editor__dropzone--hidden/,
-    );
-
-    await page.dispatchEvent('.editor', 'dragleave', { dataTransfer: dt });
-
-    await expect(page.locator('.editor__dropzone')).toHaveClass(
-      /editor__dropzone--hidden/,
-    );
-  });
-});
-
-test.describe('Drag and drop – accept / reject states', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/project/test-id');
-  });
-
-  test('shows accept styling and hint text for valid audio files', async ({
-    page,
-  }) => {
-    const dt = await createAudioDataTransfer(page, [SHORT_AUDIO]);
-    await dragOver(page, dt);
-
     await expect(page.locator('.dropzone')).toHaveClass(/dropzone--accept/);
     await expect(
       page.getByText('Drag and drop audio files here'),
     ).toBeVisible();
-  });
 
-  test('shows reject styling and hint text for non-audio files', async ({
-    page,
-  }) => {
-    const dt = await createNonAudioDataTransfer(page);
-    await dragOver(page, dt);
+    // Overlay disappears on drag leave
+    await page.dispatchEvent('.editor', 'dragleave', {
+      dataTransfer: audioDt,
+    });
+    await expect(page.locator('.editor__dropzone')).toHaveClass(
+      /editor__dropzone--hidden/,
+    );
 
+    // Reject state for non-audio files
+    const nonAudioDt = await createNonAudioDataTransfer(page);
+    await dragOver(page, nonAudioDt);
     await expect(page.locator('.dropzone')).toHaveClass(/dropzone--reject/);
     await expect(
       page.getByText('Oops, this does not look like an audio file'),
@@ -136,13 +107,14 @@ test.describe('Drag and drop – accept / reject states', () => {
 });
 
 test.describe('Drag and drop – file upload', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/project/test-id');
-  });
-
-  test('dropping an audio file creates a track in the timeline', async ({
+  test('dropping audio creates tracks and enables controls, rejected files ignored', async ({
     page,
   }) => {
+    await page.goto('/project/test-id');
+    await expect(page.getByTitle('Play')).toBeDisabled();
+    await expect(page.getByTitle('Show mixer')).toBeDisabled();
+
+    // Drop single audio file → creates track, enables controls
     const dt = await createAudioDataTransfer(page, [SHORT_AUDIO]);
     await dragOver(page, dt);
     await drop(page, dt);
@@ -151,11 +123,14 @@ test.describe('Drag and drop – file upload', () => {
       page.getByText('Start recording, or upload some audio files'),
     ).toBeHidden();
     await expect(page.locator('.timeline__track')).toBeVisible();
+    await expect(page.getByTitle('Play')).toBeEnabled();
+    await expect(page.getByTitle('Show mixer')).toBeEnabled();
   });
 
   test('dropping multiple audio files creates one track per file', async ({
     page,
   }) => {
+    await page.goto('/project/test-id');
     const dt = await createAudioDataTransfer(page, [SHORT_AUDIO, LONG_AUDIO]);
     await dragOver(page, dt);
     await drop(page, dt);
@@ -163,27 +138,12 @@ test.describe('Drag and drop – file upload', () => {
     await expect(page.locator('.timeline__track')).toHaveCount(2);
   });
 
-  test('enables play and mixer buttons after a successful drop', async ({
-    page,
-  }) => {
-    await expect(page.getByTitle('Play')).toBeDisabled();
-    await expect(page.getByTitle('Show mixer')).toBeDisabled();
-
-    const dt = await createAudioDataTransfer(page, [SHORT_AUDIO]);
-    await dragOver(page, dt);
-    await drop(page, dt);
-
-    await expect(page.locator('.timeline__track')).toBeVisible();
-    await expect(page.getByTitle('Play')).toBeEnabled();
-    await expect(page.getByTitle('Show mixer')).toBeEnabled();
-  });
-
   test('rejected files are not added to the timeline', async ({ page }) => {
+    await page.goto('/project/test-id');
     const dt = await createNonAudioDataTransfer(page);
     await dragOver(page, dt);
     await drop(page, dt);
 
-    // The empty state should still be visible – nothing was added
     await expect(
       page.getByText('Start recording, or upload some audio files'),
     ).toBeVisible();
