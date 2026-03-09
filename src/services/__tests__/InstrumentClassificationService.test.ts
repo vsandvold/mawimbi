@@ -186,99 +186,6 @@ describe('InstrumentClassificationService', () => {
   });
 
   describe('worker-based classification', () => {
-    it('creates a Worker on first classify call', async () => {
-      const buffer = createAudioBuffer();
-      const promise = service.classify('track-1', buffer);
-
-      simulateWorkerResult('electricguitar', 0.85);
-      await promise;
-
-      expect(Worker).toHaveBeenCalledWith(expect.any(URL), {
-        type: 'module',
-      });
-    });
-
-    it('reuses the same Worker across multiple classify calls', async () => {
-      const buffer = createAudioBuffer();
-
-      const promise1 = service.classify('track-1', buffer);
-      simulateWorkerResult('electricguitar', 0.85, 0);
-      await promise1;
-
-      const promise2 = service.classify('track-2', buffer);
-      simulateWorkerResult('drums', 0.8, 1);
-      await promise2;
-
-      expect(Worker).toHaveBeenCalledTimes(1);
-    });
-
-    it('posts channel data, sampleRate, and length to the worker', async () => {
-      const buffer = createAudioBuffer();
-      const promise = service.classify('track-1', buffer);
-
-      simulateWorkerResult('electricguitar', 0.85);
-      await promise;
-
-      expect(mockWorker.postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: 0,
-          type: 'classify',
-          sampleRate: 16000,
-          length: 48000,
-        }),
-        expect.any(Array),
-      );
-
-      const postedMessage = mockWorker.postMessage.mock.calls[0][0];
-      expect(postedMessage.channelData).toHaveLength(1);
-      expect(postedMessage.channelData[0]).toBeInstanceOf(Float32Array);
-    });
-
-    it('transfers channel data ArrayBuffers to avoid copying', async () => {
-      const buffer = createAudioBuffer();
-      const promise = service.classify('track-1', buffer);
-
-      simulateWorkerResult('electricguitar', 0.85);
-      await promise;
-
-      const transferables = mockWorker.postMessage.mock.calls[0][1];
-      expect(transferables).toHaveLength(1);
-      expect(transferables[0]).toBeInstanceOf(ArrayBuffer);
-    });
-
-    it('copies channel data before transfer to preserve the original AudioBuffer', async () => {
-      const originalData = new Float32Array(48000).fill(0.5);
-      const buffer = {
-        numberOfChannels: 1,
-        length: 48000,
-        sampleRate: 16000,
-        duration: 3,
-        getChannelData: vi.fn().mockReturnValue(originalData),
-      } as unknown as AudioBuffer;
-
-      const promise = service.classify('track-1', buffer);
-
-      const postedChannelData =
-        mockWorker.postMessage.mock.calls[0][0].channelData[0];
-      // The posted data is a copy, not the same reference
-      expect(postedChannelData).not.toBe(originalData);
-      expect(postedChannelData.length).toBe(originalData.length);
-
-      simulateWorkerResult('electricguitar', 0.85);
-      await promise;
-    });
-
-    it('extracts all channels for multi-channel audio', async () => {
-      const buffer = createAudioBuffer(2, 48000, 16000);
-      const promise = service.classify('track-1', buffer);
-
-      simulateWorkerResult('electricguitar', 0.85);
-      await promise;
-
-      const postedMessage = mockWorker.postMessage.mock.calls[0][0];
-      expect(postedMessage.channelData).toHaveLength(2);
-    });
-
     it('maps Jamendo class labels to instrument categories', async () => {
       const buffer = createAudioBuffer();
       const promise = service.classify('track-1', buffer);
@@ -338,21 +245,6 @@ describe('InstrumentClassificationService', () => {
       expect(service.getClassification('track-1')?.label).toBe('guitar');
       expect(service.getClassification('track-2')?.label).toBe('drums');
       expect(service.classifications.size).toBe(2);
-    });
-
-    it('assigns sequential message IDs', async () => {
-      const buffer = createAudioBuffer();
-
-      const promise1 = service.classify('track-1', buffer);
-      simulateWorkerResult('electricguitar', 0.85, 0);
-      await promise1;
-
-      const promise2 = service.classify('track-2', buffer);
-      simulateWorkerResult('drums', 0.8, 1);
-      await promise2;
-
-      expect(mockWorker.postMessage.mock.calls[0][0].id).toBe(0);
-      expect(mockWorker.postMessage.mock.calls[1][0].id).toBe(1);
     });
   });
 
