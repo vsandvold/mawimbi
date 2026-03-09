@@ -271,6 +271,14 @@ export function useScrubber({
     timelineScaleFactor,
   );
 
+  const syncScrollToTime = useCallback(
+    (time: number) => {
+      setScrollPosition(time);
+      plasmaRef.current?.renderIdle();
+    },
+    [setScrollPosition],
+  );
+
   return {
     timelineScrollRef,
     cursorContainerRef,
@@ -282,6 +290,7 @@ export function useScrubber({
     handleWheel,
     handleTouchMove,
     handleStopAndRewind,
+    syncScrollToTime,
   };
 }
 

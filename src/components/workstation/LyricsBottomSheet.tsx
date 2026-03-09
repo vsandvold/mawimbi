@@ -22,6 +22,7 @@ type LyricsBottomSheetProps = {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onHeightChange: (height: number) => void;
+  onSeekTo: (time: number) => void;
   tracks: Track[];
 };
 
@@ -29,6 +30,7 @@ const LyricsBottomSheet = ({
   isOpen,
   onOpenChange,
   onHeightChange,
+  onSeekTo,
   tracks,
 }: LyricsBottomSheetProps) => {
   const classification = useClassificationService();
@@ -65,15 +67,6 @@ const LyricsBottomSheet = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  const handleSeekTo = useCallback(
-    (time: number) => {
-      playback.seekTo(time);
-    },
-    // playback is a stable ref from context
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
-
   return (
     <BottomSheet
       isOpen={isOpen}
@@ -94,7 +87,7 @@ const LyricsBottomSheet = ({
               downloadProgress={transcription.downloadProgress}
               transportTime={playback.transportTime}
               onTranscribe={handleTranscribe}
-              onSeekTo={handleSeekTo}
+              onSeekTo={onSeekTo}
             />
           ))}
         </ul>
@@ -327,12 +320,12 @@ const SegmentPhrases = ({
 }: SegmentPhrasesProps) => {
   const activeWordRef = useRef<HTMLSpanElement>(null);
 
-  // Auto-scroll to keep the active word visible
+  // Auto-scroll to keep the active word centered in the bottom sheet
   useEffect(() => {
     if (activeWordRef.current?.scrollIntoView) {
       activeWordRef.current.scrollIntoView({
         behavior: 'smooth',
-        block: 'nearest',
+        block: 'center',
       });
     }
   }, [relativeTime]);

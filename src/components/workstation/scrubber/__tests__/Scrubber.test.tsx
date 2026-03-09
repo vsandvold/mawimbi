@@ -1,8 +1,9 @@
 import { isInaccessible } from '@testing-library/dom';
 import { act, fireEvent, render } from '@testing-library/react';
+import { createRef } from 'react';
 import * as Tone from 'tone';
 import AudioService from '../../../../services/AudioService';
-import Scrubber from '../Scrubber';
+import Scrubber, { type ScrubberHandle } from '../Scrubber';
 
 const audioService = AudioService.getInstance();
 const playbackService = audioService.playbackService;
@@ -394,4 +395,19 @@ it('does not update transportTime during count-in', () => {
   // transportTime should stay at the pre-count-in value, not update
   // to the current transport position (3.5) during count-in
   expect(playbackService.transportTime).toBe(5.0);
+});
+
+it('syncs timeline scroll position via imperative handle', () => {
+  const ref = createRef<ScrubberHandle>();
+
+  const { container } = render(<Scrubber ref={ref} {...defaultProps} />);
+
+  const timeline = container.querySelector('.scrubber__timeline')!;
+
+  act(() => {
+    ref.current!.syncScrollToTime(2.5);
+  });
+
+  // scrollLeft = time * pixelsPerSecond = 2.5 * 200 = 500
+  expect(timeline.scrollLeft).toBe(500);
 });
