@@ -1,6 +1,6 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { expect, test } from '@playwright/test';
+import { expect, test } from './fixtures';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -89,7 +89,10 @@ async function ensureAudioContextRunning(
  */
 async function recordAudio(
   page: import('@playwright/test').Page,
-  durationMs = 2000,
+  {
+    durationMs = 1000,
+    expectedTrackCount = 1,
+  }: { durationMs?: number; expectedTrackCount?: number } = {},
 ) {
   const recordButton = page.getByTitle('Record');
 
@@ -104,8 +107,12 @@ async function recordAudio(
   await page.waitForTimeout(durationMs);
   await recordButton.click();
 
-  // Wait for async track creation (decode + channel setup)
-  await page.waitForTimeout(3000);
+  // Wait for async track creation (decode + channel setup) by polling
+  // for the expected number of tracks in the DOM.
+  await expect(page.locator('.timeline__track')).toHaveCount(
+    expectedTrackCount,
+    { timeout: 5000 },
+  );
 }
 
 test.describe('Recording', () => {
@@ -126,15 +133,17 @@ test.describe('Recording', () => {
     // Track has a visible spectrogram canvas with content
     const canvas = timelineTrack.locator('canvas');
     await expect(canvas.first()).toBeVisible({ timeout: 5000 });
-    const hasContent = await canvas
-      .first()
-      .evaluate((el: HTMLCanvasElement) => {
-        const ctx = el.getContext('2d');
-        if (!ctx) return false;
-        const imageData = ctx.getImageData(0, 0, el.width, el.height);
-        return imageData.data.some((value, i) => i % 4 === 3 && value > 0);
-      });
-    expect(hasContent).toBe(true);
+    await expect(async () => {
+      const hasContent = await canvas
+        .first()
+        .evaluate((el: HTMLCanvasElement) => {
+          const ctx = el.getContext('2d');
+          if (!ctx) return false;
+          const imageData = ctx.getImageData(0, 0, el.width, el.height);
+          return imageData.data.some((value, i) => i % 4 === 3 && value > 0);
+        });
+      expect(hasContent).toBe(true);
+    }).toPass({ timeout: 5000 });
 
     // Transport is rewound to the start after recording stops
     const scrollBefore = await page
@@ -163,10 +172,9 @@ test.describe('Recording with existing tracks', () => {
     await fileInput.setInputFiles(SHORT_AUDIO);
     await expect(page.locator('.timeline__track')).toBeVisible();
 
-    await recordAudio(page, 1500);
-
-    await expect(page.locator('.timeline__track')).toHaveCount(2, {
-      timeout: 5000,
+    await recordAudio(page, {
+      durationMs: 1500,
+      expectedTrackCount: 2,
     });
 
     await page.getByTitle('Play').click();
