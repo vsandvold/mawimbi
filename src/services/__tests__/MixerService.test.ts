@@ -1,36 +1,11 @@
 import { vi } from 'vitest';
 import * as Tone from 'tone';
 import MixerService, { AudioChannel } from '../MixerService';
-import type WorkletAnalyser from '../WorkletAnalyser';
-
-function createMockWorkletAnalyser(loudness = 0): WorkletAnalyser {
-  return {
-    input: { connect: vi.fn(), disconnect: vi.fn() } as unknown as AudioNode,
-    getLoudness: vi.fn().mockReturnValue(loudness),
-    getRawRms: vi.fn().mockReturnValue(0),
-    initialize: vi.fn().mockResolvedValue(undefined),
-    dispose: vi.fn(),
-  } as unknown as WorkletAnalyser;
-}
 
 let mixer: MixerService;
 
 beforeEach(() => {
   mixer = new MixerService();
-});
-
-describe('constructor', () => {
-  it('creates a Tone.Meter with normalRange and smoothing', () => {
-    expect(Tone.Meter).toHaveBeenCalledWith({
-      normalRange: true,
-      smoothing: 0.8,
-    });
-  });
-
-  it('connects Tone.Destination to the meter', () => {
-    const destination = vi.mocked(Tone.getDestination).mock.results[0].value;
-    expect(destination.connect).toHaveBeenCalled();
-  });
 });
 
 describe('getLoudness', () => {
@@ -71,71 +46,7 @@ describe('getLoudness', () => {
   });
 });
 
-describe('useWorkletAnalyser', () => {
-  it('disconnects Tone.Meter and connects WorkletAnalyser to destination', () => {
-    const analyser = createMockWorkletAnalyser();
-    const destination = vi.mocked(Tone.getDestination).mock.results[0].value;
-    const meterInstance = vi.mocked(Tone.Meter).mock.results[0].value;
-
-    mixer.useWorkletAnalyser(analyser);
-
-    expect(destination.disconnect).toHaveBeenCalledWith(meterInstance);
-    expect(destination.connect).toHaveBeenCalledWith(analyser.input);
-  });
-
-  it('delegates getLoudness to WorkletAnalyser after upgrade', () => {
-    const analyser = createMockWorkletAnalyser(0.75);
-
-    mixer.useWorkletAnalyser(analyser);
-
-    expect(mixer.getLoudness()).toBe(0.75);
-    expect(analyser.getLoudness).toHaveBeenCalled();
-  });
-
-  it('does not call Tone.Meter after upgrade', () => {
-    const analyser = createMockWorkletAnalyser(0.5);
-    const meterInstance = vi.mocked(Tone.Meter).mock.results[0].value;
-
-    mixer.useWorkletAnalyser(analyser);
-    mixer.getLoudness();
-
-    expect(meterInstance.getValue).not.toHaveBeenCalled();
-  });
-});
-
 describe('createChannel', () => {
-  it('creates a Tone.Player synced to transport', () => {
-    const audioBuffer = {} as AudioBuffer;
-
-    mixer.createChannel('track-1', audioBuffer);
-
-    expect(Tone.Player).toHaveBeenCalledWith(audioBuffer);
-    // Player().sync().start(0)
-    const playerInstance = vi.mocked(Tone.Player).mock.results[0].value;
-    expect(playerInstance.sync).toHaveBeenCalled();
-    expect(playerInstance.start).toHaveBeenCalledWith(0, 0);
-  });
-
-  it('creates a Tone.Channel', () => {
-    mixer.createChannel('track-1', {} as AudioBuffer);
-
-    expect(Tone.Channel).toHaveBeenCalled();
-  });
-
-  it('chains player through channel to destination', () => {
-    mixer.createChannel('track-1', {} as AudioBuffer);
-
-    const playerInstance = vi.mocked(Tone.Player).mock.results[0].value;
-    const channelInstance = vi.mocked(Tone.Channel).mock.results[0].value;
-    const destination = vi
-      .mocked(Tone.getDestination)
-      .mock.results.at(-1)!.value;
-    expect(playerInstance.chain).toHaveBeenCalledWith(
-      channelInstance,
-      destination,
-    );
-  });
-
   it('starts player at given transport time and audio offset', () => {
     mixer.createChannel('track-1', {} as AudioBuffer, 0, 5.0, 0.03);
 

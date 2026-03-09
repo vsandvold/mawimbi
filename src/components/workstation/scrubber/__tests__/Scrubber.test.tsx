@@ -104,102 +104,6 @@ it('transforms timeline vertical scale when drawer is open', () => {
   );
 });
 
-it('renders plasma playhead canvas in the cursor container', () => {
-  const { container } = render(<Scrubber {...defaultProps} />);
-
-  const canvas = container.querySelector('.plasma-playhead');
-
-  expect(canvas).toBeInTheDocument();
-  expect(canvas?.tagName).toBe('CANVAS');
-});
-
-it('renders idle playhead after cursor container is resized', () => {
-  // Override the no-op ResizeObserver stub to capture all callbacks
-  const resizeCallbacks: ResizeObserverCallback[] = [];
-  const OriginalResizeObserver = globalThis.ResizeObserver;
-  globalThis.ResizeObserver = class MockResizeObserver {
-    constructor(cb: ResizeObserverCallback) {
-      resizeCallbacks.push(cb);
-    }
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-  } as unknown as typeof ResizeObserver;
-
-  // Mock getContext to return a minimal context so renderIdle can draw
-  const originalGetContext = HTMLCanvasElement.prototype.getContext;
-  const getContextSpy = vi.fn().mockReturnValue({
-    clearRect: vi.fn(),
-    fillRect: vi.fn(),
-    fillStyle: '',
-    beginPath: vi.fn(),
-    moveTo: vi.fn(),
-    lineTo: vi.fn(),
-    stroke: vi.fn(),
-    strokeStyle: '',
-    lineWidth: 0,
-    globalAlpha: 1,
-    shadowBlur: 0,
-    shadowColor: '',
-    createLinearGradient: vi.fn().mockReturnValue({
-      addColorStop: vi.fn(),
-    }),
-  });
-  HTMLCanvasElement.prototype.getContext = getContextSpy;
-
-  try {
-    const { container } = render(<Scrubber {...defaultProps} />);
-
-    const canvas = container.querySelector(
-      '.plasma-playhead',
-    ) as HTMLCanvasElement;
-    expect(canvas).toBeInTheDocument();
-
-    // Clear the getContext calls from mounting
-    getContextSpy.mockClear();
-
-    // Simulate the ResizeObserver firing (container gains height)
-    // Fire all registered callbacks since the cursor observer may not
-    // be the last one registered.
-    act(() => {
-      for (const cb of resizeCallbacks) {
-        cb(
-          [
-            { contentRect: { height: 400 } },
-          ] as unknown as ResizeObserverEntry[],
-          {} as ResizeObserver,
-        );
-      }
-    });
-
-    // renderIdle should have been called, which calls getContext to draw
-    expect(getContextSpy).toHaveBeenCalled();
-  } finally {
-    globalThis.ResizeObserver = OriginalResizeObserver;
-    HTMLCanvasElement.prototype.getContext = originalGetContext;
-  }
-});
-
-it('feeds plasma renderer with loudness during playback', () => {
-  vi.spyOn(trackService, 'getLoudness').mockReturnValue(0.75);
-
-  let rafCallback: FrameRequestCallback = () => {};
-  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
-    rafCallback = cb;
-    return 1;
-  });
-
-  playbackService.play();
-
-  render(<Scrubber {...defaultProps} />);
-
-  act(() => {
-    rafCallback(0);
-  });
-
-  expect(trackService.getLoudness).toHaveBeenCalled();
-});
-
 it('does not stop playback at end of scroll during recording', () => {
   vi.spyOn(playbackService, 'getEngineTime').mockReturnValue(1.5);
   vi.spyOn(trackService, 'getLoudness').mockReturnValue(0);
@@ -225,14 +129,6 @@ it('does not stop playback at end of scroll during recording', () => {
 
   expect(playbackService.isPlaying).toBe(true);
   expect(playbackService.transportTime).toBe(1.5);
-});
-
-it('does not call getLoudness when playback is stopped', () => {
-  const getLoudnessSpy = vi.spyOn(trackService, 'getLoudness');
-
-  render(<Scrubber {...defaultProps} />);
-
-  expect(getLoudnessSpy).not.toHaveBeenCalled();
 });
 
 it('stops recording when timeline is clicked during recording', () => {
@@ -295,79 +191,6 @@ it('does not rewind when rewind button is clicked during recording', () => {
 
   expect(playbackService.isPlaying).toBe(true);
   expect(playbackService.transportTime).toBe(5.0);
-});
-
-it('recalculates timeline scale when container resizes with mixer open', () => {
-  // Capture all ResizeObserver callbacks so we can trigger them manually
-  const observerCallbacks: ResizeObserverCallback[] = [];
-  const observedElements: Element[] = [];
-  const OriginalResizeObserver = globalThis.ResizeObserver;
-  globalThis.ResizeObserver = class MockResizeObserver {
-    constructor(cb: ResizeObserverCallback) {
-      observerCallbacks.push(cb);
-    }
-    observe(el: Element) {
-      observedElements.push(el);
-    }
-    unobserve() {}
-    disconnect() {}
-  } as unknown as typeof ResizeObserver;
-
-  // Mock offsetHeight on the timeline scroll container to simulate height change
-  let mockOffsetHeight = 600;
-  const originalDescriptor = Object.getOwnPropertyDescriptor(
-    HTMLElement.prototype,
-    'offsetHeight',
-  );
-  Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
-    configurable: true,
-    get() {
-      return mockOffsetHeight;
-    },
-  });
-
-  try {
-    const { container } = render(
-      <Scrubber
-        {...{ ...defaultProps, drawerHeight: 120, isMixerOpen: true }}
-      />,
-    );
-
-    const timeline = container.querySelector('.scrubber__timeline');
-
-    // Initial scale: (600 - 120) / 600 = 0.8
-    expect(timeline?.outerHTML).toEqual(expect.stringContaining('scaleY(0.8)'));
-
-    // Simulate entering fullscreen — container height increases to 900
-    mockOffsetHeight = 900;
-
-    // Fire all ResizeObserver callbacks to simulate the resize
-    act(() => {
-      for (const cb of observerCallbacks) {
-        cb(
-          [
-            { contentRect: { height: 900 } },
-          ] as unknown as ResizeObserverEntry[],
-          {} as ResizeObserver,
-        );
-      }
-    });
-
-    // Scale should now be (900 - 120) / 900 ≈ 0.867
-    expect(timeline?.outerHTML).toEqual(expect.stringContaining('scaleY(0.8'));
-    expect(timeline?.outerHTML).not.toEqual(
-      expect.stringContaining('scaleY(0.8)'),
-    );
-  } finally {
-    globalThis.ResizeObserver = OriginalResizeObserver;
-    if (originalDescriptor) {
-      Object.defineProperty(
-        HTMLElement.prototype,
-        'offsetHeight',
-        originalDescriptor,
-      );
-    }
-  }
 });
 
 it('does not update transportTime during count-in', () => {

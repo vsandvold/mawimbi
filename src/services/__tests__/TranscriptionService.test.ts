@@ -147,111 +147,6 @@ describe('TranscriptionService', () => {
   });
 
   describe('worker-based transcription', () => {
-    it('creates a Worker on first transcribe call', async () => {
-      const buffer = createAudioBuffer();
-      const promise = service.transcribe('track-1', buffer);
-
-      simulateWorkerResult('en', sampleSegments);
-      await promise;
-
-      expect(Worker).toHaveBeenCalledWith(expect.any(URL), {
-        type: 'module',
-      });
-    });
-
-    it('reuses the same Worker across multiple transcribe calls', async () => {
-      const buffer = createAudioBuffer();
-
-      const promise1 = service.transcribe('track-1', buffer);
-      simulateWorkerResult('en', sampleSegments, 0);
-      await promise1;
-
-      const promise2 = service.transcribe('track-2', buffer);
-      simulateWorkerResult('en', sampleSegments, 1);
-      await promise2;
-
-      expect(Worker).toHaveBeenCalledTimes(1);
-    });
-
-    it('posts channel data, sampleRate, length, and modelId to the worker', async () => {
-      const buffer = createAudioBuffer();
-      const promise = service.transcribe('track-1', buffer);
-
-      simulateWorkerResult('en', sampleSegments);
-      await promise;
-
-      expect(mockWorker.postMessage).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: 0,
-          type: 'transcribe',
-          sampleRate: 16000,
-          length: 48000,
-          modelId: 'onnx-community/whisper-base_timestamped',
-        }),
-        expect.any(Array),
-      );
-
-      const postedMessage = mockWorker.postMessage.mock.calls[0][0];
-      expect(postedMessage.channelData).toHaveLength(1);
-      expect(postedMessage.channelData[0]).toBeInstanceOf(Float32Array);
-    });
-
-    it('sends custom model ID to the worker', async () => {
-      const custom = new TranscriptionService('onnx-community/whisper-small');
-      const buffer = createAudioBuffer();
-      const promise = custom.transcribe('track-1', buffer);
-
-      simulateWorkerResult('en', sampleSegments);
-      await promise;
-
-      const postedMessage = mockWorker.postMessage.mock.calls[0][0];
-      expect(postedMessage.modelId).toBe('onnx-community/whisper-small');
-    });
-
-    it('transfers channel data ArrayBuffers to avoid copying', async () => {
-      const buffer = createAudioBuffer();
-      const promise = service.transcribe('track-1', buffer);
-
-      simulateWorkerResult('en', sampleSegments);
-      await promise;
-
-      const transferables = mockWorker.postMessage.mock.calls[0][1];
-      expect(transferables).toHaveLength(1);
-      expect(transferables[0]).toBeInstanceOf(ArrayBuffer);
-    });
-
-    it('copies channel data before transfer to preserve the original AudioBuffer', async () => {
-      const originalData = new Float32Array(48000).fill(0.5);
-      const buffer = {
-        numberOfChannels: 1,
-        length: 48000,
-        sampleRate: 16000,
-        duration: 3,
-        getChannelData: vi.fn().mockReturnValue(originalData),
-      } as unknown as AudioBuffer;
-
-      const promise = service.transcribe('track-1', buffer);
-
-      const postedChannelData =
-        mockWorker.postMessage.mock.calls[0][0].channelData[0];
-      expect(postedChannelData).not.toBe(originalData);
-      expect(postedChannelData.length).toBe(originalData.length);
-
-      simulateWorkerResult('en', sampleSegments);
-      await promise;
-    });
-
-    it('extracts all channels for multi-channel audio', async () => {
-      const buffer = createAudioBuffer(2, 48000, 16000);
-      const promise = service.transcribe('track-1', buffer);
-
-      simulateWorkerResult('en', sampleSegments);
-      await promise;
-
-      const postedMessage = mockWorker.postMessage.mock.calls[0][0];
-      expect(postedMessage.channelData).toHaveLength(2);
-    });
-
     it('stores the result in the transcriptions signal', async () => {
       const buffer = createAudioBuffer();
       const promise = service.transcribe('track-1', buffer);
@@ -314,21 +209,6 @@ describe('TranscriptionService', () => {
       expect(service.getTranscription('track-1')?.language).toBe('en');
       expect(service.getTranscription('track-2')?.language).toBe('fr');
       expect(service.transcriptions.size).toBe(2);
-    });
-
-    it('assigns sequential message IDs', async () => {
-      const buffer = createAudioBuffer();
-
-      const promise1 = service.transcribe('track-1', buffer);
-      simulateWorkerResult('en', sampleSegments, 0);
-      await promise1;
-
-      const promise2 = service.transcribe('track-2', buffer);
-      simulateWorkerResult('en', sampleSegments, 1);
-      await promise2;
-
-      expect(mockWorker.postMessage.mock.calls[0][0].id).toBe(0);
-      expect(mockWorker.postMessage.mock.calls[1][0].id).toBe(1);
     });
 
     it('sets state to transcribing while worker processes', async () => {

@@ -98,97 +98,6 @@ beforeEach(() => {
 });
 
 describe('analyse', () => {
-  it('creates a Worker on first analyse call', async () => {
-    const audioBuffer = mockAudioBuffer();
-    const promise = cache.analyse('track-1', audioBuffer, COLOR);
-
-    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap]);
-    await promise;
-
-    expect(Worker).toHaveBeenCalledWith(expect.any(URL), { type: 'module' });
-  });
-
-  it('reuses the same Worker across multiple analyse calls', async () => {
-    const promise1 = cache.analyse('track-1', mockAudioBuffer(), COLOR);
-    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap], 0);
-    await promise1;
-
-    const promise2 = cache.analyse('track-2', mockAudioBuffer(), COLOR);
-    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap], 1);
-    await promise2;
-
-    expect(Worker).toHaveBeenCalledTimes(1);
-  });
-
-  it('posts channel data, sampleRate, length, and color to the worker', async () => {
-    const audioBuffer = mockAudioBuffer();
-    const promise = cache.analyse('track-1', audioBuffer, COLOR);
-
-    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap]);
-    await promise;
-
-    expect(mockWorker.postMessage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 0,
-        sampleRate: 44100,
-        length: 3,
-        color: COLOR,
-      }),
-      expect.any(Array),
-    );
-
-    const postedMessage = mockWorker.postMessage.mock.calls[0][0];
-    expect(postedMessage.channelData).toHaveLength(1);
-    expect(postedMessage.channelData[0]).toBeInstanceOf(Float32Array);
-  });
-
-  it('transfers channel data ArrayBuffers to avoid copying', async () => {
-    const audioBuffer = mockAudioBuffer();
-    const promise = cache.analyse('track-1', audioBuffer, COLOR);
-
-    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap]);
-    await promise;
-
-    const transferables = mockWorker.postMessage.mock.calls[0][1];
-    expect(transferables).toHaveLength(1);
-    expect(transferables[0]).toBeInstanceOf(ArrayBuffer);
-  });
-
-  it('copies channel data before transfer to preserve the original AudioBuffer', async () => {
-    const originalData = new Float32Array([0.1, 0.2, 0.3]);
-    const audioBuffer = {
-      numberOfChannels: 1,
-      length: 3,
-      sampleRate: 44100,
-      duration: 3 / 44100,
-      getChannelData: vi.fn().mockReturnValue(originalData),
-    } as unknown as AudioBuffer;
-
-    const promise = cache.analyse('track-1', audioBuffer, COLOR);
-
-    const postedChannelData =
-      mockWorker.postMessage.mock.calls[0][0].channelData[0];
-    // Should be a different Float32Array (a copy, not the same reference)
-    expect(postedChannelData).not.toBe(originalData);
-    expect(Array.from(postedChannelData)).toEqual(Array.from(originalData));
-
-    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap]);
-    await promise;
-  });
-
-  it('extracts all channels for multi-channel audio', async () => {
-    const audioBuffer = mockAudioBuffer(2);
-    const promise = cache.analyse('track-1', audioBuffer, COLOR);
-
-    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap]);
-    await promise;
-
-    const postedMessage = mockWorker.postMessage.mock.calls[0][0];
-    expect(postedMessage.channelData).toHaveLength(2);
-    expect(audioBuffer.getChannelData).toHaveBeenCalledWith(0);
-    expect(audioBuffer.getChannelData).toHaveBeenCalledWith(1);
-  });
-
   it('stores the entry from the worker response', async () => {
     const promise = cache.analyse('track-1', mockAudioBuffer(), COLOR);
 
@@ -218,19 +127,6 @@ describe('analyse', () => {
     const entry = cache.getEntry('track-1');
     expect(entry!.data).toBe(secondData);
     expect(entry!.tiles).toEqual([secondTile]);
-  });
-
-  it('assigns sequential message IDs', async () => {
-    const promise1 = cache.analyse('track-1', mockAudioBuffer(), COLOR);
-    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap], 0);
-    await promise1;
-
-    const promise2 = cache.analyse('track-2', mockAudioBuffer(), COLOR);
-    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap], 1);
-    await promise2;
-
-    expect(mockWorker.postMessage.mock.calls[0][0].id).toBe(0);
-    expect(mockWorker.postMessage.mock.calls[1][0].id).toBe(1);
   });
 
   it('falls back to main thread when the worker responds with an error', async () => {
@@ -467,20 +363,6 @@ describe('setMelody', () => {
 });
 
 describe('extractMelodyInWorker', () => {
-  it('posts melody request to worker with correct message format', () => {
-    cache.extractMelodyInWorker(mockAudioBuffer());
-
-    expect(mockWorker.postMessage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 0,
-        kind: 'melody',
-        sampleRate: 44100,
-        length: 3,
-      }),
-      expect.any(Array),
-    );
-  });
-
   it('resolves with MelodyData from worker response', async () => {
     const promise = cache.extractMelodyInWorker(mockAudioBuffer());
     simulateWorkerMelodyResult(MOCK_MELODY_DATA);

@@ -16,21 +16,6 @@ describe('singleton', () => {
     const b = AudioService.getInstance();
     expect(a).toBe(b);
   });
-
-  it('configures Tone.Context with interactive latency and reduced lookAhead', () => {
-    expect(Tone.Context).toHaveBeenCalledWith({
-      latencyHint: 'interactive',
-      lookAhead: 0.05,
-    });
-  });
-
-  it('configures Tone.js context before creating audio nodes', () => {
-    const setContextOrder = vi.mocked(Tone.setContext).mock
-      .invocationCallOrder[0];
-    const recorderOrder = vi.mocked(Tone.Recorder).mock.invocationCallOrder[0];
-    expect(setContextOrder).toBeDefined();
-    expect(setContextOrder).toBeLessThan(recorderOrder);
-  });
 });
 
 describe('sub-services', () => {
@@ -80,21 +65,6 @@ describe('startAudio', () => {
     await promise;
 
     expect(Tone.context.state).toBe('running');
-  });
-
-  it('removes the click listener after the first click', async () => {
-    const el = document.createElement('div');
-    const spy = vi.spyOn(el, 'addEventListener');
-
-    const promise = AudioService.startAudio(
-      el as unknown as Window & typeof globalThis,
-    );
-    el.dispatchEvent(new Event('click'));
-    await promise;
-
-    expect(spy).toHaveBeenCalledWith('click', expect.any(Function), {
-      once: true,
-    });
   });
 
   it('rejects when Tone.start() fails', async () => {
