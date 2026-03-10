@@ -115,8 +115,8 @@ html {
   --timeline-margin-top: 40px;
   --timeline-margin-bottom: 40px;
   /* Perspective tilt: runway depth effect on the timeline */
-  --timeline-perspective: 800px;
-  --timeline-tilt: 25deg;
+  --timeline-perspective: 500px;
+  --timeline-tilt: 35deg;
 }
 
 @media (hover: hover) and (pointer: fine) {

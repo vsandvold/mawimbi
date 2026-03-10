@@ -26,8 +26,10 @@ async function swipeTimeline(
   page: import('@playwright/test').Page,
   deltaY: number,
 ) {
-  const timeline = page.locator('.scrubber__timeline');
-  const box = await timeline.boundingBox();
+  // Target the perspective wrapper — its bounding box is not distorted by the
+  // child's 3D transform, so the center is always a reliable hit target.
+  const wrapper = page.locator('.scrubber__perspective');
+  const box = await wrapper.boundingBox();
   if (!box) throw new Error('Timeline not visible');
 
   const startX = Math.round(box.x + box.width / 2);
