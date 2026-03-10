@@ -191,6 +191,23 @@ export function useScrubber({
     debouncedSetTransportTime();
   };
 
+  // The perspective wrapper covers the full rectangular area while the
+  // tilted scroll container has a trapezoidal hit-test shape. Wheel events
+  // landing in the dead-zone corners hit the wrapper instead of the scroll
+  // container. This handler forwards them as programmatic scrolls so the
+  // entire visible area is scrollable.
+  const handlePerspectiveWheel = (e: ReactWheelEvent) => {
+    const el = timelineScrollRef.current;
+    if (!el) return;
+    // Skip events that already reached the scroll container (they bubble up)
+    if (el.contains(e.target as Node)) return;
+    // Skip zoom gestures
+    if (e.ctrlKey || e.metaKey) return;
+
+    el.scrollTop += e.deltaY;
+    handleWheel(e);
+  };
+
   const handleTouchMove = () => {
     // Skip scroll handling during pinch-to-zoom
     if (isPinchingRef.current) return;
@@ -273,6 +290,7 @@ export function useScrubber({
     handleScroll,
     handleWheel,
     handleTouchMove,
+    handlePerspectiveWheel,
     handleStopAndRewind,
     syncScrollToTime,
   };

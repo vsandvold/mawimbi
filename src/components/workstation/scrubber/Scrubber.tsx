@@ -35,6 +35,7 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     handleScroll,
     handleWheel,
     handleTouchMove,
+    handlePerspectiveWheel,
     handleStopAndRewind,
     syncScrollToTime,
   } = useScrubber({ drawerHeight, pixelsPerSecond });
@@ -49,13 +50,24 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     playback.togglePlayback();
   };
 
+  // Click handler for the perspective wrapper — catches clicks in the
+  // dead-zone corners outside the tilted scroll container's trapezoid.
+  const handlePerspectiveClick = (e: React.MouseEvent) => {
+    if (timelineScrollRef.current?.contains(e.target as Node)) return;
+    handleTimelineClick();
+  };
+
   const rewindButtonClass = classNames('scrubber__rewind', {
     'scrubber__rewind--hidden': isRewindButtonHidden,
   });
 
   return (
     <div className="scrubber scrubber--firefox-scroll-fix">
-      <div className="scrubber__perspective">
+      <div
+        className="scrubber__perspective"
+        onClick={handlePerspectiveClick}
+        onWheel={handlePerspectiveWheel}
+      >
         <div
           ref={timelineScrollRef}
           className="scrubber__timeline"

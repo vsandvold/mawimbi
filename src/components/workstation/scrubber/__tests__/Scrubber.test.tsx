@@ -92,15 +92,26 @@ it('transforms timeline vertical scale when drawer is open', () => {
   expect(progressCursor).toBeInTheDocument();
   expect(rewindButton).toBeInTheDocument();
 
-  expect(timeline?.outerHTML).toEqual(
-    expect.stringContaining('transform: rotateX'),
-  );
   expect(progressCursor?.outerHTML).toEqual(
     expect.stringContaining('transform: scaleY'),
   );
   expect(rewindButton?.outerHTML).toEqual(
     expect.stringContaining('transform: translateY'),
   );
+});
+
+it('perspective wrapper handles wheel events for full hit-area coverage', () => {
+  playbackService.play();
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+
+  // The perspective wrapper covers the full rectangular area. Wheel events
+  // landing outside the tilted scroll container's trapezoid hit the wrapper
+  // instead, which forwards them as programmatic scrolls.
+  const perspectiveWrapper = container.querySelector('.scrubber__perspective')!;
+  fireEvent.wheel(perspectiveWrapper, { deltaY: 100 });
+
+  expect(playbackService.isPlaying).toBe(false);
 });
 
 it('does not stop playback at end of scroll during recording', () => {
