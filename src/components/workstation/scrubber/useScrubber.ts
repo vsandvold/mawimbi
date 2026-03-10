@@ -36,8 +36,9 @@ export function useScrubber({
 
   const [isRewindButtonHidden, setIsRewindButtonHidden] = useState(true);
 
-  const toggleRewindButton = (scrollPosition: number) => {
-    setIsRewindButtonHidden(scrollPosition < 10);
+  const isNearBeginning = (el: HTMLDivElement) => {
+    const maxScrollTop = el.scrollHeight - el.clientHeight;
+    return maxScrollTop - el.scrollTop < 10;
   };
 
   const timelineScrollRef = useRef<HTMLDivElement>(null);
@@ -71,13 +72,16 @@ export function useScrubber({
 
   const setScrollPosition = useCallback(
     (time: number) => {
-      if (timelineScrollRef.current) {
-        const scrollPosition = Math.trunc(time * pixelsPerSecond);
-        if (timelineScrollRef.current.scrollTop !== scrollPosition) {
+      const el = timelineScrollRef.current;
+      if (el) {
+        const maxScrollTop = el.scrollHeight - el.clientHeight;
+        const scrollPosition =
+          maxScrollTop - Math.trunc(time * pixelsPerSecond);
+        if (el.scrollTop !== scrollPosition) {
           isProgrammaticScrollRef.current = true;
-          timelineScrollRef.current.scrollTop = scrollPosition;
+          el.scrollTop = scrollPosition;
         }
-        setIsRewindButtonHidden(scrollPosition < 10);
+        setIsRewindButtonHidden(isNearBeginning(el));
       }
     },
     [pixelsPerSecond],
@@ -129,11 +133,9 @@ export function useScrubber({
         // can momentarily equal clientHeight before new content is laid out.
         // Stopping playback here would freeze transportTime updates and halt
         // the live spectrogram scroll.
+        // In inverted scroll, end of track is at scrollTop=0 (top of scroll area)
         if (timelineScrollRef.current && !recording.isActivelyRecording) {
-          const isEndOfScroll =
-            timelineScrollRef.current.scrollTop +
-              timelineScrollRef.current.clientHeight >=
-            timelineScrollRef.current.scrollHeight;
+          const isEndOfScroll = timelineScrollRef.current.scrollTop <= 0;
           if (isEndOfScroll) {
             playback.rewind();
             return;
@@ -161,9 +163,10 @@ export function useScrubber({
   }, [playing, setScrollPosition]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setTransportTimeFromScroll = () => {
-    if (timelineScrollRef.current) {
-      const scrollPosition = timelineScrollRef.current.scrollTop;
-      const time = scrollPosition / pixelsPerSecond;
+    const el = timelineScrollRef.current;
+    if (el) {
+      const maxScrollTop = el.scrollHeight - el.clientHeight;
+      const time = (maxScrollTop - el.scrollTop) / pixelsPerSecond;
       playback.seekTo(time);
     }
     if (shouldResumeRef.current) {
@@ -206,7 +209,7 @@ export function useScrubber({
     }
 
     if (timelineScrollRef.current) {
-      toggleRewindButton(timelineScrollRef.current.scrollTop);
+      setIsRewindButtonHidden(isNearBeginning(timelineScrollRef.current));
     }
 
     if (recording.isActivelyRecording) return;
