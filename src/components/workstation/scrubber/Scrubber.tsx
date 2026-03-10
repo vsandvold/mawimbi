@@ -29,7 +29,8 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     cursorContainerRef,
     plasmaRef,
     isRewindButtonHidden,
-    timelineScaleStyle,
+    timelineScrollStyle,
+    timelineOverlayStyle,
     rewindButtonStyle,
     handleScroll,
     handleWheel,
@@ -57,7 +58,7 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
       <div
         ref={timelineScrollRef}
         className="scrubber__timeline"
-        style={timelineScaleStyle}
+        style={timelineScrollStyle}
         onClick={handleTimelineClick}
         onScroll={handleScroll}
         onWheel={handleWheel}
@@ -65,13 +66,13 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
       >
         {props.children}
       </div>
-      <div className="scrubber__shade" style={timelineScaleStyle}>
+      <div className="scrubber__shade" style={timelineOverlayStyle}>
         <div className="shade"></div>
       </div>
       <div
         ref={cursorContainerRef}
         className="scrubber__cursor"
-        style={timelineScaleStyle}
+        style={timelineOverlayStyle}
       >
         <PlasmaPlayhead ref={plasmaRef} width={0} />
       </div>
