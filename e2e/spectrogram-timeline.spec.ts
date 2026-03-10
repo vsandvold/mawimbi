@@ -96,6 +96,68 @@ async function canvasHasContent(
   }, threshold);
 }
 
+test.describe('Spectrogram alignment with cursor at time=0', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+
+  test('spectrogram bottom edge aligns with cursor position', async ({
+    page,
+  }) => {
+    await page.goto('/project/test-id');
+    await uploadAudioFile(page, LONG_AUDIO);
+
+    const spectrogramCanvas = page.locator('.spectrogram__canvas');
+    await expect(spectrogramCanvas).toBeVisible({ timeout: 15000 });
+
+    await expect(async () => {
+      const hasContent = await canvasHasContent(spectrogramCanvas);
+      expect(hasContent).toBe(true);
+    }).toPass({ timeout: 15000 });
+
+    // At time=0, the spectrogram's bottom edge (beginning of audio) should
+    // align with the cursor/playhead position. The cursor is at 25% of the
+    // scrubber height, and the timeline padding must match so the content
+    // boundary lands exactly on the cursor.
+    const alignment = await page.evaluate(() => {
+      const scrollContainer = document.querySelector(
+        '.scrubber__timeline',
+      ) as HTMLElement;
+      const spectrogram = document.querySelector(
+        '.spectrogram',
+      ) as HTMLElement;
+      const cursor = document.querySelector(
+        '.scrubber__cursor',
+      ) as HTMLElement;
+
+      const spectrogramRect = spectrogram.getBoundingClientRect();
+      const cursorRect = cursor.getBoundingClientRect();
+      const scrollRect = scrollContainer.getBoundingClientRect();
+
+      // The cursor center (playhead line) is at the vertical midpoint of
+      // the 240px-tall cursor element.
+      const cursorCenter = cursorRect.top + cursorRect.height / 2;
+
+      return {
+        spectrogramBottom: spectrogramRect.bottom,
+        cursorCenter,
+        scrollContainerTop: scrollRect.top,
+        scrollContainerHeight: scrollContainer.clientHeight,
+      };
+    });
+
+    // The spectrogram bottom should be within 2px of the cursor center.
+    // A larger gap indicates the timeline padding (100vh) doesn't match
+    // the cursor position (% of scrubber height).
+    expect(
+      alignment.spectrogramBottom,
+      `Spectrogram bottom (${alignment.spectrogramBottom.toFixed(1)}px) is not aligned ` +
+        `with cursor center (${alignment.cursorCenter.toFixed(1)}px). ` +
+        `Gap: ${Math.abs(alignment.spectrogramBottom - alignment.cursorCenter).toFixed(1)}px. ` +
+        `Scroll container: top=${alignment.scrollContainerTop.toFixed(1)}px, ` +
+        `height=${alignment.scrollContainerHeight}px`,
+    ).toBeCloseTo(alignment.cursorCenter, 0);
+  });
+});
+
 test.describe('Spectrogram canvas sticky positioning on mobile', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
@@ -112,7 +174,7 @@ test.describe('Spectrogram canvas sticky positioning on mobile', () => {
     }).toPass({ timeout: 15000 });
   });
 
-  test('canvas sticks at the viewport edge, not the content edge', async ({
+  test('canvas sticks at the scroll container edge, not the content edge', async ({
     page,
   }) => {
     const scrollContainer = page.locator('.scrubber__timeline');
@@ -130,20 +192,28 @@ test.describe('Spectrogram canvas sticky positioning on mobile', () => {
     }, scrollPos);
     await page.waitForTimeout(200);
 
-    const canvasTop = await spectrogramCanvas.evaluate(
-      (canvas: HTMLCanvasElement) => canvas.getBoundingClientRect().top,
-    );
+    const { canvasTop, scrollContainerTop } = await page.evaluate(() => {
+      const canvas = document.querySelector(
+        '.spectrogram__canvas',
+      ) as HTMLCanvasElement;
+      const scrollEl = document.querySelector(
+        '.scrubber__timeline',
+      ) as HTMLElement;
+      return {
+        canvasTop: canvas.getBoundingClientRect().top,
+        scrollContainerTop: scrollEl.getBoundingClientRect().top,
+      };
+    });
 
-    // The canvas should be at the viewport edge (top: 0), not offset
-    // by the scroll container's padding-top. On a 844px mobile viewport
-    // with 25% cursor position, the padding is ~211px — if the canvas is
-    // at the padding edge, only ~75% of the viewport shows spectrogram.
+    // The canvas should stick at the scroll container's top edge (sticky
+    // top: 0), not offset by the timeline's padding-top. The scroll
+    // container may be below the viewport top due to the project header.
     expect(
       canvasTop,
-      `Canvas top edge is at ${canvasTop}px instead of 0px — ` +
-        `it is stuck at the scroll container content edge (paddingTop=${paddingTop}) ` +
-        'instead of the viewport edge',
-    ).toBeCloseTo(0, 0);
+      `Canvas top edge is at ${canvasTop}px instead of scroll container top ` +
+        `(${scrollContainerTop}px) — it is stuck at the content edge ` +
+        `(paddingTop=${paddingTop}) instead of the scroll container edge`,
+    ).toBeCloseTo(scrollContainerTop, 0);
   });
 });
 
@@ -176,20 +246,30 @@ test.describe('Spectrogram timeline visualization during scroll', () => {
       return parseFloat(getComputedStyle(tl).paddingTop);
     });
 
-    // Hash the full canvas pixel buffer (not just the visible strip),
-    // since the canvas is sticky and may be partially off-screen before
-    // the content range.
+    // Hash sampled pixels across the full canvas to detect content changes.
+    // Samples every 10th row across multiple columns instead of a single
+    // column, since in the vertical layout the middle column corresponds
+    // to a single frequency bin that may be empty for certain audio.
     const getCanvasPixelHash = async () => {
       return spectrogramCanvas.evaluate((canvas: HTMLCanvasElement) => {
         const ctx = canvas.getContext('2d');
         if (!ctx || canvas.width === 0 || canvas.height === 0) return '';
-        const midCol = Math.floor(canvas.width / 2);
-        const strip = ctx.getImageData(midCol, 0, 1, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const pixels = imageData.data;
+        const w = canvas.width;
+        const h = canvas.height;
         let hash = 0;
-        for (let i = 0; i < strip.data.length; i++) {
-          hash = (hash * 31 + strip.data[i]) | 0;
+        const colStep = Math.max(1, Math.floor(w / 10));
+        for (let row = 0; row < h; row += 10) {
+          for (let col = 0; col < w; col += colStep) {
+            const idx = (row * w + col) * 4;
+            hash = (hash * 31 + pixels[idx]) | 0;
+            hash = (hash * 31 + pixels[idx + 1]) | 0;
+            hash = (hash * 31 + pixels[idx + 2]) | 0;
+            hash = (hash * 31 + pixels[idx + 3]) | 0;
+          }
         }
-        return `${canvas.height}:${hash}`;
+        return `${h}:${hash}`;
       });
     };
 

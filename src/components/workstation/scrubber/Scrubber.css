@@ -15,6 +15,11 @@
   /* Constrain height so content scrolls instead of expanding the container */
   min-height: 0;
   overflow-y: scroll;
+  /* Size container for cqh units in .timeline padding.
+     The timeline padding must reference the scroll container's height
+     (not the viewport) so the content boundary at time=0 aligns with
+     the cursor position (which is a % of the scrubber height). */
+  container-type: size;
 }
 
 .scrubber__shade {
