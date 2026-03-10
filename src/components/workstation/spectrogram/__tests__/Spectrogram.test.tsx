@@ -258,7 +258,7 @@ it('sets container height from duration and pixelsPerSecond', () => {
   expect(spectrogram).toHaveStyle({ height: '500px' });
 });
 
-it('offsets container by startTime for tracks recorded at non-zero position', () => {
+it('offsets container by startTime using marginBottom for inverted timeline', () => {
   const duration = 2.5;
   const startTime = 3.0;
   const audioBuffer = { duration } as AudioBuffer;
@@ -268,8 +268,10 @@ it('offsets container by startTime for tracks recorded at non-zero position', ()
   const { container } = render(<Spectrogram {...defaultProps} />);
 
   const spectrogram = container.querySelector('.spectrogram');
-  // marginTop = startTime * pixelsPerSecond = 3.0 * 200 = 600
-  expect(spectrogram).toHaveStyle({ marginTop: '600px' });
+  // marginBottom = startTime * pixelsPerSecond = 3.0 * 200 = 600
+  // Uses marginBottom (not marginTop) because the inverted timeline has
+  // beginning at the bottom — startTime offsets from the bottom.
+  expect(spectrogram).toHaveStyle({ marginBottom: '600px' });
 });
 
 it('has no margin offset for tracks starting at position zero', () => {
@@ -281,7 +283,7 @@ it('has no margin offset for tracks starting at position zero', () => {
   const { container } = render(<Spectrogram {...defaultProps} />);
 
   const spectrogram = container.querySelector('.spectrogram');
-  expect(spectrogram).toHaveStyle({ marginTop: '0px' });
+  expect(spectrogram).toHaveStyle({ marginBottom: '0px' });
 });
 
 it('sets container height to zero when no audio buffer', () => {
@@ -366,8 +368,8 @@ describe('recording mode', () => {
     callback?.();
 
     const spectrogram = container.querySelector('.spectrogram');
-    // marginTop = recordingStartTime * pixelsPerSecond = 3.0 * 200 = 600
-    expect(spectrogram).toHaveStyle({ marginTop: '600px' });
+    // marginBottom = recordingStartTime * pixelsPerSecond = 3.0 * 200 = 600
+    expect(spectrogram).toHaveStyle({ marginBottom: '600px' });
 
     vi.restoreAllMocks();
   });
