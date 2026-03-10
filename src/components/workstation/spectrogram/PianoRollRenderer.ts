@@ -11,7 +11,9 @@
  *   binIndex = 24 × log2(freq / 32.7)
  *
  * Each semitone spans 2 CQT bins (24 bins/octave ÷ 12 semitones).
- * Bin 0 is at the bottom of the canvas, matching the spectrogram orientation.
+ *
+ * Transposed for vertical timeline: frequency maps to X axis (bin 0 on
+ * the left = low frequency) and time maps to Y axis (top-to-bottom).
  */
 
 import { type MelodyNote } from '../../../services/MelodyExtractor';
@@ -84,13 +86,13 @@ export function midiNoteToBin(midiNote: number): number {
 export type PianoRollViewport = {
   /** Pixels per second (zoom level). */
   pixelsPerSecond: number;
-  /** Horizontal scroll offset in content pixels. */
+  /** Vertical scroll offset in content pixels (time axis). */
   contentOffset: number;
-  /** Canvas / viewport width in pixels. */
-  viewportWidth: number;
-  /** Canvas height in pixels. */
-  canvasHeight: number;
-  /** Total number of CQT frequency bins (determines y-axis scale). */
+  /** Canvas / viewport height in pixels (time axis). */
+  viewportHeight: number;
+  /** Canvas width in pixels (frequency axis). */
+  canvasWidth: number;
+  /** Total number of CQT frequency bins (determines x-axis scale). */
   frequencyBinCount: number;
   /** Current playhead time in seconds (-1 or undefined = no glow effect). */
   playheadTime?: number;
@@ -102,8 +104,9 @@ export type PianoRollViewport = {
  * Notes have a gradient fill for a 3D appearance and a distinct border.
  * Notes intersecting the playhead receive a bright glow effect.
  *
- * Only notes within the visible viewport are rendered (horizontal culling).
- * Vertical positions are mapped from MIDI note → CQT bin → canvas pixel.
+ * Transposed for vertical timeline: time maps to Y axis (vertical culling),
+ * frequency maps to X axis (MIDI note → CQT bin → canvas x-coordinate,
+ * bin 0 on the left = low frequency).
  */
 export function drawPianoRoll(
   ctx: CanvasRenderingContext2D,
@@ -114,17 +117,17 @@ export function drawPianoRoll(
   const {
     pixelsPerSecond,
     contentOffset,
-    viewportWidth,
-    canvasHeight,
+    viewportHeight,
+    canvasWidth,
     frequencyBinCount,
     playheadTime,
   } = viewport;
 
   if (notes.length === 0 || frequencyBinCount === 0) return;
 
-  const pixelsPerBin = canvasHeight / frequencyBinCount;
+  const pixelsPerBin = canvasWidth / frequencyBinCount;
   const viewStartTime = contentOffset / pixelsPerSecond;
-  const viewEndTime = (contentOffset + viewportWidth) / pixelsPerSecond;
+  const viewEndTime = (contentOffset + viewportHeight) / pixelsPerSecond;
 
   const { r, g, b } = color;
   const hasPlayhead =
@@ -138,20 +141,19 @@ export function drawPianoRoll(
       continue;
     }
 
-    const x = note.startTime * pixelsPerSecond - contentOffset;
-    const width = (note.endTime - note.startTime) * pixelsPerSecond;
+    // Time maps to Y axis (top-to-bottom)
+    const y = note.startTime * pixelsPerSecond - contentOffset;
+    const height = (note.endTime - note.startTime) * pixelsPerSecond;
 
-    // Map MIDI note to CQT bin, then to canvas y-coordinate.
-    // Bin 0 is at the bottom of the canvas (row = canvasHeight - 1).
+    // Map MIDI note to CQT bin, then to canvas x-coordinate.
+    // Bin 0 is on the left (low frequency).
     const binIndex = midiNoteToBin(note.midiNote);
-    const noteTopBin = binIndex + NOTE_HEIGHT_BINS / 2;
-    const noteBottomBin = binIndex - NOTE_HEIGHT_BINS / 2;
+    const noteLeftBin = binIndex - NOTE_HEIGHT_BINS / 2;
 
-    // Canvas y: top of canvas = highest bin, bottom = bin 0
-    const y = canvasHeight - noteTopBin * pixelsPerBin;
-    const height = (noteTopBin - noteBottomBin) * pixelsPerBin;
+    const x = noteLeftBin * pixelsPerBin;
+    const width = NOTE_HEIGHT_BINS * pixelsPerBin;
 
-    if (height < 1) continue;
+    if (width < 1) continue;
 
     const isActive =
       hasPlayhead &&
@@ -162,18 +164,7 @@ export function drawPianoRoll(
 
     // Draw pitch bend line if the note has bend data
     if (note.pitchBends && note.pitchBends.length > 1) {
-      drawPitchBendLine(
-        ctx,
-        x,
-        width,
-        canvasHeight,
-        pixelsPerBin,
-        note,
-        r,
-        g,
-        b,
-        isActive,
-      );
+      drawPitchBendLine(ctx, y, height, pixelsPerBin, note, r, g, b, isActive);
     }
   }
 }
@@ -182,14 +173,13 @@ export function drawPianoRoll(
  * Draws a pitch bend line through the center of a note.
  *
  * Each pitch bend value represents a deviation in semitones from the note's
- * base pitch. The line traces these deviations across the note duration,
- * making slides, vibratos, and bends visible on the piano roll.
+ * base pitch. The line traces these deviations along the note duration
+ * (Y axis), with horizontal offsets for pitch deviation (X axis).
  */
 function drawPitchBendLine(
   ctx: CanvasRenderingContext2D,
-  noteX: number,
-  noteWidth: number,
-  canvasHeight: number,
+  noteY: number,
+  noteHeight: number,
   pixelsPerBin: number,
   note: MelodyNote,
   r: number,
@@ -199,11 +189,11 @@ function drawPitchBendLine(
 ): void {
   const bends = note.pitchBends!;
   const bendCount = bends.length;
-  const pxPerBend = noteWidth / bendCount;
+  const pxPerBend = noteHeight / bendCount;
 
   // Each semitone = 2 CQT bins; bend values are in semitones
   const baseBin = midiNoteToBin(note.midiNote);
-  const baseY = canvasHeight - baseBin * pixelsPerBin;
+  const baseX = baseBin * pixelsPerBin;
 
   const opacity = isActive ? ACTIVE_FILL_OPACITY : PITCH_BEND_OPACITY;
   ctx.save();
@@ -214,10 +204,10 @@ function drawPitchBendLine(
 
   ctx.beginPath();
   for (let i = 0; i < bendCount; i++) {
-    // Bend in semitones → vertical offset in CQT bins (2 bins/semitone)
+    // Bend in semitones → horizontal offset in CQT bins (2 bins/semitone)
     const bendBins = bends[i] * NOTE_HEIGHT_BINS;
-    const px = noteX + i * pxPerBend;
-    const py = baseY - bendBins * pixelsPerBin;
+    const px = baseX + bendBins * pixelsPerBin;
+    const py = noteY + i * pxPerBend;
     if (i === 0) {
       ctx.moveTo(px, py);
     } else {
@@ -255,8 +245,8 @@ function drawNote(
     ctx.restore();
   }
 
-  // 3D gradient fill: lighter at top, darker at bottom
-  const gradient = ctx.createLinearGradient(x, y, x, y + height);
+  // 3D gradient fill: lighter on the left, darker on the right
+  const gradient = ctx.createLinearGradient(x, y, x + width, y);
   const rTop = Math.min(255, r + HIGHLIGHT_LIGHTNESS_BOOST);
   const gTop = Math.min(255, g + HIGHLIGHT_LIGHTNESS_BOOST);
   const bTop = Math.min(255, b + HIGHLIGHT_LIGHTNESS_BOOST);
@@ -275,18 +265,18 @@ function drawNote(
   ctx.fill();
   ctx.stroke();
 
-  // Inner top highlight line for extra depth
-  drawTopHighlight(ctx, x, y, width, r, g, b, fillOpacity);
+  // Inner left highlight line for extra depth
+  drawLeftHighlight(ctx, x, y, height, r, g, b, fillOpacity);
 }
 
 /**
- * Draws a thin highlight line along the top edge of a note for a 3D bevel.
+ * Draws a thin highlight line along the left edge of a note for a 3D bevel.
  */
-function drawTopHighlight(
+function drawLeftHighlight(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
-  width: number,
+  height: number,
   r: number,
   g: number,
   b: number,
@@ -296,8 +286,8 @@ function drawTopHighlight(
   ctx.strokeStyle = `rgba(${Math.min(255, r + 80)}, ${Math.min(255, g + 80)}, ${Math.min(255, b + 80)}, ${highlightOpacity})`;
   ctx.lineWidth = 0.5;
   ctx.beginPath();
-  ctx.moveTo(x + CORNER_RADIUS, y + 0.5);
-  ctx.lineTo(x + width - CORNER_RADIUS, y + 0.5);
+  ctx.moveTo(x + 0.5, y + CORNER_RADIUS);
+  ctx.lineTo(x + 0.5, y + height - CORNER_RADIUS);
   ctx.stroke();
 }
 
