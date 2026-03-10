@@ -13,5 +13,6 @@
 .page__content {
   display: flex;
   flex-direction: column;
-  flex: auto;
+  flex: 1;
+  min-height: 0;
 }

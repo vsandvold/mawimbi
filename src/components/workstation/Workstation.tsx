@@ -136,7 +136,6 @@ const Workstation = (props: WorkstationProps) => {
               drawerHeight={drawerHeight}
               onStopRecording={handleStopRecording}
               pixelsPerSecond={pixelsPerSecond}
-              tracks={tracks}
             >
               <Timeline
                 pixelsPerSecond={pixelsPerSecond}

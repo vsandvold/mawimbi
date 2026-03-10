@@ -148,7 +148,7 @@ test.describe('Recording', () => {
     // Transport is rewound to the start after recording stops
     const scrollBefore = await page
       .locator('.scrubber__timeline')
-      .evaluate((el) => el.scrollLeft);
+      .evaluate((el) => el.scrollTop);
     expect(scrollBefore).toBe(0);
 
     // Recorded track can be played back

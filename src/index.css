@@ -110,9 +110,10 @@ body {
 }
 
 html {
-  /* Timeline layout: the cursor sits at 75% of viewport width */
-  --cursor-position: 0.75;
-  --timeline-margin: 40px;
+  /* Timeline layout: the cursor sits at 25% from top of viewport */
+  --cursor-position: 0.25;
+  --timeline-margin-top: 40px;
+  --timeline-margin-bottom: 40px;
 }
 
 @media (hover: hover) and (pointer: fine) {

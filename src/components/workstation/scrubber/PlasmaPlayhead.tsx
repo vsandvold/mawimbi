@@ -1,43 +1,32 @@
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 import {
-  type TrackFrequencyInput,
   createPlasmaState,
   renderIdleFrame,
   renderPlasmaFrame,
 } from './plasmaRenderer';
 
-export const PLASMA_WIDTH = 240;
+export const PLASMA_HEIGHT = 240;
 
 export type PlasmaPlayheadHandle = {
-  render: (
-    frequencyData: Uint8Array | null,
-    loudness: number,
-    scrollLeft: number,
-    trackFrequencyInputs: TrackFrequencyInput[],
-  ) => void;
+  render: (frequencyData: Uint8Array | null, loudness: number) => void;
   renderIdle: () => void;
-  resize: (height: number) => void;
+  resize: (width: number) => void;
 };
 
 type PlasmaPlayheadProps = {
-  height: number;
+  width: number;
 };
 
 const PlasmaPlayhead = forwardRef<PlasmaPlayheadHandle, PlasmaPlayheadProps>(
-  ({ height }, ref) => {
+  ({ width }, ref) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const stateRef = useRef(createPlasmaState());
     const lastTimeRef = useRef(0);
 
-    const centerX = PLASMA_WIDTH / 2;
+    const centerY = PLASMA_HEIGHT / 2;
 
     useImperativeHandle(ref, () => ({
-      render(
-        frequencyData: Uint8Array | null,
-        loudness: number,
-        scrollLeft: number,
-        trackFrequencyInputs: TrackFrequencyInput[],
-      ) {
+      render(frequencyData: Uint8Array | null, loudness: number) {
         const canvas = canvasRef.current;
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
@@ -55,13 +44,11 @@ const PlasmaPlayhead = forwardRef<PlasmaPlayheadHandle, PlasmaPlayheadProps>(
           stateRef.current,
           frequencyData,
           loudness,
-          canvas.height,
-          PLASMA_WIDTH,
-          scrollLeft,
-          centerX,
+          canvas.width,
+          PLASMA_HEIGHT,
+          centerY,
           now,
           deltaTime,
-          trackFrequencyInputs,
         );
       },
 
@@ -71,13 +58,13 @@ const PlasmaPlayhead = forwardRef<PlasmaPlayheadHandle, PlasmaPlayheadProps>(
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
         lastTimeRef.current = 0;
-        renderIdleFrame(ctx, canvas.height, PLASMA_WIDTH, centerX);
+        renderIdleFrame(ctx, canvas.width, PLASMA_HEIGHT, centerY);
       },
 
-      resize(newHeight: number) {
+      resize(newWidth: number) {
         const canvas = canvasRef.current;
-        if (canvas && canvas.height !== newHeight) {
-          canvas.height = newHeight;
+        if (canvas && canvas.width !== newWidth) {
+          canvas.width = newWidth;
         }
       },
     }));
@@ -86,8 +73,8 @@ const PlasmaPlayhead = forwardRef<PlasmaPlayheadHandle, PlasmaPlayheadProps>(
       <canvas
         ref={canvasRef}
         className="plasma-playhead"
-        width={PLASMA_WIDTH}
-        height={height}
+        width={width}
+        height={PLASMA_HEIGHT}
       />
     );
   },

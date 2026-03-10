@@ -19,16 +19,16 @@ async function uploadAudioFile(
 }
 
 /**
- * Scrolls the timeline horizontally using a mouse wheel event.
+ * Scrolls the timeline vertically using a mouse wheel event.
  * This simulates real user scrolling and triggers the wheel event handler.
  */
 async function wheelScrollTimeline(
   page: import('@playwright/test').Page,
-  deltaX: number,
+  deltaY: number,
 ) {
   const timeline = page.locator('.scrubber__timeline');
   await timeline.hover();
-  await page.mouse.wheel(deltaX, 0);
+  await page.mouse.wheel(0, deltaY);
 }
 
 test.describe('Drag and scroll timeline to seek while playing', () => {
@@ -42,7 +42,7 @@ test.describe('Drag and scroll timeline to seek while playing', () => {
     page,
   }) => {
     const timeline = page.locator('.scrubber__timeline');
-    const initialScrollLeft = await timeline.evaluate((el) => el.scrollLeft);
+    const initialScrollTop = await timeline.evaluate((el) => el.scrollTop);
 
     // Start playback
     await page.getByTitle('Play').click();
@@ -60,8 +60,8 @@ test.describe('Drag and scroll timeline to seek while playing', () => {
     // Verify scroll position advanced
     await page.getByTitle('Pause').click();
     await page.waitForTimeout(100);
-    const scrollLeft = await timeline.evaluate((el) => el.scrollLeft);
-    expect(scrollLeft).toBeGreaterThan(initialScrollLeft + 50);
+    const scrollTop = await timeline.evaluate((el) => el.scrollTop);
+    expect(scrollTop).toBeGreaterThan(initialScrollTop + 50);
   });
 
   test('scrolling the timeline while paused does not auto-resume', async ({
@@ -72,7 +72,7 @@ test.describe('Drag and scroll timeline to seek while playing', () => {
     await expect(page.getByTitle('Play')).toBeVisible();
 
     await timeline.evaluate((el) => {
-      el.scrollLeft = 400;
+      el.scrollTop = 400;
     });
     await page.waitForTimeout(400);
 
