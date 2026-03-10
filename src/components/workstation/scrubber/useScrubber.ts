@@ -288,11 +288,13 @@ const baseTransformStyle = {
  * Style for the scroll container: flips content vertically via scaleY(-1)
  * so that top-down DOM content appears bottom-up visually (time=0 at bottom).
  * The translateY(-100%) compensates for the flip with transformOrigin: top left.
+ * The rotateX tilt creates a perspective depth effect — applied before the flip
+ * so that near-time content (visual bottom) tilts towards the viewer.
  */
 function getTimelineScrollStyle(timelineScaleFactor: number) {
   return {
     ...baseTransformStyle,
-    transform: `scaleY(${-timelineScaleFactor}) translateY(-100%)`,
+    transform: `rotateX(var(--timeline-tilt, 0deg)) scaleY(${-timelineScaleFactor}) translateY(-100%)`,
   };
 }
 

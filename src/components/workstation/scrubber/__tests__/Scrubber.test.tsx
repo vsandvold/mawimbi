@@ -93,7 +93,7 @@ it('transforms timeline vertical scale when drawer is open', () => {
   expect(rewindButton).toBeInTheDocument();
 
   expect(timeline?.outerHTML).toEqual(
-    expect.stringContaining('transform: scaleY'),
+    expect.stringContaining('transform: rotateX'),
   );
   expect(progressCursor?.outerHTML).toEqual(
     expect.stringContaining('transform: scaleY'),

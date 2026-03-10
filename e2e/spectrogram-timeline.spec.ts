@@ -144,17 +144,21 @@ test.describe('Spectrogram alignment with cursor at time=0', () => {
       };
     });
 
-    // The spectrogram bottom should be within 2px of the cursor center.
-    // A larger gap indicates the timeline padding (100vh) doesn't match
-    // the cursor position (% of scrubber height).
+    // The spectrogram bottom should be within a few pixels of the cursor
+    // center. A larger gap indicates the timeline padding doesn't match
+    // the cursor position. The perspective tilt (rotateX) shifts the
+    // visual position by a few pixels, so a 5px tolerance is used.
+    const gap = Math.abs(
+      alignment.spectrogramBottom - alignment.cursorCenter,
+    );
     expect(
-      alignment.spectrogramBottom,
+      gap,
       `Spectrogram bottom (${alignment.spectrogramBottom.toFixed(1)}px) is not aligned ` +
         `with cursor center (${alignment.cursorCenter.toFixed(1)}px). ` +
-        `Gap: ${Math.abs(alignment.spectrogramBottom - alignment.cursorCenter).toFixed(1)}px. ` +
+        `Gap: ${gap.toFixed(1)}px. ` +
         `Scroll container: top=${alignment.scrollContainerTop.toFixed(1)}px, ` +
         `height=${alignment.scrollContainerHeight}px`,
-    ).toBeCloseTo(alignment.cursorCenter, 0);
+    ).toBeLessThanOrEqual(5);
   });
 });
 
