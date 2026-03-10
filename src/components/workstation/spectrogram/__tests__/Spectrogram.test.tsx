@@ -246,7 +246,7 @@ it('does not trigger analysis without audio buffer', () => {
   expect(mockAnalyse).not.toHaveBeenCalled();
 });
 
-it('sets container width from duration and pixelsPerSecond', () => {
+it('sets container height from duration and pixelsPerSecond', () => {
   const duration = 2.5;
   const audioBuffer = { duration } as AudioBuffer;
   mockRetrieveAudioBuffer.mockReturnValue(audioBuffer);
@@ -254,8 +254,8 @@ it('sets container width from duration and pixelsPerSecond', () => {
   const { container } = render(<Spectrogram {...defaultProps} />);
 
   const spectrogram = container.querySelector('.spectrogram');
-  // containerWidth = duration * pixelsPerSecond = 2.5 * 200 = 500
-  expect(spectrogram).toHaveStyle({ width: '500px' });
+  // containerHeight = duration * pixelsPerSecond = 2.5 * 200 = 500
+  expect(spectrogram).toHaveStyle({ height: '500px' });
 });
 
 it('offsets container by startTime for tracks recorded at non-zero position', () => {
@@ -268,8 +268,8 @@ it('offsets container by startTime for tracks recorded at non-zero position', ()
   const { container } = render(<Spectrogram {...defaultProps} />);
 
   const spectrogram = container.querySelector('.spectrogram');
-  // marginLeft = startTime * pixelsPerSecond = 3.0 * 200 = 600
-  expect(spectrogram).toHaveStyle({ marginLeft: '600px' });
+  // marginTop = startTime * pixelsPerSecond = 3.0 * 200 = 600
+  expect(spectrogram).toHaveStyle({ marginTop: '600px' });
 });
 
 it('has no margin offset for tracks starting at position zero', () => {
@@ -281,16 +281,16 @@ it('has no margin offset for tracks starting at position zero', () => {
   const { container } = render(<Spectrogram {...defaultProps} />);
 
   const spectrogram = container.querySelector('.spectrogram');
-  expect(spectrogram).toHaveStyle({ marginLeft: '0px' });
+  expect(spectrogram).toHaveStyle({ marginTop: '0px' });
 });
 
-it('sets container width to zero when no audio buffer', () => {
+it('sets container height to zero when no audio buffer', () => {
   mockRetrieveAudioBuffer.mockReturnValue(undefined);
 
   const { container } = render(<Spectrogram {...defaultProps} />);
 
   const spectrogram = container.querySelector('.spectrogram');
-  expect(spectrogram).toHaveStyle({ width: '0px' });
+  expect(spectrogram).toHaveStyle({ height: '0px' });
 });
 
 describe('recording mode', () => {
@@ -327,11 +327,11 @@ describe('recording mode', () => {
     expect(mockAnalyse).not.toHaveBeenCalled();
   });
 
-  it('sets initial container width to zero in recording mode', () => {
+  it('sets initial container height to zero in recording mode', () => {
     const { container } = render(<Spectrogram {...recordingProps} />);
 
     const spectrogram = container.querySelector('.spectrogram');
-    expect(spectrogram).toHaveStyle({ width: '0px' });
+    expect(spectrogram).toHaveStyle({ height: '0px' });
   });
 
   it('offsets container by recording start time during overdub', () => {
@@ -364,8 +364,8 @@ describe('recording mode', () => {
     callback?.();
 
     const spectrogram = container.querySelector('.spectrogram');
-    // marginLeft = recordingStartTime * pixelsPerSecond = 3.0 * 200 = 600
-    expect(spectrogram).toHaveStyle({ marginLeft: '600px' });
+    // marginTop = recordingStartTime * pixelsPerSecond = 3.0 * 200 = 600
+    expect(spectrogram).toHaveStyle({ marginTop: '600px' });
 
     vi.restoreAllMocks();
   });
@@ -408,13 +408,13 @@ describe('recording mode', () => {
     callback?.();
 
     const spectrogram = container.querySelector('.spectrogram');
-    // elapsed = getEngineTime() - 0 = 2.0, width = 2.0 * 200 = 400
-    expect(spectrogram).toHaveStyle({ width: '400px' });
+    // elapsed = getEngineTime() - 0 = 2.0, height = 2.0 * 200 = 400
+    expect(spectrogram).toHaveStyle({ height: '400px' });
 
     vi.restoreAllMocks();
   });
 
-  it('updates container width based on elapsed recording time', () => {
+  it('updates container height based on elapsed recording time', () => {
     recordingService.arm();
     recordingService.startRecording();
     vi.spyOn(playbackService, 'getEngineTime').mockReturnValue(2.0);
@@ -444,8 +444,8 @@ describe('recording mode', () => {
     callback?.();
 
     const spectrogram = container.querySelector('.spectrogram');
-    // elapsed = 2.0 - 0 = 2.0, width = 2.0 * 200 = 400
-    expect(spectrogram).toHaveStyle({ width: '400px' });
+    // elapsed = 2.0 - 0 = 2.0, height = 2.0 * 200 = 400
+    expect(spectrogram).toHaveStyle({ height: '400px' });
 
     vi.restoreAllMocks();
   });
