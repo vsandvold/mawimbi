@@ -9,6 +9,33 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  background: linear-gradient(
+    135deg,
+    #ff0080,
+    #ff00ff,
+    #8000ff,
+    #0040ff,
+    #00ffff,
+    #00ff80,
+    #80ff00,
+    #ffff00,
+    #ff8000,
+    #ff0040
+  );
+  background-size: 300% 300%;
+  animation: neon-rainbow 8s ease infinite;
+}
+
+@keyframes neon-rainbow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
 }
 
 .home__header-row {
@@ -25,14 +52,16 @@
 
 .home__header-actions [data-slot='button'] {
   border-radius: 50%;
-  background-color: var(--secondary);
+  background-color: rgba(0, 0, 0, 0.3);
+  color: #fff;
 }
 
 .home__title {
   font-size: 28px;
   font-weight: 700;
-  color: var(--foreground);
+  color: #fff;
   margin: 0;
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
 }
 
 .home__body {
