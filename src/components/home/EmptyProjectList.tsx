@@ -10,7 +10,7 @@ const EmptyProjectList = ({ onCreate }: EmptyProjectListProps) => {
       <span className="text-muted-foreground">
         No projects yet. Create one to get started.
       </span>
-      <Button size="lg" onClick={onCreate}>
+      <Button size="lg" className="home__create-button" onClick={onCreate}>
         Create Project
       </Button>
     </div>

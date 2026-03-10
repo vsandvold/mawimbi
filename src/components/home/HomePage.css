@@ -130,3 +130,60 @@
   gap: 16px;
   padding: 48px 24px;
 }
+
+.home__create-button {
+  position: relative;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 12px !important;
+  padding: 12px 32px !important;
+  height: auto !important;
+  font-size: 16px !important;
+  font-weight: 600;
+  color: white !important;
+  z-index: 1;
+  box-shadow:
+    0 0 15px rgba(0, 255, 255, 0.3),
+    0 0 30px rgba(255, 0, 255, 0.2),
+    0 0 45px rgba(0, 100, 255, 0.15);
+  transition:
+    box-shadow 0.3s ease,
+    transform 0.2s ease;
+}
+
+.home__create-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  padding: 2px;
+  background: linear-gradient(
+    135deg,
+    hsl(180, 100%, 50%),
+    hsl(120, 100%, 45%),
+    hsl(60, 100%, 50%),
+    hsl(0, 100%, 55%),
+    hsl(330, 100%, 50%),
+    hsl(300, 100%, 50%),
+    hsl(270, 100%, 55%),
+    hsl(240, 100%, 60%),
+    hsl(180, 100%, 50%)
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  z-index: -1;
+}
+
+.home__create-button:hover {
+  transform: scale(1.03);
+  box-shadow:
+    0 0 20px rgba(0, 255, 255, 0.5),
+    0 0 40px rgba(255, 0, 255, 0.35),
+    0 0 60px rgba(0, 100, 255, 0.25);
+}
