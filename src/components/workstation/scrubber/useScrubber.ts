@@ -37,8 +37,7 @@ export function useScrubber({
   const [isRewindButtonHidden, setIsRewindButtonHidden] = useState(true);
 
   const isNearBeginning = (el: HTMLDivElement) => {
-    const maxScrollTop = el.scrollHeight - el.clientHeight;
-    return maxScrollTop - el.scrollTop < 10;
+    return el.scrollTop < 10;
   };
 
   const timelineScrollRef = useRef<HTMLDivElement>(null);
@@ -74,9 +73,7 @@ export function useScrubber({
     (time: number) => {
       const el = timelineScrollRef.current;
       if (el) {
-        const maxScrollTop = el.scrollHeight - el.clientHeight;
-        const scrollPosition =
-          maxScrollTop - Math.trunc(time * pixelsPerSecond);
+        const scrollPosition = Math.trunc(time * pixelsPerSecond);
         if (el.scrollTop !== scrollPosition) {
           isProgrammaticScrollRef.current = true;
           el.scrollTop = scrollPosition;
@@ -133,9 +130,10 @@ export function useScrubber({
         // can momentarily equal clientHeight before new content is laid out.
         // Stopping playback here would freeze transportTime updates and halt
         // the live spectrogram scroll.
-        // In inverted scroll, end of track is at scrollTop=0 (top of scroll area)
         if (timelineScrollRef.current && !recording.isActivelyRecording) {
-          const isEndOfScroll = timelineScrollRef.current.scrollTop <= 0;
+          const el = timelineScrollRef.current;
+          const maxScrollTop = el.scrollHeight - el.clientHeight;
+          const isEndOfScroll = el.scrollTop >= maxScrollTop;
           if (isEndOfScroll) {
             playback.rewind();
             return;
@@ -165,8 +163,7 @@ export function useScrubber({
   const setTransportTimeFromScroll = () => {
     const el = timelineScrollRef.current;
     if (el) {
-      const maxScrollTop = el.scrollHeight - el.clientHeight;
-      const time = (maxScrollTop - el.scrollTop) / pixelsPerSecond;
+      const time = el.scrollTop / pixelsPerSecond;
       playback.seekTo(time);
     }
     if (shouldResumeRef.current) {
@@ -249,7 +246,8 @@ export function useScrubber({
     return () => observer.disconnect();
   }, [drawerHeight]);
 
-  const timelineScaleStyle = getTimelineStyle(timelineScaleFactor);
+  const timelineScrollStyle = getTimelineScrollStyle(timelineScaleFactor);
+  const timelineOverlayStyle = getTimelineOverlayStyle(timelineScaleFactor);
 
   const rewindButtonStyle = getRewindButtonStyle(
     drawerHeight,
@@ -269,7 +267,8 @@ export function useScrubber({
     cursorContainerRef,
     plasmaRef,
     isRewindButtonHidden,
-    timelineScaleStyle,
+    timelineScrollStyle,
+    timelineOverlayStyle,
     rewindButtonStyle,
     handleScroll,
     handleWheel,
@@ -285,7 +284,23 @@ const baseTransformStyle = {
   transition: 'transform 0.25s ease-out',
 };
 
-function getTimelineStyle(timelineScaleFactor: number) {
+/**
+ * Style for the scroll container: flips content vertically via scaleY(-1)
+ * so that top-down DOM content appears bottom-up visually (time=0 at bottom).
+ * The translateY(-100%) compensates for the flip with transformOrigin: top left.
+ */
+function getTimelineScrollStyle(timelineScaleFactor: number) {
+  return {
+    ...baseTransformStyle,
+    transform: `scaleY(${-timelineScaleFactor}) translateY(-100%)`,
+  };
+}
+
+/**
+ * Style for overlay elements (shade, cursor) that should NOT be flipped.
+ * Only applies the drawer scaling.
+ */
+function getTimelineOverlayStyle(timelineScaleFactor: number) {
   return {
     ...baseTransformStyle,
     transform: `scaleY(${timelineScaleFactor})`,

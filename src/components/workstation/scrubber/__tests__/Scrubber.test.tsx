@@ -219,7 +219,7 @@ it('does not update transportTime during count-in', () => {
   expect(playbackService.transportTime).toBe(5.0);
 });
 
-it('syncs timeline scroll position via imperative handle (inverted scroll)', () => {
+it('syncs timeline scroll position via imperative handle', () => {
   const ref = createRef<ScrubberHandle>();
 
   const { container } = render(<Scrubber ref={ref} {...defaultProps} />);
@@ -240,13 +240,12 @@ it('syncs timeline scroll position via imperative handle (inverted scroll)', () 
     ref.current!.syncScrollToTime(2.5);
   });
 
-  // Inverted scroll: scrollTop = maxScrollTop - time * pixelsPerSecond
-  // maxScrollTop = 2000 - 500 = 1500
-  // scrollTop = 1500 - (2.5 * 200) = 1500 - 500 = 1000
-  expect(timeline.scrollTop).toBe(1000);
+  // Top-down scroll: scrollTop = time * pixelsPerSecond
+  // scrollTop = 2.5 * 200 = 500
+  expect(timeline.scrollTop).toBe(500);
 });
 
-it('scrolls to maxScrollTop when time is zero (beginning at bottom)', () => {
+it('scrolls to zero when time is zero (beginning at top)', () => {
   const ref = createRef<ScrubberHandle>();
 
   const { container } = render(<Scrubber ref={ref} {...defaultProps} />);
@@ -266,6 +265,6 @@ it('scrolls to maxScrollTop when time is zero (beginning at bottom)', () => {
     ref.current!.syncScrollToTime(0);
   });
 
-  // At time=0, scrollTop should be at max (beginning at bottom)
-  expect(timeline.scrollTop).toBe(1500);
+  // At time=0, scrollTop should be 0 (beginning at top in DOM, flipped to bottom visually)
+  expect(timeline.scrollTop).toBe(0);
 });
