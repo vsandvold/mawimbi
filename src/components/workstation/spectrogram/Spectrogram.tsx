@@ -145,11 +145,11 @@ const Spectrogram = ({
 
   const { opacity } = useTrackVolume(trackId);
 
-  // For non-recording tracks, width is set from audio buffer duration.
-  // For recording tracks, width is updated in the rAF loop directly on the
+  // For non-recording tracks, height is set from audio buffer duration.
+  // For recording tracks, height is updated in the rAF loop directly on the
   // DOM node to avoid React re-renders at 60fps.
-  const containerWidth = isRecordingTrack ? 0 : duration * pixelsPerSecond;
-  const containerMarginLeft = startTime * pixelsPerSecond;
+  const containerHeight = isRecordingTrack ? 0 : duration * pixelsPerSecond;
+  const containerMarginTop = startTime * pixelsPerSecond;
 
   return (
     <div
@@ -157,8 +157,8 @@ const Spectrogram = ({
       className="spectrogram"
       style={{
         opacity,
-        width: containerWidth,
-        marginLeft: containerMarginLeft,
+        height: containerHeight,
+        marginTop: containerMarginTop,
       }}
     >
       <canvas ref={canvasRef} className="spectrogram__canvas" />
@@ -192,9 +192,9 @@ function drawRecordingFrame(
   );
   const contentWidth = elapsed * pixelsPerSecond;
 
-  // Update container width and offset directly to avoid React re-renders
-  container.style.width = `${contentWidth}px`;
-  container.style.marginLeft = `${recordingStartTime * pixelsPerSecond}px`;
+  // Update container height and offset directly to avoid React re-renders
+  container.style.height = `${contentWidth}px`;
+  container.style.marginTop = `${recordingStartTime * pixelsPerSecond}px`;
 
   // Accumulate a new frame while recording is active
   if (isRecActive) {
@@ -207,15 +207,15 @@ function drawRecordingFrame(
   const scrollParent = container.closest(SCROLL_CONTAINER_CLASS);
   const viewportWidth = scrollParent?.clientWidth ?? window.innerWidth;
 
-  const scrollLeft = scrollParent?.scrollLeft ?? 0;
+  const scrollTop = scrollParent?.scrollTop ?? 0;
   const timeline = container.closest('.timeline');
-  const paddingLeft = timeline
-    ? parseFloat(getComputedStyle(timeline).paddingLeft) || 0
+  const paddingTop = timeline
+    ? parseFloat(getComputedStyle(timeline).paddingTop) || 0
     : 0;
-  const containerMarginLeft = parseFloat(container.style.marginLeft) || 0;
+  const containerMarginTop = parseFloat(container.style.marginTop) || 0;
   const maxContentOffset = Math.max(0, contentWidth - viewportWidth);
   const contentOffset = Math.min(
-    Math.max(0, scrollLeft - paddingLeft - containerMarginLeft),
+    Math.max(0, scrollTop - paddingTop - containerMarginTop),
     maxContentOffset,
   );
 
@@ -263,20 +263,20 @@ function drawTilesFrame(
     tileCount: number;
   }>,
 ): void {
-  const containerWidth = duration * pixelsPerSecond;
+  const contentLength = duration * pixelsPerSecond;
 
   const scrollParent = container.closest(SCROLL_CONTAINER_CLASS);
   const viewportWidth = scrollParent?.clientWidth ?? window.innerWidth;
 
-  const scrollLeft = scrollParent?.scrollLeft ?? 0;
+  const scrollTop = scrollParent?.scrollTop ?? 0;
   const timeline = container.closest('.timeline');
-  const paddingLeft = timeline
-    ? parseFloat(getComputedStyle(timeline).paddingLeft) || 0
+  const paddingTop = timeline
+    ? parseFloat(getComputedStyle(timeline).paddingTop) || 0
     : 0;
-  const containerMarginLeft = parseFloat(container.style.marginLeft) || 0;
-  const maxContentOffset = Math.max(0, containerWidth - viewportWidth);
+  const containerMarginTop = parseFloat(container.style.marginTop) || 0;
+  const maxContentOffset = Math.max(0, contentLength - viewportWidth);
   const contentOffset = Math.min(
-    Math.max(0, scrollLeft - paddingLeft - containerMarginLeft),
+    Math.max(0, scrollTop - paddingTop - containerMarginTop),
     maxContentOffset,
   );
 
@@ -342,20 +342,20 @@ function drawMelodyOverlay(
     noteCount: number;
   }>,
 ): void {
-  const containerWidth = duration * pixelsPerSecond;
+  const contentLength = duration * pixelsPerSecond;
 
   const scrollParent = container.closest(SCROLL_CONTAINER_CLASS);
   const viewportWidth = scrollParent?.clientWidth ?? window.innerWidth;
 
-  const scrollLeft = scrollParent?.scrollLeft ?? 0;
+  const scrollTop = scrollParent?.scrollTop ?? 0;
   const timeline = container.closest('.timeline');
-  const paddingLeft = timeline
-    ? parseFloat(getComputedStyle(timeline).paddingLeft) || 0
+  const paddingTop = timeline
+    ? parseFloat(getComputedStyle(timeline).paddingTop) || 0
     : 0;
-  const containerMarginLeft = parseFloat(container.style.marginLeft) || 0;
-  const maxContentOffset = Math.max(0, containerWidth - viewportWidth);
+  const containerMarginTop = parseFloat(container.style.marginTop) || 0;
+  const maxContentOffset = Math.max(0, contentLength - viewportWidth);
   const contentOffset = Math.min(
-    Math.max(0, scrollLeft - paddingLeft - containerMarginLeft),
+    Math.max(0, scrollTop - paddingTop - containerMarginTop),
     maxContentOffset,
   );
 
