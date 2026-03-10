@@ -219,17 +219,53 @@ it('does not update transportTime during count-in', () => {
   expect(playbackService.transportTime).toBe(5.0);
 });
 
-it('syncs timeline scroll position via imperative handle', () => {
+it('syncs timeline scroll position via imperative handle (inverted scroll)', () => {
   const ref = createRef<ScrubberHandle>();
 
   const { container } = render(<Scrubber ref={ref} {...defaultProps} />);
 
   const timeline = container.querySelector('.scrubber__timeline')!;
 
+  // Mock scroll dimensions so maxScrollTop is non-zero
+  Object.defineProperty(timeline, 'scrollHeight', {
+    value: 2000,
+    configurable: true,
+  });
+  Object.defineProperty(timeline, 'clientHeight', {
+    value: 500,
+    configurable: true,
+  });
+
   act(() => {
     ref.current!.syncScrollToTime(2.5);
   });
 
-  // scrollTop = time * pixelsPerSecond = 2.5 * 200 = 500
-  expect(timeline.scrollTop).toBe(500);
+  // Inverted scroll: scrollTop = maxScrollTop - time * pixelsPerSecond
+  // maxScrollTop = 2000 - 500 = 1500
+  // scrollTop = 1500 - (2.5 * 200) = 1500 - 500 = 1000
+  expect(timeline.scrollTop).toBe(1000);
+});
+
+it('scrolls to maxScrollTop when time is zero (beginning at bottom)', () => {
+  const ref = createRef<ScrubberHandle>();
+
+  const { container } = render(<Scrubber ref={ref} {...defaultProps} />);
+
+  const timeline = container.querySelector('.scrubber__timeline')!;
+
+  Object.defineProperty(timeline, 'scrollHeight', {
+    value: 2000,
+    configurable: true,
+  });
+  Object.defineProperty(timeline, 'clientHeight', {
+    value: 500,
+    configurable: true,
+  });
+
+  act(() => {
+    ref.current!.syncScrollToTime(0);
+  });
+
+  // At time=0, scrollTop should be at max (beginning at bottom)
+  expect(timeline.scrollTop).toBe(1500);
 });
