@@ -289,14 +289,15 @@ const baseTransformStyle = {
  * so that top-down DOM content appears bottom-up visually (time=0 at bottom).
  * The translateY(-100%) compensates for the flip with transformOrigin: top left.
  *
- * The negated rotateX creates a runway perspective: after the scaleY(-1) flip,
- * the visual bottom (near-time content) appears wider/closer and the visual
- * top (future content) narrows into the distance.
+ * CSS transforms apply right-to-left: translateY first, then scaleY (flip),
+ * then rotateX. Because rotateX acts on the already-flipped content, a positive
+ * angle tilts the visual top (future) away and the visual bottom (time=0) toward
+ * the viewer — creating the runway perspective where near content is wider.
  */
 function getTimelineScrollStyle(timelineScaleFactor: number) {
   return {
     ...baseTransformStyle,
-    transform: `rotateX(calc(-1 * var(--timeline-tilt, 0deg))) scaleY(${-timelineScaleFactor}) translateY(-100%)`,
+    transform: `rotateX(var(--timeline-tilt, 0deg)) scaleY(${-timelineScaleFactor}) translateY(-100%)`,
   };
 }
 
