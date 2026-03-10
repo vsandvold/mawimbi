@@ -14,17 +14,15 @@ import './Spectrogram.css';
 import { useSpectrogramCache } from './useSpectrogramCache';
 
 type SpectrogramProps = {
-  height: number;
   pixelsPerSecond: number;
   track: Track;
   isRecordingTrack?: boolean;
 };
 
-const TILE_WIDTH = 4096;
+const TILE_FRAMES = 4096;
 const SCROLL_CONTAINER_CLASS = '.scrubber__timeline';
 
 const Spectrogram = ({
-  height,
   pixelsPerSecond,
   track,
   isRecordingTrack = false,
@@ -58,8 +56,8 @@ const Spectrogram = ({
   const duration = audioBuffer?.duration ?? 0;
 
   const timeResolution = entry?.data.timeResolution ?? 0.025;
-  const frameDisplayWidth = pixelsPerSecond * timeResolution;
-  const tileDisplayWidth = TILE_WIDTH * frameDisplayWidth;
+  const frameDisplayHeight = pixelsPerSecond * timeResolution;
+  const tileDisplayHeight = TILE_FRAMES * frameDisplayHeight;
   const frequencyBinCount = entry?.data.frequencyBinCount ?? 0;
   const totalFrames = entry?.data.frequencyFrames.length ?? 0;
   const tiles = entry?.tiles ?? [];
@@ -105,7 +103,6 @@ const Spectrogram = ({
         recording,
         playback,
         pixelsPerSecond,
-        height,
       );
       return;
     }
@@ -116,11 +113,10 @@ const Spectrogram = ({
       canvas,
       container,
       pixelsPerSecond,
-      height,
       tiles,
       totalFrames,
-      frameDisplayWidth,
-      tileDisplayWidth,
+      frameDisplayHeight,
+      tileDisplayHeight,
       duration,
       lastDrawnRef,
     );
@@ -130,7 +126,6 @@ const Spectrogram = ({
         overlay,
         container,
         pixelsPerSecond,
-        height,
         melodyNotes,
         color,
         frequencyBinCount,
@@ -175,7 +170,6 @@ function drawRecordingFrame(
   recordingHook: ReturnType<typeof useRecordingService>,
   playbackHook: ReturnType<typeof usePlaybackService>,
   pixelsPerSecond: number,
-  height: number,
 ): void {
   if (!buffer || !visualizer) return;
 
@@ -190,10 +184,10 @@ function drawRecordingFrame(
     0,
     playbackHook.getEngineTime() - recordingStartTime,
   );
-  const contentWidth = elapsed * pixelsPerSecond;
+  const contentHeight = elapsed * pixelsPerSecond;
 
   // Update container height and offset directly to avoid React re-renders
-  container.style.height = `${contentWidth}px`;
+  container.style.height = `${contentHeight}px`;
   container.style.marginTop = `${recordingStartTime * pixelsPerSecond}px`;
 
   // Accumulate a new frame while recording is active
@@ -206,6 +200,7 @@ function drawRecordingFrame(
 
   const scrollParent = container.closest(SCROLL_CONTAINER_CLASS);
   const viewportWidth = scrollParent?.clientWidth ?? window.innerWidth;
+  const viewportHeight = scrollParent?.clientHeight ?? window.innerHeight;
 
   const scrollTop = scrollParent?.scrollTop ?? 0;
   const timeline = container.closest('.timeline');
@@ -213,17 +208,17 @@ function drawRecordingFrame(
     ? parseFloat(getComputedStyle(timeline).paddingTop) || 0
     : 0;
   const containerMarginTop = parseFloat(container.style.marginTop) || 0;
-  const maxContentOffset = Math.max(0, contentWidth - viewportWidth);
+  const maxContentOffset = Math.max(0, contentHeight - viewportHeight);
   const contentOffset = Math.min(
     Math.max(0, scrollTop - paddingTop - containerMarginTop),
     maxContentOffset,
   );
 
   const needsResize =
-    canvas.width !== viewportWidth || canvas.height !== height;
+    canvas.width !== viewportWidth || canvas.height !== viewportHeight;
   if (needsResize) {
     canvas.width = viewportWidth;
-    canvas.height = height;
+    canvas.height = viewportHeight;
   }
 
   const ctx = canvas.getContext('2d');
@@ -231,31 +226,30 @@ function drawRecordingFrame(
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   // Map buffer frames (1 frame = 1 pixel in the buffer) to display pixels.
-  // bufferFrames maps to contentWidth display pixels.
-  const framesPerPixel = buffer.frameCount / contentWidth;
-  // Clamp destination width so the buffer is never stretched beyond the
+  // bufferFrames maps to contentHeight display pixels.
+  const framesPerPixel = buffer.frameCount / contentHeight;
+  // Clamp destination height so the buffer is never stretched beyond the
   // actual content area. Without this, when the recording is shorter than
-  // the viewport the buffer was drawn across the full viewport width,
+  // the viewport the buffer was drawn across the full viewport height,
   // making the spectrogram appear to move faster than existing tracks.
-  const destWidth = Math.min(viewportWidth, contentWidth - contentOffset);
-  const srcX = Math.floor(contentOffset * framesPerPixel);
-  const srcWidth = Math.min(
-    Math.ceil(destWidth * framesPerPixel),
-    buffer.frameCount - srcX,
+  const destHeight = Math.min(viewportHeight, contentHeight - contentOffset);
+  const srcY = Math.floor(contentOffset * framesPerPixel);
+  const srcHeight = Math.min(
+    Math.ceil(destHeight * framesPerPixel),
+    buffer.frameCount - srcY,
   );
 
-  buffer.drawTo(ctx, srcX, srcWidth, 0, destWidth, height);
+  buffer.drawTo(ctx, srcY, srcHeight, 0, destHeight, viewportWidth);
 }
 
 function drawTilesFrame(
   canvas: HTMLCanvasElement,
   container: HTMLDivElement,
   pixelsPerSecond: number,
-  height: number,
   tiles: ImageBitmap[],
   totalFrames: number,
-  frameDisplayWidth: number,
-  tileDisplayWidth: number,
+  frameDisplayHeight: number,
+  tileDisplayHeight: number,
   duration: number,
   lastDrawnRef: React.MutableRefObject<{
     offset: number;
@@ -267,6 +261,7 @@ function drawTilesFrame(
 
   const scrollParent = container.closest(SCROLL_CONTAINER_CLASS);
   const viewportWidth = scrollParent?.clientWidth ?? window.innerWidth;
+  const viewportHeight = scrollParent?.clientHeight ?? window.innerHeight;
 
   const scrollTop = scrollParent?.scrollTop ?? 0;
   const timeline = container.closest('.timeline');
@@ -274,14 +269,14 @@ function drawTilesFrame(
     ? parseFloat(getComputedStyle(timeline).paddingTop) || 0
     : 0;
   const containerMarginTop = parseFloat(container.style.marginTop) || 0;
-  const maxContentOffset = Math.max(0, contentLength - viewportWidth);
+  const maxContentOffset = Math.max(0, contentLength - viewportHeight);
   const contentOffset = Math.min(
     Math.max(0, scrollTop - paddingTop - containerMarginTop),
     maxContentOffset,
   );
 
   const needsResize =
-    canvas.width !== viewportWidth || canvas.height !== height;
+    canvas.width !== viewportWidth || canvas.height !== viewportHeight;
 
   const last = lastDrawnRef.current;
   if (
@@ -298,29 +293,29 @@ function drawTilesFrame(
 
   if (needsResize) {
     canvas.width = viewportWidth;
-    canvas.height = height;
+    canvas.height = viewportHeight;
   }
 
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  const firstTile = Math.max(0, Math.floor(contentOffset / tileDisplayWidth));
+  const firstTile = Math.max(0, Math.floor(contentOffset / tileDisplayHeight));
   const lastTile = Math.min(
     tiles.length - 1,
-    Math.floor((contentOffset + viewportWidth) / tileDisplayWidth),
+    Math.floor((contentOffset + viewportHeight) / tileDisplayHeight),
   );
 
   for (let t = firstTile; t <= lastTile; t++) {
-    const tileLeftPx = t * tileDisplayWidth;
-    const drawX = tileLeftPx - contentOffset;
+    const tileTopPx = t * tileDisplayHeight;
+    const drawY = tileTopPx - contentOffset;
     const isLastTile = t === tiles.length - 1;
     const tileFrameCount = isLastTile
-      ? totalFrames - t * TILE_WIDTH
-      : TILE_WIDTH;
-    const drawWidth = tileFrameCount * frameDisplayWidth;
+      ? totalFrames - t * TILE_FRAMES
+      : TILE_FRAMES;
+    const drawHeight = tileFrameCount * frameDisplayHeight;
 
-    ctx.drawImage(tiles[t], drawX, 0, drawWidth, height);
+    ctx.drawImage(tiles[t], 0, drawY, viewportWidth, drawHeight);
   }
 }
 
@@ -328,7 +323,6 @@ function drawMelodyOverlay(
   canvas: HTMLCanvasElement,
   container: HTMLDivElement,
   pixelsPerSecond: number,
-  height: number,
   notes: MelodyNote[],
   color: TrackColor,
   frequencyBinCount: number,
@@ -346,6 +340,7 @@ function drawMelodyOverlay(
 
   const scrollParent = container.closest(SCROLL_CONTAINER_CLASS);
   const viewportWidth = scrollParent?.clientWidth ?? window.innerWidth;
+  const viewportHeight = scrollParent?.clientHeight ?? window.innerHeight;
 
   const scrollTop = scrollParent?.scrollTop ?? 0;
   const timeline = container.closest('.timeline');
@@ -353,14 +348,14 @@ function drawMelodyOverlay(
     ? parseFloat(getComputedStyle(timeline).paddingTop) || 0
     : 0;
   const containerMarginTop = parseFloat(container.style.marginTop) || 0;
-  const maxContentOffset = Math.max(0, contentLength - viewportWidth);
+  const maxContentOffset = Math.max(0, contentLength - viewportHeight);
   const contentOffset = Math.min(
     Math.max(0, scrollTop - paddingTop - containerMarginTop),
     maxContentOffset,
   );
 
   const needsResize =
-    canvas.width !== viewportWidth || canvas.height !== height;
+    canvas.width !== viewportWidth || canvas.height !== viewportHeight;
 
   // During playback, always redraw to update the playhead glow effect.
   // When stopped, use memoization to skip unchanged frames.
@@ -380,7 +375,7 @@ function drawMelodyOverlay(
 
   if (needsResize) {
     canvas.width = viewportWidth;
-    canvas.height = height;
+    canvas.height = viewportHeight;
   }
 
   const ctx = canvas.getContext('2d');
@@ -393,8 +388,8 @@ function drawMelodyOverlay(
   const viewport: PianoRollViewport = {
     pixelsPerSecond,
     contentOffset,
-    viewportWidth,
-    canvasHeight: height,
+    viewportHeight,
+    canvasWidth: viewportWidth,
     frequencyBinCount,
     playheadTime: trackPlayheadTime,
   };

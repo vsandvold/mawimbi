@@ -27,23 +27,24 @@ export function createColorMap(color: TrackColor): Uint8Array {
 /**
  * Renders a single tile's pixel data into an ImageData buffer.
  *
- * Frequency bins are drawn bottom-to-top: bin 0 is at the bottom row,
- * bin N-1 is at the top row — matching the convention in SpectrogramCanvasRenderer.
+ * Tiles are transposed for the vertical timeline: frequency bins map to
+ * columns (X axis, bin 0 on the left = low frequency) and time frames
+ * map to rows (Y axis, frame 0 at the top = earliest time).
  */
 function renderTilePixels(
   imageData: ImageData,
   frames: Uint8Array[],
   colorMap: Uint8Array,
-  height: number,
+  frequencyBinCount: number,
 ): void {
   const pixels = imageData.data;
   const width = imageData.width;
 
-  for (let col = 0; col < frames.length; col++) {
-    const frame = frames[col];
-    for (let bin = 0; bin < height; bin++) {
-      // bin 0 → bottom row (height - 1), bin N-1 → top row (0)
-      const row = height - 1 - bin;
+  for (let row = 0; row < frames.length; row++) {
+    const frame = frames[row];
+    for (let bin = 0; bin < frequencyBinCount; bin++) {
+      // bin 0 → left column (col 0), bin N-1 → right column (col N-1)
+      const col = bin;
       const pixelOffset = (row * width + col) * BYTES_PER_PIXEL;
       const colorOffset = frame[bin] * BYTES_PER_PIXEL;
 
@@ -58,13 +59,14 @@ function renderTilePixels(
 /**
  * Converts SpectrogramData + track colour into an array of ImageBitmap tiles.
  *
- * Each tile is up to `tileWidth` pixels wide (the last tile may be narrower).
- * Height equals `frequencyBinCount`. Uses ImageData batch painting for performance.
+ * Tiles are transposed for vertical timeline rendering: width equals
+ * `frequencyBinCount` (frequency axis, left-to-right) and height is up to
+ * `tileFrames` frames (time axis, top-to-bottom). The last tile may be shorter.
  */
 export function renderTiles(
   data: SpectrogramData,
   color: TrackColor,
-  tileWidth: number = DEFAULT_TILE_WIDTH,
+  tileFrames: number = DEFAULT_TILE_WIDTH,
 ): ImageBitmap[] {
   const { frequencyFrames, frequencyBinCount } = data;
   const totalFrames = frequencyFrames.length;
@@ -74,20 +76,20 @@ export function renderTiles(
   }
 
   const colorMap = createColorMap(color);
-  const tileCount = Math.ceil(totalFrames / tileWidth);
+  const tileCount = Math.ceil(totalFrames / tileFrames);
   const tiles: ImageBitmap[] = [];
 
   for (let t = 0; t < tileCount; t++) {
-    const startFrame = t * tileWidth;
-    const endFrame = Math.min(startFrame + tileWidth, totalFrames);
-    const currentTileWidth = endFrame - startFrame;
-    const tileFrames = frequencyFrames.slice(startFrame, endFrame);
+    const startFrame = t * tileFrames;
+    const endFrame = Math.min(startFrame + tileFrames, totalFrames);
+    const currentTileHeight = endFrame - startFrame;
+    const frames = frequencyFrames.slice(startFrame, endFrame);
 
-    const canvas = new OffscreenCanvas(currentTileWidth, frequencyBinCount);
+    const canvas = new OffscreenCanvas(frequencyBinCount, currentTileHeight);
     const ctx = canvas.getContext('2d')!;
-    const imageData = ctx.createImageData(currentTileWidth, frequencyBinCount);
+    const imageData = ctx.createImageData(frequencyBinCount, currentTileHeight);
 
-    renderTilePixels(imageData, tileFrames, colorMap, frequencyBinCount);
+    renderTilePixels(imageData, frames, colorMap, frequencyBinCount);
     ctx.putImageData(imageData, 0, 0);
 
     tiles.push(canvas.transferToImageBitmap());

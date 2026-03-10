@@ -1,5 +1,4 @@
 import classNames from 'classnames';
-import { useContainerHeight } from '../../hooks/useContainerHeight';
 import { useRecordingService } from '../../hooks/useRecordingService';
 import { useTrackService } from '../../hooks/useTrackService';
 import { type Track, type TrackColor, type TrackId } from '../../types/track';
@@ -21,7 +20,6 @@ const Timeline = ({
 }: TimelineProps) => {
   const { isRecording } = useRecordingService();
   const { mutedTracks, focusedTracks } = useTrackService();
-  const { containerRef, height } = useContainerHeight();
 
   const recordingTrack: Track = {
     trackId: RECORDING_TRACK_ID,
@@ -31,36 +29,27 @@ const Timeline = ({
   };
 
   return (
-    <div ref={containerRef} className="timeline">
-      {height > 0 && (
-        <>
-          {tracks.map((track) => {
-            const timelineTrackClass = getTimelineTrackClass(
-              track,
-              mutedTracks,
-              focusedTracks,
-            );
-            return (
-              <div key={track.trackId} className={timelineTrackClass}>
-                <Spectrogram
-                  height={height}
-                  pixelsPerSecond={pixelsPerSecond}
-                  track={track}
-                />
-              </div>
-            );
-          })}
-          {isRecording && (
-            <div className="timeline__track">
-              <Spectrogram
-                height={height}
-                pixelsPerSecond={pixelsPerSecond}
-                track={recordingTrack}
-                isRecordingTrack
-              />
-            </div>
-          )}
-        </>
+    <div className="timeline">
+      {tracks.map((track) => {
+        const timelineTrackClass = getTimelineTrackClass(
+          track,
+          mutedTracks,
+          focusedTracks,
+        );
+        return (
+          <div key={track.trackId} className={timelineTrackClass}>
+            <Spectrogram pixelsPerSecond={pixelsPerSecond} track={track} />
+          </div>
+        );
+      })}
+      {isRecording && (
+        <div className="timeline__track">
+          <Spectrogram
+            pixelsPerSecond={pixelsPerSecond}
+            track={recordingTrack}
+            isRecordingTrack
+          />
+        </div>
       )}
     </div>
   );
