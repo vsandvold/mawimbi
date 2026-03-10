@@ -229,6 +229,7 @@ function drawRecordingFrame(
   );
 
   buffer.drawTo(ctx, srcY, srcHeight, 0, destHeight, viewportWidth);
+  pinToViewport(canvas, contentOffset);
 }
 
 type ViewportInfo = {
@@ -264,6 +265,16 @@ function getViewportInfo(
   );
 
   return { viewportWidth, viewportHeight, contentOffset };
+}
+
+/**
+ * Positions a canvas element at the visible portion of its spectrogram
+ * container using translateY. This replaces CSS `position: sticky` which
+ * breaks when a CSS transform is applied to an ancestor (transforms create
+ * a new containing block for sticky elements).
+ */
+function pinToViewport(canvas: HTMLCanvasElement, contentOffset: number): void {
+  canvas.style.transform = `translateY(${contentOffset}px)`;
 }
 
 function drawTilesFrame(
@@ -329,6 +340,7 @@ function drawTilesFrame(
 
     ctx.drawImage(tiles[t], 0, drawY, viewportWidth, drawHeight);
   }
+  pinToViewport(canvas, contentOffset);
 }
 
 function drawMelodyOverlay(
@@ -395,6 +407,7 @@ function drawMelodyOverlay(
   };
 
   drawPianoRoll(ctx, notes, color, viewport);
+  pinToViewport(canvas, contentOffset);
 }
 
 export default Spectrogram;

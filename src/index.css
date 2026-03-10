@@ -119,6 +119,13 @@ html {
   --timeline-tilt: 35deg;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --timeline-perspective: none;
+    --timeline-tilt: 0deg;
+  }
+}
+
 @media (hover: hover) and (pointer: fine) {
   /* Style scrollbar on desktop devices only. */
   html {

@@ -264,6 +264,7 @@ export function useScrubber({
   }, [drawerHeight]);
 
   const timelineScrollStyle = getTimelineScrollStyle(timelineScaleFactor);
+  const timelineTiltStyle = getTimelineTiltStyle();
   const timelineOverlayStyle = getTimelineOverlayStyle(timelineScaleFactor);
 
   const rewindButtonStyle = getRewindButtonStyle(
@@ -285,6 +286,7 @@ export function useScrubber({
     plasmaRef,
     isRewindButtonHidden,
     timelineScrollStyle,
+    timelineTiltStyle,
     timelineOverlayStyle,
     rewindButtonStyle,
     handleScroll,
@@ -307,15 +309,31 @@ const baseTransformStyle = {
  * so that top-down DOM content appears bottom-up visually (time=0 at bottom).
  * The translateY(-100%) compensates for the flip with transformOrigin: top left.
  *
- * CSS transforms apply right-to-left: translateY first, then scaleY (flip),
- * then rotateX. Because rotateX acts on the already-flipped content, a positive
- * angle tilts the visual top (future) away and the visual bottom (time=0) toward
- * the viewer — creating the runway perspective where near content is wider.
+ * rotateX is intentionally NOT on this element — a 3D rotation on the scroll
+ * container creates a trapezoidal hit-test area with dead zones in the corners.
+ * The tilt is applied to an inner wrapper instead (see getTimelineTiltStyle).
  */
 function getTimelineScrollStyle(timelineScaleFactor: number) {
   return {
     ...baseTransformStyle,
-    transform: `rotateX(var(--timeline-tilt, 0deg)) scaleY(${-timelineScaleFactor}) translateY(-100%)`,
+    transform: `scaleY(${-timelineScaleFactor}) translateY(-100%)`,
+  };
+}
+
+/**
+ * Style for the inner tilt wrapper: applies perspective() and rotateX() for
+ * the runway perspective effect. Both are in the same transform so they
+ * compose correctly with the parent's scaleY(-1) flip — the effective
+ * rendering order is: scaleY(-1) → perspective → rotateX, matching the
+ * visual result of the original single-element approach.
+ *
+ * This sits inside the scroll container so the tilt doesn't affect the
+ * scroll container's rectangular hit-test area.
+ */
+function getTimelineTiltStyle() {
+  return {
+    transform: `perspective(var(--timeline-perspective, none)) rotateX(var(--timeline-tilt, 0deg))`,
+    transformOrigin: 'center top',
   };
 }
 
