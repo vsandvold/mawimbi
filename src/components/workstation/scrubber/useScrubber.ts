@@ -13,24 +13,20 @@ import { useTrackService } from '../../../hooks/useTrackService';
 import useDebounced from '../../../hooks/useDebounced';
 import { useTimelineZoom } from '../../../hooks/useTimelineZoom';
 import FrequencyVisualizer from '../../../services/FrequencyVisualizer';
-import { type Track } from '../../../types/track';
 import { type PlasmaPlayheadHandle } from './PlasmaPlayhead';
-import { type TrackFrequencyInput } from './plasmaRenderer';
 
 type UseScrubberOptions = {
   drawerHeight: number;
   pixelsPerSecond: number;
-  tracks: Track[];
 };
 
-// Keep in sync with --timeline-margin in index.css
-const TIMELINE_MARGIN = 40;
+// Keep in sync with --timeline-margin-bottom in index.css
+const TIMELINE_MARGIN_BOTTOM = 40;
 const SCROLL_DEBOUNCE_MS = 200;
 
 export function useScrubber({
   drawerHeight,
   pixelsPerSecond,
-  tracks,
 }: UseScrubberOptions) {
   const playback = usePlaybackService();
   const recording = useRecordingService();
@@ -49,23 +45,20 @@ export function useScrubber({
   const plasmaRef = useRef<PlasmaPlayheadHandle>(null);
   const isProgrammaticScrollRef = useRef(false);
   const shouldResumeRef = useRef(false);
-  const tracksRef = useRef(tracks);
-  tracksRef.current = tracks;
-
   const { isPinchingRef } = useTimelineZoom(timelineScrollRef);
 
-  // Keep plasma canvas height in sync with the cursor container
+  // Keep plasma canvas width in sync with the cursor container
   useLayoutEffect(() => {
     const el = cursorContainerRef.current;
     if (!el) return;
 
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        plasmaRef.current?.resize(entry.contentRect.height);
-        // Redraw the idle playhead after the canvas height changes.
+        plasmaRef.current?.resize(entry.contentRect.width);
+        // Redraw the idle playhead after the canvas width changes.
         // The initial renderIdle() call in the playing-sync effect fires
-        // before the ResizeObserver has set the canvas height, so the
-        // first frame is drawn into a zero-height canvas.  Re-rendering
+        // before the ResizeObserver has set the canvas width, so the
+        // first frame is drawn into a zero-width canvas.  Re-rendering
         // here ensures the playhead is visible as soon as layout resolves.
         // During playback the animation loop immediately overwrites this.
         plasmaRef.current?.renderIdle();
@@ -80,9 +73,9 @@ export function useScrubber({
     (time: number) => {
       if (timelineScrollRef.current) {
         const scrollPosition = Math.trunc(time * pixelsPerSecond);
-        if (timelineScrollRef.current.scrollLeft !== scrollPosition) {
+        if (timelineScrollRef.current.scrollTop !== scrollPosition) {
           isProgrammaticScrollRef.current = true;
-          timelineScrollRef.current.scrollLeft = scrollPosition;
+          timelineScrollRef.current.scrollTop = scrollPosition;
         }
         setIsRewindButtonHidden(scrollPosition < 10);
       }
@@ -129,29 +122,18 @@ export function useScrubber({
 
         const frequencyData =
           visualizerRef.current?.getVisualizationData() ?? null;
-        const trackFrequencyInputs: TrackFrequencyInput[] =
-          tracksRef.current.map((track) => {
-            const color = track.color ?? { r: 100, g: 200, b: 255 };
-            return { r: color.r, g: color.g, b: color.b, data: frequencyData };
-          });
-        const scrollLeft = timelineScrollRef.current?.scrollLeft ?? 0;
-        plasmaRef.current?.render(
-          frequencyData,
-          currentLoudness,
-          scrollLeft,
-          trackFrequencyInputs,
-        );
+        plasmaRef.current?.render(frequencyData, currentLoudness);
 
         // Skip end-of-scroll detection while recording — the recording
-        // spectrogram grows its container width progressively, so scrollWidth
-        // can momentarily equal clientWidth before new content is laid out.
+        // spectrogram grows its container height progressively, so scrollHeight
+        // can momentarily equal clientHeight before new content is laid out.
         // Stopping playback here would freeze transportTime updates and halt
         // the live spectrogram scroll.
         if (timelineScrollRef.current && !recording.isActivelyRecording) {
           const isEndOfScroll =
-            timelineScrollRef.current.scrollLeft +
-              timelineScrollRef.current.clientWidth >=
-            timelineScrollRef.current.scrollWidth;
+            timelineScrollRef.current.scrollTop +
+              timelineScrollRef.current.clientHeight >=
+            timelineScrollRef.current.scrollHeight;
           if (isEndOfScroll) {
             playback.rewind();
             return;
@@ -180,7 +162,7 @@ export function useScrubber({
 
   const setTransportTimeFromScroll = () => {
     if (timelineScrollRef.current) {
-      const scrollPosition = timelineScrollRef.current.scrollLeft;
+      const scrollPosition = timelineScrollRef.current.scrollTop;
       const time = scrollPosition / pixelsPerSecond;
       playback.seekTo(time);
     }
@@ -224,7 +206,7 @@ export function useScrubber({
     }
 
     if (timelineScrollRef.current) {
-      toggleRewindButton(timelineScrollRef.current.scrollLeft);
+      toggleRewindButton(timelineScrollRef.current.scrollTop);
     }
 
     if (recording.isActivelyRecording) return;
@@ -312,7 +294,7 @@ function getRewindButtonStyle(
   timelineScaleFactor: number,
 ) {
   const translateAmount =
-    drawerHeight - TIMELINE_MARGIN * (1 - timelineScaleFactor);
+    drawerHeight - TIMELINE_MARGIN_BOTTOM * (1 - timelineScaleFactor);
   return {
     ...baseTransformStyle,
     transform: `translateY(-${translateAmount}px)`,

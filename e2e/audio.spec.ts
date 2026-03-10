@@ -245,7 +245,7 @@ test.describe('Scrubber', () => {
 
     // Scroll forward → rewind button appears
     await timeline.evaluate((el) => {
-      el.scrollLeft = 200;
+      el.scrollTop = 200;
     });
     await page.waitForTimeout(400);
     await expect(rewindButton).not.toHaveClass(/scrubber__rewind--hidden/);
@@ -253,18 +253,18 @@ test.describe('Scrubber', () => {
     // Click rewind → scrolls to start, button hides
     await page.locator('.scrubber__rewind').getByTitle('Rewind').click();
     await expect(rewindButton).toHaveClass(/scrubber__rewind--hidden/);
-    const scrollLeft = await timeline.evaluate((el) => el.scrollLeft);
+    const scrollLeft = await timeline.evaluate((el) => el.scrollTop);
     expect(scrollLeft).toBe(0);
 
     // Scroll forward again, then scroll back → button hides
     await timeline.evaluate((el) => {
-      el.scrollLeft = 200;
+      el.scrollTop = 200;
     });
     await page.waitForTimeout(400);
     await expect(rewindButton).not.toHaveClass(/scrubber__rewind--hidden/);
 
     await timeline.evaluate((el) => {
-      el.scrollLeft = 0;
+      el.scrollTop = 0;
     });
     await page.waitForTimeout(400);
     await expect(rewindButton).toHaveClass(/scrubber__rewind--hidden/);
@@ -353,7 +353,7 @@ test.describe('Visual regression - audio states', () => {
 
     const timeline = page.locator('.scrubber__timeline');
     await timeline.evaluate((el) => {
-      el.scrollLeft = 200;
+      el.scrollTop = 200;
     });
     await page.waitForTimeout(400);
     await expect(page.locator('.scrubber__rewind')).not.toHaveClass(

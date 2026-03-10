@@ -19,12 +19,12 @@ async function uploadAudioFile(
 }
 
 /**
- * Simulates a horizontal touch-swipe gesture on the timeline using CDP.
+ * Simulates a vertical touch-swipe gesture on the timeline using CDP.
  * This mirrors what a real user does when dragging the timeline with their finger.
  */
 async function swipeTimeline(
   page: import('@playwright/test').Page,
-  deltaX: number,
+  deltaY: number,
 ) {
   const timeline = page.locator('.scrubber__timeline');
   const box = await timeline.boundingBox();
@@ -32,7 +32,7 @@ async function swipeTimeline(
 
   const startX = Math.round(box.x + box.width / 2);
   const startY = Math.round(box.y + box.height / 2);
-  const endX = startX - deltaX;
+  const endY = startY - deltaY;
   const steps = 5;
 
   const client = await page.context().newCDPSession(page);
@@ -43,11 +43,11 @@ async function swipeTimeline(
   });
 
   for (let i = 1; i <= steps; i++) {
-    const currentX = Math.round(startX + ((endX - startX) * i) / steps);
+    const currentY = Math.round(startY + ((endY - startY) * i) / steps);
     await page.waitForTimeout(20);
     await client.send('Input.dispatchTouchEvent', {
       type: 'touchMove',
-      touchPoints: [{ x: currentX, y: startY }],
+      touchPoints: [{ x: startX, y: currentY }],
     });
   }
 

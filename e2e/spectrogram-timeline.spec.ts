@@ -19,13 +19,13 @@ async function uploadAudioFile(
 }
 
 /**
- * Measures the fraction of VISIBLE canvas columns (the portion within the
+ * Measures the fraction of VISIBLE canvas rows (the portion within the
  * browser viewport) that contain at least one non-transparent pixel.
  *
  * This accounts for the sticky canvas being partially off-screen: only
- * the columns actually visible to the user are checked.
+ * the rows actually visible to the user are checked.
  */
-async function visibleCanvasFilledWidthRatio(
+async function visibleCanvasFilledHeightRatio(
   canvasLocator: import('@playwright/test').Locator,
 ): Promise<number> {
   return canvasLocator.evaluate((canvas: HTMLCanvasElement) => {
@@ -33,43 +33,43 @@ async function visibleCanvasFilledWidthRatio(
     if (!ctx || canvas.width === 0 || canvas.height === 0) return 0;
 
     const canvasRect = canvas.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
 
-    // Determine the visible column range (canvas-local coordinates)
-    const visibleLeft = Math.max(0, -canvasRect.left);
-    const visibleRight = Math.min(
-      canvas.width,
-      viewportWidth - canvasRect.left,
+    // Determine the visible row range (canvas-local coordinates)
+    const visibleTop = Math.max(0, -canvasRect.top);
+    const visibleBottom = Math.min(
+      canvas.height,
+      viewportHeight - canvasRect.top,
     );
 
-    if (visibleRight <= visibleLeft) return 0;
+    if (visibleBottom <= visibleTop) return 0;
 
-    const visibleWidth = Math.floor(visibleRight - visibleLeft);
-    const startCol = Math.floor(visibleLeft);
+    const visibleHeight = Math.floor(visibleBottom - visibleTop);
+    const startRow = Math.floor(visibleTop);
 
     const imageData = ctx.getImageData(
-      startCol,
       0,
-      visibleWidth,
-      canvas.height,
+      startRow,
+      canvas.width,
+      visibleHeight,
     );
     const pixels = imageData.data;
-    const height = canvas.height;
-    let filledColumns = 0;
+    const width = canvas.width;
+    let filledRows = 0;
 
-    for (let col = 0; col < visibleWidth; col++) {
+    for (let row = 0; row < visibleHeight; row++) {
       let hasCoverage = false;
-      for (let row = 0; row < height; row++) {
-        const alphaIndex = (row * visibleWidth + col) * 4 + 3;
+      for (let col = 0; col < width; col++) {
+        const alphaIndex = (row * width + col) * 4 + 3;
         if (pixels[alphaIndex] > 0) {
           hasCoverage = true;
           break;
         }
       }
-      if (hasCoverage) filledColumns++;
+      if (hasCoverage) filledRows++;
     }
 
-    return filledColumns / visibleWidth;
+    return filledRows / visibleHeight;
   });
 }
 
@@ -118,30 +118,30 @@ test.describe('Spectrogram canvas sticky positioning on mobile', () => {
     const scrollContainer = page.locator('.scrubber__timeline');
     const spectrogramCanvas = page.locator('.spectrogram__canvas');
 
-    const paddingLeft = await scrollContainer.evaluate((el) => {
+    const paddingTop = await scrollContainer.evaluate((el) => {
       const tl = el.querySelector('.timeline') as HTMLElement;
-      return parseFloat(getComputedStyle(tl).paddingLeft);
+      return parseFloat(getComputedStyle(tl).paddingTop);
     });
 
     // Scroll well past the padding so sticky positioning is active
-    const scrollPos = Math.floor(paddingLeft + 300);
+    const scrollPos = Math.floor(paddingTop + 300);
     await scrollContainer.evaluate((el, pos) => {
-      el.scrollLeft = pos;
+      el.scrollTop = pos;
     }, scrollPos);
     await page.waitForTimeout(200);
 
-    const canvasLeft = await spectrogramCanvas.evaluate(
-      (canvas: HTMLCanvasElement) => canvas.getBoundingClientRect().left,
+    const canvasTop = await spectrogramCanvas.evaluate(
+      (canvas: HTMLCanvasElement) => canvas.getBoundingClientRect().top,
     );
 
-    // The canvas should be at the viewport edge (left: 0), not offset
-    // by the scroll container's padding-left. On a 390px mobile viewport
-    // with 75% cursor position, the padding is ~292px — if the canvas is
-    // at the padding edge, only ~25% of the viewport shows spectrogram.
+    // The canvas should be at the viewport edge (top: 0), not offset
+    // by the scroll container's padding-top. On a 844px mobile viewport
+    // with 25% cursor position, the padding is ~211px — if the canvas is
+    // at the padding edge, only ~75% of the viewport shows spectrogram.
     expect(
-      canvasLeft,
-      `Canvas left edge is at ${canvasLeft}px instead of 0px — ` +
-        `it is stuck at the scroll container content edge (paddingLeft=${paddingLeft}) ` +
+      canvasTop,
+      `Canvas top edge is at ${canvasTop}px instead of 0px — ` +
+        `it is stuck at the scroll container content edge (paddingTop=${paddingTop}) ` +
         'instead of the viewport edge',
     ).toBeCloseTo(0, 0);
   });
@@ -168,12 +168,12 @@ test.describe('Spectrogram timeline visualization during scroll', () => {
     const scrollContainer = page.locator('.scrubber__timeline');
     const spectrogramCanvas = page.locator('.spectrogram__canvas');
 
-    // Compute the scroll position where the spectrogram container's left
-    // edge aligns with the scroll parent's left edge. Beyond this point,
+    // Compute the scroll position where the spectrogram container's top
+    // edge aligns with the scroll parent's top edge. Beyond this point,
     // contentOffset increases and the canvas draws different audio content.
-    const paddingLeft = await scrollContainer.evaluate((el) => {
+    const paddingTop = await scrollContainer.evaluate((el) => {
       const tl = el.querySelector('.timeline') as HTMLElement;
-      return parseFloat(getComputedStyle(tl).paddingLeft);
+      return parseFloat(getComputedStyle(tl).paddingTop);
     });
 
     // Hash the full canvas pixel buffer (not just the visible strip),
@@ -183,21 +183,21 @@ test.describe('Spectrogram timeline visualization during scroll', () => {
       return spectrogramCanvas.evaluate((canvas: HTMLCanvasElement) => {
         const ctx = canvas.getContext('2d');
         if (!ctx || canvas.width === 0 || canvas.height === 0) return '';
-        const midRow = Math.floor(canvas.height / 2);
-        const strip = ctx.getImageData(0, midRow, canvas.width, 1);
+        const midCol = Math.floor(canvas.width / 2);
+        const strip = ctx.getImageData(midCol, 0, 1, canvas.height);
         let hash = 0;
         for (let i = 0; i < strip.data.length; i++) {
           hash = (hash * 31 + strip.data[i]) | 0;
         }
-        return `${canvas.width}:${hash}`;
+        return `${canvas.height}:${hash}`;
       });
     };
 
     // Scroll just past the padding so the spectrogram enters the content
     // range where contentOffset starts increasing.
-    const scrollA = Math.floor(paddingLeft + 100);
+    const scrollA = Math.floor(paddingTop + 100);
     await scrollContainer.evaluate((el, pos) => {
-      el.scrollLeft = pos;
+      el.scrollTop = pos;
     }, scrollA);
     await page.waitForTimeout(200);
 
@@ -206,7 +206,7 @@ test.describe('Spectrogram timeline visualization during scroll', () => {
     // Scroll further into the content range
     const scrollB = scrollA + 400;
     await scrollContainer.evaluate((el, pos) => {
-      el.scrollLeft = pos;
+      el.scrollTop = pos;
     }, scrollB);
     await page.waitForTimeout(200);
 
@@ -230,24 +230,24 @@ test.describe('Spectrogram timeline visualization during scroll', () => {
 
     const contentInfo = await scrollContainer.evaluate((el) => {
       const tl = el.querySelector('.timeline') as HTMLElement;
-      const paddingLeft = parseFloat(getComputedStyle(tl).paddingLeft);
+      const paddingTop = parseFloat(getComputedStyle(tl).paddingTop);
       const spectrogram = el.querySelector('.spectrogram') as HTMLElement;
-      const spectrogramWidth = spectrogram?.offsetWidth ?? 0;
+      const spectrogramHeight = spectrogram?.offsetHeight ?? 0;
       return {
-        paddingLeft,
-        spectrogramWidth,
-        clientWidth: el.clientWidth,
-        scrollWidth: el.scrollWidth,
+        paddingTop,
+        spectrogramHeight,
+        clientHeight: el.clientHeight,
+        scrollHeight: el.scrollHeight,
       };
     });
 
-    const maxScroll = contentInfo.scrollWidth - contentInfo.clientWidth;
+    const maxScroll = contentInfo.scrollHeight - contentInfo.clientHeight;
 
     // Scan the full range where the spectrogram should be visible
     const scanStart = 0;
     const scanEnd = Math.min(
       maxScroll,
-      contentInfo.paddingLeft + contentInfo.spectrogramWidth,
+      contentInfo.paddingTop + contentInfo.spectrogramHeight,
     );
 
     const numSteps = 10;
@@ -260,26 +260,26 @@ test.describe('Spectrogram timeline visualization during scroll', () => {
       if (scrollPos < 0 || scrollPos > maxScroll) continue;
 
       await scrollContainer.evaluate((el, pos) => {
-        el.scrollLeft = pos;
+        el.scrollTop = pos;
       }, scrollPos);
       await page.waitForTimeout(100);
 
-      const ratio = await visibleCanvasFilledWidthRatio(spectrogramCanvas);
+      const ratio = await visibleCanvasFilledHeightRatio(spectrogramCanvas);
       results.push({ scrollPos, ratio });
     }
 
     // Every scroll position where the spectrogram is in view should have
     // high visible canvas coverage (>90%).
     const stickyBoundary = Math.floor(
-      contentInfo.paddingLeft +
-        contentInfo.spectrogramWidth -
-        contentInfo.clientWidth,
+      contentInfo.paddingTop +
+        contentInfo.spectrogramHeight -
+        contentInfo.clientHeight,
     );
 
     const coverageReport = results
       .map(
         (r) =>
-          `  scrollLeft=${String(r.scrollPos).padStart(5)}: ` +
+          `  scrollTop=${String(r.scrollPos).padStart(5)}: ` +
           `${(r.ratio * 100).toFixed(1).padStart(5)}% filled` +
           (r.scrollPos > stickyBoundary ? '  [past sticky boundary]' : ''),
       )

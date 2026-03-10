@@ -4,7 +4,6 @@ import classNames from 'classnames';
 import { forwardRef, PropsWithChildren, useImperativeHandle } from 'react';
 import { usePlaybackService } from '../../../hooks/usePlaybackService';
 import { useRecordingService } from '../../../hooks/useRecordingService';
-import { type Track } from '../../../types/track';
 import ZoomControls from '../ZoomControls';
 import PlasmaPlayhead from './PlasmaPlayhead';
 import './Scrubber.css';
@@ -18,13 +17,12 @@ type ScrubberProps = PropsWithChildren<{
   drawerHeight: number;
   onStopRecording: () => void;
   pixelsPerSecond: number;
-  tracks: Track[];
 }>;
 
 const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
   const playback = usePlaybackService();
   const recording = useRecordingService();
-  const { drawerHeight, onStopRecording, pixelsPerSecond, tracks } = props;
+  const { drawerHeight, onStopRecording, pixelsPerSecond } = props;
 
   const {
     timelineScrollRef,
@@ -38,7 +36,7 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     handleTouchMove,
     handleStopAndRewind,
     syncScrollToTime,
-  } = useScrubber({ drawerHeight, pixelsPerSecond, tracks });
+  } = useScrubber({ drawerHeight, pixelsPerSecond });
 
   useImperativeHandle(ref, () => ({ syncScrollToTime }), [syncScrollToTime]);
 
@@ -75,7 +73,7 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
         className="scrubber__cursor"
         style={timelineScaleStyle}
       >
-        <PlasmaPlayhead ref={plasmaRef} height={0} />
+        <PlasmaPlayhead ref={plasmaRef} width={0} />
       </div>
       <div className={rewindButtonClass} style={rewindButtonStyle}>
         <Button

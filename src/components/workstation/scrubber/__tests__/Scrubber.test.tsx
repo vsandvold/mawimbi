@@ -15,7 +15,6 @@ const defaultProps = {
   isMixerOpen: false,
   onStopRecording: vi.fn(),
   pixelsPerSecond: 200,
-  tracks: [] as import('../../../../types/track').Track[],
 };
 
 afterEach(() => {
@@ -231,6 +230,6 @@ it('syncs timeline scroll position via imperative handle', () => {
     ref.current!.syncScrollToTime(2.5);
   });
 
-  // scrollLeft = time * pixelsPerSecond = 2.5 * 200 = 500
-  expect(timeline.scrollLeft).toBe(500);
+  // scrollTop = time * pixelsPerSecond = 2.5 * 200 = 500
+  expect(timeline.scrollTop).toBe(500);
 });

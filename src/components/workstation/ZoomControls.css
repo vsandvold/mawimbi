@@ -1,7 +1,7 @@
 .zoom-controls {
   position: absolute;
   right: 16px;
-  bottom: 28px;
+  top: 8px;
   display: none;
   flex-direction: column;
   gap: 4px;
