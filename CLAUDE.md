@@ -193,7 +193,7 @@ src/
 │   ├── useThrottled.tsx               # Leading throttle wrapper
 │   ├── useTimelineZoom.ts             # Timeline zoom interaction
 │   ├── useTrackVolume.ts              # Track volume control
-│   ├── useContainerHeight.ts          # Container height measurement
+│   ├── useContainerDimensions.ts      # Container width/height measurement
 │   └── useUndoReducer.ts             # Undo/redo reducer wrapper
 │
 ├── components/
