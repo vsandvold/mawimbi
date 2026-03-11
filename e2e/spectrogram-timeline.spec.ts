@@ -6,11 +6,13 @@ import {
 } from './fixtures';
 
 /**
- * Measures the fraction of VISIBLE canvas rows (the portion within the
- * browser viewport) that contain at least one non-transparent pixel.
- *
- * This accounts for the sticky canvas being partially off-screen: only
- * the rows actually visible to the user are checked.
+ * Measures the fraction of canvas rows that contain at least one
+ * non-transparent pixel. Scans the full canvas buffer rather than
+ * computing a projected visible range — the 3D perspective tilt
+ * distorts getBoundingClientRect() coordinates, making screen-space
+ * visibility calculations unreliable. Since the canvas is sticky-
+ * positioned and sized to the scroll container viewport, its entire
+ * buffer represents the currently rendered content.
  */
 async function visibleCanvasFilledHeightRatio(
   canvasLocator: import('@playwright/test').Locator,
@@ -19,32 +21,13 @@ async function visibleCanvasFilledHeightRatio(
     const ctx = canvas.getContext('2d');
     if (!ctx || canvas.width === 0 || canvas.height === 0) return 0;
 
-    const canvasRect = canvas.getBoundingClientRect();
-    const viewportHeight = window.innerHeight;
-
-    // Determine the visible row range (canvas-local coordinates)
-    const visibleTop = Math.max(0, -canvasRect.top);
-    const visibleBottom = Math.min(
-      canvas.height,
-      viewportHeight - canvasRect.top,
-    );
-
-    if (visibleBottom <= visibleTop) return 0;
-
-    const visibleHeight = Math.floor(visibleBottom - visibleTop);
-    const startRow = Math.floor(visibleTop);
-
-    const imageData = ctx.getImageData(
-      0,
-      startRow,
-      canvas.width,
-      visibleHeight,
-    );
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
     const pixels = imageData.data;
     const width = canvas.width;
+    const height = canvas.height;
     let filledRows = 0;
 
-    for (let row = 0; row < visibleHeight; row++) {
+    for (let row = 0; row < height; row++) {
       let hasCoverage = false;
       for (let col = 0; col < width; col++) {
         const alphaIndex = (row * width + col) * 4 + 3;
@@ -56,7 +39,7 @@ async function visibleCanvasFilledHeightRatio(
       if (hasCoverage) filledRows++;
     }
 
-    return filledRows / visibleHeight;
+    return filledRows / height;
   });
 }
 
