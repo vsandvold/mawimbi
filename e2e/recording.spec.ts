@@ -1,11 +1,4 @@
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { expect, test } from './fixtures';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const SHORT_AUDIO = path.join(__dirname, 'fixtures', 'test-tone-short.wav');
+import { expect, test, uploadAudioFile, SHORT_AUDIO } from './fixtures';
 
 // Chrome's --use-fake-device-for-media-stream provides a synthetic audio signal
 // (beeping tone) from a virtual microphone. Combined with
@@ -168,8 +161,7 @@ test.describe('Recording with existing tracks', () => {
     await ensureAudioContextRunning(page);
 
     // Upload a backing track first
-    const fileInput = page.locator('.toolbar input[type="file"]');
-    await fileInput.setInputFiles(SHORT_AUDIO);
+    await uploadAudioFile(page, SHORT_AUDIO);
     await expect(page.locator('.timeline__track')).toBeVisible();
 
     await recordAudio(page, {

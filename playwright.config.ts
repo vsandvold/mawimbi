@@ -12,6 +12,14 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',
+    launchOptions: {
+      args: [
+        '--disable-gpu',
+        '--no-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-extensions',
+      ],
+    },
   },
   projects: [
     {

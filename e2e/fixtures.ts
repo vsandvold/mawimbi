@@ -11,9 +11,31 @@
  *   essentia.upf.edu, which would otherwise happen because AudioService
  *   fires classification on every track creation.
  */
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { test as base, expect } from '@playwright/test';
+import type { Page } from '@playwright/test';
 
 export { expect };
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+export const FIXTURES_DIR = path.join(__dirname, 'fixtures');
+export const SHORT_AUDIO = path.join(FIXTURES_DIR, 'test-tone-short.wav');
+export const LONG_AUDIO = path.join(FIXTURES_DIR, 'test-tone-long.wav');
+export const LONG_AUDIO_10S = path.join(FIXTURES_DIR, 'test-tone-10s.wav');
+export const CHIRP_AUDIO_10S = path.join(FIXTURES_DIR, 'test-chirp-10s.wav');
+
+/**
+ * Uploads an audio file via the hidden file input inside the Ant Design Upload component.
+ * Waits for the file input to be attached before setting files to avoid flaky timeouts.
+ */
+export async function uploadAudioFile(page: Page, filePath: string) {
+  const fileInput = page.locator('.toolbar input[type="file"]');
+  await fileInput.waitFor({ state: 'attached' });
+  await fileInput.setInputFiles(filePath);
+}
 
 export const test = base.extend<{ blockModelRequests: void }>({
   // eslint-disable-next-line no-empty-pattern

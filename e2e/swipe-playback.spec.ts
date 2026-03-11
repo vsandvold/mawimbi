@@ -1,22 +1,9 @@
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { expect, test } from './fixtures';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const LONG_AUDIO = path.join(__dirname, 'fixtures', 'test-tone-10s.wav');
-
-/**
- * Uploads an audio file via the hidden file input inside the Ant Design Upload component.
- */
-async function uploadAudioFile(
-  page: import('@playwright/test').Page,
-  filePath: string,
-) {
-  const fileInput = page.locator('.toolbar input[type="file"]');
-  await fileInput.setInputFiles(filePath);
-}
+import {
+  expect,
+  test,
+  uploadAudioFile,
+  LONG_AUDIO_10S,
+} from './fixtures';
 
 /**
  * Simulates a vertical touch-swipe gesture on the timeline using CDP.
@@ -67,7 +54,7 @@ test.describe('Swipe to scrub timeline during playback', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.goto('/project/test-id');
-    await uploadAudioFile(page, LONG_AUDIO);
+    await uploadAudioFile(page, LONG_AUDIO_10S);
     await expect(page.locator('.timeline__track')).toBeVisible();
 
     // Dismiss the fullscreen overlay that appears on touch-capable devices
