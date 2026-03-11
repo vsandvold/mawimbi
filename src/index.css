@@ -205,6 +205,38 @@ html {
   fill: currentColor;
 }
 
+/* Floating button: shared surface + border for single round buttons and pill groups */
+.floating-button {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+}
+
+.floating-button-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+/* Remove focus/active borders from buttons inside floating containers */
+.floating-button .button:focus,
+.floating-button .button:active,
+.floating-button-group .button:focus,
+.floating-button-group .button:active {
+  border: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .floating-button .button:hover:focus,
+  .floating-button-group .button:hover:focus {
+    border: none;
+  }
+}
+
 @media (max-width: 768px) {
   .hidden-lt768 {
     display: none !important;

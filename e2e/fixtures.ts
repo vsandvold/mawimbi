@@ -32,7 +32,7 @@ export const CHIRP_AUDIO_10S = path.join(FIXTURES_DIR, 'test-chirp-10s.wav');
  * Waits for the file input to be attached before setting files to avoid flaky timeouts.
  */
 export async function uploadAudioFile(page: Page, filePath: string) {
-  const fileInput = page.locator('.toolbar input[type="file"]');
+  const fileInput = page.locator('.toolbar-sheet input[type="file"]');
   await fileInput.waitFor({ state: 'attached' });
   await fileInput.setInputFiles(filePath);
 }

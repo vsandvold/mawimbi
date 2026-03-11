@@ -15,10 +15,17 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  height: 56px;
   cursor: grab;
   touch-action: none;
   user-select: none;
+}
+
+.bottom-sheet__header--with-title {
+  height: 56px;
+}
+
+.bottom-sheet__header--compact {
+  height: 20px;
 }
 
 .bottom-sheet__header:active {

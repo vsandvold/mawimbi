@@ -5,10 +5,6 @@
   min-height: 0;
 }
 
-.workstation__toolbar {
-  z-index: 1;
-}
-
 .editor {
   flex: 1;
   display: flex;

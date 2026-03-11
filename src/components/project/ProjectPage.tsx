@@ -35,7 +35,7 @@ type ProjectPageContentProps = {
 };
 
 const ProjectPageContent = ({ initialState }: ProjectPageContentProps) => {
-  const [state, dispatch] = useProjectReducer(initialState);
+  const [state, dispatch, undoControls] = useProjectReducer(initialState);
   const [isLogOverlayOpen, setIsLogOverlayOpen] = useState(false);
 
   const uploadFile = useUploadFile(dispatch);
@@ -69,6 +69,10 @@ const ProjectPageContent = ({ initialState }: ProjectPageContentProps) => {
               toggleFullscreen={toggleFullscreen}
               isLogOverlayOpen={isLogOverlayOpen}
               toggleLogOverlay={toggleLogOverlay}
+              undo={undoControls.undo}
+              redo={undoControls.redo}
+              canUndo={undoControls.canUndo}
+              canRedo={undoControls.canRedo}
             />
           </PageContent>
         </PageLayout>
