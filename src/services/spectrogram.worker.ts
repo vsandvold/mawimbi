@@ -1,3 +1,6 @@
+// Polyfill `window` for TF.js — must be first import (before Basic Pitch)
+import './workerWindowPolyfill';
+
 import { type TrackColor } from '../types/track';
 import { analyseCQT } from './CQTAnalyser';
 import {
