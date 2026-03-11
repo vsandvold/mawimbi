@@ -60,10 +60,14 @@
 .shade {
   width: 100%;
   height: 100%;
+  /* Atmospheric fog gradient: heavier at the far end (top) to sell depth,
+     transparent around the cursor zone, then fading back to solid at the
+     near edge (bottom) for the edge vignette. */
   background-image: linear-gradient(
     to bottom,
     rgb(var(--shade-color)),
-    rgba(var(--shade-color), 0) 25%,
+    rgba(var(--shade-color), 0.85) 15%,
+    rgba(var(--shade-color), 0) 30%,
     rgba(var(--shade-color), 0.8) 75%,
     rgb(var(--shade-color)) 100%
   );
