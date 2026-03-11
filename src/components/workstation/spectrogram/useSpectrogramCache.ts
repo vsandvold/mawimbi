@@ -100,9 +100,16 @@ export function useSpectrogramCache(
             `[melody] Restored ${melody.notes.length} cached notes for track ${trackId} from IndexedDB`,
           );
         } else {
-          console.debug(
-            `[melody] No cached melody data for track ${trackId} in IndexedDB`,
-          );
+          // Melody data missing from IndexedDB — run extraction now.
+          // This happens when the page was closed before extraction
+          // completed, or the IndexedDB save failed on a prior load.
+          extractAndCacheMelody(audioService, trackId, audioBuffer, () => {
+            if (cancelled) return;
+            const updated = audioService.spectrogramCache.getEntry(trackId);
+            if (updated) {
+              setEntry({ ...updated });
+            }
+          });
         }
 
         setEntry(audioService.spectrogramCache.getEntry(trackId));

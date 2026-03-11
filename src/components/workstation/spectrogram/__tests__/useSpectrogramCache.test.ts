@@ -222,6 +222,9 @@ describe('useSpectrogramCache', () => {
     const storeData = toSpectrogramStoreData('track-1', MOCK_DATA);
     await saveSpectrogramData(storeData);
 
+    // Melody is missing from IndexedDB — extraction will be triggered
+    mockExtractMelodyInWorker.mockResolvedValue(MOCK_MELODY);
+
     const { result } = renderHook(() =>
       useSpectrogramCache('track-1', mockAudioBuffer(), COLOR),
     );
@@ -320,6 +323,35 @@ describe('useSpectrogramCache', () => {
     expect(stored).not.toBeNull();
     expect(stored!.trackId).toBe('track-1');
     expect(stored!.timeResolution).toBe(0.0029);
+  });
+
+  it('runs melody extraction when spectrogram is in IndexedDB but melody is not', async () => {
+    mockGetEntry
+      .mockReturnValueOnce(undefined) // initial check: not in memory
+      .mockReturnValue(MOCK_ENTRY); // after restore
+
+    // Only spectrogram is in IndexedDB — no melody data
+    const storeData = toSpectrogramStoreData('track-1', MOCK_DATA);
+    await saveSpectrogramData(storeData);
+
+    mockExtractMelodyInWorker.mockResolvedValue(MOCK_MELODY);
+
+    const buffer = mockAudioBuffer();
+    renderHook(() => useSpectrogramCache('track-1', buffer, COLOR));
+
+    // Should still trigger melody extraction even though spectrogram was cached
+    await waitFor(() => {
+      expect(mockExtractMelodyInWorker).toHaveBeenCalledWith(buffer);
+    });
+
+    await waitFor(() => {
+      expect(mockSetMelody).toHaveBeenCalledWith('track-1', MOCK_MELODY);
+    });
+
+    // Verify melody data was saved to IndexedDB
+    const stored = await loadMelodyData('track-1');
+    expect(stored).not.toBeNull();
+    expect(stored!.trackId).toBe('track-1');
   });
 
   it('does not fail when melody extraction errors', async () => {

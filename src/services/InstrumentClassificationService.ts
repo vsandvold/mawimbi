@@ -299,9 +299,6 @@ class InstrumentClassificationService {
         // Handle download progress updates (service-level, not per-request)
         if (type === 'download-progress') {
           this._downloadProgress.value = event.data.progress;
-          console.debug(
-            `[classification] Model download progress: ${event.data.progress}%`,
-          );
           return;
         }
 

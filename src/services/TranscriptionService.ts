@@ -267,9 +267,6 @@ class TranscriptionService {
         // Handle download progress updates
         if (type === 'download-progress') {
           this._downloadProgress.value = event.data.progress;
-          console.debug(
-            `[transcription] Model download progress: ${event.data.progress}%`,
-          );
           return;
         }
 
