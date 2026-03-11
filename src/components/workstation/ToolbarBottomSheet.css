@@ -18,6 +18,10 @@
   transition: height 0.25s ease-out;
 }
 
+.toolbar-sheet--hidden {
+  pointer-events: none;
+}
+
 .toolbar-sheet__header {
   display: flex;
   flex-direction: column;
@@ -34,6 +38,12 @@
 
 .toolbar-sheet__content {
   overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Extra spacing in fullscreen to clear the native device drawer handle */
+.fullscreen-enabled .toolbar-sheet__content {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
 }
 
 .toolbar-sheet__row {

@@ -77,6 +77,7 @@ const ToolbarBottomSheet = (props: ToolbarBottomSheetProps) => {
       onHeightChange: handleHeightChange,
     });
 
+  const isContentSheetOpen = isMixerOpen || isLyricsOpen;
   const totalHeight = contentHeight + HEADER_HEIGHT;
   const lyricsIconClass = classNames({ 'show-lyrics': isLyricsOpen });
   const mixerIconClass = classNames('custom-icon', {
@@ -96,9 +97,11 @@ const ToolbarBottomSheet = (props: ToolbarBottomSheetProps) => {
         onToggleRecording={onToggleRecording}
       />
       <div
-        className="toolbar-sheet"
+        className={classNames('toolbar-sheet', {
+          'toolbar-sheet--hidden': isContentSheetOpen,
+        })}
         style={{
-          height: totalHeight,
+          height: isContentSheetOpen ? 0 : totalHeight,
           transition: isDraggingRef.current ? 'none' : undefined,
         }}
       >
