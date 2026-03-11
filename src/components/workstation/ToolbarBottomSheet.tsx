@@ -99,7 +99,9 @@ const ToolbarBottomSheet = (props: ToolbarBottomSheetProps) => {
         onToggleRecording={onToggleRecording}
       />
       <div
-        className="toolbar-sheet"
+        className={classNames('toolbar-sheet', {
+          'toolbar-sheet--hidden': isContentSheetOpen,
+        })}
         style={{
           height: totalHeight,
           transition: isDraggingRef.current ? 'none' : undefined,

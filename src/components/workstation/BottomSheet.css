@@ -9,7 +9,6 @@
   overflow: hidden;
   transition: height 0.25s ease-out;
   pointer-events: auto;
-  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .bottom-sheet__header {
@@ -66,4 +65,10 @@
 
 .bottom-sheet__content {
   overflow-y: auto;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Extra spacing in fullscreen to clear the native device drawer handle */
+.fullscreen-enabled .bottom-sheet__content {
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
 }
