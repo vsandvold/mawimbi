@@ -9,6 +9,7 @@
   overflow: hidden;
   transition: height 0.25s ease-out;
   pointer-events: auto;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .bottom-sheet__header {
