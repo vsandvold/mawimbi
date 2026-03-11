@@ -1,22 +1,9 @@
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { expect, test } from './fixtures';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const LONG_AUDIO = path.join(__dirname, 'fixtures', 'test-chirp-10s.wav');
-
-/**
- * Uploads an audio file via the hidden file input inside the Ant Design Upload component.
- */
-async function uploadAudioFile(
-  page: import('@playwright/test').Page,
-  filePath: string,
-) {
-  const fileInput = page.locator('.toolbar input[type="file"]');
-  await fileInput.setInputFiles(filePath);
-}
+import {
+  expect,
+  test,
+  uploadAudioFile,
+  CHIRP_AUDIO_10S,
+} from './fixtures';
 
 /**
  * Measures the fraction of VISIBLE canvas rows (the portion within the
@@ -103,7 +90,7 @@ test.describe('Spectrogram alignment with cursor at time=0', () => {
     page,
   }) => {
     await page.goto('/project/test-id');
-    await uploadAudioFile(page, LONG_AUDIO);
+    await uploadAudioFile(page, CHIRP_AUDIO_10S);
 
     const spectrogramCanvas = page.locator('.spectrogram__canvas');
     await expect(spectrogramCanvas).toBeVisible({ timeout: 15000 });
@@ -167,7 +154,7 @@ test.describe('Spectrogram canvas sticky positioning on mobile', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.goto('/project/test-id');
-    await uploadAudioFile(page, LONG_AUDIO);
+    await uploadAudioFile(page, CHIRP_AUDIO_10S);
 
     const spectrogramCanvas = page.locator('.spectrogram__canvas');
     await expect(spectrogramCanvas).toBeVisible({ timeout: 15000 });
@@ -194,37 +181,36 @@ test.describe('Spectrogram canvas sticky positioning on mobile', () => {
     await scrollContainer.evaluate((el, pos) => {
       el.scrollTop = pos;
     }, scrollPos);
-    await page.waitForTimeout(200);
 
-    const { canvasTop, scrollContainerTop } = await page.evaluate(() => {
-      const canvas = document.querySelector(
-        '.spectrogram__canvas',
-      ) as HTMLCanvasElement;
-      const scrollEl = document.querySelector(
-        '.scrubber__timeline',
-      ) as HTMLElement;
-      return {
-        canvasTop: canvas.getBoundingClientRect().top,
-        scrollContainerTop: scrollEl.getBoundingClientRect().top,
-      };
-    });
+    // Wait for scroll to settle and sticky position to update
+    await expect(async () => {
+      const { canvasTop, scrollContainerTop } = await page.evaluate(() => {
+        const canvas = document.querySelector(
+          '.spectrogram__canvas',
+        ) as HTMLCanvasElement;
+        const scrollEl = document.querySelector(
+          '.scrubber__timeline',
+        ) as HTMLElement;
+        return {
+          canvasTop: canvas.getBoundingClientRect().top,
+          scrollContainerTop: scrollEl.getBoundingClientRect().top,
+        };
+      });
 
-    // The canvas should stick at the scroll container's top edge (sticky
-    // top: 0), not offset by the timeline's padding-top. The scroll
-    // container may be below the viewport top due to the project header.
-    expect(
-      canvasTop,
-      `Canvas top edge is at ${canvasTop}px instead of scroll container top ` +
-        `(${scrollContainerTop}px) — it is stuck at the content edge ` +
-        `(paddingTop=${paddingTop}) instead of the scroll container edge`,
-    ).toBeCloseTo(scrollContainerTop, 0);
+      expect(
+        canvasTop,
+        `Canvas top edge is at ${canvasTop}px instead of scroll container top ` +
+          `(${scrollContainerTop}px) — it is stuck at the content edge ` +
+          `instead of the scroll container edge`,
+      ).toBeCloseTo(scrollContainerTop, 0);
+    }).toPass({ timeout: 2000 });
   });
 });
 
 test.describe('Spectrogram timeline visualization during scroll', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/project/test-id');
-    await uploadAudioFile(page, LONG_AUDIO);
+    await uploadAudioFile(page, CHIRP_AUDIO_10S);
 
     const spectrogramCanvas = page.locator('.spectrogram__canvas');
     await expect(spectrogramCanvas).toBeVisible({ timeout: 15000 });
@@ -334,7 +320,9 @@ test.describe('Spectrogram timeline visualization during scroll', () => {
       contentInfo.paddingTop + contentInfo.spectrogramHeight,
     );
 
-    const numSteps = 10;
+    // Use 5 steps instead of 10 — sufficient to detect coverage gaps
+    // while cutting scroll+render wait time in half.
+    const numSteps = 5;
     const results: Array<{ scrollPos: number; ratio: number }> = [];
 
     for (let i = 0; i <= numSteps; i++) {

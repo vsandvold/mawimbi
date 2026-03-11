@@ -1,23 +1,10 @@
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { expect, test } from './fixtures';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const SHORT_AUDIO = path.join(__dirname, 'fixtures', 'test-tone-short.wav');
-const LONG_AUDIO = path.join(__dirname, 'fixtures', 'test-tone-long.wav');
-
-/**
- * Uploads an audio file via the hidden file input inside the Ant Design Upload component.
- */
-async function uploadAudioFile(
-  page: import('@playwright/test').Page,
-  filePath: string,
-) {
-  const fileInput = page.locator('.toolbar input[type="file"]');
-  await fileInput.setInputFiles(filePath);
-}
+import {
+  expect,
+  test,
+  uploadAudioFile,
+  SHORT_AUDIO,
+  LONG_AUDIO,
+} from './fixtures';
 
 test.describe('Audio file upload', () => {
   test('uploads audio files, displays tracks, and enables controls', async ({
@@ -48,15 +35,13 @@ test.describe('Audio file upload', () => {
 });
 
 test.describe('Playback controls', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/project/test-id');
-    await uploadAudioFile(page, SHORT_AUDIO);
-    await expect(page.locator('.timeline__track')).toBeVisible();
-  });
-
   test('toggles playback via click and spacebar, shows playhead', async ({
     page,
   }) => {
+    await page.goto('/project/test-id');
+    await uploadAudioFile(page, SHORT_AUDIO);
+    await expect(page.locator('.timeline__track')).toBeVisible();
+
     // Playhead is visible
     await expect(page.locator('.plasma-playhead')).toBeVisible();
 
@@ -97,7 +82,6 @@ test.describe('Playback controls', () => {
         connections;
     });
 
-    // Re-navigate so the init script takes effect
     await page.goto('/project/test-id');
     await uploadAudioFile(page, SHORT_AUDIO);
     await expect(page.locator('.timeline__track')).toBeVisible();
@@ -240,7 +224,6 @@ test.describe('Floating toolbar', () => {
     await rewindButton.click();
   });
 });
-
 
 test.describe('Visual regression - audio states', () => {
   // Seed Math.random so the track color palette starts at index 0 (teal)

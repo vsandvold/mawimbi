@@ -1,13 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
-import { expect, test } from './fixtures';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const SHORT_AUDIO = path.join(__dirname, 'fixtures', 'test-tone-short.wav');
-const LONG_AUDIO = path.join(__dirname, 'fixtures', 'test-tone-long.wav');
+import { expect, test, SHORT_AUDIO, LONG_AUDIO } from './fixtures';
 
 /**
  * Creates a Playwright ElementHandle for a DataTransfer containing the given

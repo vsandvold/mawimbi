@@ -1,27 +1,14 @@
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { expect, test } from './fixtures';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const SHORT_AUDIO = path.join(__dirname, 'fixtures', 'test-tone-short.wav');
-const LONG_AUDIO = path.join(__dirname, 'fixtures', 'test-tone-long.wav');
+import {
+  expect,
+  test,
+  uploadAudioFile,
+  SHORT_AUDIO,
+  LONG_AUDIO,
+} from './fixtures';
 
 // Time to wait after the mixer opens so its 300 ms slide-in transition has
 // fully settled before @dnd-kit measures droppable rects.
 const MIXER_ANIMATION_MS = 350;
-
-/**
- * Uploads an audio file via the hidden file input inside the Ant Design Upload component.
- */
-async function uploadAudioFile(
-  page: import('@playwright/test').Page,
-  filePath: string,
-) {
-  const fileInput = page.locator('.toolbar input[type="file"]');
-  await fileInput.setInputFiles(filePath);
-}
 
 /**
  * Drags an element's centre to another element's centre using mouse events.
@@ -125,17 +112,34 @@ test.describe('Mixer channel reordering', () => {
     await page.waitForTimeout(MIXER_ANIMATION_MS);
   });
 
-  test('touch-dragging a channel reorders tracks in the mixer', async ({
-    browser,
+  test('mouse-dragging a channel reorders tracks in the mixer', async ({
+    page,
   }) => {
-    // touch-action: none on the drag handle prevents the browser from
-    // firing pointercancel during a touch drag. Verify the CSS is applied
-    // and that an actual touch drag reorders the channels.
-    const context = await browser.newContext({
-      hasTouch: true,
-      viewport: { width: 1280, height: 720 },
-    });
-    const page = await context.newPage();
+    const channels = page.locator('.channel');
+    const colorBefore = await channels
+      .first()
+      .evaluate((el) => (el as HTMLElement).style.backgroundColor);
+
+    // Drag the top channel's handle down to the bottom channel's handle.
+    const handles = page.locator('.channel__move');
+    await mouseDragTo(page, handles.first(), handles.last());
+
+    // After dragging, the first channel should now have the other colour.
+    await expect(async () => {
+      const colorAfter = await channels
+        .first()
+        .evaluate((el) => (el as HTMLElement).style.backgroundColor);
+      expect(colorAfter).not.toBe(colorBefore);
+    }).toPass({ timeout: 2000 });
+  });
+});
+
+test.describe('Mixer channel reordering – touch', () => {
+  test.use({ hasTouch: true });
+
+  test('touch-dragging a channel reorders tracks in the mixer', async ({
+    page,
+  }) => {
     await page.addInitScript(() => {
       Math.random = () => 0;
     });
@@ -167,29 +171,6 @@ test.describe('Mixer channel reordering', () => {
     // Touch-drag the top channel's handle down to the bottom channel's handle
     const handles = page.locator('.channel__move');
     await touchDragTo(page, handles.first(), handles.last());
-
-    // After dragging, the first channel should now have the other colour.
-    await expect(async () => {
-      const colorAfter = await channels
-        .first()
-        .evaluate((el) => (el as HTMLElement).style.backgroundColor);
-      expect(colorAfter).not.toBe(colorBefore);
-    }).toPass({ timeout: 2000 });
-
-    await context.close();
-  });
-
-  test('mouse-dragging a channel reorders tracks in the mixer', async ({
-    page,
-  }) => {
-    const channels = page.locator('.channel');
-    const colorBefore = await channels
-      .first()
-      .evaluate((el) => (el as HTMLElement).style.backgroundColor);
-
-    // Drag the top channel's handle down to the bottom channel's handle.
-    const handles = page.locator('.channel__move');
-    await mouseDragTo(page, handles.first(), handles.last());
 
     // After dragging, the first channel should now have the other colour.
     await expect(async () => {
