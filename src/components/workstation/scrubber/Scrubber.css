@@ -40,7 +40,7 @@
 .scrubber__shade {
   position: absolute;
   top: 0;
-  bottom: 0;
+  /* bottom is set via inline style to match the drawer height */
   left: 0;
   right: 0;
   pointer-events: none;
@@ -49,7 +49,7 @@
 .scrubber__cursor {
   position: absolute;
   top: calc(
-    var(--timeline-scale-factor, 1) * (var(--cursor-position) * 100% - 120px)
+    var(--cursor-position) * (100% - var(--drawer-height, 0px)) - 120px
   );
   left: 0;
   right: 0;
