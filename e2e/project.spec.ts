@@ -1,14 +1,14 @@
 import { expect, test } from './fixtures';
 
 test.describe('Project page', () => {
-  test('header shows back button, upload button, and overflow menu', async ({
+  test('shows floating back button, upload button, and overflow menu', async ({
     page,
   }) => {
     await page.goto('/project/test-id');
     await expect(
       page.getByRole('link', { name: 'Back', exact: true }),
     ).toBeVisible();
-    await expect(page.getByText('Upload files')).toBeVisible();
+    await expect(page.getByTitle('Upload files')).toBeVisible();
     await expect(page.locator('.overflow-button')).toBeVisible();
   });
 
@@ -30,7 +30,7 @@ test.describe('Project page', () => {
       page.getByText('Start recording, or upload some audio files'),
     ).toBeVisible();
     await expect(
-      page.getByText('Drop files here, or use the upload button above'),
+      page.getByText('Drop files here, or use the upload button below'),
     ).toBeVisible();
     await expect(page.getByTitle('Play')).toBeDisabled();
     await expect(page.getByTitle('Show mixer')).toBeDisabled();

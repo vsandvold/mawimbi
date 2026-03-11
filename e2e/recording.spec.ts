@@ -168,7 +168,7 @@ test.describe('Recording with existing tracks', () => {
     await ensureAudioContextRunning(page);
 
     // Upload a backing track first
-    const fileInput = page.locator('.project-page-header input[type="file"]');
+    const fileInput = page.locator('.toolbar input[type="file"]');
     await fileInput.setInputFiles(SHORT_AUDIO);
     await expect(page.locator('.timeline__track')).toBeVisible();
 

@@ -14,7 +14,7 @@ async function uploadAudioFile(
   page: import('@playwright/test').Page,
   filePath: string,
 ) {
-  const fileInput = page.locator('.project-page-header input[type="file"]');
+  const fileInput = page.locator('.toolbar input[type="file"]');
   await fileInput.setInputFiles(filePath);
 }
 

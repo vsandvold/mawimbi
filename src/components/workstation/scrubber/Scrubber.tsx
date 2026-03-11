@@ -1,6 +1,3 @@
-import { SkipBack } from 'lucide-react';
-import { Button } from '../../ui/button';
-import classNames from 'classnames';
 import { forwardRef, PropsWithChildren, useImperativeHandle } from 'react';
 import { usePlaybackService } from '../../../hooks/usePlaybackService';
 import { useRecordingService } from '../../../hooks/useRecordingService';
@@ -28,15 +25,13 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     timelineScrollRef,
     cursorContainerRef,
     plasmaRef,
-    isRewindButtonHidden,
     timelineScrollStyle,
     timelineOverlayStyle,
-    rewindButtonStyle,
+    zoomControlsStyle,
     handleScroll,
     handleWheel,
     handleTouchMove,
     handlePerspectiveWheel,
-    handleStopAndRewind,
     syncScrollToTime,
   } = useScrubber({ drawerHeight, pixelsPerSecond });
 
@@ -56,10 +51,6 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     if (timelineScrollRef.current?.contains(e.target as Node)) return;
     handleTimelineClick();
   };
-
-  const rewindButtonClass = classNames('scrubber__rewind', {
-    'scrubber__rewind--hidden': isRewindButtonHidden,
-  });
 
   return (
     <div className="scrubber scrubber--firefox-scroll-fix">
@@ -90,18 +81,7 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
       >
         <PlasmaPlayhead ref={plasmaRef} width={0} />
       </div>
-      <div className={rewindButtonClass} style={rewindButtonStyle}>
-        <Button
-          variant="ghost"
-          size="icon-lg"
-          className="button"
-          title="Rewind"
-          onClick={handleStopAndRewind}
-        >
-          <SkipBack />
-        </Button>
-      </div>
-      <ZoomControls style={rewindButtonStyle} />
+      <ZoomControls style={zoomControlsStyle} />
     </div>
   );
 });

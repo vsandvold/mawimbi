@@ -23,7 +23,7 @@ it('renders message for desktop devices', () => {
 
   const { getByText } = render(<EmptyTimeline {...defaultProps} />);
   const desktopMessage = getByText(
-    'Drop files here, or use the upload button above',
+    'Drop files here, or use the upload button below',
   );
 
   expect(desktopMessage).toBeInTheDocument();
@@ -36,7 +36,7 @@ it('renders message for touch devices', () => {
   }));
 
   const { getByText } = render(<EmptyTimeline {...defaultProps} />);
-  const touchMessage = getByText('Use the upload button above');
+  const touchMessage = getByText('Use the upload button below');
 
   expect(touchMessage).toBeInTheDocument();
 });

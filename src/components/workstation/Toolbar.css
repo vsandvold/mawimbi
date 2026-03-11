@@ -1,15 +1,19 @@
 .toolbar {
   display: flex;
-  justify-content: center;
-  padding: 8px;
+  align-items: center;
+  padding: 8px 12px;
 }
 
 .toolbar__button {
-  margin-right: 8px;
+  margin-right: 4px;
 }
 
 .toolbar__button:last-child {
   margin-right: 0;
+}
+
+.toolbar__spacer {
+  flex: 1;
 }
 
 .show-lyrics {

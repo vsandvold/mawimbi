@@ -1,0 +1,17 @@
+.floating-toolbar {
+  position: fixed;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  z-index: 2;
+  transition: bottom 0.25s ease-out;
+}
+
+.floating-toolbar__button--play {
+  transform: scale(1.1);
+}

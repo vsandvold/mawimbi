@@ -15,7 +15,7 @@ async function uploadAudioFile(
   page: import('@playwright/test').Page,
   filePath: string,
 ) {
-  const fileInput = page.locator('.project-page-header input[type="file"]');
+  const fileInput = page.locator('.toolbar input[type="file"]');
   await fileInput.setInputFiles(filePath);
 }
 
@@ -229,45 +229,15 @@ test.describe('Spectrogram rendering', () => {
   });
 });
 
-test.describe('Scrubber', () => {
-  test('rewind button shows on scroll, hides on scroll back, and rewinds on click', async ({
-    page,
-  }) => {
+test.describe('Floating toolbar', () => {
+  test('rewind button rewinds playback', async ({ page }) => {
     await page.goto('/project/test-id');
     await uploadAudioFile(page, LONG_AUDIO);
     await expect(page.locator('.timeline__track')).toBeVisible();
 
-    const timeline = page.locator('.scrubber__timeline');
-    const rewindButton = page.locator('.scrubber__rewind');
-
-    // Rewind button starts hidden
-    await expect(rewindButton).toHaveClass(/scrubber__rewind--hidden/);
-
-    // Scroll forward → rewind button appears
-    await timeline.evaluate((el) => {
-      el.scrollTop = 200;
-    });
-    await page.waitForTimeout(400);
-    await expect(rewindButton).not.toHaveClass(/scrubber__rewind--hidden/);
-
-    // Click rewind → scrolls to start, button hides
-    await page.locator('.scrubber__rewind').getByTitle('Rewind').click();
-    await expect(rewindButton).toHaveClass(/scrubber__rewind--hidden/);
-    const scrollLeft = await timeline.evaluate((el) => el.scrollTop);
-    expect(scrollLeft).toBe(0);
-
-    // Scroll forward again, then scroll back → button hides
-    await timeline.evaluate((el) => {
-      el.scrollTop = 200;
-    });
-    await page.waitForTimeout(400);
-    await expect(rewindButton).not.toHaveClass(/scrubber__rewind--hidden/);
-
-    await timeline.evaluate((el) => {
-      el.scrollTop = 0;
-    });
-    await page.waitForTimeout(400);
-    await expect(rewindButton).toHaveClass(/scrubber__rewind--hidden/);
+    const rewindButton = page.locator('.floating-toolbar').getByTitle('Rewind');
+    await expect(rewindButton).toBeVisible();
+    await rewindButton.click();
   });
 });
 
@@ -344,9 +314,7 @@ test.describe('Visual regression - audio states', () => {
     );
   });
 
-  test('scrubber scrolled forward with rewind button visible', async ({
-    page,
-  }) => {
+  test('scrubber scrolled forward', async ({ page }) => {
     await page.goto('/project/test-id');
     await uploadAudioFile(page, LONG_AUDIO);
     await expect(page.locator('.timeline__track')).toBeVisible();
@@ -356,9 +324,6 @@ test.describe('Visual regression - audio states', () => {
       el.scrollTop = 200;
     });
     await page.waitForTimeout(400);
-    await expect(page.locator('.scrubber__rewind')).not.toHaveClass(
-      /scrubber__rewind--hidden/,
-    );
 
     await expect(page.locator('.editor')).toHaveScreenshot(
       'scrubber-scrolled-forward.png',

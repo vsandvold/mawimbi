@@ -34,12 +34,6 @@ export function useScrubber({
   const audioService = useAudioService();
   const playing = playback.isPlaying;
 
-  const [isRewindButtonHidden, setIsRewindButtonHidden] = useState(true);
-
-  const isNearBeginning = (el: HTMLDivElement) => {
-    return el.scrollTop < 10;
-  };
-
   const timelineScrollRef = useRef<HTMLDivElement>(null);
   const cursorContainerRef = useRef<HTMLDivElement>(null);
   const plasmaRef = useRef<PlasmaPlayheadHandle>(null);
@@ -78,7 +72,6 @@ export function useScrubber({
           isProgrammaticScrollRef.current = true;
           el.scrollTop = scrollPosition;
         }
-        setIsRewindButtonHidden(isNearBeginning(el));
       }
     },
     [pixelsPerSecond],
@@ -222,19 +215,9 @@ export function useScrubber({
       return;
     }
 
-    if (timelineScrollRef.current) {
-      setIsRewindButtonHidden(isNearBeginning(timelineScrollRef.current));
-    }
-
     if (recording.isActivelyRecording) return;
     pauseForUserScroll();
     debouncedSetTransportTime();
-  };
-
-  const handleStopAndRewind = () => {
-    if (recording.isActivelyRecording) return;
-    playback.rewind();
-    setScrollPosition(0);
   };
 
   const [timelineScaleFactor, setTimelineScaleFactor] = useState(1.0);
@@ -266,7 +249,7 @@ export function useScrubber({
   const timelineScrollStyle = getTimelineScrollStyle(timelineScaleFactor);
   const timelineOverlayStyle = getTimelineOverlayStyle(timelineScaleFactor);
 
-  const rewindButtonStyle = getRewindButtonStyle(
+  const zoomControlsStyle = getZoomControlsStyle(
     drawerHeight,
     timelineScaleFactor,
   );
@@ -283,15 +266,13 @@ export function useScrubber({
     timelineScrollRef,
     cursorContainerRef,
     plasmaRef,
-    isRewindButtonHidden,
     timelineScrollStyle,
     timelineOverlayStyle,
-    rewindButtonStyle,
+    zoomControlsStyle,
     handleScroll,
     handleWheel,
     handleTouchMove,
     handlePerspectiveWheel,
-    handleStopAndRewind,
     syncScrollToTime,
   };
 }
@@ -330,7 +311,7 @@ function getTimelineOverlayStyle(timelineScaleFactor: number) {
   };
 }
 
-function getRewindButtonStyle(
+function getZoomControlsStyle(
   drawerHeight: number,
   timelineScaleFactor: number,
 ) {
