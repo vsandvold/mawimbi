@@ -58,6 +58,21 @@ it('transforms timeline vertical scale when drawer is open', () => {
   );
 });
 
+it('passes timeline scale factor as CSS variable to cursor for position alignment', () => {
+  const drawerHeight = 200;
+
+  const { container } = render(
+    <Scrubber {...{ ...defaultProps, drawerHeight }} />,
+  );
+
+  const cursor = container.querySelector('.scrubber__cursor') as HTMLElement;
+
+  // The cursor element must expose --timeline-scale-factor so CSS can
+  // adjust the top position to stay aligned with the scaled scroll content.
+  const scaleVar = cursor.style.getPropertyValue('--timeline-scale-factor');
+  expect(scaleVar).toBeTruthy();
+});
+
 it('perspective wrapper handles wheel events for full hit-area coverage', () => {
   playbackService.play();
 

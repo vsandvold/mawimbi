@@ -1,4 +1,5 @@
 import {
+  type CSSProperties,
   type WheelEvent as ReactWheelEvent,
   useCallback,
   useEffect,
@@ -248,6 +249,7 @@ export function useScrubber({
 
   const timelineScrollStyle = getTimelineScrollStyle(timelineScaleFactor);
   const timelineOverlayStyle = getTimelineOverlayStyle(timelineScaleFactor);
+  const cursorStyle = getCursorStyle(timelineScaleFactor);
 
   const zoomControlsStyle = getZoomControlsStyle(
     drawerHeight,
@@ -268,6 +270,7 @@ export function useScrubber({
     plasmaRef,
     timelineScrollStyle,
     timelineOverlayStyle,
+    cursorStyle,
     zoomControlsStyle,
     handleScroll,
     handleWheel,
@@ -301,7 +304,7 @@ function getTimelineScrollStyle(timelineScaleFactor: number) {
 }
 
 /**
- * Style for overlay elements (shade, cursor) that should NOT be flipped.
+ * Style for overlay elements (shade) that should NOT be flipped.
  * Only applies the drawer scaling.
  */
 function getTimelineOverlayStyle(timelineScaleFactor: number) {
@@ -309,6 +312,23 @@ function getTimelineOverlayStyle(timelineScaleFactor: number) {
     ...baseTransformStyle,
     transform: `scaleY(${timelineScaleFactor})`,
   };
+}
+
+/**
+ * Style for the cursor overlay. Extends the overlay transform with a CSS
+ * variable that lets the cursor's `top` position scale proportionally.
+ *
+ * Without this, the cursor's percentage-based `top` resolves against the
+ * un-scaled parent height while the scroll content is visually compressed
+ * by scaleY. Multiplying `top` by the scale factor keeps the playhead
+ * aligned with the scroll content at any drawer height.
+ */
+function getCursorStyle(timelineScaleFactor: number): CSSProperties {
+  return {
+    ...baseTransformStyle,
+    transform: `scaleY(${timelineScaleFactor})`,
+    '--timeline-scale-factor': timelineScaleFactor,
+  } as React.CSSProperties;
 }
 
 function getZoomControlsStyle(
