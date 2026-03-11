@@ -13,8 +13,12 @@ async function wheelScrollTimeline(
   page: import('@playwright/test').Page,
   deltaY: number,
 ) {
-  const timeline = page.locator('.scrubber__timeline');
-  await timeline.hover();
+  // Hover the perspective wrapper instead of the transformed scroll container.
+  // The 3D perspective tilt can project the scroll container's center outside
+  // the viewport, making Playwright's hover() fail. The perspective wrapper
+  // is not transformed and forwards wheel events to the scroll container.
+  const perspective = page.locator('.scrubber__perspective');
+  await perspective.hover();
   await page.mouse.wheel(0, deltaY);
 }
 
