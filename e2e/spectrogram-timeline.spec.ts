@@ -19,10 +19,11 @@ async function uploadAudioFile(
 }
 
 /**
- * Measures the fraction of canvas rows that contain at least one
- * non-transparent pixel. Checks the entire canvas buffer directly
- * without relying on getBoundingClientRect (which is distorted by
- * 3D transforms like perspective/rotateX on ancestor elements).
+ * Measures the fraction of VISIBLE canvas rows (the portion within the
+ * browser viewport) that contain at least one non-transparent pixel.
+ *
+ * This accounts for the sticky canvas being partially off-screen: only
+ * the rows actually visible to the user are checked.
  */
 async function visibleCanvasFilledHeightRatio(
   canvasLocator: import('@playwright/test').Locator,
@@ -31,8 +32,27 @@ async function visibleCanvasFilledHeightRatio(
     const ctx = canvas.getContext('2d');
     if (!ctx || canvas.width === 0 || canvas.height === 0) return 0;
 
-    const visibleHeight = canvas.height;
-    const imageData = ctx.getImageData(0, 0, canvas.width, visibleHeight);
+    const canvasRect = canvas.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+
+    // Determine the visible row range (canvas-local coordinates)
+    const visibleTop = Math.max(0, -canvasRect.top);
+    const visibleBottom = Math.min(
+      canvas.height,
+      viewportHeight - canvasRect.top,
+    );
+
+    if (visibleBottom <= visibleTop) return 0;
+
+    const visibleHeight = Math.floor(visibleBottom - visibleTop);
+    const startRow = Math.floor(visibleTop);
+
+    const imageData = ctx.getImageData(
+      0,
+      startRow,
+      canvas.width,
+      visibleHeight,
+    );
     const pixels = imageData.data;
     const width = canvas.width;
     let filledRows = 0;
@@ -79,7 +99,7 @@ async function canvasHasContent(
 test.describe('Spectrogram alignment with cursor at time=0', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
-  test('timeline padding aligns content boundary with cursor position', async ({
+  test('spectrogram bottom edge aligns with cursor position', async ({
     page,
   }) => {
     await page.goto('/project/test-id');
@@ -93,52 +113,56 @@ test.describe('Spectrogram alignment with cursor at time=0', () => {
       expect(hasContent).toBe(true);
     }).toPass({ timeout: 15000 });
 
-    // At time=0, the timeline's padding-bottom should position the content
-    // boundary at the cursor position. The cursor is at --cursor-position
-    // (25%) of the scrubber height, so padding-bottom should be ~25% of
-    // the scroll container height (in cqh units).
-    //
-    // We verify the layout relationship rather than projected bounding rects
-    // because 3D transforms (perspective/rotateX on the tilt wrapper) distort
-    // getBoundingClientRect values.
+    // At time=0, the spectrogram's bottom edge (beginning of audio) should
+    // align with the cursor/playhead position. The cursor is at 25% of the
+    // scrubber height, and the timeline padding must match so the content
+    // boundary lands exactly on the cursor.
     const alignment = await page.evaluate(() => {
       const scrollContainer = document.querySelector(
         '.scrubber__timeline',
       ) as HTMLElement;
-      const timeline = document.querySelector('.timeline') as HTMLElement;
+      const spectrogram = document.querySelector(
+        '.spectrogram',
+      ) as HTMLElement;
+      const cursor = document.querySelector(
+        '.scrubber__cursor',
+      ) as HTMLElement;
 
-      const paddingBottom = parseFloat(
-        getComputedStyle(timeline).paddingBottom,
-      );
-      const containerHeight = scrollContainer.clientHeight;
-      const cursorPosition = parseFloat(
-        getComputedStyle(document.documentElement).getPropertyValue(
-          '--cursor-position',
-        ),
-      );
+      const spectrogramRect = spectrogram.getBoundingClientRect();
+      const cursorRect = cursor.getBoundingClientRect();
+      const scrollRect = scrollContainer.getBoundingClientRect();
+
+      // The cursor center (playhead line) is at the vertical midpoint of
+      // the 240px-tall cursor element.
+      const cursorCenter = cursorRect.top + cursorRect.height / 2;
 
       return {
-        paddingBottom,
-        expectedPaddingBottom: cursorPosition * containerHeight,
-        containerHeight,
-        cursorPosition,
+        spectrogramBottom: spectrogramRect.bottom,
+        cursorCenter,
+        scrollContainerTop: scrollRect.top,
+        scrollContainerHeight: scrollContainer.clientHeight,
       };
     });
 
-    // padding-bottom should be cursor-position * 100cqh (container height)
+    // The spectrogram bottom should be near the cursor center. The
+    // perspective tilt (rotateX) shifts the projected bounding rect
+    // significantly — up to ~35px at 25deg — so a generous tolerance
+    // is needed. Without perspective the gap would be < 2px.
     const gap = Math.abs(
-      alignment.paddingBottom - alignment.expectedPaddingBottom,
+      alignment.spectrogramBottom - alignment.cursorCenter,
     );
     expect(
       gap,
-      `Timeline padding-bottom (${alignment.paddingBottom.toFixed(1)}px) doesn't match ` +
-        `cursor-position × container height (${alignment.expectedPaddingBottom.toFixed(1)}px). ` +
-        `Gap: ${gap.toFixed(1)}px`,
-    ).toBeLessThanOrEqual(5);
+      `Spectrogram bottom (${alignment.spectrogramBottom.toFixed(1)}px) is not aligned ` +
+        `with cursor center (${alignment.cursorCenter.toFixed(1)}px). ` +
+        `Gap: ${gap.toFixed(1)}px. ` +
+        `Scroll container: top=${alignment.scrollContainerTop.toFixed(1)}px, ` +
+        `height=${alignment.scrollContainerHeight}px`,
+    ).toBeLessThanOrEqual(40);
   });
 });
 
-test.describe('Spectrogram canvas viewport pinning on mobile', () => {
+test.describe('Spectrogram canvas sticky positioning on mobile', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
   test.beforeEach(async ({ page }) => {
@@ -154,7 +178,7 @@ test.describe('Spectrogram canvas viewport pinning on mobile', () => {
     }).toPass({ timeout: 15000 });
   });
 
-  test('canvas pins at the scroll viewport via JS translateY', async ({
+  test('canvas sticks at the scroll container edge, not the content edge', async ({
     page,
   }) => {
     const scrollContainer = page.locator('.scrubber__timeline');
@@ -165,29 +189,35 @@ test.describe('Spectrogram canvas viewport pinning on mobile', () => {
       return parseFloat(getComputedStyle(tl).paddingTop);
     });
 
-    // Scroll well past the padding so JS-based pinning is active
+    // Scroll well past the padding so sticky positioning is active
     const scrollPos = Math.floor(paddingTop + 300);
     await scrollContainer.evaluate((el, pos) => {
       el.scrollTop = pos;
     }, scrollPos);
-    // Wait for the animation frame to update the canvas transform
     await page.waitForTimeout(200);
 
-    const canvasTranslateY = await spectrogramCanvas.evaluate((el) => {
-      const style = el.style.transform;
-      const match = style.match(/translateY\(([^)]+)px\)/);
-      return match ? parseFloat(match[1]) : null;
+    const { canvasTop, scrollContainerTop } = await page.evaluate(() => {
+      const canvas = document.querySelector(
+        '.spectrogram__canvas',
+      ) as HTMLCanvasElement;
+      const scrollEl = document.querySelector(
+        '.scrubber__timeline',
+      ) as HTMLElement;
+      return {
+        canvasTop: canvas.getBoundingClientRect().top,
+        scrollContainerTop: scrollEl.getBoundingClientRect().top,
+      };
     });
 
-    // The canvas should have a translateY equal to scrollTop - paddingTop
-    // (the contentOffset). This pins it at the visible viewport position
-    // within the spectrogram container.
-    const expectedOffset = scrollPos - paddingTop;
+    // The canvas should stick at the scroll container's top edge (sticky
+    // top: 0), not offset by the timeline's padding-top. The scroll
+    // container may be below the viewport top due to the project header.
     expect(
-      canvasTranslateY,
-      `Canvas translateY is ${canvasTranslateY}px instead of expected ` +
-        `${expectedOffset}px (scrollPos=${scrollPos} - paddingTop=${paddingTop})`,
-    ).toBeCloseTo(expectedOffset, 0);
+      canvasTop,
+      `Canvas top edge is at ${canvasTop}px instead of scroll container top ` +
+        `(${scrollContainerTop}px) — it is stuck at the content edge ` +
+        `(paddingTop=${paddingTop}) instead of the scroll container edge`,
+    ).toBeCloseTo(scrollContainerTop, 0);
   });
 });
 

@@ -100,21 +100,18 @@ it('transforms timeline vertical scale when drawer is open', () => {
   );
 });
 
-it('applies rotateX to inner tilt wrapper, not the scroll container', () => {
+it('perspective wrapper handles wheel events for full hit-area coverage', () => {
+  playbackService.play();
+
   const { container } = render(<Scrubber {...defaultProps} />);
 
-  const scrollContainer = container.querySelector('.scrubber__timeline');
-  const tiltWrapper = container.querySelector('.scrubber__tilt');
+  // The perspective wrapper covers the full rectangular area. Wheel events
+  // landing outside the tilted scroll container's trapezoid hit the wrapper
+  // instead, which forwards them as programmatic scrolls.
+  const perspectiveWrapper = container.querySelector('.scrubber__perspective')!;
+  fireEvent.wheel(perspectiveWrapper, { deltaY: 100 });
 
-  expect(scrollContainer).toBeInTheDocument();
-  expect(tiltWrapper).toBeInTheDocument();
-
-  // rotateX must NOT be on the scroll container — it creates a trapezoidal
-  // hit-test area with dead-zone corners where events don't register
-  expect(scrollContainer?.getAttribute('style') ?? '').not.toContain('rotateX');
-
-  // rotateX is on the inner tilt wrapper for visual-only perspective
-  expect(tiltWrapper?.getAttribute('style') ?? '').toContain('rotateX');
+  expect(playbackService.isPlaying).toBe(false);
 });
 
 it('does not stop playback at end of scroll during recording', () => {

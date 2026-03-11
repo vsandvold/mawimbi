@@ -30,7 +30,6 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     plasmaRef,
     isRewindButtonHidden,
     timelineScrollStyle,
-    timelineTiltStyle,
     timelineOverlayStyle,
     rewindButtonStyle,
     handleScroll,
@@ -78,9 +77,7 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
           onWheel={handleWheel}
           onTouchMove={handleTouchMove}
         >
-          <div className="scrubber__tilt" style={timelineTiltStyle}>
-            {props.children}
-          </div>
+          {props.children}
         </div>
       </div>
       <div className="scrubber__shade" style={timelineOverlayStyle}>
