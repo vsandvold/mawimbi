@@ -200,7 +200,9 @@ class InstrumentClassificationService {
         `[classification] Classification failed for track ${trackId}: ${detail}`,
       );
       this.setEntry(trackId, { state: 'error' });
-      throw new Error(`Classification failed for track ${trackId}: ${detail}`);
+      throw new Error(`Classification failed for track ${trackId}: ${detail}`, {
+        cause: error,
+      });
     }
   }
 
