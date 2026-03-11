@@ -77,7 +77,8 @@ const ToolbarBottomSheet = (props: ToolbarBottomSheetProps) => {
       onHeightChange: handleHeightChange,
     });
 
-  const totalHeight = contentHeight + HEADER_HEIGHT;
+  const isContentSheetOpen = sheetOffset > 0;
+  const totalHeight = isContentSheetOpen ? 0 : contentHeight + HEADER_HEIGHT;
   const lyricsIconClass = classNames({ 'show-lyrics': isLyricsOpen });
   const mixerIconClass = classNames('custom-icon', {
     'show-mixer': isMixerOpen,
@@ -86,17 +87,21 @@ const ToolbarBottomSheet = (props: ToolbarBottomSheetProps) => {
   return (
     <div
       className="toolbar-dock"
-      style={{
-        bottom: sheetOffset,
-        transition: isDraggingRef.current ? 'none' : undefined,
-      }}
+      style={
+        {
+          '--offset': `${sheetOffset}px`,
+          transition: isDraggingRef.current ? 'none' : undefined,
+        } as React.CSSProperties
+      }
     >
       <FloatingToolbar
         isEmpty={isEmpty}
         onToggleRecording={onToggleRecording}
       />
       <div
-        className="toolbar-sheet"
+        className={classNames('toolbar-sheet', {
+          'toolbar-sheet--hidden': isContentSheetOpen,
+        })}
         style={{
           height: totalHeight,
           transition: isDraggingRef.current ? 'none' : undefined,
