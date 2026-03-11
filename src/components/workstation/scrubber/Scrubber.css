@@ -48,7 +48,9 @@
 
 .scrubber__cursor {
   position: absolute;
-  top: calc(var(--cursor-position) * 100% - 120px);
+  top: calc(
+    var(--timeline-scale-factor, 1) * (var(--cursor-position) * 100% - 120px)
+  );
   left: 0;
   right: 0;
   height: 240px;

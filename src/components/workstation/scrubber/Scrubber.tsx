@@ -27,6 +27,7 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     plasmaRef,
     timelineScrollStyle,
     timelineOverlayStyle,
+    cursorStyle,
     zoomControlsStyle,
     handleScroll,
     handleWheel,
@@ -77,7 +78,7 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
       <div
         ref={cursorContainerRef}
         className="scrubber__cursor"
-        style={timelineOverlayStyle}
+        style={cursorStyle}
       >
         <PlasmaPlayhead ref={plasmaRef} width={0} />
       </div>
