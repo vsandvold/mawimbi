@@ -42,23 +42,22 @@ it('does not pause playback when timeline is scrolled while paused', () => {
   expect(playbackService.isPlaying).toBe(false);
 });
 
-it('transforms timeline vertical scale when drawer is open', () => {
+it('positions shade bottom at drawer height instead of using scaleY', () => {
+  const drawerHeight = 120;
+
   const { container } = render(
-    <Scrubber {...{ ...defaultProps, drawerHeight: 120, isMixerOpen: true }} />,
+    <Scrubber {...{ ...defaultProps, drawerHeight }} />,
   );
 
-  const progressCursor = container.querySelector('.scrubber__cursor');
-  const timeline = container.querySelector('.scrubber__timeline');
+  const shade = container.querySelector('.scrubber__shade') as HTMLElement;
 
-  expect(timeline).toBeInTheDocument();
-  expect(progressCursor).toBeInTheDocument();
-
-  expect(progressCursor?.outerHTML).toEqual(
-    expect.stringContaining('transform: scaleY'),
-  );
+  // The shade should use direct bottom positioning to cover the visible area
+  // above the drawer, not scaleY which drifts when the viewport changes.
+  expect(shade.style.bottom).toBe(`${drawerHeight}px`);
+  expect(shade.style.transform).not.toContain('scaleY');
 });
 
-it('passes timeline scale factor as CSS variable to cursor for position alignment', () => {
+it('passes drawer height as CSS variable to cursor for position alignment', () => {
   const drawerHeight = 200;
 
   const { container } = render(
@@ -67,10 +66,11 @@ it('passes timeline scale factor as CSS variable to cursor for position alignmen
 
   const cursor = container.querySelector('.scrubber__cursor') as HTMLElement;
 
-  // The cursor element must expose --timeline-scale-factor so CSS can
-  // adjust the top position to stay aligned with the scaled scroll content.
-  const scaleVar = cursor.style.getPropertyValue('--timeline-scale-factor');
-  expect(scaleVar).toBeTruthy();
+  // The cursor element must expose --drawer-height so CSS can position the
+  // playhead within the visible area above the drawer.
+  const heightVar = cursor.style.getPropertyValue('--drawer-height');
+  expect(heightVar).toBe(`${drawerHeight}px`);
+  expect(cursor.style.transform).not.toContain('scaleY');
 });
 
 it('perspective wrapper handles wheel events for full hit-area coverage', () => {

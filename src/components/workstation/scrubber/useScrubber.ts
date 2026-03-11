@@ -248,8 +248,8 @@ export function useScrubber({
   }, [drawerHeight]);
 
   const timelineScrollStyle = getTimelineScrollStyle(timelineScaleFactor);
-  const timelineOverlayStyle = getTimelineOverlayStyle(timelineScaleFactor);
-  const cursorStyle = getCursorStyle(timelineScaleFactor);
+  const timelineOverlayStyle = getTimelineOverlayStyle(drawerHeight);
+  const cursorStyle = getCursorStyle(drawerHeight);
 
   const zoomControlsStyle = getZoomControlsStyle(
     drawerHeight,
@@ -304,30 +304,25 @@ function getTimelineScrollStyle(timelineScaleFactor: number) {
 }
 
 /**
- * Style for overlay elements (shade) that should NOT be flipped.
- * Only applies the drawer scaling.
+ * Style for the shade overlay. Uses direct `bottom` positioning so the
+ * gradient covers exactly the visible area above the drawer. This replaces
+ * the previous scaleY approach which drifted when the viewport height
+ * changed (e.g. mobile address bar show/hide).
  */
-function getTimelineOverlayStyle(timelineScaleFactor: number) {
+function getTimelineOverlayStyle(drawerHeight: number): CSSProperties {
   return {
-    ...baseTransformStyle,
-    transform: `scaleY(${timelineScaleFactor})`,
+    bottom: `${drawerHeight}px`,
   };
 }
 
 /**
- * Style for the cursor overlay. Extends the overlay transform with a CSS
- * variable that lets the cursor's `top` position scale proportionally.
- *
- * Without this, the cursor's percentage-based `top` resolves against the
- * un-scaled parent height while the scroll content is visually compressed
- * by scaleY. Multiplying `top` by the scale factor keeps the playhead
- * aligned with the scroll content at any drawer height.
+ * Style for the cursor overlay. Passes the drawer height as a CSS variable
+ * so the cursor's `top` position resolves against the visible area above
+ * the drawer. This replaces the previous scaleY approach.
  */
-function getCursorStyle(timelineScaleFactor: number): CSSProperties {
+function getCursorStyle(drawerHeight: number): CSSProperties {
   return {
-    ...baseTransformStyle,
-    transform: `scaleY(${timelineScaleFactor})`,
-    '--timeline-scale-factor': timelineScaleFactor,
+    '--drawer-height': `${drawerHeight}px`,
   } as React.CSSProperties;
 }
 
