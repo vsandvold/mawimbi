@@ -180,12 +180,9 @@ export async function extractMelody(
       allOnsets.push(...onsets);
       allContours.push(...contours);
     },
-    (percent) => {
-      if (percent === 0 || percent === 1 || percent % 0.25 < 0.01) {
-        console.debug(
-          `[melody] Basic Pitch progress: ${(percent * 100).toFixed(0)}%`,
-        );
-      }
+    () => {
+      // Progress callback required by BasicPitch API but not logged —
+      // start/done/fail messages are sufficient.
     },
   );
 
