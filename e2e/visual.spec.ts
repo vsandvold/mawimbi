@@ -14,14 +14,10 @@ test.describe('visual regression', () => {
     await expect(page).toHaveScreenshot('home.png');
   });
 
-  test('project page - empty state, header, and toolbar', async ({ page }) => {
+  test('project page - empty state and toolbar', async ({ page }) => {
     await page.goto('/project/test-id');
-    await page.waitForSelector('text=Upload');
+    await page.waitForSelector('.toolbar');
     await expect(page).toHaveScreenshot('project-empty.png');
-
-    const header = page.locator('.page__header');
-    await expect(header).toBeVisible();
-    await expect(header).toHaveScreenshot('project-header.png');
 
     const toolbar = page.locator('.toolbar');
     await expect(toolbar).toBeVisible();
@@ -55,32 +51,12 @@ test.describe('dark theme properties', () => {
     );
     expect(buttonColor).not.toBe('rgb(22, 104, 220)');
 
-    // Header has zero padding
-    const header = page.locator('.page__header');
-    await expect(header).toBeVisible();
-    const headerPadding = await header.evaluate(
-      (el) => window.getComputedStyle(el).padding,
-    );
-    expect(headerPadding).toBe('0px');
-
-    // Inner header container has correct padding
-    const headerInner = page.locator('.project-page-header');
-    await expect(headerInner).toBeVisible();
-    const innerPadding = await headerInner.evaluate(
-      (el) => window.getComputedStyle(el).padding,
-    );
-    expect(innerPadding).toBe('16px 24px');
-
-    // Title has correct font size
-    const title = page.locator('.project-page-header__title');
-    await expect(title).toBeVisible();
-    const fontSize = await title.evaluate(
-      (el) => window.getComputedStyle(el).fontSize,
-    );
-    expect(fontSize).toBe('20px');
+    // Floating back button is visible
+    const backButton = page.locator('.floating-back-button');
+    await expect(backButton).toBeVisible();
 
     // Channel items are vertically centered
-    const fileInput = page.locator('.project-page-header input[type="file"]');
+    const fileInput = page.locator('.toolbar input[type="file"]');
     await fileInput.setInputFiles(SHORT_AUDIO);
     await expect(page.locator('.timeline__track')).toHaveCount(1);
 

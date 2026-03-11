@@ -1,4 +1,3 @@
-import { isInaccessible } from '@testing-library/dom';
 import { act, fireEvent, render } from '@testing-library/react';
 import { createRef } from 'react';
 import * as Tone from 'tone';
@@ -21,42 +20,6 @@ afterEach(() => {
   playbackService.reset();
   recordingService.reset();
   Tone.getTransport().seconds = 0;
-});
-
-it('hides rewind button at start of playback', () => {
-  const { getByTitle } = render(<Scrubber {...defaultProps} />);
-
-  const rewindButton = getByTitle('Rewind');
-  const rewindButtonParent = rewindButton.parentNode;
-
-  expect(rewindButton).toBeInTheDocument();
-  expect(rewindButtonParent).toHaveClass('scrubber__rewind--hidden');
-});
-
-it('shows rewind button when playback has progressed', () => {
-  playbackService.setTransportTime(100);
-
-  const { getByTitle } = render(<Scrubber {...defaultProps} />);
-
-  const rewindButton = getByTitle('Rewind');
-  const rewindButtonParent = rewindButton.parentNode;
-
-  expect(rewindButton).toBeInTheDocument();
-  expect(rewindButtonParent).not.toHaveClass('scrubber__rewind--hidden');
-  expect(isInaccessible(rewindButton)).toEqual(false);
-});
-
-it('stops and rewinds playback when rewind button is clicked', () => {
-  playbackService.play();
-  playbackService.setTransportTime(5.0);
-
-  const { getByTitle } = render(<Scrubber {...defaultProps} />);
-
-  const rewindButton = getByTitle('Rewind');
-  fireEvent.click(rewindButton);
-
-  expect(playbackService.isPlaying).toBe(false);
-  expect(playbackService.transportTime).toBe(0);
 });
 
 it('pauses playback when timeline is scrolled while playing', () => {
@@ -85,18 +48,13 @@ it('transforms timeline vertical scale when drawer is open', () => {
   );
 
   const progressCursor = container.querySelector('.scrubber__cursor');
-  const rewindButton = container.querySelector('.scrubber__rewind');
   const timeline = container.querySelector('.scrubber__timeline');
 
   expect(timeline).toBeInTheDocument();
   expect(progressCursor).toBeInTheDocument();
-  expect(rewindButton).toBeInTheDocument();
 
   expect(progressCursor?.outerHTML).toEqual(
     expect.stringContaining('transform: scaleY'),
-  );
-  expect(rewindButton?.outerHTML).toEqual(
-    expect.stringContaining('transform: translateY'),
   );
 });
 
@@ -187,20 +145,6 @@ it('does not pause playback when timeline is scrolled during recording', () => {
   fireEvent.scroll(timeline);
 
   expect(playbackService.isPlaying).toBe(true);
-});
-
-it('does not rewind when rewind button is clicked during recording', () => {
-  playbackService.play();
-  recordingService.arm();
-  recordingService.startRecording();
-  playbackService.setTransportTime(5.0);
-
-  const { getByTitle } = render(<Scrubber {...defaultProps} />);
-
-  fireEvent.click(getByTitle('Rewind'));
-
-  expect(playbackService.isPlaying).toBe(true);
-  expect(playbackService.transportTime).toBe(5.0);
 });
 
 it('does not update transportTime during count-in', () => {

@@ -14,11 +14,11 @@ const EmptyTimeline = ({ isDragActive }: EmptyTimelineProps) => {
       </h4>
       {browserSupport.touchEvents ? (
         <span className="text-muted-foreground">
-          Use the upload button above
+          Use the upload button below
         </span>
       ) : (
         <span className="text-muted-foreground">
-          Drop files here, or use the upload button above
+          Drop files here, or use the upload button below
         </span>
       )}
     </div>

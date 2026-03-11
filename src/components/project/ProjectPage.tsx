@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import Fullscreen from '../fullscreen/Fullscreen';
-import { PageContent, PageHeader, PageLayout } from '../layout/PageLayout';
+import { PageContent, PageLayout } from '../layout/PageLayout';
 import LogOverlay from '../LogOverlay';
 import Workstation from '../workstation/Workstation';
 import './ProjectPage.css';
@@ -14,12 +14,8 @@ import {
   useTrackSideEffects,
   useUploadFile,
 } from './projectPageEffects';
-import {
-  COLOR_PALETTE,
-  RENAME_PROJECT,
-  type ProjectState,
-} from './projectPageReducer';
-import ProjectPageHeader from './ProjectPageHeader';
+import { COLOR_PALETTE, type ProjectState } from './projectPageReducer';
+import FloatingBackButton from './FloatingBackButton';
 import { ProjectDispatch } from './useProjectDispatch';
 import useProjectReducer from './useProjectReducer';
 
@@ -39,7 +35,7 @@ type ProjectPageContentProps = {
 };
 
 const ProjectPageContent = ({ initialState }: ProjectPageContentProps) => {
-  const [state, dispatch, undoControls] = useProjectReducer(initialState);
+  const [state, dispatch] = useProjectReducer(initialState);
   const [isLogOverlayOpen, setIsLogOverlayOpen] = useState(false);
 
   const uploadFile = useUploadFile(dispatch);
@@ -64,29 +60,19 @@ const ProjectPageContent = ({ initialState }: ProjectPageContentProps) => {
     <ProjectDispatch.Provider value={dispatch}>
       <Fullscreen handle={fullScreenHandle}>
         <PageLayout>
-          <PageHeader>
-            <ProjectPageHeader
-              title={state.title}
-              uploadFile={uploadFile}
-              isFullscreen={fullScreenHandle.active}
-              toggleFullscreen={toggleFullscreen}
-              isLogOverlayOpen={isLogOverlayOpen}
-              toggleLogOverlay={toggleLogOverlay}
-              undo={undoControls.undo}
-              redo={undoControls.redo}
-              canUndo={undoControls.canUndo}
-              canRedo={undoControls.canRedo}
-              renameProject={(title) => dispatch([RENAME_PROJECT, { title }])}
-            />
-          </PageHeader>
           <PageContent>
             <Workstation
               recordingColor={recordingColor}
               tracks={state.tracks}
               uploadFile={uploadFile}
+              isFullscreen={fullScreenHandle.active}
+              toggleFullscreen={toggleFullscreen}
+              isLogOverlayOpen={isLogOverlayOpen}
+              toggleLogOverlay={toggleLogOverlay}
             />
           </PageContent>
         </PageLayout>
+        <FloatingBackButton />
         <LogOverlay isOpen={isLogOverlayOpen} onClose={toggleLogOverlay} />
       </Fullscreen>
     </ProjectDispatch.Provider>

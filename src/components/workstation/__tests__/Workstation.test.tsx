@@ -45,6 +45,10 @@ const defaultProps = {
   recordingColor: { r: 77, g: 238, b: 234 },
   tracks: [],
   uploadFile: vi.fn(),
+  isFullscreen: false,
+  toggleFullscreen: vi.fn(),
+  isLogOverlayOpen: false,
+  toggleLogOverlay: vi.fn(),
 };
 
 const defaultTrack = mockTrack();

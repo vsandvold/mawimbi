@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { usePlaybackService } from '../../hooks/usePlaybackService';
 import { useRecordingService } from '../../hooks/useRecordingService';
 import { useWorkstation } from '../../hooks/useWorkstation';
@@ -11,6 +11,7 @@ import MixerBottomSheet from './MixerBottomSheet';
 import LyricsBottomSheet from './LyricsBottomSheet';
 import Scrubber, { type ScrubberHandle } from './scrubber/Scrubber';
 import Timeline from './Timeline';
+import FloatingToolbar from './FloatingToolbar';
 import Toolbar from './Toolbar';
 import './Workstation.css';
 import {
@@ -27,6 +28,10 @@ type WorkstationProps = {
   recordingColor: TrackColor;
   tracks: Track[];
   uploadFile: (file: File) => void;
+  isFullscreen: boolean;
+  toggleFullscreen: (state?: boolean) => void;
+  isLogOverlayOpen: boolean;
+  toggleLogOverlay: () => void;
 };
 
 const Workstation = (props: WorkstationProps) => {
@@ -37,16 +42,32 @@ const Workstation = (props: WorkstationProps) => {
   const [isRecording, setIsRecording] = useState(false);
   const [isCountingIn, setIsCountingIn] = useState(false);
   const [drawerHeight, setDrawerHeight] = useState(0);
+  const [bottomSheetHeight, setBottomSheetHeight] = useState(0);
+  const [toolbarHeight, setToolbarHeight] = useState(0);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const scrubberRef = useRef<ScrubberHandle>(null);
 
-  const { recordingColor, tracks, uploadFile } = props;
+  const {
+    recordingColor,
+    tracks,
+    uploadFile,
+    isFullscreen,
+    toggleFullscreen,
+    isLogOverlayOpen,
+    toggleLogOverlay,
+  } = props;
   const hasTracks = tracks.length > 0;
   const isMixerOpen = activeSheet === 'mixer';
   const isLyricsOpen = activeSheet === 'lyrics';
 
   const { isDragActive, isDragAccept, isDragReject, rootProps, inputProps } =
     useFileDropzone(uploadFile);
+
+  useLayoutEffect(() => {
+    if (toolbarRef.current) {
+      setToolbarHeight(toolbarRef.current.offsetHeight);
+    }
+  }, []);
 
   useSpacebarPlaybackToggle();
   useClassificationSync(tracks);
@@ -90,6 +111,7 @@ const Workstation = (props: WorkstationProps) => {
     // for scaling, so subtract the toolbar height.
     const toolbarHeight = toolbarRef.current?.offsetHeight ?? 0;
     setDrawerHeight(Math.max(0, height - toolbarHeight));
+    setBottomSheetHeight(height);
   }, []);
 
   const handleMixerOpenChange = useCallback((open: boolean) => {
@@ -163,9 +185,18 @@ const Workstation = (props: WorkstationProps) => {
           isEmpty={!hasTracks}
           onToggleMixer={toggleMixer}
           onToggleLyrics={toggleLyrics}
-          onToggleRecording={toggleRecording}
+          uploadFile={uploadFile}
+          isFullscreen={isFullscreen}
+          toggleFullscreen={toggleFullscreen}
+          isLogOverlayOpen={isLogOverlayOpen}
+          toggleLogOverlay={toggleLogOverlay}
         />
       </div>
+      <FloatingToolbar
+        isEmpty={!hasTracks}
+        bottomOffset={bottomSheetHeight + toolbarHeight + 12}
+        onToggleRecording={toggleRecording}
+      />
       <MixerBottomSheet
         isOpen={isMixerOpen}
         onOpenChange={handleMixerOpenChange}
