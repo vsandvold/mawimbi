@@ -116,7 +116,7 @@ test.describe('Spectrogram alignment with cursor at time=0', () => {
 
     // The spectrogram bottom should be near the cursor center. The
     // perspective tilt (rotateX) shifts the projected bounding rect
-    // significantly — up to ~35px at 25deg — so a generous tolerance
+    // significantly — up to ~50px at 55deg — so a generous tolerance
     // is needed. Without perspective the gap would be < 2px.
     const gap = Math.abs(
       alignment.spectrogramBottom - alignment.cursorCenter,
@@ -128,7 +128,7 @@ test.describe('Spectrogram alignment with cursor at time=0', () => {
         `Gap: ${gap.toFixed(1)}px. ` +
         `Scroll container: top=${alignment.scrollContainerTop.toFixed(1)}px, ` +
         `height=${alignment.scrollContainerHeight}px`,
-    ).toBeLessThanOrEqual(40);
+    ).toBeLessThanOrEqual(55);
   });
 });
 
