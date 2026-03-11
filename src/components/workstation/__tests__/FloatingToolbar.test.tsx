@@ -11,7 +11,6 @@ const mockToggleRecording = vi.fn();
 
 const defaultProps = {
   isEmpty: false,
-  bottomOffset: 60,
   onToggleRecording: mockToggleRecording,
 };
 
@@ -80,11 +79,9 @@ it('disables transport buttons when tracks are empty', () => {
   expect(getByTitle('Record')).not.toBeDisabled();
 });
 
-it('applies bottom offset style', () => {
-  const { container } = render(
-    <FloatingToolbar {...{ ...defaultProps, bottomOffset: 100 }} />,
-  );
+it('applies floating-button-group class', () => {
+  const { container } = render(<FloatingToolbar {...defaultProps} />);
 
   const toolbar = container.querySelector('.floating-toolbar');
-  expect(toolbar).toHaveStyle({ bottom: '100px' });
+  expect(toolbar).toHaveClass('floating-button-group');
 });

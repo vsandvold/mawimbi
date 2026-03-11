@@ -5,13 +5,12 @@ import './FloatingBackButton.css';
 
 const FloatingBackButton = () => {
   return (
-    <Link to="/" className="floating-back-button" aria-label="Back">
-      <Button
-        variant="ghost"
-        size="icon-lg"
-        className="button floating-back-button__icon"
-        tabIndex={-1}
-      >
+    <Link
+      to="/"
+      className="floating-back-button floating-button"
+      aria-label="Back"
+    >
+      <Button variant="ghost" size="icon-lg" className="button" tabIndex={-1}>
         <ArrowLeft />
       </Button>
     </Link>

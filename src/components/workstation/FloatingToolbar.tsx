@@ -6,22 +6,21 @@ import './FloatingToolbar.css';
 
 type FloatingToolbarProps = {
   isEmpty: boolean;
-  bottomOffset: number;
   onToggleRecording: () => void;
 };
 
 const FloatingToolbar = (props: FloatingToolbarProps) => {
   const { isPlaying, togglePlayback, rewind } = usePlaybackService();
   const { isTransportLocked, recordingState } = useRecordingService();
-  const { isEmpty, bottomOffset, onToggleRecording } = props;
+  const { isEmpty, onToggleRecording } = props;
   const isRecordActive = recordingState !== 'idle';
 
   return (
-    <div className="floating-toolbar" style={{ bottom: bottomOffset }}>
+    <div className="floating-toolbar floating-button-group">
       <Button
         variant="ghost"
         size="icon"
-        className="button floating-toolbar__button"
+        className="button"
         title="Rewind"
         onClick={rewind}
         disabled={isEmpty || isTransportLocked}
@@ -31,7 +30,7 @@ const FloatingToolbar = (props: FloatingToolbarProps) => {
       <Button
         variant="ghost"
         size="icon-lg"
-        className="button floating-toolbar__button floating-toolbar__button--play"
+        className="button floating-toolbar__button--play"
         title={isPlaying ? 'Pause' : 'Play'}
         onClick={togglePlayback}
         disabled={isEmpty || isTransportLocked}
@@ -41,7 +40,7 @@ const FloatingToolbar = (props: FloatingToolbarProps) => {
       <Button
         variant="ghost"
         size="icon"
-        className="button floating-toolbar__button"
+        className="button"
         title="Record"
         onClick={onToggleRecording}
       >

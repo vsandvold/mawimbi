@@ -1,0 +1,46 @@
+/* Dock: fixed container at bottom holding both the toolbar sheet and
+   the floating toolbar. Shifts up via `bottom` when a content sheet opens. */
+.toolbar-dock {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  transition: bottom 0.25s ease-out;
+}
+
+/* The toolbar sheet itself — styled like a bottom sheet but not position:fixed
+   (the dock provides that). */
+.toolbar-sheet {
+  background-color: var(--surface);
+  border-radius: 12px 12px 0 0;
+  overflow: hidden;
+  transition: height 0.25s ease-out;
+}
+
+.toolbar-sheet__header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 20px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.toolbar-sheet__header:active {
+  cursor: grabbing;
+}
+
+.toolbar-sheet__content {
+  overflow: hidden;
+}
+
+.toolbar-sheet__row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 48px;
+  padding: 0 12px;
+}

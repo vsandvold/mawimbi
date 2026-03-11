@@ -251,7 +251,7 @@ test.describe('Visual regression - audio states', () => {
     // Toolbar while playing
     await page.getByTitle('Play').click();
     await expect(page.getByTitle('Pause')).toBeVisible();
-    await expect(page.locator('.workstation__toolbar')).toHaveScreenshot(
+    await expect(page.locator('.toolbar-dock')).toHaveScreenshot(
       'toolbar-playing.png',
     );
     await page.getByTitle('Pause').click();

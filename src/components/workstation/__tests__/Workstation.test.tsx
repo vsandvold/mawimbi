@@ -28,6 +28,9 @@ vi.mock('../scrubber/Scrubber', () => ({
 vi.mock('../Timeline', () => ({
   default: () => <div data-testid="regular-timeline"></div>,
 }));
+vi.mock('../ToolbarBottomSheet', () => ({
+  default: () => <div data-testid="toolbar-bottom-sheet"></div>,
+}));
 
 vi.mock('../workstationEffects', () => mockWorkstationEffects());
 
@@ -49,6 +52,10 @@ const defaultProps = {
   toggleFullscreen: vi.fn(),
   isLogOverlayOpen: false,
   toggleLogOverlay: vi.fn(),
+  undo: vi.fn(),
+  redo: vi.fn(),
+  canUndo: false,
+  canRedo: false,
 };
 
 const defaultTrack = mockTrack();

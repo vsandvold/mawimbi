@@ -16,10 +16,10 @@ test.describe('visual regression', () => {
 
   test('project page - empty state and toolbar', async ({ page }) => {
     await page.goto('/project/test-id');
-    await page.waitForSelector('.toolbar');
+    await page.waitForSelector('.toolbar-sheet');
     await expect(page).toHaveScreenshot('project-empty.png');
 
-    const toolbar = page.locator('.toolbar');
+    const toolbar = page.locator('.toolbar-sheet');
     await expect(toolbar).toBeVisible();
     await expect(toolbar).toHaveScreenshot('toolbar.png');
   });
@@ -44,7 +44,7 @@ test.describe('dark theme properties', () => {
     await page.goto('/project/test-id');
 
     // Toolbar buttons use custom white color, not default link blue
-    const button = page.locator('.toolbar .button').first();
+    const button = page.locator('.toolbar-sheet .button').first();
     await expect(button).toBeVisible();
     const buttonColor = await button.evaluate(
       (el) => window.getComputedStyle(el).color,
@@ -56,7 +56,7 @@ test.describe('dark theme properties', () => {
     await expect(backButton).toBeVisible();
 
     // Channel items are vertically centered
-    const fileInput = page.locator('.toolbar input[type="file"]');
+    const fileInput = page.locator('.toolbar-sheet input[type="file"]');
     await fileInput.setInputFiles(SHORT_AUDIO);
     await expect(page.locator('.timeline__track')).toHaveCount(1);
 

@@ -58,7 +58,7 @@ async function installAudioContextSpy(
 async function ensureAudioContextRunning(
   page: import('@playwright/test').Page,
 ) {
-  await page.locator('.workstation__toolbar').click();
+  await page.locator('.toolbar-dock').click();
 
   await expect
     .poll(

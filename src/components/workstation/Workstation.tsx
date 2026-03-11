@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { usePlaybackService } from '../../hooks/usePlaybackService';
 import { useRecordingService } from '../../hooks/useRecordingService';
 import { useWorkstation } from '../../hooks/useWorkstation';
@@ -11,8 +11,7 @@ import MixerBottomSheet from './MixerBottomSheet';
 import LyricsBottomSheet from './LyricsBottomSheet';
 import Scrubber, { type ScrubberHandle } from './scrubber/Scrubber';
 import Timeline from './Timeline';
-import FloatingToolbar from './FloatingToolbar';
-import Toolbar from './Toolbar';
+import ToolbarBottomSheet from './ToolbarBottomSheet';
 import './Workstation.css';
 import {
   useClassificationSync,
@@ -24,6 +23,9 @@ import {
 
 type ActiveSheet = 'mixer' | 'lyrics' | null;
 
+// Toolbar dock default height: compact header (20px) + one row (48px)
+const TOOLBAR_DOCK_HEIGHT = 68;
+
 type WorkstationProps = {
   recordingColor: TrackColor;
   tracks: Track[];
@@ -32,6 +34,10 @@ type WorkstationProps = {
   toggleFullscreen: (state?: boolean) => void;
   isLogOverlayOpen: boolean;
   toggleLogOverlay: () => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 };
 
 const Workstation = (props: WorkstationProps) => {
@@ -41,10 +47,10 @@ const Workstation = (props: WorkstationProps) => {
   const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
   const [isRecording, setIsRecording] = useState(false);
   const [isCountingIn, setIsCountingIn] = useState(false);
-  const [drawerHeight, setDrawerHeight] = useState(0);
+  // The toolbar dock always overlaps the timeline from the bottom.
+  // Start with the dock's default height as the base drawer height.
+  const [drawerHeight, setDrawerHeight] = useState(TOOLBAR_DOCK_HEIGHT);
   const [bottomSheetHeight, setBottomSheetHeight] = useState(0);
-  const [toolbarHeight, setToolbarHeight] = useState(0);
-  const toolbarRef = useRef<HTMLDivElement>(null);
   const scrubberRef = useRef<ScrubberHandle>(null);
 
   const {
@@ -55,6 +61,10 @@ const Workstation = (props: WorkstationProps) => {
     toggleFullscreen,
     isLogOverlayOpen,
     toggleLogOverlay,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   } = props;
   const hasTracks = tracks.length > 0;
   const isMixerOpen = activeSheet === 'mixer';
@@ -62,12 +72,6 @@ const Workstation = (props: WorkstationProps) => {
 
   const { isDragActive, isDragAccept, isDragReject, rootProps, inputProps } =
     useFileDropzone(uploadFile);
-
-  useLayoutEffect(() => {
-    if (toolbarRef.current) {
-      setToolbarHeight(toolbarRef.current.offsetHeight);
-    }
-  }, []);
 
   useSpacebarPlaybackToggle();
   useClassificationSync(tracks);
@@ -105,12 +109,10 @@ const Workstation = (props: WorkstationProps) => {
     }
   };
 
-  const handleDrawerHeightChange = useCallback((height: number) => {
-    // The bottom sheet (fixed at viewport bottom) covers the toolbar before
-    // overlapping the timeline. Only the overlap with the timeline matters
-    // for scaling, so subtract the toolbar height.
-    const toolbarHeight = toolbarRef.current?.offsetHeight ?? 0;
-    setDrawerHeight(Math.max(0, height - toolbarHeight));
+  const handleContentSheetHeightChange = useCallback((height: number) => {
+    // The content sheet (mixer/lyrics) stacks above the toolbar dock.
+    // Total overlap = dock height + content sheet height.
+    setDrawerHeight(TOOLBAR_DOCK_HEIGHT + height);
     setBottomSheetHeight(height);
   }, []);
 
@@ -178,35 +180,34 @@ const Workstation = (props: WorkstationProps) => {
           />
         </div>
       </div>
-      <div ref={toolbarRef} className="workstation__toolbar">
-        <Toolbar
-          isMixerOpen={isMixerOpen}
-          isLyricsOpen={isLyricsOpen}
-          isEmpty={!hasTracks}
-          onToggleMixer={toggleMixer}
-          onToggleLyrics={toggleLyrics}
-          uploadFile={uploadFile}
-          isFullscreen={isFullscreen}
-          toggleFullscreen={toggleFullscreen}
-          isLogOverlayOpen={isLogOverlayOpen}
-          toggleLogOverlay={toggleLogOverlay}
-        />
-      </div>
-      <FloatingToolbar
+      <ToolbarBottomSheet
+        isMixerOpen={isMixerOpen}
+        isLyricsOpen={isLyricsOpen}
         isEmpty={!hasTracks}
-        bottomOffset={bottomSheetHeight + toolbarHeight + 12}
+        onToggleMixer={toggleMixer}
+        onToggleLyrics={toggleLyrics}
+        uploadFile={uploadFile}
+        isFullscreen={isFullscreen}
+        toggleFullscreen={toggleFullscreen}
+        isLogOverlayOpen={isLogOverlayOpen}
+        toggleLogOverlay={toggleLogOverlay}
+        undo={undo}
+        redo={redo}
+        canUndo={canUndo}
+        canRedo={canRedo}
         onToggleRecording={toggleRecording}
+        sheetOffset={bottomSheetHeight}
       />
       <MixerBottomSheet
         isOpen={isMixerOpen}
         onOpenChange={handleMixerOpenChange}
-        onHeightChange={handleDrawerHeightChange}
+        onHeightChange={handleContentSheetHeightChange}
         tracks={tracks}
       />
       <LyricsBottomSheet
         isOpen={isLyricsOpen}
         onOpenChange={handleLyricsOpenChange}
-        onHeightChange={handleDrawerHeightChange}
+        onHeightChange={handleContentSheetHeightChange}
         onSeekTo={handleLyricsSeekTo}
         tracks={tracks}
       />
