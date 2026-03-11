@@ -291,15 +291,27 @@ const baseTransformStyle = {
  * so that top-down DOM content appears bottom-up visually (time=0 at bottom).
  * The translateY(-100%) compensates for the flip with transformOrigin: top left.
  *
- * CSS transforms apply right-to-left: translateY first, then scaleY (flip),
- * then rotateX. Because rotateX acts on the already-flipped content, a positive
- * angle tilts the visual top (future) away and the visual bottom (time=0) toward
- * the viewer — creating the runway perspective where near content is wider.
+ * CSS transforms apply right-to-left:
+ *   1. translateX(--timeline-center-offset) — shift right to center the narrowed strip
+ *   2. scaleX(--timeline-scale-x) — compress horizontally to a narrow strip
+ *   3. translateY(-100%) — compensate for the vertical flip with origin: top left
+ *   4. scaleY(-factor) — flip vertically so time=0 is at the bottom
+ *   5. rotateX(--timeline-tilt) — tilt the surface into the screen
+ *
+ * The perspective projection on the parent fans the near edge (bottom) out wide,
+ * creating the dramatic runway effect where the narrow strip appears to stretch
+ * into the distance.
  */
 function getTimelineScrollStyle(timelineScaleFactor: number) {
   return {
     ...baseTransformStyle,
-    transform: `rotateX(var(--timeline-tilt, 0deg)) scaleY(${-timelineScaleFactor}) translateY(-100%)`,
+    transform: [
+      'rotateX(var(--timeline-tilt, 0deg))',
+      `scaleY(${-timelineScaleFactor})`,
+      'translateY(-100%)',
+      'scaleX(var(--timeline-scale-x, 1))',
+      'translateX(var(--timeline-center-offset, 0%))',
+    ].join(' '),
   };
 }
 

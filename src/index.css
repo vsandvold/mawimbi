@@ -110,13 +110,35 @@ body {
 }
 
 html {
-  /* Timeline layout: the cursor sits at 25% from top of viewport */
-  --cursor-position: 0.25;
+  /* Timeline layout: the cursor sits at 20% from top of viewport */
+  --cursor-position: 0.2;
   --timeline-margin-top: 40px;
   --timeline-margin-bottom: 40px;
-  /* Perspective tilt: runway depth effect on the timeline */
-  --timeline-perspective: 500px;
-  --timeline-tilt: 40deg;
+  /* Perspective tilt: runway depth effect on the timeline.
+     At 85deg with 800px perspective, the surface is nearly horizontal —
+     the far edge (top) narrows to a sliver while the near edge (bottom)
+     fans out wide via perspective projection. */
+  --timeline-perspective: 800px;
+  --timeline-tilt: 85deg;
+  /* Horizontal narrowing: scaleX compresses the timeline to a narrow strip,
+     then perspective projection fans the near edge out to fill the viewport.
+     --timeline-center-offset positions the strip so the projected center
+     aligns with the viewport center.
+     Centering formula: offset ≈ (1/scaleX - 1) / 2 × 100%
+     For scaleX=0.16: (6.25 - 1) / 2 × 100% ≈ 262%, rounded to 260%. */
+  --timeline-scale-x: 0.16;
+  --timeline-center-offset: 260%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Disable perspective tilt and horizontal narrowing so the timeline
+     renders as a flat, full-width strip. Without perspective the scaleX
+     narrowing would leave a 16%-wide unusable sliver. */
+  html {
+    --timeline-tilt: 0deg;
+    --timeline-scale-x: 1;
+    --timeline-center-offset: 0%;
+  }
 }
 
 @media (hover: hover) and (pointer: fine) {
