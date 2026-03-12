@@ -23,7 +23,7 @@ type UseScrubberOptions = {
 
 // How far (px) the near edge extends below the viewport for the
 // runway-emerging-from-screen effect. Reclaimed when the drawer opens.
-const RUNWAY_EXTENSION = 400;
+const RUNWAY_EXTENSION = 600;
 const SCROLL_DEBOUNCE_MS = 200;
 
 export function useScrubber({
@@ -295,8 +295,8 @@ export function useScrubber({
 }
 
 // Fallbacks if CSS custom properties are missing or unparseable
-const FALLBACK_PERSPECTIVE = 1000;
-const FALLBACK_TILT = 55;
+const FALLBACK_PERSPECTIVE = 1300;
+const FALLBACK_TILT = 80;
 
 const baseTransformStyle = {
   willChange: 'transform',
