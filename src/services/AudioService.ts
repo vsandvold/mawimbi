@@ -41,7 +41,7 @@ class AudioService {
 
   private constructor() {
     const transport = Tone.getTransport();
-    const context = Tone.context;
+    const context = Tone.getContext();
 
     this.playbackService = new PlaybackService(transport);
     this.recordingService = new RecordingService(transport, context);
@@ -69,7 +69,7 @@ class AudioService {
 
   private async initializeWorkletAnalyser(): Promise<void> {
     try {
-      const rawContext = Tone.context.rawContext as AudioContext;
+      const rawContext = Tone.getContext().rawContext as AudioContext;
       if (!rawContext.audioWorklet) return;
       const nativeCtx =
         (rawContext as unknown as { _nativeContext?: AudioContext })
