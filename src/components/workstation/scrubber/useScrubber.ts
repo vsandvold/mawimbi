@@ -223,40 +223,60 @@ export function useScrubber({
     debouncedSetTransportTime();
   };
 
-  const [timelineScaleFactor, setTimelineScaleFactor] = useState(1.0);
+  const [timelineTransform, setTimelineTransform] = useState({
+    extendFactor: 1.0,
+    liftPx: TIMELINE_MARGIN_BOTTOM,
+  });
 
-  // Recalculate the scale factor when the timeline container resizes (e.g.
-  // entering/exiting fullscreen) or when the drawer height changes.
+  // Recalculate the transform parameters when the timeline container resizes
+  // (e.g. entering/exiting fullscreen) or when the drawer height changes.
   useLayoutEffect(() => {
     const el = timelineScrollRef.current;
     if (!el) return;
 
-    const updateScaleFactor = () => {
+    const update = () => {
       const timelineHeight = el.offsetHeight;
-      if (timelineHeight > 0) {
-        const scaleFactor = (timelineHeight - drawerHeight) / timelineHeight;
-        setTimelineScaleFactor(scaleFactor);
-      }
+      if (timelineHeight <= 0) return;
+
+      // Extend factor: compensate for perspective foreshortening at the far
+      // edge (top). With perspective-origin at center bottom, the top of the
+      // element is at 3D depth H*sin(tilt) from the viewer. Perspective
+      // projection scales the top edge by p/(p + H*sin(tilt)). To fill the
+      // viewport after projection, we need scaleY = 1/projectionRatio.
+      const style = getComputedStyle(document.documentElement);
+      const perspective =
+        parseFloat(style.getPropertyValue('--timeline-perspective')) ||
+        FALLBACK_PERSPECTIVE;
+      const tiltDeg =
+        parseFloat(style.getPropertyValue('--timeline-tilt')) || FALLBACK_TILT;
+      const tiltRad = (tiltDeg * Math.PI) / 180;
+      const depth = timelineHeight * Math.sin(tiltRad);
+      const projectionRatio = perspective / (perspective + depth);
+      const extendFactor = 1 / projectionRatio;
+
+      // Lift: base margin-bottom gives the runway-emerging-from-screen feel,
+      // plus extra offset when the bottom sheet / drawer is open.
+      const liftPx = TIMELINE_MARGIN_BOTTOM + drawerHeight;
+
+      setTimelineTransform({ extendFactor, liftPx });
     };
 
-    updateScaleFactor();
+    update();
 
-    const observer = new ResizeObserver(() => {
-      updateScaleFactor();
-    });
+    const observer = new ResizeObserver(() => update());
     observer.observe(el);
 
     return () => observer.disconnect();
   }, [drawerHeight]);
 
-  const timelineScrollStyle = getTimelineScrollStyle(timelineScaleFactor);
+  const timelineScrollStyle = getTimelineScrollStyle(
+    timelineTransform.extendFactor,
+    timelineTransform.liftPx,
+  );
   const timelineOverlayStyle = getTimelineOverlayStyle(drawerHeight);
   const cursorStyle = getCursorStyle(drawerHeight);
 
-  const zoomControlsStyle = getZoomControlsStyle(
-    drawerHeight,
-    timelineScaleFactor,
-  );
+  const zoomControlsStyle = getZoomControlsStyle(timelineTransform.liftPx);
 
   const syncScrollToTime = useCallback(
     (time: number) => {
@@ -282,6 +302,10 @@ export function useScrubber({
   };
 }
 
+// Fallbacks if CSS custom properties are missing or unparseable
+const FALLBACK_PERSPECTIVE = 500;
+const FALLBACK_TILT = 25;
+
 const baseTransformStyle = {
   transformOrigin: 'top left',
   willChange: 'transform',
@@ -289,17 +313,22 @@ const baseTransformStyle = {
 };
 
 /**
- * Style for the scroll container: scales to account for drawer height and
- * applies the 3D tilt for the runway perspective. Content is rendered
- * bottom-up via inverted scroll math (scrollTop = maxScrollTop - time * pps).
- * No CSS flip — the perspective-origin is at center bottom so the near edge
- * (bottom) is at full viewport width and the far edge (top) narrows.
+ * Style for the scroll container. Two transforms combine with the 3D tilt:
+ * - scaleY(extendFactor) > 1 stretches the element so the foreshortened far
+ *   edge (top) fills the visible viewport after perspective projection.
+ * - translateY(-liftPx) shifts the near edge (bottom) upward, creating the
+ *   runway-emerging-from-screen effect. The lift grows when the bottom sheet
+ *   is open so the near edge stays above the drawer.
+ *
+ * Transform order (right-to-left): translate → scale → rotateX. The scale
+ * and translate happen in the element's local space before the perspective
+ * tilt is applied.
  */
-function getTimelineScrollStyle(timelineScaleFactor: number) {
+function getTimelineScrollStyle(extendFactor: number, liftPx: number) {
   return {
     ...baseTransformStyle,
     transformOrigin: 'center bottom',
-    transform: `rotateX(var(--timeline-tilt, 0deg)) scaleY(${timelineScaleFactor})`,
+    transform: `rotateX(var(--timeline-tilt, 0deg)) scaleY(${extendFactor}) translateY(-${liftPx}px)`,
   };
 }
 
@@ -326,14 +355,12 @@ function getCursorStyle(drawerHeight: number): CSSProperties {
   } as React.CSSProperties;
 }
 
-function getZoomControlsStyle(
-  drawerHeight: number,
-  timelineScaleFactor: number,
-) {
-  const translateAmount =
-    drawerHeight - TIMELINE_MARGIN_BOTTOM * (1 - timelineScaleFactor);
+function getZoomControlsStyle(liftPx: number) {
+  // Offset the zoom controls upward so they sit above the drawer and the
+  // lifted runway near edge. The liftPx already includes the base margin
+  // plus any drawer contribution.
   return {
     ...baseTransformStyle,
-    transform: `translateY(-${translateAmount}px)`,
+    transform: `translateY(-${liftPx}px)`,
   };
 }
