@@ -166,7 +166,9 @@ class TranscriptionService {
         `[transcription] Transcription failed for track ${trackId}: ${detail}`,
       );
       this.setEntry(trackId, { state: 'error' });
-      throw new Error(`Transcription failed for track ${trackId}: ${detail}`);
+      throw new Error(`Transcription failed for track ${trackId}: ${detail}`, {
+        cause: error,
+      });
     }
   }
 
