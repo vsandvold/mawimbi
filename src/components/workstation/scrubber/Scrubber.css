@@ -6,6 +6,9 @@
   position: relative;
   /* Prevent flex child from expanding beyond allocated space */
   min-height: 0;
+  /* Trim projected overflow from the 3D perspective tilt without creating
+     a scroll container or flattening the 3D rendering context */
+  overflow-x: clip;
 }
 
 .scrubber__perspective {
@@ -14,7 +17,7 @@
   flex-direction: column;
   min-height: 0;
   perspective: var(--timeline-perspective);
-  perspective-origin: center top;
+  perspective-origin: center bottom;
 }
 
 @media (prefers-reduced-motion: reduce) {
