@@ -5,6 +5,7 @@ import {
   useEffect,
   useLayoutEffect,
   useRef,
+  useState,
 } from 'react';
 import { useAudioService } from '../../../hooks/useAudioService';
 import { usePlaybackService } from '../../../hooks/usePlaybackService';
@@ -20,7 +21,8 @@ type UseScrubberOptions = {
   pixelsPerSecond: number;
 };
 
-const TIMELINE_SCALE_Y = 20;
+// Keep in sync with --timeline-margin-bottom in index.css
+const TIMELINE_MARGIN_BOTTOM = 400;
 const TIMELINE_TRANSLATE_Y_PX = 50;
 const SCROLL_DEBOUNCE_MS = 200;
 
@@ -222,11 +224,46 @@ export function useScrubber({
     debouncedSetTransportTime();
   };
 
-  const timelineScrollStyle = getTimelineScrollStyle();
+  const [extendFactor, setExtendFactor] = useState(1.0);
+
+  // Recalculate the scale factor when the timeline container resizes
+  // (e.g. entering/exiting fullscreen). The factor compensates for
+  // perspective foreshortening so the far edge (top) fills the viewport.
+  useLayoutEffect(() => {
+    const el = timelineScrollRef.current;
+    if (!el) return;
+
+    const update = () => {
+      const timelineHeight = el.offsetHeight;
+      if (timelineHeight <= 0) return;
+
+      const style = getComputedStyle(document.documentElement);
+      const perspective =
+        parseFloat(style.getPropertyValue('--timeline-perspective')) ||
+        FALLBACK_PERSPECTIVE;
+      const tiltDeg =
+        parseFloat(style.getPropertyValue('--timeline-tilt')) || FALLBACK_TILT;
+      const tiltRad = (tiltDeg * Math.PI) / 180;
+      const depth = timelineHeight * Math.sin(tiltRad);
+      const projectionRatio = perspective / (perspective + depth);
+      setExtendFactor(1 / projectionRatio);
+    };
+
+    update();
+
+    const observer = new ResizeObserver(() => update());
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  }, []);
+
+  const liftPx = TIMELINE_MARGIN_BOTTOM + drawerHeight;
+
+  const timelineScrollStyle = getTimelineScrollStyle(extendFactor);
   const timelineOverlayStyle = getTimelineOverlayStyle(drawerHeight);
   const cursorStyle = getCursorStyle(drawerHeight);
 
-  const zoomControlsStyle = getZoomControlsStyle(drawerHeight);
+  const zoomControlsStyle = getZoomControlsStyle(liftPx);
 
   const syncScrollToTime = useCallback(
     (time: number) => {
@@ -252,6 +289,10 @@ export function useScrubber({
   };
 }
 
+// Fallbacks if CSS custom properties are missing or unparseable
+const FALLBACK_PERSPECTIVE = 1000;
+const FALLBACK_TILT = 55;
+
 const baseTransformStyle = {
   willChange: 'transform',
   transition: 'transform 0.25s ease-out',
@@ -261,15 +302,16 @@ const baseTransformStyle = {
  * Style for the scroll container. The transform tilts the timeline into a
  * dramatic runway perspective:
  * - rotateX tilts the plane around the bottom edge
- * - scaleY stretches height so the foreshortened far edge fills the viewport
+ * - scaleY(extendFactor) compensates for perspective foreshortening so the
+ *   far edge (top) fills the viewport regardless of screen size
  * - translateY shifts the near edge downward (combined with CSS margin-bottom
  *   to push the bottom outside the viewport for full immersion)
  */
-function getTimelineScrollStyle() {
+function getTimelineScrollStyle(extendFactor: number) {
   return {
     ...baseTransformStyle,
     transformOrigin: 'center bottom',
-    transform: `rotateX(var(--timeline-tilt, 0deg)) scaleY(${TIMELINE_SCALE_Y}) translateY(${TIMELINE_TRANSLATE_Y_PX}px)`,
+    transform: `rotateX(var(--timeline-tilt, 0deg)) scaleY(${extendFactor}) translateY(${TIMELINE_TRANSLATE_Y_PX}px)`,
   };
 }
 
@@ -296,10 +338,11 @@ function getCursorStyle(drawerHeight: number): CSSProperties {
   } as React.CSSProperties;
 }
 
-function getZoomControlsStyle(drawerHeight: number) {
-  // Offset the zoom controls upward so they sit above the drawer.
+function getZoomControlsStyle(liftPx: number) {
+  // Offset the zoom controls upward so they sit above the drawer and the
+  // margin-bottom runway extension.
   return {
     ...baseTransformStyle,
-    transform: `translateY(-${drawerHeight}px)`,
+    transform: `translateY(-${liftPx}px)`,
   };
 }
