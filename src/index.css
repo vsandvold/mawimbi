@@ -117,8 +117,8 @@ html {
   /* Perspective tilt: runway depth effect on the timeline.
      Lower perspective = more dramatic. Higher tilt = more foreshortening.
      These two values control the entire runway feel. */
-  --timeline-perspective: 700px;
-  --timeline-tilt: 55deg;
+  --timeline-perspective: 500px;
+  --timeline-tilt: 25deg;
 }
 
 @media (hover: hover) and (pointer: fine) {
