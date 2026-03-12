@@ -39,9 +39,6 @@
      (not the viewport) so the content boundary at time=0 aligns with
      the cursor position (which is a % of the scrubber height). */
   container-type: size;
-  /* Push the near edge (bottom) below the viewport, creating the
-     runway-emerging-from-screen depth illusion without clipping. */
-  margin-bottom: var(--timeline-margin-bottom);
 }
 
 .scrubber__shade {

@@ -21,8 +21,9 @@ type UseScrubberOptions = {
   pixelsPerSecond: number;
 };
 
-// Keep in sync with --timeline-margin-bottom in index.css
-const TIMELINE_MARGIN_BOTTOM = 400;
+// How far (px) the near edge extends below the viewport for the
+// runway-emerging-from-screen effect. Reclaimed when the drawer opens.
+const RUNWAY_EXTENSION = 400;
 const SCROLL_DEBOUNCE_MS = 200;
 
 export function useScrubber({
@@ -256,13 +257,18 @@ export function useScrubber({
     return () => observer.disconnect();
   }, []);
 
-  const liftPx = TIMELINE_MARGIN_BOTTOM + drawerHeight;
+  // Positive = push near edge below viewport (runway extension).
+  // Shrinks when the drawer opens to keep the near edge above it.
+  const runwayOffsetPx = RUNWAY_EXTENSION - drawerHeight;
 
-  const timelineScrollStyle = getTimelineScrollStyle(extendFactor, liftPx);
+  const timelineScrollStyle = getTimelineScrollStyle(
+    extendFactor,
+    runwayOffsetPx,
+  );
   const timelineOverlayStyle = getTimelineOverlayStyle(drawerHeight);
   const cursorStyle = getCursorStyle(drawerHeight);
 
-  const zoomControlsStyle = getZoomControlsStyle(liftPx);
+  const zoomControlsStyle = getZoomControlsStyle(drawerHeight);
 
   const syncScrollToTime = useCallback(
     (time: number) => {
@@ -303,14 +309,15 @@ const baseTransformStyle = {
  * - rotateX tilts the plane around the bottom edge
  * - scaleY(extendFactor) compensates for perspective foreshortening so the
  *   far edge (top) fills the viewport regardless of screen size
- * - translateY(-liftPx) shifts the near edge upward; liftPx grows when
- *   the bottom sheet is open so the near edge stays above the drawer
+ * - translateY(runwayOffsetPx) pushes the near edge below the viewport,
+ *   creating the runway-emerging-from-screen effect. The offset shrinks
+ *   when the bottom sheet opens so the near edge stays above the drawer.
  */
-function getTimelineScrollStyle(extendFactor: number, liftPx: number) {
+function getTimelineScrollStyle(extendFactor: number, runwayOffsetPx: number) {
   return {
     ...baseTransformStyle,
     transformOrigin: 'center bottom',
-    transform: `rotateX(var(--timeline-tilt, 0deg)) scaleY(${extendFactor}) translateY(-${liftPx}px)`,
+    transform: `rotateX(var(--timeline-tilt, 0deg)) scaleY(${extendFactor}) translateY(${runwayOffsetPx}px)`,
   };
 }
 
@@ -337,11 +344,10 @@ function getCursorStyle(drawerHeight: number): CSSProperties {
   } as React.CSSProperties;
 }
 
-function getZoomControlsStyle(liftPx: number) {
-  // Offset the zoom controls upward so they sit above the drawer and the
-  // margin-bottom runway extension.
+function getZoomControlsStyle(drawerHeight: number) {
+  // Offset the zoom controls upward so they sit above the drawer.
   return {
     ...baseTransformStyle,
-    transform: `translateY(-${liftPx}px)`,
+    transform: `translateY(-${drawerHeight}px)`,
   };
 }
