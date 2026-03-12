@@ -126,6 +126,7 @@ vi.mock('tone', () => {
     }),
     getDestination: vi.fn().mockReturnValue(makeNode()),
     context: contextMock,
+    getContext: vi.fn().mockReturnValue(contextMock),
     setContext: vi.fn(),
     // Must be a regular function (not arrow) to support `new`
     Context: vi.fn().mockImplementation(function () {}),

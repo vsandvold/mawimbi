@@ -46,7 +46,7 @@ class FrequencyVisualizer {
   ) {
     const opts = normalizeOptions(optionsOrAnalyser);
 
-    const toneCtx = source.context ?? Tone.context;
+    const toneCtx = source.context ?? Tone.getContext();
     const rawCtx = toneCtx.rawContext as AudioContext;
     const nativeCtx =
       (rawCtx as unknown as { _nativeContext?: AudioContext })._nativeContext ??
@@ -111,7 +111,7 @@ class FrequencyVisualizer {
     source: Tone.ToneAudioNode,
     sampleRate: number,
   ): void {
-    const toneCtx = source.context ?? Tone.context;
+    const toneCtx = source.context ?? Tone.getContext();
     const ctx = toneCtx.rawContext as AudioContext;
 
     // Use a large FFT size to get enough time-domain samples per read.
