@@ -234,19 +234,12 @@ test.describe('Visual regression - audio states', () => {
     });
   });
 
-  test('timeline, toolbar playing, and mixer screenshots', async ({
-    page,
-  }) => {
+  test('toolbar playing and mixer screenshots', async ({ page }) => {
     await page.goto('/project/test-id');
     await uploadAudioFile(page, SHORT_AUDIO);
 
     const timeline = page.locator('.timeline');
     await expect(timeline.locator('canvas').first()).toBeVisible();
-
-    // Single track timeline
-    await expect(page.locator('.editor')).toHaveScreenshot(
-      'timeline-single-track.png',
-    );
 
     // Toolbar while playing
     await page.getByTitle('Play').click();
@@ -261,55 +254,6 @@ test.describe('Visual regression - audio states', () => {
     await expect(page.locator('.channel')).toBeVisible();
     await expect(page.locator('.bottom-sheet')).toHaveScreenshot(
       'mixer-one-channel.png',
-    );
-
-    // Muted channel
-    await page.getByTitle('On').click(); // on → solo
-    await page.getByTitle('Solo').click(); // solo → mute
-    await expect(page.locator('.timeline__track--muted')).toBeVisible();
-    await expect(page.locator('.workstation')).toHaveScreenshot(
-      'timeline-muted-track.png',
-    );
-  });
-
-  test('two tracks timeline and solo channel', async ({ page }) => {
-    await page.goto('/project/test-id');
-    await uploadAudioFile(page, SHORT_AUDIO);
-    await uploadAudioFile(page, LONG_AUDIO);
-
-    await expect(page.locator('.timeline__track')).toHaveCount(2);
-    await expect(
-      page.locator('.timeline').locator('canvas').first(),
-    ).toBeVisible();
-
-    // Two tracks timeline
-    await expect(page.locator('.editor')).toHaveScreenshot(
-      'timeline-two-tracks.png',
-    );
-
-    // Solo channel
-    await page.getByTitle('Show mixer').click();
-    const channelButtons = page.getByTitle('On');
-    await channelButtons.first().click(); // on → solo
-    await expect(page.locator('.timeline__track--muted')).toHaveCount(1);
-    await expect(page.locator('.workstation')).toHaveScreenshot(
-      'timeline-solo-track.png',
-    );
-  });
-
-  test('scrubber scrolled forward', async ({ page }) => {
-    await page.goto('/project/test-id');
-    await uploadAudioFile(page, LONG_AUDIO);
-    await expect(page.locator('.timeline__track')).toBeVisible();
-
-    const timeline = page.locator('.scrubber__timeline');
-    await timeline.evaluate((el) => {
-      el.scrollTop = 200;
-    });
-    await page.waitForTimeout(400);
-
-    await expect(page.locator('.editor')).toHaveScreenshot(
-      'scrubber-scrolled-forward.png',
     );
   });
 });

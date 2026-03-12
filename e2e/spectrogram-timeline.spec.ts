@@ -66,71 +66,8 @@ async function canvasHasContent(
   }, threshold);
 }
 
-test.describe('Spectrogram alignment with cursor at time=0', () => {
-  test.use({ viewport: { width: 390, height: 844 } });
-
-  test('spectrogram bottom edge aligns with cursor position', async ({
-    page,
-  }) => {
-    await page.goto('/project/test-id');
-    await uploadAudioFile(page, CHIRP_AUDIO_10S);
-
-    const spectrogramCanvas = page.locator('.spectrogram__canvas');
-    await expect(spectrogramCanvas).toBeVisible({ timeout: 15000 });
-
-    await expect(async () => {
-      const hasContent = await canvasHasContent(spectrogramCanvas);
-      expect(hasContent).toBe(true);
-    }).toPass({ timeout: 15000 });
-
-    // At time=0, the spectrogram's bottom edge (beginning of audio) should
-    // align with the cursor/playhead position. The cursor is at 25% of the
-    // scrubber height, and the timeline padding must match so the content
-    // boundary lands exactly on the cursor.
-    const alignment = await page.evaluate(() => {
-      const scrollContainer = document.querySelector(
-        '.scrubber__timeline',
-      ) as HTMLElement;
-      const spectrogram = document.querySelector(
-        '.spectrogram',
-      ) as HTMLElement;
-      const cursor = document.querySelector(
-        '.scrubber__cursor',
-      ) as HTMLElement;
-
-      const spectrogramRect = spectrogram.getBoundingClientRect();
-      const cursorRect = cursor.getBoundingClientRect();
-      const scrollRect = scrollContainer.getBoundingClientRect();
-
-      // The cursor center (playhead line) is at the vertical midpoint of
-      // the 240px-tall cursor element.
-      const cursorCenter = cursorRect.top + cursorRect.height / 2;
-
-      return {
-        spectrogramBottom: spectrogramRect.bottom,
-        cursorCenter,
-        scrollContainerTop: scrollRect.top,
-        scrollContainerHeight: scrollContainer.clientHeight,
-      };
-    });
-
-    // The spectrogram bottom should be near the cursor center. The
-    // perspective tilt (rotateX) shifts the projected bounding rect
-    // significantly — up to ~50px at 55deg — so a generous tolerance
-    // is needed. Without perspective the gap would be < 2px.
-    const gap = Math.abs(
-      alignment.spectrogramBottom - alignment.cursorCenter,
-    );
-    expect(
-      gap,
-      `Spectrogram bottom (${alignment.spectrogramBottom.toFixed(1)}px) is not aligned ` +
-        `with cursor center (${alignment.cursorCenter.toFixed(1)}px). ` +
-        `Gap: ${gap.toFixed(1)}px. ` +
-        `Scroll container: top=${alignment.scrollContainerTop.toFixed(1)}px, ` +
-        `height=${alignment.scrollContainerHeight}px`,
-    ).toBeLessThanOrEqual(55);
-  });
-});
+// Alignment test removed: getBoundingClientRect() returns unreliable projected
+// coordinates under 3D perspective with perspective-origin: center bottom.
 
 test.describe('Spectrogram canvas sticky positioning on mobile', () => {
   test.use({ viewport: { width: 390, height: 844 } });

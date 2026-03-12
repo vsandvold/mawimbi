@@ -138,11 +138,15 @@ test.describe('Recording', () => {
       expect(hasContent).toBe(true);
     }).toPass({ timeout: 5000 });
 
-    // Transport is rewound to the start after recording stops
-    const scrollBefore = await page
+    // Transport is rewound to the start after recording stops.
+    // With inverted scroll, time=0 maps to scrollTop = maxScrollTop.
+    const { scrollTop, maxScrollTop } = await page
       .locator('.scrubber__timeline')
-      .evaluate((el) => el.scrollTop);
-    expect(scrollBefore).toBe(0);
+      .evaluate((el) => ({
+        scrollTop: el.scrollTop,
+        maxScrollTop: el.scrollHeight - el.clientHeight,
+      }));
+    expect(scrollTop).toBe(maxScrollTop);
 
     // Recorded track can be played back
     const playButton = page.getByTitle('Play');

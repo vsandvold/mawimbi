@@ -68,7 +68,9 @@ export function useScrubber({
     (time: number) => {
       const el = timelineScrollRef.current;
       if (el) {
-        const scrollPosition = Math.trunc(time * pixelsPerSecond);
+        const maxScrollTop = el.scrollHeight - el.clientHeight;
+        const scrollPosition =
+          maxScrollTop - Math.trunc(time * pixelsPerSecond);
         if (el.scrollTop !== scrollPosition) {
           isProgrammaticScrollRef.current = true;
           el.scrollTop = scrollPosition;
@@ -124,10 +126,9 @@ export function useScrubber({
         // can momentarily equal clientHeight before new content is laid out.
         // Stopping playback here would freeze transportTime updates and halt
         // the live spectrogram scroll.
+        // In inverted scroll, end of track is at scrollTop=0 (top of scroll area)
         if (timelineScrollRef.current && !recording.isActivelyRecording) {
-          const el = timelineScrollRef.current;
-          const maxScrollTop = el.scrollHeight - el.clientHeight;
-          const isEndOfScroll = el.scrollTop >= maxScrollTop;
+          const isEndOfScroll = timelineScrollRef.current.scrollTop <= 0;
           if (isEndOfScroll) {
             playback.rewind();
             return;
@@ -157,7 +158,8 @@ export function useScrubber({
   const setTransportTimeFromScroll = () => {
     const el = timelineScrollRef.current;
     if (el) {
-      const time = el.scrollTop / pixelsPerSecond;
+      const maxScrollTop = el.scrollHeight - el.clientHeight;
+      const time = (maxScrollTop - el.scrollTop) / pixelsPerSecond;
       playback.seekTo(time);
     }
     if (shouldResumeRef.current) {
@@ -287,19 +289,17 @@ const baseTransformStyle = {
 };
 
 /**
- * Style for the scroll container: flips content vertically via scaleY(-1)
- * so that top-down DOM content appears bottom-up visually (time=0 at bottom).
- * The translateY(-100%) compensates for the flip with transformOrigin: top left.
- *
- * CSS transforms apply right-to-left: translateY first, then scaleY (flip),
- * then rotateX. Because rotateX acts on the already-flipped content, a positive
- * angle tilts the visual top (future) away and the visual bottom (time=0) toward
- * the viewer — creating the runway perspective where near content is wider.
+ * Style for the scroll container: scales to account for drawer height and
+ * applies the 3D tilt for the runway perspective. Content is rendered
+ * bottom-up via inverted scroll math (scrollTop = maxScrollTop - time * pps).
+ * No CSS flip — the perspective-origin is at center bottom so the near edge
+ * (bottom) is at full viewport width and the far edge (top) narrows.
  */
 function getTimelineScrollStyle(timelineScaleFactor: number) {
   return {
     ...baseTransformStyle,
-    transform: `rotateX(var(--timeline-tilt, 0deg)) scaleY(${-timelineScaleFactor}) translateY(-100%)`,
+    transformOrigin: 'center bottom',
+    transform: `rotateX(var(--timeline-tilt, 0deg)) scaleY(${timelineScaleFactor})`,
   };
 }
 
