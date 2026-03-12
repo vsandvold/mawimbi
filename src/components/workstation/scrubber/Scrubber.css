@@ -6,6 +6,12 @@
   position: relative;
   /* Prevent flex child from expanding beyond allocated space */
   min-height: 0;
+  /* Clip the perspective-magnified edges of the tilted timeline.
+     The rotateX tilt pushes far content toward the viewer (positive z),
+     which perspective projects wider than the viewport. overflow-x: clip
+     trims the projected overflow without creating a scroll container
+     or flattening the 3D rendering context. */
+  overflow-x: clip;
 }
 
 .scrubber__perspective {

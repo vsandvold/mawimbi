@@ -295,6 +295,7 @@ const baseTransformStyle = {
  * then rotateX. Because rotateX acts on the already-flipped content, a positive
  * angle tilts the visual top (future) away and the visual bottom (time=0) toward
  * the viewer — creating the runway perspective where near content is wider.
+ * The parent .scrubber clips the projected overflow with overflow-x: clip.
  */
 function getTimelineScrollStyle(timelineScaleFactor: number) {
   return {
