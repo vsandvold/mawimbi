@@ -23,7 +23,6 @@ type UseScrubberOptions = {
 
 // Keep in sync with --timeline-margin-bottom in index.css
 const TIMELINE_MARGIN_BOTTOM = 400;
-const TIMELINE_TRANSLATE_Y_PX = 50;
 const SCROLL_DEBOUNCE_MS = 200;
 
 export function useScrubber({
@@ -259,7 +258,7 @@ export function useScrubber({
 
   const liftPx = TIMELINE_MARGIN_BOTTOM + drawerHeight;
 
-  const timelineScrollStyle = getTimelineScrollStyle(extendFactor);
+  const timelineScrollStyle = getTimelineScrollStyle(extendFactor, liftPx);
   const timelineOverlayStyle = getTimelineOverlayStyle(drawerHeight);
   const cursorStyle = getCursorStyle(drawerHeight);
 
@@ -304,14 +303,14 @@ const baseTransformStyle = {
  * - rotateX tilts the plane around the bottom edge
  * - scaleY(extendFactor) compensates for perspective foreshortening so the
  *   far edge (top) fills the viewport regardless of screen size
- * - translateY shifts the near edge downward (combined with CSS margin-bottom
- *   to push the bottom outside the viewport for full immersion)
+ * - translateY(-liftPx) shifts the near edge upward; liftPx grows when
+ *   the bottom sheet is open so the near edge stays above the drawer
  */
-function getTimelineScrollStyle(extendFactor: number) {
+function getTimelineScrollStyle(extendFactor: number, liftPx: number) {
   return {
     ...baseTransformStyle,
     transformOrigin: 'center bottom',
-    transform: `rotateX(var(--timeline-tilt, 0deg)) scaleY(${extendFactor}) translateY(${TIMELINE_TRANSLATE_Y_PX}px)`,
+    transform: `rotateX(var(--timeline-tilt, 0deg)) scaleY(${extendFactor}) translateY(-${liftPx}px)`,
   };
 }
 
