@@ -1,6 +1,6 @@
 import { type CSSProperties, forwardRef, type PropsWithChildren } from 'react';
 
-type RunwayTiltProps = PropsWithChildren<{
+type ScrubberTiltProps = PropsWithChildren<{
   style: CSSProperties;
   onClick: () => void;
   onScroll: () => void;
@@ -9,21 +9,21 @@ type RunwayTiltProps = PropsWithChildren<{
 }>;
 
 /**
- * Scroll container that applies the 3D runway tilt.
+ * Scroll container that applies the 3D scrubber tilt.
  *
  * The inline transform tilts the timeline plane via `rotateX` around
- * the runway bottom and compensates for perspective foreshortening
+ * the scrubber bottom and compensates for perspective foreshortening
  * with a `scaleY` factor so the far edge fills the viewport.
  *
  * Content scrolls vertically (inverted: time=0 at the bottom). Scroll
- * event handlers are provided by the parent Runway component.
+ * event handlers are provided by the parent Scrubber component.
  */
-const RunwayTilt = forwardRef<HTMLDivElement, RunwayTiltProps>(
+const ScrubberTilt = forwardRef<HTMLDivElement, ScrubberTiltProps>(
   ({ style, onClick, onScroll, onWheel, onTouchMove, children }, ref) => {
     return (
       <div
         ref={ref}
-        className="runway__tilt"
+        className="scrubber__tilt"
         style={style}
         onClick={onClick}
         onScroll={onScroll}
@@ -36,6 +36,6 @@ const RunwayTilt = forwardRef<HTMLDivElement, RunwayTiltProps>(
   },
 );
 
-RunwayTilt.displayName = 'RunwayTilt';
+ScrubberTilt.displayName = 'ScrubberTilt';
 
-export default RunwayTilt;
+export default ScrubberTilt;

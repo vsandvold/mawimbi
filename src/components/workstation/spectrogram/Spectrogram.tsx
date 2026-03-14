@@ -20,7 +20,7 @@ type SpectrogramProps = {
 };
 
 const TILE_FRAMES = 4096;
-const SCROLL_CONTAINER_CLASS = '.runway__tilt';
+const SCROLL_CONTAINER_CLASS = '.scrubber__tilt';
 
 const Spectrogram = ({
   pixelsPerSecond,

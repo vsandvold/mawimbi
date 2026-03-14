@@ -68,7 +68,7 @@ const Playhead = forwardRef<PlayheadHandle, PlayheadProps>(
     } as CSSProperties;
 
     return (
-      <div ref={containerRef} className="runway__playhead" style={style}>
+      <div ref={containerRef} className="scrubber__playhead" style={style}>
         <PlasmaPlayhead ref={plasmaRef} width={0} />
       </div>
     );

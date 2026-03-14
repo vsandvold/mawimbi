@@ -16,7 +16,7 @@ import { type PlayheadHandle } from './Playhead';
 
 const SCROLL_DEBOUNCE_MS = 200;
 
-type UseRunwayScrollOptions = {
+type UseScrubberScrollOptions = {
   scrollRef: RefObject<HTMLDivElement | null>;
   playheadRef: RefObject<PlayheadHandle | null>;
   pixelsPerSecond: number;
@@ -24,18 +24,18 @@ type UseRunwayScrollOptions = {
 
 /**
  * Manages scroll-to-time synchronization, the playback animation loop,
- * and scroll event handlers for the runway.
+ * and scroll event handlers for the scrubber.
  *
  * During playback, an animation loop reads the audio engine time and
  * updates both the scroll position and playhead visualization each frame.
  * When the user scrolls manually, playback pauses and resumes after a
  * debounced seek.
  */
-export function useRunwayScroll({
+export function useScrubberScroll({
   scrollRef,
   playheadRef,
   pixelsPerSecond,
-}: UseRunwayScrollOptions) {
+}: UseScrubberScrollOptions) {
   const playback = usePlaybackService();
   const recording = useRecordingService();
   const trackHook = useTrackService();

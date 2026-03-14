@@ -17,7 +17,7 @@ async function wheelScrollTimeline(
   // The 3D perspective tilt can project the scroll container's center outside
   // the viewport, making Playwright's hover() fail. The perspective wrapper
   // is not transformed and forwards wheel events to the scroll container.
-  const perspective = page.locator('.runway__viewport');
+  const perspective = page.locator('.scrubber__viewport');
   await perspective.hover();
   await page.mouse.wheel(0, deltaY);
 }
@@ -32,7 +32,7 @@ test.describe('Drag and scroll timeline to seek while playing', () => {
   test('scrolling during playback pauses, resumes, and updates scroll position', async ({
     page,
   }) => {
-    const timeline = page.locator('.runway__tilt');
+    const timeline = page.locator('.scrubber__tilt');
     const initialScrollTop = await timeline.evaluate((el) => el.scrollTop);
 
     // Start playback
@@ -58,7 +58,7 @@ test.describe('Drag and scroll timeline to seek while playing', () => {
   test('scrolling the timeline while paused does not auto-resume', async ({
     page,
   }) => {
-    const timeline = page.locator('.runway__tilt');
+    const timeline = page.locator('.scrubber__tilt');
 
     await expect(page.getByTitle('Play')).toBeVisible();
 

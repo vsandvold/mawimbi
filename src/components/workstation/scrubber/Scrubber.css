@@ -1,4 +1,4 @@
-.runway {
+.scrubber {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -8,9 +8,9 @@
   min-height: 0;
 }
 
-/* RunwayViewport: perspective positioning/scaling when drawer opens */
+/* ScrubberViewport: perspective positioning/scaling when drawer opens */
 
-.runway__viewport {
+.scrubber__viewport {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -20,16 +20,16 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .runway__viewport {
+  .scrubber__viewport {
     perspective: none;
   }
 }
 
-/* RunwayTilt: 3D perspective tilt + scroll container */
+/* ScrubberTilt: 3D perspective tilt + scroll container */
 
-.runway__tilt {
+.scrubber__tilt {
   /* Fill the viewport container. The inline transform tilts and scales
-     the timeline for the runway perspective effect. */
+     the timeline for the scrubber perspective effect. */
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -39,13 +39,13 @@
   /* Size container for cqh units in .timeline padding.
      The timeline padding must reference the scroll container's height
      (not the viewport) so the content boundary at time=0 aligns with
-     the cursor position (which is a % of the runway height). */
+     the cursor position (which is a % of the scrubber height). */
   container-type: size;
 }
 
 /* Playhead: playback position overlay */
 
-.runway__playhead {
+.scrubber__playhead {
   position: absolute;
   top: calc(
     var(--cursor-position) * (100% - var(--drawer-height, 0px)) - 120px

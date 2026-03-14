@@ -8,18 +8,18 @@ import {
 import { usePlaybackService } from '../../../hooks/usePlaybackService';
 import { useRecordingService } from '../../../hooks/useRecordingService';
 import Playhead, { type PlayheadHandle } from './Playhead';
-import RunwayTilt from './RunwayTilt';
-import RunwayViewport from './RunwayViewport';
+import ScrubberTilt from './ScrubberTilt';
+import ScrubberViewport from './ScrubberViewport';
 import ZoomControls from './ZoomControls';
-import { useRunwayGeometry } from './useRunwayGeometry';
-import { useRunwayScroll } from './useRunwayScroll';
-import './Runway.css';
+import { useScrubberGeometry } from './useScrubberGeometry';
+import { useScrubberScroll } from './useScrubberScroll';
+import './Scrubber.css';
 
-export type RunwayHandle = {
+export type ScrubberHandle = {
   syncScrollToTime: (time: number) => void;
 };
 
-type RunwayProps = PropsWithChildren<{
+type ScrubberProps = PropsWithChildren<{
   drawerHeight: number;
   onStopRecording: () => void;
   pixelsPerSecond: number;
@@ -30,7 +30,7 @@ const baseTransformStyle = {
   transition: 'transform 0.25s ease-out',
 };
 
-const Runway = forwardRef<RunwayHandle, RunwayProps>((props, ref) => {
+const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
   const playback = usePlaybackService();
   const recording = useRecordingService();
   const { drawerHeight, onStopRecording, pixelsPerSecond } = props;
@@ -39,7 +39,7 @@ const Runway = forwardRef<RunwayHandle, RunwayProps>((props, ref) => {
   const playheadRef = useRef<PlayheadHandle>(null);
 
   const { containerRef, viewportStyle, tiltStyle } =
-    useRunwayGeometry(drawerHeight);
+    useScrubberGeometry(drawerHeight);
 
   const {
     handleScroll,
@@ -47,7 +47,7 @@ const Runway = forwardRef<RunwayHandle, RunwayProps>((props, ref) => {
     handleTouchMove,
     handleViewportWheel,
     syncScrollToTime,
-  } = useRunwayScroll({ scrollRef, playheadRef, pixelsPerSecond });
+  } = useScrubberScroll({ scrollRef, playheadRef, pixelsPerSecond });
 
   useImperativeHandle(ref, () => ({ syncScrollToTime }), [syncScrollToTime]);
 
@@ -69,7 +69,7 @@ const Runway = forwardRef<RunwayHandle, RunwayProps>((props, ref) => {
   const zoomControlsStyle = getZoomControlsStyle(drawerHeight);
 
   // Merge the geometry ref with the scroll ref — both need the same element.
-  // useRunwayGeometry tracks the container height; useRunwayScroll reads
+  // useScrubberGeometry tracks the container height; useScrubberScroll reads
   // scroll position. We use a callback ref to wire both.
   const tiltRef = (el: HTMLDivElement | null) => {
     (scrollRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
@@ -78,13 +78,13 @@ const Runway = forwardRef<RunwayHandle, RunwayProps>((props, ref) => {
   };
 
   return (
-    <div className="runway runway--firefox-scroll-fix">
-      <RunwayViewport
+    <div className="scrubber scrubber--firefox-scroll-fix">
+      <ScrubberViewport
         style={viewportStyle}
         onClick={handleViewportClick}
         onWheel={handleViewportWheel}
       >
-        <RunwayTilt
+        <ScrubberTilt
           ref={tiltRef}
           style={tiltStyle}
           onClick={handleTimelineClick}
@@ -93,17 +93,17 @@ const Runway = forwardRef<RunwayHandle, RunwayProps>((props, ref) => {
           onTouchMove={handleTouchMove}
         >
           {props.children}
-        </RunwayTilt>
-      </RunwayViewport>
+        </ScrubberTilt>
+      </ScrubberViewport>
       <Playhead ref={playheadRef} drawerHeight={drawerHeight} />
       <ZoomControls style={zoomControlsStyle} />
     </div>
   );
 });
 
-Runway.displayName = 'Runway';
+Scrubber.displayName = 'Scrubber';
 
-export default Runway;
+export default Scrubber;
 
 function getZoomControlsStyle(drawerHeight: number): CSSProperties {
   return {

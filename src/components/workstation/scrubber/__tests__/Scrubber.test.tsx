@@ -2,7 +2,7 @@ import { act, fireEvent, render } from '@testing-library/react';
 import { createRef } from 'react';
 import * as Tone from 'tone';
 import AudioService from '../../../../services/AudioService';
-import Runway, { type RunwayHandle } from '../Runway';
+import Scrubber, { type ScrubberHandle } from '../Scrubber';
 
 const audioService = AudioService.getInstance();
 const playbackService = audioService.playbackService;
@@ -25,31 +25,33 @@ afterEach(() => {
 it('pauses playback when timeline is scrolled while playing', () => {
   playbackService.play();
 
-  const { container } = render(<Runway {...defaultProps} />);
+  const { container } = render(<Scrubber {...defaultProps} />);
 
-  const timeline = container.querySelector('.runway__tilt')!;
+  const timeline = container.querySelector('.scrubber__tilt')!;
   fireEvent.scroll(timeline);
 
   expect(playbackService.isPlaying).toBe(false);
 });
 
 it('does not pause playback when timeline is scrolled while paused', () => {
-  const { container } = render(<Runway {...defaultProps} />);
+  const { container } = render(<Scrubber {...defaultProps} />);
 
-  const timeline = container.querySelector('.runway__tilt')!;
+  const timeline = container.querySelector('.scrubber__tilt')!;
   fireEvent.scroll(timeline);
 
   expect(playbackService.isPlaying).toBe(false);
 });
 
-it('positions perspective-origin and transform-origin at runway bottom', () => {
-  const { container } = render(<Runway {...defaultProps} />);
+it('positions perspective-origin and transform-origin at scrubber bottom', () => {
+  const { container } = render(<Scrubber {...defaultProps} />);
 
-  const viewport = container.querySelector('.runway__viewport') as HTMLElement;
-  const tilt = container.querySelector('.runway__tilt') as HTMLElement;
+  const viewport = container.querySelector(
+    '.scrubber__viewport',
+  ) as HTMLElement;
+  const tilt = container.querySelector('.scrubber__tilt') as HTMLElement;
 
-  // Both origins should use the same Y coordinate (runway bottom).
-  // In jsdom offsetHeight is 0, so runwayBottomY = 0.75 * 0 = 0.
+  // Both origins should use the same Y coordinate (scrubber bottom).
+  // In jsdom offsetHeight is 0, so scrubberBottomY = 0.75 * 0 = 0.
   expect(viewport.style.perspectiveOrigin).toBe('center 0px');
   expect(tilt.style.transformOrigin).toBe('center 0px');
 });
@@ -67,14 +69,14 @@ it('keeps perspective geometry stable when drawer height changes', () => {
     },
   });
 
-  const { container, rerender } = render(<Runway {...defaultProps} />);
+  const { container, rerender } = render(<Scrubber {...defaultProps} />);
 
-  const tilt = container.querySelector('.runway__tilt') as HTMLElement;
+  const tilt = container.querySelector('.scrubber__tilt') as HTMLElement;
 
   const transformWithoutDrawer = tilt.style.transform;
 
   // Open the drawer — the perspective geometry should NOT change
-  rerender(<Runway {...defaultProps} drawerHeight={280} />);
+  rerender(<Scrubber {...defaultProps} drawerHeight={280} />);
 
   const transformWithDrawer = tilt.style.transform;
 
@@ -105,10 +107,12 @@ it('applies translateY and scaleY to viewport div when drawer is open', () => {
 
   const drawerHeight = 280;
   const { container } = render(
-    <Runway {...defaultProps} drawerHeight={drawerHeight} />,
+    <Scrubber {...defaultProps} drawerHeight={drawerHeight} />,
   );
 
-  const viewport = container.querySelector('.runway__viewport') as HTMLElement;
+  const viewport = container.querySelector(
+    '.scrubber__viewport',
+  ) as HTMLElement;
 
   const visibleHeight = containerHeight - drawerHeight;
   const expectedScaleY = visibleHeight / containerHeight;
@@ -128,27 +132,31 @@ it('applies translateY and scaleY to viewport div when drawer is open', () => {
 });
 
 it('does not apply viewport transform when drawer is closed', () => {
-  const { container } = render(<Runway {...defaultProps} drawerHeight={0} />);
+  const { container } = render(<Scrubber {...defaultProps} drawerHeight={0} />);
 
-  const viewport = container.querySelector('.runway__viewport') as HTMLElement;
+  const viewport = container.querySelector(
+    '.scrubber__viewport',
+  ) as HTMLElement;
 
   expect(viewport.style.transform).toBe('');
 });
 
 it('does not render a shade overlay', () => {
-  const { container } = render(<Runway {...defaultProps} />);
+  const { container } = render(<Scrubber {...defaultProps} />);
 
-  expect(container.querySelector('.runway__shade')).toBeNull();
+  expect(container.querySelector('.scrubber__shade')).toBeNull();
 });
 
 it('passes drawer height as CSS variable to playhead for position alignment', () => {
   const drawerHeight = 200;
 
   const { container } = render(
-    <Runway {...{ ...defaultProps, drawerHeight }} />,
+    <Scrubber {...{ ...defaultProps, drawerHeight }} />,
   );
 
-  const playhead = container.querySelector('.runway__playhead') as HTMLElement;
+  const playhead = container.querySelector(
+    '.scrubber__playhead',
+  ) as HTMLElement;
 
   // The playhead element must expose --drawer-height so CSS can position the
   // playhead within the visible area above the drawer.
@@ -160,12 +168,12 @@ it('passes drawer height as CSS variable to playhead for position alignment', ()
 it('viewport wrapper handles wheel events for full hit-area coverage', () => {
   playbackService.play();
 
-  const { container } = render(<Runway {...defaultProps} />);
+  const { container } = render(<Scrubber {...defaultProps} />);
 
   // The viewport wrapper covers the full rectangular area. Wheel events
   // landing outside the tilted scroll container's trapezoid hit the wrapper
   // instead, which forwards them as programmatic scrolls.
-  const viewport = container.querySelector('.runway__viewport')!;
+  const viewport = container.querySelector('.scrubber__viewport')!;
   fireEvent.wheel(viewport, { deltaY: 100 });
 
   expect(playbackService.isPlaying).toBe(false);
@@ -185,7 +193,7 @@ it('does not stop playback at end of scroll during recording', () => {
   recordingService.arm();
   recordingService.startRecording();
 
-  render(<Runway {...defaultProps} />);
+  render(<Scrubber {...defaultProps} />);
 
   // In jsdom, scrollWidth equals clientWidth (no overflow), so the
   // end-of-scroll condition is satisfied. During recording this must NOT
@@ -205,10 +213,10 @@ it('stops recording when timeline is clicked during recording', () => {
   const onStopRecording = vi.fn();
 
   const { container } = render(
-    <Runway {...defaultProps} onStopRecording={onStopRecording} />,
+    <Scrubber {...defaultProps} onStopRecording={onStopRecording} />,
   );
 
-  const timeline = container.querySelector('.runway__tilt')!;
+  const timeline = container.querySelector('.scrubber__tilt')!;
   fireEvent.click(timeline);
 
   expect(onStopRecording).toHaveBeenCalledOnce();
@@ -223,10 +231,10 @@ it('cancels count-in when timeline is clicked during count-in', () => {
   const onStopRecording = vi.fn();
 
   const { container } = render(
-    <Runway {...defaultProps} onStopRecording={onStopRecording} />,
+    <Scrubber {...defaultProps} onStopRecording={onStopRecording} />,
   );
 
-  const timeline = container.querySelector('.runway__tilt')!;
+  const timeline = container.querySelector('.scrubber__tilt')!;
   fireEvent.click(timeline);
 
   expect(onStopRecording).toHaveBeenCalledOnce();
@@ -238,9 +246,9 @@ it('does not pause playback when timeline is scrolled during recording', () => {
   recordingService.arm();
   recordingService.startRecording();
 
-  const { container } = render(<Runway {...defaultProps} />);
+  const { container } = render(<Scrubber {...defaultProps} />);
 
-  const timeline = container.querySelector('.runway__tilt')!;
+  const timeline = container.querySelector('.scrubber__tilt')!;
   fireEvent.scroll(timeline);
 
   expect(playbackService.isPlaying).toBe(true);
@@ -262,7 +270,7 @@ it('does not update transportTime during count-in', () => {
   recordingService.startRecording();
   recordingService.startCountIn();
 
-  render(<Runway {...defaultProps} />);
+  render(<Scrubber {...defaultProps} />);
 
   act(() => {
     rafCallback(0);
@@ -274,11 +282,11 @@ it('does not update transportTime during count-in', () => {
 });
 
 it('syncs timeline scroll position via imperative handle (inverted scroll)', () => {
-  const ref = createRef<RunwayHandle>();
+  const ref = createRef<ScrubberHandle>();
 
-  const { container } = render(<Runway ref={ref} {...defaultProps} />);
+  const { container } = render(<Scrubber ref={ref} {...defaultProps} />);
 
-  const timeline = container.querySelector('.runway__tilt')!;
+  const timeline = container.querySelector('.scrubber__tilt')!;
 
   // Mock scroll dimensions so maxScrollTop is non-zero
   Object.defineProperty(timeline, 'scrollHeight', {
@@ -301,11 +309,11 @@ it('syncs timeline scroll position via imperative handle (inverted scroll)', () 
 });
 
 it('scrolls to maxScrollTop when time is zero (beginning at bottom)', () => {
-  const ref = createRef<RunwayHandle>();
+  const ref = createRef<ScrubberHandle>();
 
-  const { container } = render(<Runway ref={ref} {...defaultProps} />);
+  const { container } = render(<Scrubber ref={ref} {...defaultProps} />);
 
-  const timeline = container.querySelector('.runway__tilt')!;
+  const timeline = container.querySelector('.scrubber__tilt')!;
 
   Object.defineProperty(timeline, 'scrollHeight', {
     value: 2000,

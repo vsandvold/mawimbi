@@ -9,7 +9,7 @@ import { useFileDropzone } from '../dropzone/useFileDropzone';
 import EmptyTimeline from './EmptyTimeline';
 import MixerBottomSheet from './MixerBottomSheet';
 import LyricsBottomSheet from './LyricsBottomSheet';
-import Runway, { type RunwayHandle } from './runway/Runway';
+import Scrubber, { type ScrubberHandle } from './scrubber/Scrubber';
 import Timeline from './Timeline';
 import ToolbarBottomSheet from './ToolbarBottomSheet';
 import './Workstation.css';
@@ -51,7 +51,7 @@ const Workstation = (props: WorkstationProps) => {
   // Start with the dock's default height as the base drawer height.
   const [drawerHeight, setDrawerHeight] = useState(TOOLBAR_DOCK_HEIGHT);
   const [bottomSheetHeight, setBottomSheetHeight] = useState(0);
-  const runwayRef = useRef<RunwayHandle>(null);
+  const scrubberRef = useRef<ScrubberHandle>(null);
 
   const {
     recordingColor,
@@ -127,7 +127,7 @@ const Workstation = (props: WorkstationProps) => {
   const handleLyricsSeekTo = useCallback(
     (time: number) => {
       playback.seekTo(time);
-      runwayRef.current?.syncScrollToTime(time);
+      scrubberRef.current?.syncScrollToTime(time);
     },
     // playback is a stable ref from context
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -155,8 +155,8 @@ const Workstation = (props: WorkstationProps) => {
       <div className="editor" {...rootProps}>
         <div className="editor__timeline">
           {showTimeline ? (
-            <Runway
-              ref={runwayRef}
+            <Scrubber
+              ref={scrubberRef}
               drawerHeight={drawerHeight}
               onStopRecording={handleStopRecording}
               pixelsPerSecond={pixelsPerSecond}
@@ -166,7 +166,7 @@ const Workstation = (props: WorkstationProps) => {
                 recordingColor={recordingColor}
                 tracks={tracks}
               />
-            </Runway>
+            </Scrubber>
           ) : (
             <EmptyTimeline isDragActive={isDragActive} />
           )}
