@@ -109,8 +109,12 @@ body {
 }
 
 html {
-  /* Timeline layout: the cursor sits at 25% from top of viewport */
-  --cursor-position: 0.25;
+  /* Timeline layout: the playhead sits at 75% from the top — at the
+     tilt pivot (SCRUBBER_BOTTOM_FRACTION). This is the only point where
+     the 3D perspective projection (rotateX 80° + perspective 1300px)
+     introduces zero distortion, so the 2D playhead overlay aligns with
+     the 3D-projected content boundary across all viewport sizes. */
+  --cursor-position: 0.75;
   --timeline-margin-top: 40px;
   /* Perspective tilt: scrubber depth effect on the timeline.
      Higher perspective = smoother foreshortening. Higher tilt = steeper angle.

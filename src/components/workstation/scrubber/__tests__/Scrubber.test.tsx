@@ -1,4 +1,6 @@
 import { act, fireEvent, render } from '@testing-library/react';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 import { createRef } from 'react';
 import * as Tone from 'tone';
 import AudioService from '../../../../services/AudioService';
@@ -40,6 +42,78 @@ it('does not pause playback when timeline is scrolled while paused', () => {
   fireEvent.scroll(timeline);
 
   expect(playbackService.isPlaying).toBe(false);
+});
+
+it('aligns playhead with content boundary at the tilt pivot', () => {
+  // The playhead is a 2D overlay positioned at --cursor-position fraction
+  // of the scrubber height. The spectrogram content boundary lives inside
+  // the 3D-tilted scroll container (rotateX 80° + perspective 1300px).
+  //
+  // For the 2D playhead to visually align with the 3D-projected content
+  // boundary, they must meet at the tilt pivot (SCRUBBER_BOTTOM_FRACTION
+  // = 0.75). At the pivot, dy = 0 so the 3D projection introduces zero
+  // distortion — the screen position equals the local position regardless
+  // of viewport height.
+  //
+  // At any other fraction, the projection is nonlinear:
+  //   dy = (fraction - 0.75) * H
+  //   projected_dy = dy * extendFactor * cos(80°) * 1300 / (1300 - dy * extendFactor * sin(80°))
+  //   screenY = 0.75*H + projected_dy
+  // This depends on H, so a constant --cursor-position fraction cannot
+  // match the projected position across different viewport sizes.
+  //
+  // Therefore --cursor-position must equal SCRUBBER_BOTTOM_FRACTION (0.75).
+  const indexCss = readFileSync(
+    resolve(__dirname, '../../../../index.css'),
+    'utf-8',
+  );
+  const match = indexCss.match(/--cursor-position:\s*([\d.]+)/);
+  const cursorPosition = match ? parseFloat(match[1]) : NaN;
+
+  expect(cursorPosition).toBe(0.75);
+});
+
+it('3D projection at the tilt pivot produces zero distortion', () => {
+  // Verify that the tilt pivot is the identity point of the 3D projection.
+  // A point at the tilt pivot (scrubberBottomY) has dy = 0 after subtracting
+  // the transform-origin, so rotateX and perspective have no effect on it.
+  // This is why the 2D playhead overlay can align with the 3D content there.
+  const H = 800;
+  const perspective = 1300;
+  const tiltDeg = 80;
+  const tiltRad = (tiltDeg * Math.PI) / 180;
+  const scrubberBottomFraction = 0.75;
+  const scrubberBottomY = scrubberBottomFraction * H;
+
+  // extendFactor from useScrubberGeometry
+  const depth = scrubberBottomY * Math.sin(tiltRad);
+  const extendFactor = (perspective + depth) / perspective;
+
+  // Project a point at the tilt pivot
+  const dy = 0; // point is at the pivot
+  const dyScaled = dy * extendFactor;
+  const yRot = dyScaled * Math.cos(tiltRad);
+  const zRot = dyScaled * Math.sin(tiltRad);
+  const projectedDy =
+    zRot === 0 ? yRot : (yRot * perspective) / (perspective - zRot);
+  const screenY = scrubberBottomY + projectedDy;
+
+  // Screen position equals the local position — zero distortion
+  expect(screenY).toBe(scrubberBottomY);
+
+  // Verify a different point (e.g. 0.25*H) does NOT project to itself,
+  // confirming the pivot is special.
+  const otherY = 0.25 * H;
+  const otherDy = otherY - scrubberBottomY;
+  const otherDyScaled = otherDy * extendFactor;
+  const otherYRot = otherDyScaled * Math.cos(tiltRad);
+  const otherZRot = otherDyScaled * Math.sin(tiltRad);
+  const otherProjectedDy =
+    (otherYRot * perspective) / (perspective - otherZRot);
+  const otherScreenY = scrubberBottomY + otherProjectedDy;
+
+  // The projected screen position is NOT 0.25*H — the 3D transform distorts it
+  expect(otherScreenY).not.toBeCloseTo(otherY, 0);
 });
 
 it('positions perspective-origin and transform-origin at scrubber bottom', () => {
