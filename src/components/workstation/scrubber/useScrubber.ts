@@ -251,7 +251,11 @@ export function useScrubber({
   // the viewport. The depth is the distance from the origin to the far edge.
   const extendFactor = computeExtendFactor(runwayBottomY);
 
-  const perspectiveStyle = getPerspectiveStyle(runwayBottomY);
+  const perspectiveStyle = getPerspectiveStyle(
+    runwayBottomY,
+    drawerHeight,
+    containerHeight,
+  );
   const timelineScrollStyle = getTimelineScrollStyle(
     extendFactor,
     runwayBottomY,
@@ -311,10 +315,30 @@ function computeExtendFactor(runwayBottomY: number): number {
 /**
  * Style for the perspective wrapper. Places `perspective-origin` at the
  * runway bottom so the vanishing point matches the tilt pivot.
+ *
+ * When the drawer is open, `translateY` and `scaleY` reposition and shrink
+ * the runway to fit the visible area above the drawer — without touching
+ * the child timeline's own 3D transform or styling.
  */
-function getPerspectiveStyle(runwayBottomY: number): CSSProperties {
+function getPerspectiveStyle(
+  runwayBottomY: number,
+  drawerHeight: number,
+  containerHeight: number,
+): CSSProperties {
+  const hasDrawer = drawerHeight > 0 && containerHeight > 0;
+  const visibleHeight = containerHeight - drawerHeight;
+  const scaleY = hasDrawer ? visibleHeight / containerHeight : 1;
+  // With the default transform-origin (center), scaleY shifts the top edge
+  // downward by half the removed height. translateY compensates so the top
+  // stays at the viewport edge.
+  const translateY = hasDrawer ? -drawerHeight / 2 : 0;
+
   return {
     perspectiveOrigin: `center ${runwayBottomY}px`,
+    ...(hasDrawer && {
+      ...baseTransformStyle,
+      transform: `translateY(${translateY}px) scaleY(${scaleY})`,
+    }),
   };
 }
 

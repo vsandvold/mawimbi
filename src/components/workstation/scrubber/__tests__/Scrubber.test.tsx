@@ -96,6 +96,55 @@ it('keeps perspective geometry stable when drawer height changes', () => {
   }
 });
 
+it('applies translateY and scaleY to perspective div when drawer is open', () => {
+  const containerHeight = 800;
+  const originalDescriptor = Object.getOwnPropertyDescriptor(
+    HTMLElement.prototype,
+    'offsetHeight',
+  );
+  Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+    configurable: true,
+    get() {
+      return containerHeight;
+    },
+  });
+
+  const drawerHeight = 280;
+  const { container } = render(
+    <Scrubber {...defaultProps} drawerHeight={drawerHeight} />,
+  );
+
+  const perspective = container.querySelector(
+    '.scrubber__perspective',
+  ) as HTMLElement;
+
+  const visibleHeight = containerHeight - drawerHeight;
+  const expectedScaleY = visibleHeight / containerHeight;
+  const expectedTranslateY = -drawerHeight / 2;
+
+  expect(perspective.style.transform).toBe(
+    `translateY(${expectedTranslateY}px) scaleY(${expectedScaleY})`,
+  );
+
+  if (originalDescriptor) {
+    Object.defineProperty(
+      HTMLElement.prototype,
+      'offsetHeight',
+      originalDescriptor,
+    );
+  }
+});
+
+it('does not apply perspective transform when drawer is closed', () => {
+  const { container } = render(<Scrubber {...defaultProps} drawerHeight={0} />);
+
+  const perspective = container.querySelector(
+    '.scrubber__perspective',
+  ) as HTMLElement;
+
+  expect(perspective.style.transform).toBe('');
+});
+
 it('does not render a shade overlay', () => {
   const { container } = render(<Scrubber {...defaultProps} />);
 
