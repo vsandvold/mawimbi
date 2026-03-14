@@ -141,7 +141,7 @@ test.describe('Recording', () => {
     // Transport is rewound to the start after recording stops.
     // With inverted scroll, time=0 maps to scrollTop = maxScrollTop.
     const { scrollTop, maxScrollTop } = await page
-      .locator('.scrubber__timeline')
+      .locator('.scrubber__tilt')
       .evaluate((el) => ({
         scrollTop: el.scrollTop,
         maxScrollTop: el.scrollHeight - el.clientHeight,

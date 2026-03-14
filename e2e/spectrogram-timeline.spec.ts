@@ -88,7 +88,7 @@ test.describe('Spectrogram canvas sticky positioning on mobile', () => {
   test('canvas sticks at the scroll container edge, not the content edge', async ({
     page,
   }) => {
-    const scrollContainer = page.locator('.scrubber__timeline');
+    const scrollContainer = page.locator('.scrubber__tilt');
     const spectrogramCanvas = page.locator('.spectrogram__canvas');
 
     const paddingTop = await scrollContainer.evaluate((el) => {
@@ -109,7 +109,7 @@ test.describe('Spectrogram canvas sticky positioning on mobile', () => {
           '.spectrogram__canvas',
         ) as HTMLCanvasElement;
         const scrollEl = document.querySelector(
-          '.scrubber__timeline',
+          '.scrubber__tilt',
         ) as HTMLElement;
         return {
           canvasTop: canvas.getBoundingClientRect().top,
@@ -145,7 +145,7 @@ test.describe('Spectrogram timeline visualization during scroll', () => {
   test('spectrogram content updates when scrolling into content range', async ({
     page,
   }) => {
-    const scrollContainer = page.locator('.scrubber__timeline');
+    const scrollContainer = page.locator('.scrubber__tilt');
     const spectrogramCanvas = page.locator('.spectrogram__canvas');
 
     // Compute the scroll position where the spectrogram container's top
@@ -215,7 +215,7 @@ test.describe('Spectrogram timeline visualization during scroll', () => {
   test('spectrogram coverage is consistent across the full scroll range', async ({
     page,
   }) => {
-    const scrollContainer = page.locator('.scrubber__timeline');
+    const scrollContainer = page.locator('.scrubber__tilt');
     const spectrogramCanvas = page.locator('.spectrogram__canvas');
 
     const contentInfo = await scrollContainer.evaluate((el) => {

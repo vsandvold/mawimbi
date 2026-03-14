@@ -8,7 +8,9 @@
   min-height: 0;
 }
 
-.scrubber__perspective {
+/* ScrubberViewport: perspective positioning/scaling when drawer opens */
+
+.scrubber__viewport {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -18,14 +20,16 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .scrubber__perspective {
+  .scrubber__viewport {
     perspective: none;
   }
 }
 
-.scrubber__timeline {
-  /* Fill the perspective container. The inline transform tilts and scales
-     the timeline for the runway perspective effect. */
+/* ScrubberTilt: 3D perspective tilt + scroll container */
+
+.scrubber__tilt {
+  /* Fill the viewport container. The inline transform tilts and scales
+     the timeline for the scrubber perspective effect. */
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -39,7 +43,9 @@
   container-type: size;
 }
 
-.scrubber__cursor {
+/* Playhead: playback position overlay */
+
+.scrubber__playhead {
   position: absolute;
   top: calc(
     var(--cursor-position) * (100% - var(--drawer-height, 0px)) - 120px
