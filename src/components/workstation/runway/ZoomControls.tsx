@@ -1,8 +1,8 @@
 import { Minus, Plus } from 'lucide-react';
-import { Button } from '../ui/button';
+import { Button } from '../../ui/button';
 import { type CSSProperties } from 'react';
-import { useRecordingService } from '../../hooks/useRecordingService';
-import { useWorkstation } from '../../hooks/useWorkstation';
+import { useRecordingService } from '../../../hooks/useRecordingService';
+import { useWorkstation } from '../../../hooks/useWorkstation';
 import './ZoomControls.css';
 
 type ZoomControlsProps = {

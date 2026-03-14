@@ -20,9 +20,9 @@ vi.mock('../BottomSheet', () => ({
     <div data-testid="bottom-sheet">{title}</div>
   ),
 }));
-vi.mock('../scrubber/Scrubber', () => ({
+vi.mock('../runway/Runway', () => ({
   default: ({ children }: { children: ReactNode }) => (
-    <div data-testid="scrubber">{children}</div>
+    <div data-testid="runway">{children}</div>
   ),
 }));
 vi.mock('../Timeline', () => ({

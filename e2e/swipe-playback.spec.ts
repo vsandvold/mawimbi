@@ -15,7 +15,7 @@ async function swipeTimeline(
 ) {
   // Target the perspective wrapper — its bounding box is not distorted by the
   // child's 3D transform, so the center is always a reliable hit target.
-  const wrapper = page.locator('.scrubber__perspective');
+  const wrapper = page.locator('.runway__viewport');
   const box = await wrapper.boundingBox();
   if (!box) throw new Error('Timeline not visible');
 

@@ -1,0 +1,128 @@
+import { type CSSProperties, useLayoutEffect, useRef, useState } from 'react';
+
+// The runway bottom sits at this fraction from the top of the visible area
+// (viewport minus drawer). 0.75 = bottom 25% of visible area is empty.
+const RUNWAY_BOTTOM_FRACTION = 0.75;
+
+// Fallbacks if CSS custom properties are missing or unparseable
+const FALLBACK_PERSPECTIVE = 1300;
+const FALLBACK_TILT = 80;
+
+const baseTransformStyle = {
+  willChange: 'transform',
+  transition: 'transform 0.25s ease-out',
+};
+
+type RunwayGeometry = {
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  viewportStyle: CSSProperties;
+  tiltStyle: CSSProperties;
+};
+
+/**
+ * Computes the 3D perspective geometry for the runway.
+ *
+ * Tracks the scroll container's height via ResizeObserver and derives:
+ * - `viewportStyle` — perspective-origin + drawer-aware translateY/scaleY
+ * - `tiltStyle` — rotateX tilt + foreshortening-compensating scaleY
+ *
+ * The container height is measured from the scroll container (RunwayTilt),
+ * not the viewport wrapper. This keeps the 3D transform stable when the
+ * bottom sheet opens — only the viewport wrapper scales/repositions.
+ */
+export function useRunwayGeometry(drawerHeight: number): RunwayGeometry {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerHeight, setContainerHeight] = useState(0);
+
+  useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const update = () => setContainerHeight(el.offsetHeight);
+    update();
+
+    const observer = new ResizeObserver(() => update());
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  }, []);
+
+  // Using the full height (not visible height) keeps the perspective geometry
+  // stable when the bottom sheet opens — the 3D transform and scaleY
+  // compensation stay constant, preventing the timeline from appearing wider.
+  const runwayBottomY = RUNWAY_BOTTOM_FRACTION * containerHeight;
+  const extendFactor = computeExtendFactor(runwayBottomY);
+
+  const viewportStyle = getViewportStyle(
+    runwayBottomY,
+    drawerHeight,
+    containerHeight,
+  );
+  const tiltStyle = getTiltStyle(extendFactor, runwayBottomY);
+
+  return { containerRef, viewportStyle, tiltStyle };
+}
+
+/**
+ * Compensate for perspective foreshortening so the far edge (top) fills
+ * the viewport. `runwayBottomY` is the distance from the top of the
+ * container to the tilt origin — content above the origin is the visible
+ * runway that needs to fill the viewport width after foreshortening.
+ */
+function computeExtendFactor(runwayBottomY: number): number {
+  if (runwayBottomY <= 0) return 1;
+
+  const tiltRad = (FALLBACK_TILT * Math.PI) / 180;
+  const depth = runwayBottomY * Math.sin(tiltRad);
+  const projectionRatio = FALLBACK_PERSPECTIVE / (FALLBACK_PERSPECTIVE + depth);
+  return 1 / projectionRatio;
+}
+
+/**
+ * Style for the viewport wrapper. Places `perspective-origin` at the
+ * runway bottom so the vanishing point matches the tilt pivot.
+ *
+ * When the drawer is open, `translateY` and `scaleY` reposition and shrink
+ * the runway to fit the visible area above the drawer — without touching
+ * the child tilt container's own 3D transform or styling.
+ */
+function getViewportStyle(
+  runwayBottomY: number,
+  drawerHeight: number,
+  containerHeight: number,
+): CSSProperties {
+  const hasDrawer = drawerHeight > 0 && containerHeight > 0;
+  const visibleHeight = containerHeight - drawerHeight;
+  const scaleY = hasDrawer ? visibleHeight / containerHeight : 1;
+  // With the default transform-origin (center), scaleY shifts the top edge
+  // downward by half the removed height. translateY compensates so the top
+  // stays at the viewport edge.
+  const translateY = hasDrawer ? -drawerHeight / 2 : 0;
+
+  return {
+    perspectiveOrigin: `center ${runwayBottomY}px`,
+    ...(hasDrawer && {
+      ...baseTransformStyle,
+      transform: `translateY(${translateY}px) scaleY(${scaleY})`,
+    }),
+  };
+}
+
+/**
+ * Style for the tilt container. The transform tilts the timeline into a
+ * dramatic runway perspective:
+ * - rotateX tilts the plane around the runway bottom
+ * - scaleY(extendFactor) compensates for perspective foreshortening so the
+ *   far edge (top) fills the viewport regardless of screen size
+ * - transformOrigin is placed at the runway bottom so the tilt pivots there
+ */
+function getTiltStyle(
+  extendFactor: number,
+  runwayBottomY: number,
+): CSSProperties {
+  return {
+    ...baseTransformStyle,
+    transformOrigin: `center ${runwayBottomY}px`,
+    transform: `rotateX(var(--timeline-tilt, 0deg)) scaleY(${extendFactor})`,
+  };
+}

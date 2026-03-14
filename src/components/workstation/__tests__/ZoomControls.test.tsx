@@ -7,7 +7,7 @@ import {
   setZoom,
   resetWorkstationSignals,
 } from '../../../signals/workstationSignals';
-import ZoomControls from '../ZoomControls';
+import ZoomControls from '../runway/ZoomControls';
 
 const audioService = AudioService.getInstance();
 const playbackService = audioService.playbackService;
