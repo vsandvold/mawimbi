@@ -53,9 +53,47 @@ it('positions perspective-origin and transform-origin at runway bottom', () => {
   ) as HTMLElement;
 
   // Both origins should use the same Y coordinate (runway bottom).
-  // In jsdom offsetHeight is 0, so runwayBottomY = 0.75 * max(0 - 0, 0) = 0.
+  // In jsdom offsetHeight is 0, so runwayBottomY = 0.75 * 0 = 0.
   expect(perspective.style.perspectiveOrigin).toBe('center 0px');
   expect(timeline.style.transformOrigin).toBe('center 0px');
+});
+
+it('keeps perspective geometry stable when drawer height changes', () => {
+  // Mock offsetHeight so the layout effect reads a non-zero container height
+  const originalDescriptor = Object.getOwnPropertyDescriptor(
+    HTMLElement.prototype,
+    'offsetHeight',
+  );
+  Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+    configurable: true,
+    get() {
+      return 800;
+    },
+  });
+
+  const { container, rerender } = render(<Scrubber {...defaultProps} />);
+
+  const timeline = container.querySelector(
+    '.scrubber__timeline',
+  ) as HTMLElement;
+
+  const transformWithoutDrawer = timeline.style.transform;
+
+  // Open the drawer — the perspective geometry should NOT change
+  rerender(<Scrubber {...defaultProps} drawerHeight={280} />);
+
+  const transformWithDrawer = timeline.style.transform;
+
+  expect(transformWithDrawer).toBe(transformWithoutDrawer);
+
+  // Restore
+  if (originalDescriptor) {
+    Object.defineProperty(
+      HTMLElement.prototype,
+      'offsetHeight',
+      originalDescriptor,
+    );
+  }
 });
 
 it('does not render a shade overlay', () => {
