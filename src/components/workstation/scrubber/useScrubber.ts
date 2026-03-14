@@ -21,9 +21,9 @@ type UseScrubberOptions = {
   pixelsPerSecond: number;
 };
 
-// How far (px) the near edge extends below the viewport for the
-// runway-emerging-from-screen effect. Reclaimed when the drawer opens.
-const RUNWAY_EXTENSION = 600;
+// The runway bottom sits at this fraction from the top of the visible area
+// (viewport minus drawer). 0.75 = bottom 25% of visible area is empty.
+const RUNWAY_BOTTOM_FRACTION = 0.75;
 const SCROLL_DEBOUNCE_MS = 200;
 
 export function useScrubber({
@@ -224,31 +224,15 @@ export function useScrubber({
     debouncedSetTransportTime();
   };
 
-  const [extendFactor, setExtendFactor] = useState(1.0);
+  const [containerHeight, setContainerHeight] = useState(0);
 
-  // Recalculate the scale factor when the timeline container resizes
-  // (e.g. entering/exiting fullscreen). The factor compensates for
-  // perspective foreshortening so the far edge (top) fills the viewport.
+  // Track the scroll container height so derived layout values
+  // (runway position, extendFactor) update on resize.
   useLayoutEffect(() => {
     const el = timelineScrollRef.current;
     if (!el) return;
 
-    const update = () => {
-      const timelineHeight = el.offsetHeight;
-      if (timelineHeight <= 0) return;
-
-      const style = getComputedStyle(document.documentElement);
-      const perspective =
-        parseFloat(style.getPropertyValue('--timeline-perspective')) ||
-        FALLBACK_PERSPECTIVE;
-      const tiltDeg =
-        parseFloat(style.getPropertyValue('--timeline-tilt')) || FALLBACK_TILT;
-      const tiltRad = (tiltDeg * Math.PI) / 180;
-      const depth = timelineHeight * Math.sin(tiltRad);
-      const projectionRatio = perspective / (perspective + depth);
-      setExtendFactor(1 / projectionRatio);
-    };
-
+    const update = () => setContainerHeight(el.offsetHeight);
     update();
 
     const observer = new ResizeObserver(() => update());
@@ -257,15 +241,21 @@ export function useScrubber({
     return () => observer.disconnect();
   }, []);
 
-  // Positive = push near edge below viewport (runway extension).
-  // Shrinks when the drawer opens to keep the near edge above it.
-  const runwayOffsetPx = RUNWAY_EXTENSION - drawerHeight;
+  // The runway bottom sits at RUNWAY_BOTTOM_FRACTION of the visible area
+  // (container minus drawer). Both perspective-origin and transform-origin
+  // are placed here so the tilt pivots at the runway bottom.
+  const visibleHeight = Math.max(containerHeight - drawerHeight, 0);
+  const runwayBottomY = RUNWAY_BOTTOM_FRACTION * visibleHeight;
 
+  // Compensate for perspective foreshortening so the far edge (top) fills
+  // the viewport. The depth is the distance from the origin to the far edge.
+  const extendFactor = computeExtendFactor(runwayBottomY);
+
+  const perspectiveStyle = getPerspectiveStyle(runwayBottomY);
   const timelineScrollStyle = getTimelineScrollStyle(
     extendFactor,
-    runwayOffsetPx,
+    runwayBottomY,
   );
-  const timelineOverlayStyle = getTimelineOverlayStyle(drawerHeight);
   const cursorStyle = getCursorStyle(drawerHeight);
 
   const zoomControlsStyle = getZoomControlsStyle(drawerHeight);
@@ -282,8 +272,8 @@ export function useScrubber({
     timelineScrollRef,
     cursorContainerRef,
     plasmaRef,
+    perspectiveStyle,
     timelineScrollStyle,
-    timelineOverlayStyle,
     cursorStyle,
     zoomControlsStyle,
     handleScroll,
@@ -304,39 +294,50 @@ const baseTransformStyle = {
 };
 
 /**
- * Style for the scroll container. The transform tilts the timeline into a
- * dramatic runway perspective:
- * - rotateX tilts the plane around the bottom edge
- * - scaleY(extendFactor) compensates for perspective foreshortening so the
- *   far edge (top) fills the viewport regardless of screen size
- * - translateY(runwayOffsetPx) pushes the near edge below the viewport,
- *   creating the runway-emerging-from-screen effect. The offset shrinks
- *   when the bottom sheet opens so the near edge stays above the drawer.
+ * Compensate for perspective foreshortening so the far edge (top) fills
+ * the viewport. `runwayBottomY` is the distance from the top of the
+ * container to the tilt origin — content above the origin is the visible
+ * runway that needs to fill the viewport width after foreshortening.
  */
-function getTimelineScrollStyle(extendFactor: number, runwayOffsetPx: number) {
+function computeExtendFactor(runwayBottomY: number): number {
+  if (runwayBottomY <= 0) return 1;
+
+  const tiltRad = (FALLBACK_TILT * Math.PI) / 180;
+  const depth = runwayBottomY * Math.sin(tiltRad);
+  const projectionRatio = FALLBACK_PERSPECTIVE / (FALLBACK_PERSPECTIVE + depth);
+  return 1 / projectionRatio;
+}
+
+/**
+ * Style for the perspective wrapper. Places `perspective-origin` at the
+ * runway bottom so the vanishing point matches the tilt pivot.
+ */
+function getPerspectiveStyle(runwayBottomY: number): CSSProperties {
   return {
-    ...baseTransformStyle,
-    transformOrigin: 'center bottom',
-    transform: `rotateX(var(--timeline-tilt, 0deg)) scaleY(${extendFactor}) translateY(${runwayOffsetPx}px)`,
+    perspectiveOrigin: `center ${runwayBottomY}px`,
   };
 }
 
 /**
- * Style for the shade overlay. Uses direct `bottom` positioning so the
- * gradient covers exactly the visible area above the drawer. This replaces
- * the previous scaleY approach which drifted when the viewport height
- * changed (e.g. mobile address bar show/hide).
+ * Style for the scroll container. The transform tilts the timeline into a
+ * dramatic runway perspective:
+ * - rotateX tilts the plane around the runway bottom
+ * - scaleY(extendFactor) compensates for perspective foreshortening so the
+ *   far edge (top) fills the viewport regardless of screen size
+ * - transformOrigin is placed at the runway bottom so the tilt pivots there
  */
-function getTimelineOverlayStyle(drawerHeight: number): CSSProperties {
+function getTimelineScrollStyle(extendFactor: number, runwayBottomY: number) {
   return {
-    bottom: `${drawerHeight}px`,
+    ...baseTransformStyle,
+    transformOrigin: `center ${runwayBottomY}px`,
+    transform: `rotateX(var(--timeline-tilt, 0deg)) scaleY(${extendFactor})`,
   };
 }
 
 /**
  * Style for the cursor overlay. Passes the drawer height as a CSS variable
  * so the cursor's `top` position resolves against the visible area above
- * the drawer. This replaces the previous scaleY approach.
+ * the drawer.
  */
 function getCursorStyle(drawerHeight: number): CSSProperties {
   return {

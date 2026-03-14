@@ -42,19 +42,26 @@ it('does not pause playback when timeline is scrolled while paused', () => {
   expect(playbackService.isPlaying).toBe(false);
 });
 
-it('positions shade bottom at drawer height instead of using scaleY', () => {
-  const drawerHeight = 120;
+it('positions perspective-origin and transform-origin at runway bottom', () => {
+  const { container } = render(<Scrubber {...defaultProps} />);
 
-  const { container } = render(
-    <Scrubber {...{ ...defaultProps, drawerHeight }} />,
-  );
+  const perspective = container.querySelector(
+    '.scrubber__perspective',
+  ) as HTMLElement;
+  const timeline = container.querySelector(
+    '.scrubber__timeline',
+  ) as HTMLElement;
 
-  const shade = container.querySelector('.scrubber__shade') as HTMLElement;
+  // Both origins should use the same Y coordinate (runway bottom).
+  // In jsdom offsetHeight is 0, so runwayBottomY = 0.75 * max(0 - 0, 0) = 0.
+  expect(perspective.style.perspectiveOrigin).toBe('center 0px');
+  expect(timeline.style.transformOrigin).toBe('center 0px');
+});
 
-  // The shade should use direct bottom positioning to cover the visible area
-  // above the drawer, not scaleY which drifts when the viewport changes.
-  expect(shade.style.bottom).toBe(`${drawerHeight}px`);
-  expect(shade.style.transform).not.toContain('scaleY');
+it('does not render a shade overlay', () => {
+  const { container } = render(<Scrubber {...defaultProps} />);
+
+  expect(container.querySelector('.scrubber__shade')).toBeNull();
 });
 
 it('passes drawer height as CSS variable to cursor for position alignment', () => {
