@@ -241,11 +241,11 @@ export function useScrubber({
     return () => observer.disconnect();
   }, []);
 
-  // The runway bottom sits at RUNWAY_BOTTOM_FRACTION of the visible area
-  // (container minus drawer). Both perspective-origin and transform-origin
-  // are placed here so the tilt pivots at the runway bottom.
-  const visibleHeight = Math.max(containerHeight - drawerHeight, 0);
-  const runwayBottomY = RUNWAY_BOTTOM_FRACTION * visibleHeight;
+  // The runway bottom sits at RUNWAY_BOTTOM_FRACTION of the full container.
+  // Using the full height (not visible height) keeps the perspective geometry
+  // stable when the bottom sheet opens — the 3D transform and scaleY
+  // compensation stay constant, preventing the timeline from appearing wider.
+  const runwayBottomY = RUNWAY_BOTTOM_FRACTION * containerHeight;
 
   // Compensate for perspective foreshortening so the far edge (top) fills
   // the viewport. The depth is the distance from the origin to the far edge.
