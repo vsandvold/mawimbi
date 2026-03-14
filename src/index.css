@@ -26,7 +26,6 @@
   --color-surface: var(--surface);
   --color-foreground-muted: var(--foreground-muted);
   --color-foreground-faint: var(--foreground-faint);
-  --color-shade: var(--shade-color);
   --color-overlay-bg: var(--overlay-bg);
   --color-overlay-solid: var(--overlay-solid);
   --radius-sm: calc(var(--radius) - 4px);

@@ -25,8 +25,8 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     timelineScrollRef,
     cursorContainerRef,
     plasmaRef,
+    perspectiveStyle,
     timelineScrollStyle,
-    timelineOverlayStyle,
     cursorStyle,
     zoomControlsStyle,
     handleScroll,
@@ -57,6 +57,7 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     <div className="scrubber scrubber--firefox-scroll-fix">
       <div
         className="scrubber__perspective"
+        style={perspectiveStyle}
         onClick={handlePerspectiveClick}
         onWheel={handlePerspectiveWheel}
       >
@@ -71,9 +72,6 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
         >
           {props.children}
         </div>
-      </div>
-      <div className="scrubber__shade" style={timelineOverlayStyle}>
-        <div className="shade"></div>
       </div>
       <div
         ref={cursorContainerRef}
