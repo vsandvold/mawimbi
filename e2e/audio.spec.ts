@@ -43,7 +43,7 @@ test.describe('Playback controls', () => {
     await expect(page.locator('.timeline__track')).toBeVisible();
 
     // Playhead is visible
-    await expect(page.locator('.plasma-playhead')).toBeVisible();
+    await expect(page.locator('.loudness-meter-playhead')).toBeVisible();
 
     // Click play/pause
     await page.getByTitle('Play').click();
