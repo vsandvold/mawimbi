@@ -43,20 +43,22 @@
   container-type: size;
 }
 
-/* Playhead: playback position overlay */
+/* Playhead: loudness meter overlay centered at cursor position */
 
 .scrubber__playhead {
+  --available-height: calc(100% - var(--drawer-height, 0px));
+  --meter-height: calc(var(--available-height) * 0.4);
   position: absolute;
   top: calc(
-    var(--cursor-position) * (100% - var(--drawer-height, 0px)) - 120px
+    var(--cursor-position) * var(--available-height) - var(--meter-height) / 2
   );
   left: 0;
   right: 0;
-  height: 240px;
+  height: var(--meter-height);
   pointer-events: none;
 }
 
-.plasma-playhead {
+.loudness-meter-playhead {
   display: block;
   width: 100%;
   height: 100%;
