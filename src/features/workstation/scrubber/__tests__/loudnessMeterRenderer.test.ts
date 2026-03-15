@@ -3,6 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { computeMeterRect } from '../loudnessMeterRenderer';
 
 describe('computeMeterRect', () => {
+  it('should use 75% of canvas width', () => {
+    const canvasWidth = 1000;
+    const rect = computeMeterRect(canvasWidth, 300);
+
+    expect(rect.width).toBe(Math.round(canvasWidth * 0.75));
+  });
+
   it('should produce a 2:1 width-to-height aspect ratio', () => {
     const rect = computeMeterRect(1000, 300);
 
@@ -23,6 +30,6 @@ describe('computeMeterRect', () => {
     const rect = computeMeterRect(1000, canvasHeight);
 
     const centerY = rect.y + rect.height / 2;
-    expect(centerY).toBeCloseTo(canvasHeight / 2, 0);
+    expect(Math.abs(centerY - canvasHeight / 2)).toBeLessThanOrEqual(1);
   });
 });
