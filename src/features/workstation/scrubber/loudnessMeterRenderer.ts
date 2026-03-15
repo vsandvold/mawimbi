@@ -13,17 +13,20 @@ export type MeterRect = {
   height: number;
 };
 
+const METER_WIDTH_FRACTION = 0.75;
+const METER_ASPECT_RATIO = 2; // width:height = 2:1
+
 /**
- * Compute the meter rectangle, centered horizontally in the canvas
- * and filling most of the canvas height. Width is 30% of canvas width,
- * height is 80% of canvas height.
+ * Compute the meter rectangle with a 2:1 (width > height) aspect ratio,
+ * centered within the canvas. Width is 75% of canvas width;
+ * height is derived from the aspect ratio.
  */
 export function computeMeterRect(
   canvasWidth: number,
   canvasHeight: number,
 ): MeterRect {
-  const width = Math.round(canvasWidth * 0.3);
-  const height = Math.round(canvasHeight * 0.8);
+  const width = Math.round(canvasWidth * METER_WIDTH_FRACTION);
+  const height = Math.round(width / METER_ASPECT_RATIO);
   const x = Math.round((canvasWidth - width) / 2);
   const y = Math.round((canvasHeight - height) / 2);
   return { x, y, width, height };
