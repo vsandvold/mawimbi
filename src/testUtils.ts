@@ -1,4 +1,4 @@
-import { type Track } from './types/track';
+import { type Track } from './features/tracks/types';
 
 export function mockTrack(trackProps: Partial<Track> = {}): Track {
   return {

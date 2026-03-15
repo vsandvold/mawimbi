@@ -18,7 +18,7 @@ npm run coverage  # Tests with coverage report
 
 To run a single test file:
 ```bash
-npm test -- src/path/to/File.test.tsx
+npm test -- src/features/playback/__tests__/PlaybackService.test.ts
 ```
 
 ### GitHub CLI
@@ -49,7 +49,18 @@ Prettier runs automatically on pre-commit via Husky + lint-staged (ESLint --fix 
 
 ## Architecture
 
-The architecture is organized in layers with clear ownership boundaries. Dependencies point downward.
+The codebase uses a **package-by-feature** structure. Each feature directory co-locates its service, bridge hook, signals, components, and tests. Dependencies flow downward through the layer stack, but everything for a feature lives together.
+
+```
+src/features/<feature>/        Each feature contains its service, bridge hook,
+      │                        signals, components, and tests together
+      │
+src/shared/                    Cross-cutting utilities: hooks, UI library, layout
+      │
+src/App.tsx + index.tsx        Routing shell and bootstrap
+```
+
+Within each feature, the same layered pattern applies:
 
 ```
 UI Components & Effects    Read signals for rendering, call service functions for commands,
@@ -59,6 +70,26 @@ UI Components & Effects    Read signals for rendering, call service functions fo
       │
   Services & Signals       State machines that own signals and encapsulate audio engine
 ```
+
+### Feature Directory Layout
+
+Each feature under `src/features/` groups all related code:
+
+| Feature | What it owns |
+|---------|-------------|
+| `audio/` | AudioService (singleton bootstrap), AudioStartup, useAudioService context |
+| `playback/` | PlaybackService (state machine), usePlaybackService (bridge hook) |
+| `recording/` | RecordingService, useRecordingService, MicrophoneService, WorkletRecorder, LatencyCompensation |
+| `tracks/` | TrackService, useTrackService, MixerService, focusSignals, LoudnessNormalizer, Track types |
+| `spectrogram/` | SpectrogramCache, OfflineAnalyser, CQTAnalyser, WorkletAnalyser, Spectrogram component, renderers |
+| `classification/` | InstrumentClassificationService, useClassificationService, ML workers, essentia |
+| `transcription/` | TranscriptionService, useTranscriptionService, MelodyExtractor, workers |
+| `project/` | ProjectPage, ProjectPageHeader, projectPageReducer, projectPageEffects, ProjectStorageService |
+| `workstation/` | Workstation, Toolbar, Timeline, Mixer, Channel, Scrubber, workstationEffects (workflows), workstationSignals |
+| `home/` | HomePage, ProjectList, StorageUsage |
+| `settings/` | SettingsPage |
+
+When adding a new feature, create a new directory under `features/` and co-locate its service, bridge hook, and components. When modifying an existing feature, everything you need is in one directory.
 
 ### Design Principles
 
@@ -70,9 +101,9 @@ These principles guide architectural decisions. Apply them when adding features,
 
 - **Services as state machines.** Services (`PlaybackService`, `RecordingService`) define their own state, transitions, and guards. They reject invalid transitions silently. Components and hooks call service functions (`play()`, `arm()`, `stopRecording()`) rather than manipulating state directly.
 
-- **Bridge hooks translate signals to React.** Each signal-owning service has a corresponding bridge hook (`usePlaybackService`, `useRecordingService`, `useTrackService`, `useWorkstation`). The hook calls `useSignals()`, reads from `service.signals.*` via lazy getters, and returns plain values and action callbacks. Components never import signals directly. This keeps the reactive boundary in one place per service and makes signal refactors invisible to components.
+- **Bridge hooks translate signals to React.** Each signal-owning service has a corresponding bridge hook co-located in the same feature directory. The hook calls `useSignals()`, reads from `service.signals.*` via lazy getters, and returns plain values and action callbacks. Components never import signals directly. This keeps the reactive boundary in one place per service and makes signal refactors invisible to components.
 
-- **Workflows coordinate, services don't.** When a user action spans multiple services (e.g., recording stop needs to end the recording, create a track, and pause playback), the workflow hook (`useMicrophone`, `useCountIn`) coordinates those calls in sequence. Services stay focused on their own domain. Don't add a reactive intermediary when a direct function call in the workflow is simpler and more readable.
+- **Workflows coordinate, services don't.** When a user action spans multiple services (e.g., recording stop needs to end the recording, create a track, and pause playback), the workflow hook (`useMicrophone`, `useCountIn`) in `workstation/workstationEffects.ts` coordinates those calls in sequence. Services stay focused on their own domain. Don't add a reactive intermediary when a direct function call in the workflow is simpler and more readable.
 
 - **Single responsibility per module.** Each module does one thing. `useMicrophone` manages the full recording lifecycle — starting/stopping the audio engine, creating tracks, transitioning recording state, and pausing playback on completion. When a module accumulates unrelated concerns, split it. But don't split a cohesive workflow into pieces just because it touches multiple services — that adds indirection without adding clarity.
 
@@ -82,74 +113,70 @@ These principles guide architectural decisions. Apply them when adding features,
 
 - **Reduce duplication when safe.** When the same logic appears in multiple code paths (e.g., result mapping, logging, state transitions), extract it into a helper — but only when the abstraction is straightforward and the risk of introducing bugs is low. Don't tolerate copy-paste code that drifts apart silently. Conversely, don't force dissimilar code into a shared abstraction just because it looks similar on the surface.
 
-### Services (`src/services/`)
+- **Co-locate by feature.** Service, bridge hook, signals, components, and tests for a feature live in the same directory. Cross-feature imports use relative paths (`../../playback/PlaybackService`). Shared utilities live in `src/shared/`. When in doubt about where code belongs, put it with the feature that owns the state it reads or writes.
 
-Services own state as private signals, expose plain getters for non-reactive reads, and provide a `signals` accessor for bridge hooks. They define valid transitions and guard against invalid ones.
+### Services
 
-**PlaybackService** — Owns the playback state machine and transport signals.
+Services own state as private signals, expose plain getters for non-reactive reads, and provide a `signals` accessor for bridge hooks. They define valid transitions and guard against invalid ones. Each service lives in its feature directory alongside its bridge hook.
+
+**PlaybackService** (`features/playback/`) — Owns the playback state machine and transport signals.
 - State machine: `stopped → playing ⇄ paused → stopped`
 - Signals owned (private): `playbackState`, `transportTime`, `totalTime`, `loudness`, `isPlaying`
 - Plain getters: `playbackState`, `transportTime`, `totalTime`, `loudness`, `isPlaying`
 - Public API: `play()`, `pause()`, `stop()`, `togglePlayback()`, `rewind()`, `seekTo()`
 - Auto-rewinds when playing from end of timeline
 
-**RecordingService** — Owns the recording state machine, count-in signal, and microphone.
+**RecordingService** (`features/recording/`) — Owns the recording state machine, count-in signal, and microphone.
 - State machine: `idle → armed → recording → idle`
 - Signals owned (private): `recordingState`, `isCountingIn`, `isRecording`
 - Plain getters: `recordingState`, `isCountingIn`, `isRecording`
-- Encapsulates `MicrophoneService` (private) — Tone.UserMedia wrapper for microphone input
-- Encapsulates `WorkletRecorder` (private) — AudioWorklet-based PCM capture; falls back to `Tone.Recorder` if unavailable
+- Encapsulates `MicrophoneService` (private, same directory) — Tone.UserMedia wrapper for microphone input
+- Encapsulates `WorkletRecorder` (private, same directory) — AudioWorklet-based PCM capture; falls back to `Tone.Recorder` if unavailable
 - Public API: `arm()`, `disarm()`, `startRecording()`, `stopRecording()`, `toggleArm()`, `startCountIn()`, `stopCountIn()`, `isTransportLocked()`, `prepareMicrophone()`, `closeMicrophone()`, `getLoudness()`, `getMicrophoneSource()`
 - The `armed` state models the GarageBand workflow: arm, position, then play to record
 
-**TrackService** — Owns track creation, per-track signals, and the mixer.
+**TrackService** (`features/tracks/`) — Owns track creation, per-track signals, and the mixer.
 - Signals owned (private): `mutedTracks` (computed from per-track mute/solo)
 - Plain getter: `mutedTracks`
-- Encapsulates `MixerService` (private) — Tone.Player + Tone.Channel chains per track
+- Encapsulates `MixerService` (private, same directory) — Tone.Player + Tone.Channel chains per track
 - Per-track `volume`/`mute`/`solo` signals are auto-synced to mixer channels via internal effects
+- `focusSignals.ts` (same directory) — Focused track IDs signal module
+- `types.ts` (same directory) — `Track`, `TrackColor`, `TrackId` type definitions
 - Public API: `createTrack()`, `createRecordedTrack()`, `getSignals()`, `createSignals()`, `disposeSignals()`, `getLoudness()`, `retrieveChannel()`, `recreateChannel()`, `deleteChannel()`
 
-**AudioService** — Singleton that bootstraps the Tone.js audio context and creates sub-services.
+**AudioService** (`features/audio/`) — Singleton that bootstraps the Tone.js audio context and creates sub-services.
 - Creates and owns: `PlaybackService`, `RecordingService`, `TrackService`, `SpectrogramCache`
 - Configures shared Tone.js context (interactive latency, reduced look-ahead for recording)
 - Static: `startAudio()` (context startup on user gesture), `getInstance()` (singleton access)
 
 Audio flow: upload → decode `AudioBuffer` + create Blob URL → `TrackService.createTrack()` → `Tone.Transport` controls playback.
 
-### Signals (`src/signals/`)
+### Signals
 
-The `signals/` directory holds cross-cutting signal modules that don't belong to a class-based service. Each module keeps its raw signal private and exports a `signals` accessor (for hooks), plain getter functions (for tests/workflows), and mutation functions.
+Signal modules that don't belong to a class-based service live in the feature directory that owns them. Each module keeps its raw signal private and exports a `signals` accessor (for hooks), plain getter functions (for tests/workflows), and mutation functions.
 
-- **`focusSignals.ts`** — Focused track IDs. Exports `getFocusedTracks()`, `focusTrack()`, `unfocusTrack()`, and `signals.focusedTracks`.
-- **`workstationSignals.ts`** — Zoom level. Exports `getPixelsPerSecond()`, `zoomIn()`, `zoomOut()`, `setZoom()`, and `signals.pixelsPerSecond`.
+- **`features/tracks/focusSignals.ts`** — Focused track IDs. Exports `getFocusedTracks()`, `focusTrack()`, `unfocusTrack()`, and `signals.focusedTracks`.
+- **`features/workstation/workstationSignals.ts`** — Zoom level. Exports `getPixelsPerSecond()`, `zoomIn()`, `zoomOut()`, `setZoom()`, and `signals.pixelsPerSecond`.
 
-### Bridge Hooks (`src/hooks/use*Service.ts`, `useWorkstation.ts`)
+### Bridge Hooks
 
-Bridge hooks are the boundary between the signal-based service layer and React components. Each hook calls `useSignals()`, reads from its service's `signals` accessor via lazy getters, and returns plain values and action callbacks. Components never import signals directly.
+Bridge hooks are the boundary between the signal-based service layer and React components. Each hook lives in its feature directory next to the service it bridges. The hook calls `useSignals()`, reads from its service's `signals` accessor via lazy getters, and returns plain values and action callbacks. Components never import signals directly.
 
-- **`usePlaybackService`** — Bridges PlaybackService: `playbackState`, `isPlaying`, `transportTime`, `totalTime`, `loudness` + action callbacks.
-- **`useRecordingService`** — Bridges RecordingService: `recordingState`, `isCountingIn`, `isRecording` + action callbacks.
-- **`useTrackService`** — Bridges TrackService + focusSignals: `mutedTracks`, `focusedTracks` + track creation/retrieval callbacks.
-- **`useWorkstation`** — Bridges workstationSignals: `pixelsPerSecond`, `isMaxZoom`, `isMinZoom` + zoom actions.
+- **`features/playback/usePlaybackService`** — Bridges PlaybackService: `playbackState`, `isPlaying`, `transportTime`, `totalTime`, `loudness` + action callbacks.
+- **`features/recording/useRecordingService`** — Bridges RecordingService: `recordingState`, `isCountingIn`, `isRecording` + action callbacks.
+- **`features/tracks/useTrackService`** — Bridges TrackService + focusSignals: `mutedTracks`, `focusedTracks` + track creation/retrieval callbacks.
+- **`features/workstation/useWorkstation`** — Bridges workstationSignals: `pixelsPerSecond`, `isMaxZoom`, `isMinZoom` + zoom actions.
 
 ### State Management
 
-- **Project state** (`projectPageReducer.ts`): Track list, track metadata (color, filename). Dispatch via `useProjectDispatch`.
-- **Workstation state**: `isMixerOpen` and `isRecording` are local `useState` in `Workstation.tsx`. `pixelsPerSecond` (zoom level) is a signal.
+- **Project state** (`features/project/projectPageReducer.ts`): Track list, track metadata (color, filename). Dispatch via `useProjectDispatch`.
+- **Workstation state**: `isMixerOpen` and `isRecording` are local `useState` in `Workstation.tsx`. `pixelsPerSecond` (zoom level) is a signal in `features/workstation/workstationSignals.ts`.
 - **Playback/recording state**: Owned by PlaybackService and RecordingService (see above).
 - **Track signals**: Per-track volume, mute, solo owned by `TrackService`. Auto-synced to mixer channels.
 
-### Component Structure
-
-- `src/components/home/` — Landing page with project creation
-- `src/components/project/` — Project page container, header with file upload
-- `src/components/workstation/` — Core editor: `Timeline`, `Waveform`, `Scrubber`, `Toolbar`, `Mixer`, `Channel`
-- `src/components/dropzone/` — Drag-and-drop file upload
-- `src/hooks/` — Bridge hooks and shared utility hooks
-
 ### Routing
 
-React Router v7 (library mode) with three routes: Home (`/`), Project (`/project`), and a 404 catch-all.
+React Router v7 (library mode) with three routes: Home (`/`), Project (`/project`), and a 404 catch-all. Route definitions in `src/App.tsx`.
 
 ## File Map
 
@@ -158,50 +185,61 @@ Key source files and their responsibilities:
 ```
 src/
 ├── index.tsx                          # Bootstrap: Ant Design dark theme + AudioService.startAudio() + BrowserRouter
+├── App.tsx                            # Route definitions: /, /project, 404
 ├── browserSupport.tsx                 # Context for browser capability detection (webkitOfflineAudioContext)
 ├── setupTests.ts                      # Vitest/RTL global mocks: tone, wavesurfer.js, react-router-dom
 ├── testUtils.ts                       # Shared test utilities
 │
-├── services/
-│   ├── AudioService.ts                # Singleton: bootstraps Tone.js context, creates sub-services
-│   ├── PlaybackService.ts             # Playback state machine (stopped/playing/paused); owns playbackState,
-│   │                                  #   transportTime, totalTime, loudness signals
-│   ├── RecordingService.ts            # Recording state machine (idle/armed/recording); owns recordingState,
-│   │                                  #   isCountingIn signals; encapsulates MicrophoneService
-│   ├── TrackService.ts                # Track creation, per-track signals, audio sources;
-│   │                                  #   encapsulates MixerService
-│   ├── MixerService.ts                # Tone.Player + Tone.Channel chain per track (private to TrackService)
-│   ├── MicrophoneService.ts           # Tone.UserMedia wrapper + meter (private to RecordingService)
-│   ├── WorkletRecorder.ts             # Main-thread wrapper for AudioWorklet PCM capture
-│   ├── RecordingProcessor.ts          # AudioWorkletProcessor: captures PCM chunks on audio thread
-│   ├── LatencyCompensation.ts         # Round-trip latency estimation for recording alignment
-│   └── OfflineAnalyser.ts             # OfflineAudioContext + AnalyserNode for spectrogram data
-│
-├── signals/
-│   ├── focusSignals.ts                # Focused track IDs: getFocusedTracks(), focusTrack(), signals.focusedTracks
-│   └── workstationSignals.ts          # Zoom level: getPixelsPerSecond(), zoomIn/Out(), signals.pixelsPerSecond
-│
-├── hooks/
-│   ├── usePlaybackService.ts          # Bridge hook: PlaybackService signals → React components
-│   ├── useRecordingService.ts         # Bridge hook: RecordingService signals → React components
-│   ├── useTrackService.ts             # Bridge hook: TrackService + focusSignals → React components
-│   ├── useWorkstation.ts              # Bridge hook: workstationSignals → React components
-│   ├── useAudioService.tsx            # Context hook providing AudioService singleton
-│   ├── useAnimationFrame.ts           # requestAnimationFrame wrapper
-│   ├── useKeypress.tsx                # Window keyup listener (default: spacebar → play/pause)
-│   ├── useDebounced.tsx               # Trailing debounce wrapper
-│   ├── useThrottled.tsx               # Leading throttle wrapper
-│   ├── useTimelineZoom.ts             # Timeline zoom interaction
-│   ├── useTrackVolume.ts              # Track volume control
-│   ├── useContainerDimensions.ts      # Container width/height measurement
-│   └── useUndoReducer.ts             # Undo/redo reducer wrapper
-│
-├── components/
-│   ├── App.tsx                        # Route definitions: /, /project, 404
-│   ├── message.ts                     # Ant Design message wrapper with key-based deduplication
-│   ├── layout/PageLayout.tsx          # Layout grid: PageLayout, PageHeader, PageContent
-│   ├── fullscreen/Fullscreen.tsx      # react-full-screen library wrapper
-│   ├── dropzone/Dropzone.tsx          # react-dropzone wrapper for file upload
+├── features/
+│   ├── audio/
+│   │   ├── AudioService.ts            # Singleton: bootstraps Tone.js context, creates sub-services
+│   │   ├── AudioStartup.tsx           # Audio context startup on user gesture
+│   │   └── useAudioService.tsx        # Context hook providing AudioService singleton
+│   │
+│   ├── playback/
+│   │   ├── PlaybackService.ts         # Playback state machine (stopped/playing/paused); owns playbackState,
+│   │   │                              #   transportTime, totalTime, loudness signals
+│   │   └── usePlaybackService.ts      # Bridge hook: PlaybackService signals → React
+│   │
+│   ├── recording/
+│   │   ├── RecordingService.ts        # Recording state machine (idle/armed/recording); owns recordingState,
+│   │   │                              #   isCountingIn signals; encapsulates MicrophoneService
+│   │   ├── useRecordingService.ts     # Bridge hook: RecordingService signals → React
+│   │   ├── MicrophoneService.ts       # Tone.UserMedia wrapper + meter (private to RecordingService)
+│   │   ├── WorkletRecorder.ts         # Main-thread wrapper for AudioWorklet PCM capture
+│   │   ├── RecordingProcessor.ts      # AudioWorkletProcessor: captures PCM chunks on audio thread
+│   │   └── LatencyCompensation.ts     # Round-trip latency estimation for recording alignment
+│   │
+│   ├── tracks/
+│   │   ├── TrackService.ts            # Track creation, per-track signals, audio sources;
+│   │   │                              #   encapsulates MixerService
+│   │   ├── useTrackService.ts         # Bridge hook: TrackService + focusSignals → React
+│   │   ├── MixerService.ts            # Tone.Player + Tone.Channel chain per track (private to TrackService)
+│   │   ├── focusSignals.ts            # Focused track IDs: getFocusedTracks(), focusTrack()
+│   │   ├── LoudnessNormalizer.ts      # Volume normalization for uploaded tracks
+│   │   └── types.ts                   # Track, TrackColor, TrackId type definitions
+│   │
+│   ├── spectrogram/
+│   │   ├── SpectrogramCache.ts        # In-memory + IndexedDB cache for spectrogram data
+│   │   ├── OfflineAnalyser.ts         # OfflineAudioContext + AnalyserNode for spectrogram data
+│   │   ├── CQTAnalyser.ts            # Constant-Q Transform analysis
+│   │   ├── WorkletAnalyser.ts         # AudioWorklet-based live analysis
+│   │   ├── Spectrogram.tsx            # Spectrogram frequency data visualization component
+│   │   ├── spectrogramRenderer.ts     # Canvas rendering logic for spectrogram
+│   │   ├── spectrogram.worker.ts      # Web Worker for background analysis
+│   │   └── useSpectrogramCache.ts     # Hook for spectrogram cache access
+│   │
+│   ├── classification/
+│   │   ├── InstrumentClassificationService.ts  # ML instrument classification
+│   │   ├── useClassificationService.ts         # Bridge hook for classification results
+│   │   ├── classification.worker.ts            # Web Worker for ML inference
+│   │   └── instrumentLabels.ts                 # Human-readable instrument names
+│   │
+│   ├── transcription/
+│   │   ├── TranscriptionService.ts    # ML audio transcription
+│   │   ├── useTranscriptionService.ts # Bridge hook for transcription results
+│   │   ├── MelodyExtractor.ts         # Melody extraction from audio
+│   │   └── types.ts                   # Transcription, TranscriptionSegment types
 │   │
 │   ├── project/
 │   │   ├── ProjectPage.tsx            # Provides ProjectDispatch context + Fullscreen wrapper
@@ -209,22 +247,48 @@ src/
 │   │   ├── projectPageReducer.ts      # Track list state: ADD_TRACK, DELETE_TRACK, MOVE_TRACK
 │   │   ├── projectPageEffects.ts      # useUploadFile (File → AudioService.createTrack), useFullscreen
 │   │   ├── useProjectReducer.tsx      # useReducer wrapper with initial state
-│   │   └── useProjectDispatch.tsx     # Context consumer hook for project dispatch
+│   │   ├── useProjectDispatch.tsx     # Context consumer hook for project dispatch
+│   │   └── ProjectStorageService.ts   # IndexedDB persistence for projects and audio data
 │   │
-│   └── workstation/
-│       ├── Workstation.tsx            # Editor layout; wires effect hooks
-│       ├── Toolbar.tsx                # Playback/record/rewind/mixer toggle controls
-│       ├── Timeline.tsx               # Track list: renders Spectrogram per track (memoized)
-│       ├── Mixer.tsx                  # @dnd-kit drag-and-drop container for track reordering
-│       ├── Channel.tsx                # Single track controls: mute/solo buttons, volume slider
-│       ├── EmptyTimeline.tsx          # Placeholder shown when no tracks exist
-│       ├── workstationEffects.ts      # useSpacebarPlaybackToggle, useCountIn, useMicrophone, useMixerHeight,
-│       │                              #   useTotalTime
-│       ├── scrubber/Scrubber.tsx      # Playhead indicator + scrubbing interaction
-│       └── spectrogram/Spectrogram.tsx # Spectrogram frequency data visualization
+│   ├── workstation/
+│   │   ├── Workstation.tsx            # Editor layout; wires effect hooks
+│   │   ├── workstationEffects.ts      # Workflow hooks: useCountIn, useMicrophone,
+│   │   │                              #   useSpacebarPlaybackToggle, useTotalTime
+│   │   ├── workstationSignals.ts      # Zoom level: getPixelsPerSecond(), zoomIn/Out()
+│   │   ├── useWorkstation.ts          # Bridge hook: workstationSignals → React
+│   │   ├── Toolbar.tsx                # Playback/record/rewind/mixer toggle controls
+│   │   ├── Timeline.tsx               # Track list: renders Spectrogram per track (memoized)
+│   │   ├── Mixer.tsx                  # @dnd-kit drag-and-drop container for track reordering
+│   │   ├── Channel.tsx                # Single track controls: mute/solo buttons, volume slider
+│   │   ├── useChannelControls.ts      # Per-track signal access for Channel
+│   │   ├── EmptyTimeline.tsx          # Placeholder shown when no tracks exist
+│   │   └── scrubber/
+│   │       └── Scrubber.tsx           # Playhead indicator + scrubbing interaction
+│   │
+│   ├── home/
+│   │   ├── HomePage.tsx               # Landing page with project list
+│   │   ├── ProjectList.tsx            # Saved projects list
+│   │   └── StorageUsage.tsx           # Storage quota display
+│   │
+│   └── settings/
+│       └── SettingsPage.tsx           # App settings
 │
-└── types/
-    └── track.ts                       # Track, TrackColor type definitions
+└── shared/
+    ├── hooks/
+    │   ├── useAnimationFrame.ts       # requestAnimationFrame wrapper
+    │   ├── useKeypress.tsx            # Window keyup listener (default: spacebar → play/pause)
+    │   ├── useDebounced.tsx           # Trailing debounce wrapper
+    │   ├── useThrottled.tsx           # Leading throttle wrapper
+    │   ├── useTimelineZoom.ts         # Timeline zoom interaction
+    │   ├── useTrackVolume.ts          # Track volume control
+    │   ├── useContainerDimensions.ts  # Container width/height measurement
+    │   └── useUndoReducer.ts          # Undo/redo reducer wrapper
+    ├── ui/                            # ShadCN UI component library (button, slider, dialog, etc.)
+    ├── layout/PageLayout.tsx          # Layout grid: PageLayout, PageHeader, PageContent
+    ├── dropzone/Dropzone.tsx          # react-dropzone wrapper for file upload
+    ├── fullscreen/Fullscreen.tsx      # react-full-screen library wrapper
+    ├── log/                           # LogService, useLogService, LogOverlay
+    └── message.ts                     # Ant Design message wrapper with key-based deduplication
 ```
 
 ## Non-Obvious Patterns
@@ -291,7 +355,7 @@ Tests should use plain getters (e.g., `service.playbackState` not `service.signa
 - Functional components only, with `React.memo` for performance-sensitive components
 - Prettier with single quotes (`singleQuote: true`)
 - 2-space indentation, LF line endings (see `.editorconfig`)
-- Tests co-located in `__tests__/` directories next to components
+- Tests co-located in `__tests__/` directories within each feature
 - Reducer actions use `CONSTANT_CASE`
 - Component files use PascalCase; hooks use `use` prefix
 
