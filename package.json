@@ -95,7 +95,7 @@
     "singleQuote": true
   },
   "devDependencies": {
-    "@playwright/test": "^1.58.2",
+    "@playwright/test": "^1.56.1",
     "@types/throttle-debounce": "^5.0.2",
     "@vitest/coverage-v8": "^4.0.18",
     "babel-plugin-react-compiler": "^1.0.0",
