@@ -1,11 +1,11 @@
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { BrowserSupportProvider } from './browserSupport';
-import App from './components/App';
-import AudioStartup from './components/AudioStartup';
-import { Toaster } from './components/ui/sonner';
-import { ThemeProvider } from './hooks/useTheme';
-import LogService from './services/LogService';
+import App from './App';
+import AudioStartup from './features/audio/AudioStartup';
+import { Toaster } from './shared/ui/sonner';
+import { ThemeProvider } from './shared/hooks/useTheme';
+import LogService from './shared/log/LogService';
 import './index.css';
 
 // Intercept console methods before any logging occurs
