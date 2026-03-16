@@ -17,6 +17,10 @@
   min-height: 0;
   perspective: var(--timeline-perspective);
   /* perspective-origin is set via inline style (dynamic, drawer-aware) */
+  /* Disable browser touch gestures so the viewport touch-scroll proxy can
+     translate swipe gestures into programmatic scroll on the tilt container.
+     The 3D tilt transform breaks native touch scrolling on mobile devices. */
+  touch-action: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

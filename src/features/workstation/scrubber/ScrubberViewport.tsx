@@ -4,6 +4,8 @@ type ScrubberViewportProps = PropsWithChildren<{
   style: CSSProperties;
   onClick: (e: React.MouseEvent) => void;
   onWheel: (e: React.WheelEvent) => void;
+  onTouchStart: (e: React.TouchEvent) => void;
+  onTouchMove: (e: React.TouchEvent) => void;
 }>;
 
 /**
@@ -15,13 +17,17 @@ type ScrubberViewportProps = PropsWithChildren<{
  * to fit the reduced viewport — without touching the child tilt
  * container's own 3D transform.
  *
- * Also catches click and wheel events in the dead-zone corners outside
- * the tilted scroll container's trapezoid.
+ * Also catches click, wheel, and touch events in the dead-zone corners
+ * outside the tilted scroll container's trapezoid. Touch events are
+ * translated into programmatic scroll on the tilt container, since the
+ * 3D tilt transform breaks native touch scrolling on mobile devices.
  */
 const ScrubberViewport = ({
   style,
   onClick,
   onWheel,
+  onTouchStart,
+  onTouchMove,
   children,
 }: ScrubberViewportProps) => {
   return (
@@ -30,6 +36,8 @@ const ScrubberViewport = ({
       style={style}
       onClick={onClick}
       onWheel={onWheel}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
     >
       {children}
     </div>

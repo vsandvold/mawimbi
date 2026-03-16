@@ -46,12 +46,17 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     handleWheel,
     handleTouchMove,
     handleViewportWheel,
+    handleViewportTouchStart,
+    handleViewportTouchMove,
+    isTouchScrollingRef,
     syncScrollToTime,
   } = useScrubberScroll({ scrollRef, playheadRef, pixelsPerSecond });
 
   useImperativeHandle(ref, () => ({ syncScrollToTime }), [syncScrollToTime]);
 
   const handleTimelineClick = () => {
+    // Suppress click synthesized after a touch-scroll swipe
+    if (isTouchScrollingRef.current) return;
     if (recording.isCountingIn || recording.isActivelyRecording) {
       onStopRecording();
       return;
@@ -62,6 +67,7 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
   // Click handler for the viewport wrapper — catches clicks in the
   // dead-zone corners outside the tilted scroll container's trapezoid.
   const handleViewportClick = (e: React.MouseEvent) => {
+    if (isTouchScrollingRef.current) return;
     if (scrollRef.current?.contains(e.target as Node)) return;
     handleTimelineClick();
   };
@@ -83,6 +89,8 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
         style={viewportStyle}
         onClick={handleViewportClick}
         onWheel={handleViewportWheel}
+        onTouchStart={handleViewportTouchStart}
+        onTouchMove={handleViewportTouchMove}
       >
         <ScrubberTilt
           ref={tiltRef}
