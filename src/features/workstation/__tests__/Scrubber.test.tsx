@@ -227,6 +227,46 @@ it('cancels count-in when phantom scroller is clicked during count-in', () => {
   expect(playbackService.isPlaying).toBe(true);
 });
 
+it('pauses playback when pointer-dragging the phantom scroller during playback animation', () => {
+  vi.spyOn(playbackService, 'getEngineTime').mockReturnValue(1.0);
+  vi.spyOn(trackService, 'getLoudness').mockReturnValue(0);
+
+  let rafCallback: FrameRequestCallback = () => {};
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+    rafCallback = cb;
+    return 1;
+  });
+
+  playbackService.play();
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+
+  const phantom = container.querySelector('.scrubber__phantom')!;
+
+  // Mock scroll dimensions so the animation loop doesn't trigger rewind
+  Object.defineProperty(phantom, 'scrollHeight', {
+    value: 2000,
+    configurable: true,
+  });
+  Object.defineProperty(phantom, 'clientHeight', {
+    value: 500,
+    configurable: true,
+  });
+
+  // The animation loop sets isProgrammaticScrollRef = true when updating
+  // scroll position. Without pointer-down tracking, a subsequent user drag
+  // scroll event would be mistaken for a programmatic scroll and ignored.
+  act(() => {
+    rafCallback(0);
+  });
+
+  // Simulate a pointer drag: pointerdown → scroll
+  fireEvent.pointerDown(phantom);
+  fireEvent.scroll(phantom);
+
+  expect(playbackService.isPlaying).toBe(false);
+});
+
 it('does not pause playback when phantom scroller is scrolled during recording', () => {
   playbackService.play();
   recordingService.arm();

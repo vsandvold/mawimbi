@@ -51,6 +51,7 @@ export function useScrubberScroll({
 
   const isProgrammaticScrollRef = useRef(false);
   const shouldResumeRef = useRef(false);
+  const isPointerDownRef = useRef(false);
 
   /**
    * Ensure the phantom scroller's spacer height matches the tilt container's
@@ -197,6 +198,17 @@ export function useScrubberScroll({
     }
   };
 
+  // Pointer-down indicates a touch/mouse drag is starting. While the
+  // pointer is down, all scroll events are user-initiated — the
+  // programmatic flag from the animation loop must be ignored.
+  const handlePointerDown = () => {
+    isPointerDownRef.current = true;
+  };
+
+  const handlePointerUp = () => {
+    isPointerDownRef.current = false;
+  };
+
   // Wheel events always indicate user interaction — clear the programmatic
   // flag so the subsequent onscroll handler treats it as a user scroll.
   // Without this, the animation loop's programmatic flag could race with
@@ -213,6 +225,12 @@ export function useScrubberScroll({
   const handleScroll = () => {
     syncSpacerHeight();
     syncTiltScroll();
+
+    // When a pointer is down, the user is dragging — override the
+    // programmatic flag so the scroll is treated as user-initiated.
+    if (isPointerDownRef.current) {
+      isProgrammaticScrollRef.current = false;
+    }
 
     if (isProgrammaticScrollRef.current) {
       isProgrammaticScrollRef.current = false;
@@ -233,6 +251,8 @@ export function useScrubberScroll({
   );
 
   return {
+    handlePointerDown,
+    handlePointerUp,
     handleWheel,
     handleScroll,
     syncScrollToTime,
