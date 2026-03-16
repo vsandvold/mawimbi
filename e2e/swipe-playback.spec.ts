@@ -13,11 +13,12 @@ async function swipeTimeline(
   page: import('@playwright/test').Page,
   deltaY: number,
 ) {
-  // Target the perspective wrapper — its bounding box is not distorted by the
-  // child's 3D transform, so the center is always a reliable hit target.
-  const wrapper = page.locator('.scrubber__viewport');
-  const box = await wrapper.boundingBox();
-  if (!box) throw new Error('Timeline not visible');
+  // Target the phantom scroller — it's an untransformed rectangle that
+  // captures all scroll interactions. Unlike the old viewport wrapper,
+  // its bounding box is not distorted by 3D transforms.
+  const phantom = page.locator('.scrubber__phantom');
+  const box = await phantom.boundingBox();
+  if (!box) throw new Error('Phantom scroller not visible');
 
   const startX = Math.round(box.x + box.width / 2);
   const startY = Math.round(box.y + box.height / 2);
@@ -64,11 +65,6 @@ test.describe('Swipe to scrub timeline during playback', () => {
     }
     await expect(page.locator('.fullscreen__overlay')).not.toBeVisible();
   });
-
-  // Swipe-during-playback test removed: touch hit-testing is unreliable
-  // under 3D perspective with perspective-origin: center bottom — touch
-  // coordinates at the wrapper center can miss the scroll container's
-  // trapezoidal hit-test area.
 
   test('swiping while paused does not auto-resume', async ({ page }) => {
     await expect(page.getByTitle('Play')).toBeVisible();

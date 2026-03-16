@@ -13,12 +13,10 @@ async function wheelScrollTimeline(
   page: import('@playwright/test').Page,
   deltaY: number,
 ) {
-  // Hover the perspective wrapper instead of the transformed scroll container.
-  // The 3D perspective tilt can project the scroll container's center outside
-  // the viewport, making Playwright's hover() fail. The perspective wrapper
-  // is not transformed and forwards wheel events to the scroll container.
-  const perspective = page.locator('.scrubber__viewport');
-  await perspective.hover();
+  // Hover the phantom scroller — it's an untransformed rectangle that
+  // captures all scroll interactions and forwards them to the tilt container.
+  const phantom = page.locator('.scrubber__phantom');
+  await phantom.hover();
   await page.mouse.wheel(0, deltaY);
 }
 
@@ -32,8 +30,8 @@ test.describe('Drag and scroll timeline to seek while playing', () => {
   test('scrolling during playback pauses, resumes, and updates scroll position', async ({
     page,
   }) => {
-    const timeline = page.locator('.scrubber__tilt');
-    const initialScrollTop = await timeline.evaluate((el) => el.scrollTop);
+    const phantom = page.locator('.scrubber__phantom');
+    const initialScrollTop = await phantom.evaluate((el) => el.scrollTop);
 
     // Start playback
     await page.getByTitle('Play').click();
@@ -51,18 +49,18 @@ test.describe('Drag and scroll timeline to seek while playing', () => {
     // Verify scroll position changed (inverted scroll: playback decreases scrollTop)
     await page.getByTitle('Pause').click();
     await page.waitForTimeout(100);
-    const scrollTop = await timeline.evaluate((el) => el.scrollTop);
+    const scrollTop = await phantom.evaluate((el) => el.scrollTop);
     expect(scrollTop).not.toBe(initialScrollTop);
   });
 
   test('scrolling the timeline while paused does not auto-resume', async ({
     page,
   }) => {
-    const timeline = page.locator('.scrubber__tilt');
+    const phantom = page.locator('.scrubber__phantom');
 
     await expect(page.getByTitle('Play')).toBeVisible();
 
-    await timeline.evaluate((el) => {
+    await phantom.evaluate((el) => {
       el.scrollTop = 400;
     });
     await page.waitForTimeout(400);

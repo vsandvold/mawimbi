@@ -17,10 +17,7 @@
   min-height: 0;
   perspective: var(--timeline-perspective);
   /* perspective-origin is set via inline style (dynamic, drawer-aware) */
-  /* Disable browser touch gestures so the viewport touch-scroll proxy can
-     translate swipe gestures into programmatic scroll on the tilt container.
-     The 3D tilt transform breaks native touch scrolling on mobile devices. */
-  touch-action: none;
+  pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -29,7 +26,7 @@
   }
 }
 
-/* ScrubberTilt: 3D perspective tilt + scroll container */
+/* ScrubberTilt: 3D perspective tilt + passive scroll container */
 
 .scrubber__tilt {
   /* Fill the viewport container. The inline transform tilts and scales
@@ -40,11 +37,37 @@
   /* Constrain height so content scrolls instead of expanding the container */
   min-height: 0;
   overflow-y: scroll;
+  pointer-events: none;
+  /* Hide scrollbar — scroll interaction is handled by PhantomScroller.
+     The tilt container is kept scrollable so child components (spectrogram)
+     can read scrollTop to determine their viewport offset. */
+  scrollbar-width: none;
   /* Size container for cqh units in .timeline padding.
-     The timeline padding must reference the scroll container's height
+     The timeline padding must reference this container's height
      (not the viewport) so the content boundary at time=0 aligns with
      the cursor position (which is a % of the scrubber height). */
   container-type: size;
+}
+
+.scrubber__tilt::-webkit-scrollbar {
+  display: none;
+}
+
+/* PhantomScroller: invisible scroll overlay for native scroll physics */
+
+.scrubber__phantom {
+  position: absolute;
+  inset: 0;
+  overflow-y: scroll;
+  z-index: 1;
+  /* Allow native vertical scroll + pinch-zoom handled by JS */
+  touch-action: pan-y;
+  /* Hide scrollbar — the phantom scroller is invisible */
+  scrollbar-width: none;
+}
+
+.scrubber__phantom::-webkit-scrollbar {
+  display: none;
 }
 
 /* Playhead: loudness meter overlay centered at cursor position */

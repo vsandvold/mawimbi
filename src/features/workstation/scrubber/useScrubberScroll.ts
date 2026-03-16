@@ -1,25 +1,24 @@
 import {
   type RefObject,
-  type TouchEvent as ReactTouchEvent,
-  type WheelEvent as ReactWheelEvent,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
+  useState,
 } from 'react';
 import { useAudioService } from '../../audio/useAudioService';
 import { usePlaybackService } from '../../playback/usePlaybackService';
 import { useRecordingService } from '../../recording/useRecordingService';
 import { useTrackService } from '../../tracks/useTrackService';
 import useDebounced from '../../../shared/hooks/useDebounced';
-import { useTimelineZoom } from '../../../shared/hooks/useTimelineZoom';
 import FrequencyVisualizer from '../../spectrogram/FrequencyVisualizer';
 import { type PlayheadHandle } from './Playhead';
 
 const SCROLL_DEBOUNCE_MS = 200;
-const SWIPE_THRESHOLD_PX = 5;
 
 type UseScrubberScrollOptions = {
-  scrollRef: RefObject<HTMLDivElement | null>;
+  phantomRef: RefObject<HTMLDivElement | null>;
+  tiltRef: RefObject<HTMLDivElement | null>;
   playheadRef: RefObject<PlayheadHandle | null>;
   pixelsPerSecond: number;
 };
@@ -28,13 +27,19 @@ type UseScrubberScrollOptions = {
  * Manages scroll-to-time synchronization, the playback animation loop,
  * and scroll event handlers for the scrubber.
  *
+ * Scroll interactions are captured by the PhantomScroller (an invisible,
+ * untransformed overlay with native scroll physics). Scroll position is
+ * synced to the tilt container's scrollTop so child components (spectrogram)
+ * can read the current scroll offset.
+ *
  * During playback, an animation loop reads the audio engine time and
- * updates both the scroll position and playhead visualization each frame.
+ * updates both the phantom and tilt scroll positions each frame.
  * When the user scrolls manually, playback pauses and resumes after a
  * debounced seek.
  */
 export function useScrubberScroll({
-  scrollRef,
+  phantomRef,
+  tiltRef,
   playheadRef,
   pixelsPerSecond,
 }: UseScrubberScrollOptions) {
@@ -46,22 +51,51 @@ export function useScrubberScroll({
 
   const isProgrammaticScrollRef = useRef(false);
   const shouldResumeRef = useRef(false);
-  const { isPinchingRef } = useTimelineZoom(scrollRef);
+
+  /**
+   * Ensure the phantom scroller's spacer height matches the tilt container's
+   * scrollHeight. This must happen synchronously before setting scrollTop
+   * so the phantom has the correct scrollable range. React state updates
+   * for spacer height may lag behind DOM mutations (e.g. recording
+   * spectrogram growth), so we patch the spacer directly.
+   */
+  const syncSpacerHeight = useCallback(() => {
+    const phantom = phantomRef.current;
+    const tilt = tiltRef.current;
+    if (!phantom || !tilt) return;
+
+    const spacer = phantom.firstElementChild as HTMLElement | null;
+    if (spacer && tilt.scrollHeight !== phantom.scrollHeight) {
+      spacer.style.height = `${tilt.scrollHeight}px`;
+    }
+  }, [phantomRef, tiltRef]);
+
+  /** Sync the tilt container's scrollTop to match the phantom scroller. */
+  const syncTiltScroll = useCallback(() => {
+    const phantom = phantomRef.current;
+    const tilt = tiltRef.current;
+    if (phantom && tilt) {
+      tilt.scrollTop = phantom.scrollTop;
+    }
+  }, [phantomRef, tiltRef]);
 
   const setScrollPosition = useCallback(
     (time: number) => {
-      const el = scrollRef.current;
-      if (el) {
-        const maxScrollTop = el.scrollHeight - el.clientHeight;
+      const phantom = phantomRef.current;
+      const tilt = tiltRef.current;
+      if (phantom && tilt) {
+        syncSpacerHeight();
+        const maxScrollTop = phantom.scrollHeight - phantom.clientHeight;
         const scrollPosition =
           maxScrollTop - Math.trunc(time * pixelsPerSecond);
-        if (el.scrollTop !== scrollPosition) {
+        if (phantom.scrollTop !== scrollPosition) {
           isProgrammaticScrollRef.current = true;
-          el.scrollTop = scrollPosition;
+          phantom.scrollTop = scrollPosition;
         }
+        tilt.scrollTop = phantom.scrollTop;
       }
     },
-    [pixelsPerSecond, scrollRef],
+    [pixelsPerSecond, phantomRef, tiltRef, syncSpacerHeight],
   );
 
   const visualizerRef = useRef<FrequencyVisualizer | null>(null);
@@ -111,8 +145,8 @@ export function useScrubberScroll({
         // Stopping playback here would freeze transportTime updates and halt
         // the live spectrogram scroll.
         // In inverted scroll, end of track is at scrollTop=0 (top of scroll area)
-        if (scrollRef.current && !recording.isActivelyRecording) {
-          const isEndOfScroll = scrollRef.current.scrollTop <= 0;
+        if (phantomRef.current && !recording.isActivelyRecording) {
+          const isEndOfScroll = phantomRef.current.scrollTop <= 0;
           if (isEndOfScroll) {
             playback.rewind();
             return;
@@ -140,7 +174,7 @@ export function useScrubberScroll({
   }, [playing, setScrollPosition]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setTransportTimeFromScroll = () => {
-    const el = scrollRef.current;
+    const el = phantomRef.current;
     if (el) {
       const maxScrollTop = el.scrollHeight - el.clientHeight;
       const time = (maxScrollTop - el.scrollTop) / pixelsPerSecond;
@@ -163,79 +197,23 @@ export function useScrubberScroll({
     }
   };
 
-  const handleWheel = (e: ReactWheelEvent) => {
-    // Skip scroll handling when Ctrl/Meta+wheel is used for zoom
+  // Wheel events always indicate user interaction — clear the programmatic
+  // flag so the subsequent onscroll handler treats it as a user scroll.
+  // Without this, the animation loop's programmatic flag could race with
+  // a user wheel event and swallow it.
+  const handleWheel = (e: React.WheelEvent) => {
+    // Ctrl/Meta+wheel is zoom, not scroll
     if (e.ctrlKey || e.metaKey) return;
     if (recording.isActivelyRecording) return;
-    pauseForUserScroll();
-    debouncedSetTransportTime();
-  };
-
-  // The perspective wrapper covers the full rectangular area while the
-  // tilted scroll container has a trapezoidal hit-test shape. Wheel events
-  // landing in the dead-zone corners hit the wrapper instead of the scroll
-  // container. This handler forwards them as programmatic scrolls so the
-  // entire visible area is scrollable.
-  const handleViewportWheel = (e: ReactWheelEvent) => {
-    const el = scrollRef.current;
-    if (!el) return;
-    // Skip events that already reached the scroll container (they bubble up)
-    if (el.contains(e.target as Node)) return;
-    // Skip zoom gestures
-    if (e.ctrlKey || e.metaKey) return;
-
-    el.scrollTop += e.deltaY;
-    handleWheel(e);
-  };
-
-  const handleTouchMove = () => {
-    // Skip scroll handling during pinch-to-zoom
-    if (isPinchingRef.current) return;
-    if (recording.isActivelyRecording) return;
-    pauseForUserScroll();
-    debouncedSetTransportTime();
-  };
-
-  // --- Viewport touch-scroll proxy for mobile ---
-  // The 3D tilt transform on the scroll container breaks native touch
-  // scrolling on mobile devices — the heavily rotated element has a narrow
-  // trapezoidal hit-test area. These handlers capture single-finger swipe
-  // gestures on the full-rectangle viewport wrapper and translate them into
-  // programmatic scroll on the tilt container.
-  const touchStartYRef = useRef(0);
-  const touchScrollTopRef = useRef(0);
-  const isTouchScrollingRef = useRef(false);
-
-  const handleViewportTouchStart = (e: ReactTouchEvent) => {
-    if (e.touches.length !== 1) return;
-    touchStartYRef.current = e.touches[0].clientY;
-    touchScrollTopRef.current = scrollRef.current?.scrollTop ?? 0;
-    isTouchScrollingRef.current = false;
-  };
-
-  const handleViewportTouchMove = (e: ReactTouchEvent) => {
-    if (e.touches.length !== 1) return;
-    if (isPinchingRef.current) return;
-
-    const el = scrollRef.current;
-    if (!el) return;
-
-    const deltaY = touchStartYRef.current - e.touches[0].clientY;
-
-    if (!isTouchScrollingRef.current) {
-      if (Math.abs(deltaY) < SWIPE_THRESHOLD_PX) return;
-      isTouchScrollingRef.current = true;
-    }
-
-    isProgrammaticScrollRef.current = true;
-    el.scrollTop = touchScrollTopRef.current + deltaY;
-
-    if (recording.isActivelyRecording) return;
+    isProgrammaticScrollRef.current = false;
     pauseForUserScroll();
     debouncedSetTransportTime();
   };
 
   const handleScroll = () => {
+    syncSpacerHeight();
+    syncTiltScroll();
+
     if (isProgrammaticScrollRef.current) {
       isProgrammaticScrollRef.current = false;
       return;
@@ -255,13 +233,51 @@ export function useScrubberScroll({
   );
 
   return {
-    handleScroll,
     handleWheel,
-    handleTouchMove,
-    handleViewportWheel,
-    handleViewportTouchStart,
-    handleViewportTouchMove,
-    isTouchScrollingRef,
+    handleScroll,
     syncScrollToTime,
   };
+}
+
+/**
+ * Tracks the scroll height of the tilt container and returns it
+ * for use as the PhantomScroller spacer height.
+ *
+ * The tilt container's scrollHeight includes the Timeline content plus
+ * its cqh-based padding. The phantom scroller's spacer must match this
+ * height so both containers have the same scrollable range.
+ */
+export function useSpacerHeight(
+  tiltRef: RefObject<HTMLDivElement | null>,
+): number {
+  const [spacerHeight, setSpacerHeight] = useState(0);
+
+  useLayoutEffect(() => {
+    const el = tiltRef.current;
+    if (!el) return;
+
+    const update = () => setSpacerHeight(el.scrollHeight);
+    update();
+
+    // MutationObserver catches DOM structure changes (tracks added/removed)
+    // and attribute changes (recording spectrogram height updates via
+    // inline style). ResizeObserver catches size changes (zoom).
+    const observer = new MutationObserver(() => update());
+    const resizeObserver = new ResizeObserver(() => update());
+
+    observer.observe(el, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['style'],
+    });
+    resizeObserver.observe(el);
+
+    return () => {
+      observer.disconnect();
+      resizeObserver.disconnect();
+    };
+  }, [tiltRef]);
+
+  return spacerHeight;
 }

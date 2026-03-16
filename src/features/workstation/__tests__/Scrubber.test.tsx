@@ -22,22 +22,22 @@ afterEach(() => {
   Tone.getTransport().seconds = 0;
 });
 
-it('pauses playback when timeline is scrolled while playing', () => {
+it('pauses playback when phantom scroller is scrolled while playing', () => {
   playbackService.play();
 
   const { container } = render(<Scrubber {...defaultProps} />);
 
-  const timeline = container.querySelector('.scrubber__tilt')!;
-  fireEvent.scroll(timeline);
+  const phantom = container.querySelector('.scrubber__phantom')!;
+  fireEvent.scroll(phantom);
 
   expect(playbackService.isPlaying).toBe(false);
 });
 
-it('does not pause playback when timeline is scrolled while paused', () => {
+it('does not pause playback when phantom scroller is scrolled while paused', () => {
   const { container } = render(<Scrubber {...defaultProps} />);
 
-  const timeline = container.querySelector('.scrubber__tilt')!;
-  fireEvent.scroll(timeline);
+  const phantom = container.querySelector('.scrubber__phantom')!;
+  fireEvent.scroll(phantom);
 
   expect(playbackService.isPlaying).toBe(false);
 });
@@ -165,20 +165,6 @@ it('passes drawer height as CSS variable to playhead for position alignment', ()
   expect(playhead.style.transform).not.toContain('scaleY');
 });
 
-it('viewport wrapper handles wheel events for full hit-area coverage', () => {
-  playbackService.play();
-
-  const { container } = render(<Scrubber {...defaultProps} />);
-
-  // The viewport wrapper covers the full rectangular area. Wheel events
-  // landing outside the tilted scroll container's trapezoid hit the wrapper
-  // instead, which forwards them as programmatic scrolls.
-  const viewport = container.querySelector('.scrubber__viewport')!;
-  fireEvent.wheel(viewport, { deltaY: 100 });
-
-  expect(playbackService.isPlaying).toBe(false);
-});
-
 it('does not stop playback at end of scroll during recording', () => {
   vi.spyOn(playbackService, 'getEngineTime').mockReturnValue(1.5);
   vi.spyOn(trackService, 'getLoudness').mockReturnValue(0);
@@ -206,7 +192,7 @@ it('does not stop playback at end of scroll during recording', () => {
   expect(playbackService.transportTime).toBe(1.5);
 });
 
-it('stops recording when timeline is clicked during recording', () => {
+it('stops recording when phantom scroller is clicked during recording', () => {
   playbackService.play();
   recordingService.arm();
   recordingService.startRecording();
@@ -216,14 +202,14 @@ it('stops recording when timeline is clicked during recording', () => {
     <Scrubber {...defaultProps} onStopRecording={onStopRecording} />,
   );
 
-  const timeline = container.querySelector('.scrubber__tilt')!;
-  fireEvent.click(timeline);
+  const phantom = container.querySelector('.scrubber__phantom')!;
+  fireEvent.click(phantom);
 
   expect(onStopRecording).toHaveBeenCalledOnce();
   expect(playbackService.isPlaying).toBe(true);
 });
 
-it('cancels count-in when timeline is clicked during count-in', () => {
+it('cancels count-in when phantom scroller is clicked during count-in', () => {
   playbackService.play();
   recordingService.arm();
   recordingService.startRecording();
@@ -234,22 +220,22 @@ it('cancels count-in when timeline is clicked during count-in', () => {
     <Scrubber {...defaultProps} onStopRecording={onStopRecording} />,
   );
 
-  const timeline = container.querySelector('.scrubber__tilt')!;
-  fireEvent.click(timeline);
+  const phantom = container.querySelector('.scrubber__phantom')!;
+  fireEvent.click(phantom);
 
   expect(onStopRecording).toHaveBeenCalledOnce();
   expect(playbackService.isPlaying).toBe(true);
 });
 
-it('does not pause playback when timeline is scrolled during recording', () => {
+it('does not pause playback when phantom scroller is scrolled during recording', () => {
   playbackService.play();
   recordingService.arm();
   recordingService.startRecording();
 
   const { container } = render(<Scrubber {...defaultProps} />);
 
-  const timeline = container.querySelector('.scrubber__tilt')!;
-  fireEvent.scroll(timeline);
+  const phantom = container.querySelector('.scrubber__phantom')!;
+  fireEvent.scroll(phantom);
 
   expect(playbackService.isPlaying).toBe(true);
 });
@@ -286,17 +272,20 @@ it('syncs timeline scroll position via imperative handle (inverted scroll)', () 
 
   const { container } = render(<Scrubber ref={ref} {...defaultProps} />);
 
-  const timeline = container.querySelector('.scrubber__tilt')!;
+  const phantom = container.querySelector('.scrubber__phantom')!;
+  const tilt = container.querySelector('.scrubber__tilt')!;
 
   // Mock scroll dimensions so maxScrollTop is non-zero
-  Object.defineProperty(timeline, 'scrollHeight', {
-    value: 2000,
-    configurable: true,
-  });
-  Object.defineProperty(timeline, 'clientHeight', {
-    value: 500,
-    configurable: true,
-  });
+  for (const el of [phantom, tilt]) {
+    Object.defineProperty(el, 'scrollHeight', {
+      value: 2000,
+      configurable: true,
+    });
+    Object.defineProperty(el, 'clientHeight', {
+      value: 500,
+      configurable: true,
+    });
+  }
 
   act(() => {
     ref.current!.syncScrollToTime(2.5);
@@ -305,7 +294,9 @@ it('syncs timeline scroll position via imperative handle (inverted scroll)', () 
   // Inverted scroll: scrollTop = maxScrollTop - time * pixelsPerSecond
   // maxScrollTop = 2000 - 500 = 1500
   // scrollTop = 1500 - (2.5 * 200) = 1500 - 500 = 1000
-  expect(timeline.scrollTop).toBe(1000);
+  expect(phantom.scrollTop).toBe(1000);
+  // Tilt container is synced so spectrograms can read scrollTop
+  expect(tilt.scrollTop).toBe(1000);
 });
 
 it('scrolls to maxScrollTop when time is zero (beginning at bottom)', () => {
@@ -313,57 +304,36 @@ it('scrolls to maxScrollTop when time is zero (beginning at bottom)', () => {
 
   const { container } = render(<Scrubber ref={ref} {...defaultProps} />);
 
-  const timeline = container.querySelector('.scrubber__tilt')!;
+  const phantom = container.querySelector('.scrubber__phantom')!;
+  const tilt = container.querySelector('.scrubber__tilt')!;
 
-  Object.defineProperty(timeline, 'scrollHeight', {
-    value: 2000,
-    configurable: true,
-  });
-  Object.defineProperty(timeline, 'clientHeight', {
-    value: 500,
-    configurable: true,
-  });
+  for (const el of [phantom, tilt]) {
+    Object.defineProperty(el, 'scrollHeight', {
+      value: 2000,
+      configurable: true,
+    });
+    Object.defineProperty(el, 'clientHeight', {
+      value: 500,
+      configurable: true,
+    });
+  }
 
   act(() => {
     ref.current!.syncScrollToTime(0);
   });
 
   // At time=0, scrollTop should be at max (beginning at bottom)
-  expect(timeline.scrollTop).toBe(1500);
+  expect(phantom.scrollTop).toBe(1500);
+  expect(tilt.scrollTop).toBe(1500);
 });
 
-it('pauses playback when viewport is touch-swiped while playing', () => {
-  playbackService.play();
+it('shrinks phantom scroller when drawer is open', () => {
+  const drawerHeight = 280;
+  const { container } = render(
+    <Scrubber {...defaultProps} drawerHeight={drawerHeight} />,
+  );
 
-  const { container } = render(<Scrubber {...defaultProps} />);
+  const phantom = container.querySelector('.scrubber__phantom') as HTMLElement;
 
-  // Touch events on the viewport wrapper should scroll the tilt container.
-  // This enables mobile scrolling across the full rectangular area, not
-  // just the narrow trapezoid of the tilted scroll container.
-  const viewport = container.querySelector('.scrubber__viewport')!;
-  fireEvent.touchStart(viewport, {
-    touches: [{ clientX: 100, clientY: 300 }],
-  });
-  fireEvent.touchMove(viewport, {
-    touches: [{ clientX: 100, clientY: 250 }],
-  });
-
-  expect(playbackService.isPlaying).toBe(false);
-});
-
-it('does not pause playback on viewport tap (no swipe movement)', () => {
-  playbackService.play();
-
-  const { container } = render(<Scrubber {...defaultProps} />);
-
-  const viewport = container.querySelector('.scrubber__viewport')!;
-  fireEvent.touchStart(viewport, {
-    touches: [{ clientX: 100, clientY: 300 }],
-  });
-  // Tiny movement below swipe threshold — should not trigger scroll
-  fireEvent.touchMove(viewport, {
-    touches: [{ clientX: 100, clientY: 298 }],
-  });
-
-  expect(playbackService.isPlaying).toBe(true);
+  expect(phantom.style.bottom).toBe(`${drawerHeight}px`);
 });
