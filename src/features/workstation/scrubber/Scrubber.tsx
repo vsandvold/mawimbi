@@ -44,7 +44,13 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
   const { containerRef, viewportStyle, tiltStyle } =
     useScrubberGeometry(drawerHeight);
 
-  const { handleWheel, handleScroll, syncScrollToTime } = useScrubberScroll({
+  const {
+    handlePointerDown,
+    handlePointerUp,
+    handleWheel,
+    handleScroll,
+    syncScrollToTime,
+  } = useScrubberScroll({
     phantomRef,
     tiltRef: scrubberTiltRef,
     playheadRef,
@@ -89,6 +95,8 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
         spacerHeight={spacerHeight}
         style={phantomStyle}
         onClick={handleTimelineClick}
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
         onScroll={handleScroll}
         onWheel={handleWheel}
       />

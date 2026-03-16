@@ -4,6 +4,8 @@ type PhantomScrollerProps = PropsWithChildren<{
   spacerHeight: number;
   style?: CSSProperties;
   onClick: () => void;
+  onPointerDown: () => void;
+  onPointerUp: () => void;
   onScroll: () => void;
   onWheel: (e: React.WheelEvent) => void;
 }>;
@@ -21,13 +23,26 @@ type PhantomScrollerProps = PropsWithChildren<{
  * container had, enabling reliable touch scrolling on mobile.
  */
 const PhantomScroller = forwardRef<HTMLDivElement, PhantomScrollerProps>(
-  ({ spacerHeight, style, onClick, onScroll, onWheel }, ref) => {
+  (
+    {
+      spacerHeight,
+      style,
+      onClick,
+      onPointerDown,
+      onPointerUp,
+      onScroll,
+      onWheel,
+    },
+    ref,
+  ) => {
     return (
       <div
         ref={ref}
         className="scrubber__phantom"
         style={style}
         onClick={onClick}
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
         onScroll={onScroll}
         onWheel={onWheel}
       >
