@@ -367,6 +367,47 @@ it('scrolls to maxScrollTop when time is zero (beginning at bottom)', () => {
   expect(tilt.scrollTop).toBe(1500);
 });
 
+it('syncs scroll to beginning when rewinding while paused', () => {
+  const { container } = render(<Scrubber {...defaultProps} />);
+
+  const phantom = container.querySelector('.scrubber__phantom')!;
+  const tilt = container.querySelector('.scrubber__tilt')!;
+
+  for (const el of [phantom, tilt]) {
+    Object.defineProperty(el, 'scrollHeight', {
+      value: 2000,
+      configurable: true,
+    });
+    Object.defineProperty(el, 'clientHeight', {
+      value: 500,
+      configurable: true,
+    });
+  }
+
+  // Play, then pause at a non-zero position
+  playbackService.seekTo(2.5);
+  act(() => {
+    playbackService.play();
+  });
+  act(() => {
+    playbackService.pause();
+  });
+
+  // After pause, scroll should be at transport time 2.5s
+  // maxScrollTop = 2000 - 500 = 1500
+  // scrollTop = 1500 - (2.5 * 200) = 1000
+  expect(phantom.scrollTop).toBe(1000);
+
+  // Rewind while paused
+  act(() => {
+    playbackService.rewind();
+  });
+
+  // Scroll should sync to time 0
+  // scrollTop = 1500 - (0 * 200) = 1500
+  expect(phantom.scrollTop).toBe(1500);
+});
+
 it('shrinks phantom scroller when drawer is open', () => {
   const drawerHeight = 280;
   const { container } = render(

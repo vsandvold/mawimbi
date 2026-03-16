@@ -48,6 +48,7 @@ export function useScrubberScroll({
   const trackHook = useTrackService();
   const audioService = useAudioService();
   const playing = playback.isPlaying;
+  const playbackState = playback.playbackState;
 
   const isProgrammaticScrollRef = useRef(false);
   const shouldResumeRef = useRef(false);
@@ -165,14 +166,16 @@ export function useScrubberScroll({
   }, [playing, setScrollPosition]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync scroll position to transportTime when not playing (e.g. after rewind)
-  // and render the idle (static line) playhead frame
+  // and render the idle (static line) playhead frame.
+  // Depends on playbackState (not just isPlaying) so the effect fires on
+  // paused→stopped transitions — e.g. when rewind is pressed while paused.
   useEffect(() => {
     if (!playing) {
       setScrollPosition(playback.transportTime);
       playheadRef.current?.renderIdle();
     }
     // Hook objects reference stable service singletons via getters
-  }, [playing, setScrollPosition]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [playbackState, setScrollPosition]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setTransportTimeFromScroll = () => {
     const el = phantomRef.current;
