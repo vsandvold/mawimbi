@@ -7,12 +7,14 @@ import {
 } from 'react';
 import { usePlaybackService } from '../../playback/usePlaybackService';
 import { useRecordingService } from '../../recording/useRecordingService';
+import { useTimelineZoom } from '../../../shared/hooks/useTimelineZoom';
 import Playhead, { type PlayheadHandle } from './Playhead';
+import PhantomScroller from './PhantomScroller';
 import ScrubberTilt from './ScrubberTilt';
 import ScrubberViewport from './ScrubberViewport';
 import ZoomControls from './ZoomControls';
 import { useScrubberGeometry } from './useScrubberGeometry';
-import { useScrubberScroll } from './useScrubberScroll';
+import { useScrubberScroll, useSpacerHeight } from './useScrubberScroll';
 import './Scrubber.css';
 
 export type ScrubberHandle = {
@@ -35,28 +37,27 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
   const recording = useRecordingService();
   const { drawerHeight, onStopRecording, pixelsPerSecond } = props;
 
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const phantomRef = useRef<HTMLDivElement>(null);
+  const scrubberTiltRef = useRef<HTMLDivElement>(null);
   const playheadRef = useRef<PlayheadHandle>(null);
 
   const { containerRef, viewportStyle, tiltStyle } =
     useScrubberGeometry(drawerHeight);
 
-  const {
-    handleScroll,
-    handleWheel,
-    handleTouchMove,
-    handleViewportWheel,
-    handleViewportTouchStart,
-    handleViewportTouchMove,
-    isTouchScrollingRef,
-    syncScrollToTime,
-  } = useScrubberScroll({ scrollRef, playheadRef, pixelsPerSecond });
+  const { handleWheel, handleScroll, syncScrollToTime } = useScrubberScroll({
+    phantomRef,
+    tiltRef: scrubberTiltRef,
+    playheadRef,
+    pixelsPerSecond,
+  });
+
+  useTimelineZoom(phantomRef);
+
+  const spacerHeight = useSpacerHeight(scrubberTiltRef);
 
   useImperativeHandle(ref, () => ({ syncScrollToTime }), [syncScrollToTime]);
 
   const handleTimelineClick = () => {
-    // Suppress click synthesized after a touch-scroll swipe
-    if (isTouchScrollingRef.current) return;
     if (recording.isCountingIn || recording.isActivelyRecording) {
       onStopRecording();
       return;
@@ -64,45 +65,33 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     playback.togglePlayback();
   };
 
-  // Click handler for the viewport wrapper — catches clicks in the
-  // dead-zone corners outside the tilted scroll container's trapezoid.
-  const handleViewportClick = (e: React.MouseEvent) => {
-    if (isTouchScrollingRef.current) return;
-    if (scrollRef.current?.contains(e.target as Node)) return;
-    handleTimelineClick();
-  };
-
+  const phantomStyle = getPhantomStyle(drawerHeight);
   const zoomControlsStyle = getZoomControlsStyle(drawerHeight);
 
-  // Merge the geometry ref with the scroll ref — both need the same element.
-  // useScrubberGeometry tracks the container height; useScrubberScroll reads
-  // scroll position. We use a callback ref to wire both.
+  // The geometry ref measures the tilt container's height for 3D transform
+  // calculations. Assign it via a callback ref alongside the scroll ref.
   const tiltRef = (el: HTMLDivElement | null) => {
-    (scrollRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+    (scrubberTiltRef as React.MutableRefObject<HTMLDivElement | null>).current =
+      el;
     (containerRef as React.MutableRefObject<HTMLDivElement | null>).current =
       el;
   };
 
   return (
     <div className="scrubber scrubber--firefox-scroll-fix">
-      <ScrubberViewport
-        style={viewportStyle}
-        onClick={handleViewportClick}
-        onWheel={handleViewportWheel}
-        onTouchStart={handleViewportTouchStart}
-        onTouchMove={handleViewportTouchMove}
-      >
-        <ScrubberTilt
-          ref={tiltRef}
-          style={tiltStyle}
-          onClick={handleTimelineClick}
-          onScroll={handleScroll}
-          onWheel={handleWheel}
-          onTouchMove={handleTouchMove}
-        >
+      <ScrubberViewport style={viewportStyle}>
+        <ScrubberTilt ref={tiltRef} style={tiltStyle}>
           {props.children}
         </ScrubberTilt>
       </ScrubberViewport>
+      <PhantomScroller
+        ref={phantomRef}
+        spacerHeight={spacerHeight}
+        style={phantomStyle}
+        onClick={handleTimelineClick}
+        onScroll={handleScroll}
+        onWheel={handleWheel}
+      />
       <Playhead ref={playheadRef} drawerHeight={drawerHeight} />
       <ZoomControls style={zoomControlsStyle} />
     </div>
@@ -112,6 +101,15 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
 Scrubber.displayName = 'Scrubber';
 
 export default Scrubber;
+
+/**
+ * When the drawer is open, shrink the phantom scroller's clickable area
+ * so it doesn't overlap the drawer controls.
+ */
+function getPhantomStyle(drawerHeight: number): CSSProperties | undefined {
+  if (drawerHeight <= 0) return undefined;
+  return { bottom: `${drawerHeight}px` };
+}
 
 function getZoomControlsStyle(drawerHeight: number): CSSProperties {
   return {
