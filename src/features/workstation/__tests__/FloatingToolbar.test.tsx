@@ -7,10 +7,12 @@ const audioService = AudioService.getInstance();
 const playbackService = audioService.playbackService;
 const recordingService = audioService.recordingService;
 
+const mockRewind = vi.fn();
 const mockToggleRecording = vi.fn();
 
 const defaultProps = {
   isEmpty: false,
+  onRewind: mockRewind,
   onToggleRecording: mockToggleRecording,
 };
 
@@ -77,6 +79,14 @@ it('disables transport buttons when tracks are empty', () => {
   expect(getByTitle('Play')).toBeDisabled();
   expect(getByTitle('Rewind')).toBeDisabled();
   expect(getByTitle('Record')).not.toBeDisabled();
+});
+
+it('calls onRewind when rewind button is clicked', () => {
+  const { getByTitle } = render(<FloatingToolbar {...defaultProps} />);
+
+  fireEvent.click(getByTitle('Rewind'));
+
+  expect(mockRewind).toHaveBeenCalledOnce();
 });
 
 it('applies floating-button-group class', () => {

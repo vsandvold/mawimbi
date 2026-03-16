@@ -36,6 +36,7 @@ type ToolbarBottomSheetProps = {
   redo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  onRewind: () => void;
   onToggleRecording: () => void;
   /** Height of the active bottom sheet (mixer or lyrics) to lift above */
   sheetOffset: number;
@@ -57,6 +58,7 @@ const ToolbarBottomSheet = (props: ToolbarBottomSheetProps) => {
     redo,
     canUndo,
     canRedo,
+    onRewind,
     onToggleRecording,
     sheetOffset,
   } = props;
@@ -96,6 +98,7 @@ const ToolbarBottomSheet = (props: ToolbarBottomSheetProps) => {
     >
       <FloatingToolbar
         isEmpty={isEmpty}
+        onRewind={onRewind}
         onToggleRecording={onToggleRecording}
       />
       <div

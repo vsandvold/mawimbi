@@ -124,6 +124,13 @@ const Workstation = (props: WorkstationProps) => {
     setActiveSheet(open ? 'lyrics' : null);
   }, []);
 
+  const handleRewind = useCallback(() => {
+    playback.rewind();
+    scrubberRef.current?.syncScrollToTime(0);
+    // playback is a stable ref from context
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleLyricsSeekTo = useCallback(
     (time: number) => {
       playback.seekTo(time);
@@ -195,6 +202,7 @@ const Workstation = (props: WorkstationProps) => {
         redo={redo}
         canUndo={canUndo}
         canRedo={canRedo}
+        onRewind={handleRewind}
         onToggleRecording={toggleRecording}
         sheetOffset={bottomSheetHeight}
       />

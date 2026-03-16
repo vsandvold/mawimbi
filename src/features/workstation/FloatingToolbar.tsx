@@ -6,13 +6,14 @@ import './FloatingToolbar.css';
 
 type FloatingToolbarProps = {
   isEmpty: boolean;
+  onRewind: () => void;
   onToggleRecording: () => void;
 };
 
 const FloatingToolbar = (props: FloatingToolbarProps) => {
-  const { isPlaying, togglePlayback, rewind } = usePlaybackService();
+  const { isPlaying, togglePlayback } = usePlaybackService();
   const { isTransportLocked, recordingState } = useRecordingService();
-  const { isEmpty, onToggleRecording } = props;
+  const { isEmpty, onRewind, onToggleRecording } = props;
   const isRecordActive = recordingState !== 'idle';
 
   return (
@@ -22,7 +23,7 @@ const FloatingToolbar = (props: FloatingToolbarProps) => {
         size="icon"
         className="button"
         title="Rewind"
-        onClick={rewind}
+        onClick={onRewind}
         disabled={isEmpty || isTransportLocked}
       >
         <SkipBack />
