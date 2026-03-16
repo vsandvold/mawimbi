@@ -331,3 +331,39 @@ it('scrolls to maxScrollTop when time is zero (beginning at bottom)', () => {
   // At time=0, scrollTop should be at max (beginning at bottom)
   expect(timeline.scrollTop).toBe(1500);
 });
+
+it('pauses playback when viewport is touch-swiped while playing', () => {
+  playbackService.play();
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+
+  // Touch events on the viewport wrapper should scroll the tilt container.
+  // This enables mobile scrolling across the full rectangular area, not
+  // just the narrow trapezoid of the tilted scroll container.
+  const viewport = container.querySelector('.scrubber__viewport')!;
+  fireEvent.touchStart(viewport, {
+    touches: [{ clientX: 100, clientY: 300 }],
+  });
+  fireEvent.touchMove(viewport, {
+    touches: [{ clientX: 100, clientY: 250 }],
+  });
+
+  expect(playbackService.isPlaying).toBe(false);
+});
+
+it('does not pause playback on viewport tap (no swipe movement)', () => {
+  playbackService.play();
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+
+  const viewport = container.querySelector('.scrubber__viewport')!;
+  fireEvent.touchStart(viewport, {
+    touches: [{ clientX: 100, clientY: 300 }],
+  });
+  // Tiny movement below swipe threshold — should not trigger scroll
+  fireEvent.touchMove(viewport, {
+    touches: [{ clientX: 100, clientY: 298 }],
+  });
+
+  expect(playbackService.isPlaying).toBe(true);
+});

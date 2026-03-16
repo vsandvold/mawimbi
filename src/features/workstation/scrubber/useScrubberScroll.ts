@@ -1,5 +1,6 @@
 import {
   type RefObject,
+  type TouchEvent as ReactTouchEvent,
   type WheelEvent as ReactWheelEvent,
   useCallback,
   useEffect,
@@ -15,6 +16,7 @@ import FrequencyVisualizer from '../../spectrogram/FrequencyVisualizer';
 import { type PlayheadHandle } from './Playhead';
 
 const SCROLL_DEBOUNCE_MS = 200;
+const SWIPE_THRESHOLD_PX = 5;
 
 type UseScrubberScrollOptions = {
   scrollRef: RefObject<HTMLDivElement | null>;
@@ -194,6 +196,45 @@ export function useScrubberScroll({
     debouncedSetTransportTime();
   };
 
+  // --- Viewport touch-scroll proxy for mobile ---
+  // The 3D tilt transform on the scroll container breaks native touch
+  // scrolling on mobile devices — the heavily rotated element has a narrow
+  // trapezoidal hit-test area. These handlers capture single-finger swipe
+  // gestures on the full-rectangle viewport wrapper and translate them into
+  // programmatic scroll on the tilt container.
+  const touchStartYRef = useRef(0);
+  const touchScrollTopRef = useRef(0);
+  const isTouchScrollingRef = useRef(false);
+
+  const handleViewportTouchStart = (e: ReactTouchEvent) => {
+    if (e.touches.length !== 1) return;
+    touchStartYRef.current = e.touches[0].clientY;
+    touchScrollTopRef.current = scrollRef.current?.scrollTop ?? 0;
+    isTouchScrollingRef.current = false;
+  };
+
+  const handleViewportTouchMove = (e: ReactTouchEvent) => {
+    if (e.touches.length !== 1) return;
+    if (isPinchingRef.current) return;
+
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const deltaY = touchStartYRef.current - e.touches[0].clientY;
+
+    if (!isTouchScrollingRef.current) {
+      if (Math.abs(deltaY) < SWIPE_THRESHOLD_PX) return;
+      isTouchScrollingRef.current = true;
+    }
+
+    isProgrammaticScrollRef.current = true;
+    el.scrollTop = touchScrollTopRef.current + deltaY;
+
+    if (recording.isActivelyRecording) return;
+    pauseForUserScroll();
+    debouncedSetTransportTime();
+  };
+
   const handleScroll = () => {
     if (isProgrammaticScrollRef.current) {
       isProgrammaticScrollRef.current = false;
@@ -218,6 +259,9 @@ export function useScrubberScroll({
     handleWheel,
     handleTouchMove,
     handleViewportWheel,
+    handleViewportTouchStart,
+    handleViewportTouchMove,
+    isTouchScrollingRef,
     syncScrollToTime,
   };
 }
