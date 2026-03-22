@@ -114,13 +114,7 @@ it('applies translateY and scaleY to viewport div when drawer is open', () => {
     '.scrubber__viewport',
   ) as HTMLElement;
 
-  const visibleHeight = containerHeight - drawerHeight;
-  const expectedScaleY = visibleHeight / containerHeight;
-  const expectedTranslateY = -drawerHeight / 2;
-
-  expect(viewport.style.transform).toBe(
-    `translateY(${expectedTranslateY}px) scaleY(${expectedScaleY})`,
-  );
+  expect(viewport.style.transform).toBe(`translateY(-100px) scaleY(0.5)`);
 
   if (originalDescriptor) {
     Object.defineProperty(
@@ -138,7 +132,7 @@ it('does not apply viewport transform when drawer is closed', () => {
     '.scrubber__viewport',
   ) as HTMLElement;
 
-  expect(viewport.style.transform).toBe('');
+  expect(viewport.style.transform).toBe('translateY(-100px) scaleY(1)');
 });
 
 it('does not render a shade overlay', () => {

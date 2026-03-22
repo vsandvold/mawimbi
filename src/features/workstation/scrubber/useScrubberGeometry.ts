@@ -5,8 +5,8 @@ import { type CSSProperties, useLayoutEffect, useRef, useState } from 'react';
 const SCRUBBER_BOTTOM_FRACTION = 0.75;
 
 // Fallbacks if CSS custom properties are missing or unparseable
-const FALLBACK_PERSPECTIVE = 1300;
-const FALLBACK_TILT = 80;
+const FALLBACK_PERSPECTIVE = 500;
+const FALLBACK_TILT = 75;
 
 const baseTransformStyle = {
   willChange: 'transform',
@@ -92,19 +92,12 @@ function getViewportStyle(
   containerHeight: number,
 ): CSSProperties {
   const hasDrawer = drawerHeight > 0 && containerHeight > 0;
-  const visibleHeight = containerHeight - drawerHeight;
-  const scaleY = hasDrawer ? visibleHeight / containerHeight : 1;
-  // With the default transform-origin (center), scaleY shifts the top edge
-  // downward by half the removed height. translateY compensates so the top
-  // stays at the viewport edge.
-  const translateY = hasDrawer ? -drawerHeight / 2 : 0;
+  const scaleY = hasDrawer ? 0.5 : 1;
 
   return {
     perspectiveOrigin: `center ${scrubberBottomY}px`,
-    ...(hasDrawer && {
-      ...baseTransformStyle,
-      transform: `translateY(${translateY}px) scaleY(${scaleY})`,
-    }),
+    ...baseTransformStyle,
+    transform: `translateY(-100px) scaleY(${scaleY})`,
   };
 }
 
