@@ -115,8 +115,8 @@ html {
   /* Perspective tilt: scrubber depth effect on the timeline.
      Higher perspective = smoother foreshortening. Higher tilt = steeper angle.
      These two values control the entire scrubber feel. */
-  --timeline-perspective: 1300px;
-  --timeline-tilt: 80deg;
+  --timeline-perspective: 500px;
+  --timeline-tilt: 75deg;
 }
 
 @media (hover: hover) and (pointer: fine) {
