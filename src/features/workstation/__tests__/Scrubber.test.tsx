@@ -114,6 +114,9 @@ it('re-solves perspective geometry for the smaller visible area when the drawer 
   const restoreOffsetHeight = mockOffsetHeight(containerHeight);
 
   const { container, rerender } = render(<Scrubber {...defaultProps} />);
+  const viewport = container.querySelector(
+    '.scrubber__viewport',
+  ) as HTMLElement;
   const tilt = container.querySelector('.scrubber__tilt') as HTMLElement;
 
   const closedGeometry = solveGeometry(activeRunwayConfig, {
@@ -122,6 +125,14 @@ it('re-solves perspective geometry for the smaller visible area when the drawer 
   });
   expect(parseOriginY(tilt.style.transformOrigin)).toBeCloseTo(
     closedGeometry.transformOriginY,
+    6,
+  );
+  expect(parseFloat(viewport.style.perspective)).toBeCloseTo(
+    closedGeometry.perspectivePx,
+    6,
+  );
+  expect(parseOriginY(viewport.style.perspectiveOrigin)).toBeCloseTo(
+    closedGeometry.perspectiveOriginY,
     6,
   );
 
@@ -142,6 +153,49 @@ it('re-solves perspective geometry for the smaller visible area when the drawer 
     closedGeometry.transformOriginY,
     0,
   );
+  // The viewport's own perspective/perspective-origin must also re-solve —
+  // not just the tilt element — since both derive from the same geometry.
+  expect(parseFloat(viewport.style.perspective)).toBeCloseTo(
+    openGeometry.perspectivePx,
+    6,
+  );
+  expect(parseOriginY(viewport.style.perspectiveOrigin)).toBeCloseTo(
+    openGeometry.perspectiveOriginY,
+    6,
+  );
+  expect(openGeometry.perspectivePx).not.toBeCloseTo(
+    closedGeometry.perspectivePx,
+    0,
+  );
+
+  restoreOffsetHeight();
+});
+
+it('exposes playhead fraction and timeline padding as CSS custom properties on the scrubber element', () => {
+  const containerHeight = 650;
+  const restoreOffsetHeight = mockOffsetHeight(containerHeight);
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+
+  const scrubberEl = container.querySelector('.scrubber') as HTMLElement;
+  const geometry = solveGeometry(activeRunwayConfig, {
+    width: 0,
+    height: containerHeight,
+  });
+  const expectedSPlayhead =
+    geometry.farEdgeS - activeRunwayConfig.runwayLengthPx;
+  const expectedPlayheadLocalY = geometry.transformOriginY - expectedSPlayhead;
+  const expectedPaddingBottom = containerHeight - expectedPlayheadLocalY;
+
+  expect(
+    parseFloat(scrubberEl.style.getPropertyValue('--playhead-fraction')),
+  ).toBeCloseTo(activeRunwayConfig.playheadFraction, 6);
+  expect(scrubberEl.style.getPropertyValue('--timeline-padding-top')).toBe(
+    `${activeRunwayConfig.runwayLengthPx}px`,
+  );
+  expect(
+    parseFloat(scrubberEl.style.getPropertyValue('--timeline-padding-bottom')),
+  ).toBeCloseTo(expectedPaddingBottom, 6);
 
   restoreOffsetHeight();
 });
@@ -175,7 +229,9 @@ it('does not render a shade overlay', () => {
   expect(container.querySelector('.scrubber__shade')).toBeNull();
 });
 
-it('passes drawer height as CSS variable to playhead for position alignment', () => {
+it('passes drawer-adjusted visible height as CSS variable to playhead for position alignment', () => {
+  const containerHeight = 800;
+  const restoreOffsetHeight = mockOffsetHeight(containerHeight);
   const drawerHeight = 200;
 
   const { container } = render(
@@ -186,11 +242,15 @@ it('passes drawer height as CSS variable to playhead for position alignment', ()
     '.scrubber__playhead',
   ) as HTMLElement;
 
-  // The playhead element must expose --drawer-height so CSS can position the
-  // playhead within the visible area above the drawer.
-  const heightVar = playhead.style.getPropertyValue('--drawer-height');
-  expect(heightVar).toBe(`${drawerHeight}px`);
+  // The playhead element must expose --available-height — the same
+  // drawer-adjusted visibleHeight useScrubberGeometry solves the runway
+  // transform against — computed once in JS rather than re-derived via a
+  // separate calc(100% - drawer-height) in CSS.
+  const heightVar = playhead.style.getPropertyValue('--available-height');
+  expect(heightVar).toBe(`${containerHeight - drawerHeight}px`);
   expect(playhead.style.transform).not.toContain('scaleY');
+
+  restoreOffsetHeight();
 });
 
 it('does not stop playback at end of scroll during recording', () => {

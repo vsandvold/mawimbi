@@ -63,7 +63,11 @@
 /* Playhead: loudness meter overlay centered at the playhead position */
 
 .scrubber__playhead {
-  --available-height: calc(100% - var(--drawer-height, 0px));
+  /* --available-height is set directly (in px) via inline style from
+     Playhead.tsx, using the same visibleHeight value useScrubberGeometry
+     solves the runway transform against — not recomputed here via
+     calc(100% - drawer-height), so there is exactly one derivation of
+     "visible height" instead of two that could silently drift apart. */
   --meter-height: calc(var(--available-height) * 0.4);
   position: absolute;
   top: calc(

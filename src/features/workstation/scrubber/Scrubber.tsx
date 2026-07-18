@@ -46,6 +46,7 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     viewportStyle,
     tiltStyle,
     playheadFraction,
+    visibleHeight,
     timelinePaddingTopPx,
     timelinePaddingBottomPx,
   } = useScrubberGeometry(drawerHeight);
@@ -114,7 +115,7 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
         onScroll={handleScroll}
         onWheel={handleWheel}
       />
-      <Playhead ref={playheadRef} drawerHeight={drawerHeight} />
+      <Playhead ref={playheadRef} visibleHeight={visibleHeight} />
       <ZoomControls style={zoomControlsStyle} />
     </div>
   );

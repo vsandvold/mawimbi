@@ -20,6 +20,8 @@ import { expect, test, uploadAudioFile, SHORT_AUDIO } from './fixtures';
 
 const MIXER_ANIMATION_MS = 350;
 const ALIGNMENT_TOLERANCE_PX = 40;
+const ALIGNMENT_POLL_TIMEOUT_MS = 2000;
+const CONTENT_SETTLE_WAIT_MS = 1000;
 
 /**
  * The on-screen Y of the boundary between actual audio content and the
@@ -68,7 +70,7 @@ async function expectContentAlignedToPlayhead(
     expect(Math.abs(contentBoundaryY - playheadLineY)).toBeLessThanOrEqual(
       ALIGNMENT_TOLERANCE_PX,
     );
-  }).toPass({ timeout: 2000 });
+  }).toPass({ timeout: ALIGNMENT_POLL_TIMEOUT_MS });
 }
 
 test.describe('Runway alignment invariant', () => {
@@ -78,7 +80,7 @@ test.describe('Runway alignment invariant', () => {
     await expect(page.locator('.timeline__track')).toBeVisible();
     // Let the spectrogram cache finish sizing the scrollable content before
     // establishing the time=0 reference position.
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(CONTENT_SETTLE_WAIT_MS);
   });
 
   test('content at time 0 renders on the playhead line with the drawer closed', async ({

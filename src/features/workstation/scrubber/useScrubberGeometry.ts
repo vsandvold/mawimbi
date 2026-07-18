@@ -1,7 +1,7 @@
 import { type CSSProperties, useLayoutEffect, useRef, useState } from 'react';
+import { useMediaQuery } from '../../../shared/hooks/useMediaQuery';
 import { activeRunwayConfig } from './runwayConfig';
 import {
-  screenYToPlane,
   solveGeometry,
   type RunwayConfig,
   type RunwayGeometry,
@@ -9,9 +9,30 @@ import {
 
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
+// A flat plane (tiltDeg 0) makes solveGeometry take its identity-geometry
+// path — rotateX(0) disables the 3D effect without a separate code path.
+// Defined once so referential equality is stable across renders.
+const REDUCED_MOTION_CONFIG: RunwayConfig = {
+  ...activeRunwayConfig,
+  tiltDeg: 0,
+};
+
+// Measured container height can be 0 (before the first ResizeObserver
+// callback) or, in principle, smaller than drawerHeight — floor it so
+// visibleHeight never goes to or past 0 and produces invalid CSS values.
+const MIN_VISIBLE_HEIGHT_PX = 1;
+
+const TRANSITION_PROPERTIES = [
+  'transform',
+  'transform-origin',
+  'perspective',
+  'perspective-origin',
+];
 const baseTransformStyle = {
   willChange: 'transform',
-  transition: 'transform 0.25s ease-out',
+  transition: TRANSITION_PROPERTIES.map(
+    (prop) => `${prop} 0.25s ease-out`,
+  ).join(', '),
 };
 
 type ContainerSize = {
@@ -24,6 +45,7 @@ type ScrubberGeometry = {
   viewportStyle: CSSProperties;
   tiltStyle: CSSProperties;
   playheadFraction: number;
+  visibleHeight: number;
   timelinePaddingTopPx: number;
   timelinePaddingBottomPx: number;
 };
@@ -43,10 +65,15 @@ type ScrubberGeometry = {
 export function useScrubberGeometry(drawerHeight: number): ScrubberGeometry {
   const containerRef = useRef<HTMLDivElement>(null);
   const containerSize = useContainerSize(containerRef);
-  const prefersReducedMotion = usePrefersReducedMotion();
+  const prefersReducedMotion = useMediaQuery(REDUCED_MOTION_QUERY);
 
-  const visibleHeight = containerSize.height - drawerHeight;
-  const config = getEffectiveConfig(prefersReducedMotion);
+  const visibleHeight = Math.max(
+    containerSize.height - drawerHeight,
+    MIN_VISIBLE_HEIGHT_PX,
+  );
+  const config = prefersReducedMotion
+    ? REDUCED_MOTION_CONFIG
+    : activeRunwayConfig;
   const geometry = solveGeometry(config, {
     width: containerSize.width,
     height: visibleHeight,
@@ -61,16 +88,10 @@ export function useScrubberGeometry(drawerHeight: number): ScrubberGeometry {
     ),
     tiltStyle: getTiltStyle(geometry.rotateXDeg, geometry.transformOriginY),
     playheadFraction: activeRunwayConfig.playheadFraction,
+    visibleHeight,
     timelinePaddingTopPx: timelinePadding.top,
     timelinePaddingBottomPx: timelinePadding.bottom,
   };
-}
-
-function getEffectiveConfig(prefersReducedMotion: boolean): RunwayConfig {
-  if (!prefersReducedMotion) return activeRunwayConfig;
-  // A flat plane (tiltDeg 0) makes solveGeometry take its identity-geometry
-  // path — rotateX(0) disables the 3D effect without a separate code path.
-  return { ...activeRunwayConfig, tiltDeg: 0 };
 }
 
 function getViewportStyle(
@@ -110,8 +131,12 @@ type TimelinePadding = {
  * must be sized so that when scrolled to time 0 (`scrollTop = maxScrollTop`,
  * inverted scroll — see useScrubberScroll.ts), the boundary between actual
  * audio content and this padding sits at the plane-space distance the
- * geometry solver actually anchored to the playhead line, found via the
- * inverse projection (`screenYToPlane`).
+ * geometry solver actually anchored to the playhead line.
+ *
+ * `sPlayhead` is recovered from `geometry.farEdgeS - config.runwayLengthPx`
+ * (farEdgeS already equals `sPlayhead + runwayLengthPx`, computed once by
+ * the solver) rather than re-derived via the inverse projection — same
+ * value, no repeated trig.
  *
  * Scroll position is driven by the (untransformed) PhantomScroller, whose
  * clientHeight already equals `visibleHeight` (it shrinks with the drawer
@@ -131,8 +156,7 @@ function getTimelinePadding(
   geometry: RunwayGeometry,
   visibleHeight: number,
 ): TimelinePadding {
-  const playheadScreenY = config.playheadFraction * visibleHeight;
-  const sPlayhead = screenYToPlane(playheadScreenY, geometry);
+  const sPlayhead = geometry.farEdgeS - config.runwayLengthPx;
   const playheadLocalY = geometry.transformOriginY - sPlayhead;
 
   return {
@@ -151,8 +175,15 @@ function useContainerSize(
     const el = containerRef.current;
     if (!el) return;
 
-    const update = () =>
-      setSize({ width: el.offsetWidth, height: el.offsetHeight });
+    const update = () => {
+      const width = el.offsetWidth;
+      const height = el.offsetHeight;
+      setSize((prev) =>
+        prev.width === width && prev.height === height
+          ? prev
+          : { width, height },
+      );
+    };
     update();
 
     const observer = new ResizeObserver(() => update());
@@ -164,20 +195,4 @@ function useContainerSize(
   }, []);
 
   return size;
-}
-
-/** Tracks the `prefers-reduced-motion` media query, live. */
-function usePrefersReducedMotion(): boolean {
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(
-    () => window.matchMedia(REDUCED_MOTION_QUERY).matches,
-  );
-
-  useLayoutEffect(() => {
-    const mediaQuery = window.matchMedia(REDUCED_MOTION_QUERY);
-    const handler = () => setPrefersReducedMotion(mediaQuery.matches);
-    mediaQuery.addEventListener('change', handler);
-    return () => mediaQuery.removeEventListener('change', handler);
-  }, []);
-
-  return prefersReducedMotion;
 }
