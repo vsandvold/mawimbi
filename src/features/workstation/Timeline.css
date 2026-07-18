@@ -11,6 +11,42 @@
      fraction of the container here; see getTimelinePadding()'s comment. */
   padding-top: var(--timeline-padding-top);
   padding-bottom: var(--timeline-padding-bottom);
+  /* Positions the runway rail pseudo-elements below (mawimbi#443). */
+  position: relative;
+}
+
+/*
+ * Runway edge rails (mawimbi#443) — glowing lines along .timeline's left and
+ * right edges. Because .timeline is the actual tilted plane content (its
+ * top/bottom padding already encode the runway's length/overhang), these
+ * get perspective-projected by the same rotateX transform the plane itself
+ * uses — no separate screen-space geometry needed, unlike the old fog
+ * overlay, which had to stay untilted to read as atmospheric depth.
+ *
+ * Rendered as thin absolutely-positioned strips rather than a border +
+ * box-shadow directly on .timeline: box-shadow glows an element's whole
+ * rectangular outline, which would also glow the top and bottom edges
+ * (runwayLengthPx and the overhang, not visual "sides") whenever a short
+ * timeline scrolls one of those edges into view. A 0-width strip's own
+ * top/bottom shadow is a negligible end-cap, not a full-width bar.
+ */
+.timeline::before,
+.timeline::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  box-shadow: 0 0 12px 1px var(--foreground);
+  pointer-events: none;
+}
+
+.timeline::before {
+  left: 0;
+}
+
+.timeline::after {
+  right: 0;
 }
 
 .timeline__track {

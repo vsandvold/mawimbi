@@ -10,7 +10,6 @@ import { useRecordingService } from '../../recording/useRecordingService';
 import { useTimelineZoom } from '../../../shared/hooks/useTimelineZoom';
 import Playhead, { type PlayheadHandle } from './Playhead';
 import PhantomScroller from './PhantomScroller';
-import ScrubberFog from './ScrubberFog';
 import ScrubberTilt from './ScrubberTilt';
 import ScrubberViewport from './ScrubberViewport';
 import TuningOverlay from './TuningOverlay';
@@ -49,7 +48,6 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     containerRef,
     viewportStyle,
     tiltStyle,
-    fogStyle,
     geometry,
     playheadFraction,
     visibleHeight,
@@ -95,7 +93,6 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
   };
 
   const phantomStyle = getPhantomStyle(drawerHeight);
-  const fogOverlayStyle = getFogOverlayStyle(drawerHeight, fogStyle);
   const zoomControlsStyle = getZoomControlsStyle(drawerHeight);
   const scrubberStyle = getScrubberStyle(
     playheadFraction,
@@ -122,7 +119,6 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
           {props.children}
         </ScrubberTilt>
       </ScrubberViewport>
-      <ScrubberFog style={fogOverlayStyle} />
       <PhantomScroller
         ref={phantomRef}
         spacerHeight={spacerHeight}
@@ -158,8 +154,8 @@ export default Scrubber;
 /**
  * When the drawer is open, shrinks an `inset: 0` overlay's clickable/visible
  * area to the same drawer-adjusted visible box `useScrubberGeometry` solves
- * against — shared by every such overlay (phantom scroller, fog) so they
- * can't drift out of sync with each other or with the geometry itself.
+ * against — shared by every such overlay so they can't drift out of sync
+ * with each other or with the geometry itself.
  */
 function getDrawerBottomStyle(drawerHeight: number): CSSProperties | undefined {
   if (drawerHeight <= 0) return undefined;
@@ -172,17 +168,6 @@ function getDrawerBottomStyle(drawerHeight: number): CSSProperties | undefined {
  */
 function getPhantomStyle(drawerHeight: number): CSSProperties | undefined {
   return getDrawerBottomStyle(drawerHeight);
-}
-
-/**
- * When the drawer is open, shrink the fog overlay to match the same
- * drawer-adjusted visible area the gradient itself was solved against.
- */
-function getFogOverlayStyle(
-  drawerHeight: number,
-  fogStyle: CSSProperties,
-): CSSProperties {
-  return { ...fogStyle, ...getDrawerBottomStyle(drawerHeight) };
 }
 
 function getZoomControlsStyle(drawerHeight: number): CSSProperties {

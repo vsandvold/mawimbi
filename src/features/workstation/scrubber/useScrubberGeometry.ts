@@ -11,18 +11,6 @@ import { signals as tuningSignals } from './tuningSignals';
 
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
-const FOG_GRADIENT_DIRECTION = 'to bottom';
-const SHADE_COLOR_CSS_VAR = '--shade-color';
-const FRACTION_TO_PERCENT = 100;
-
-// No fog on a flat plane — atmospheric depth cueing has nothing to sell
-// without perspective. Checking the solved rotateXDeg (rather than relying
-// on the flat branch's horizonY landing far outside the gradient's 0-100%
-// range) makes "no fog when flat" a declared outcome instead of an
-// incidental side effect of solveFlatGeometry's internal constants.
-const FLAT_ROTATE_X_DEG = 0;
-const NO_FOG_STYLE: CSSProperties = { backgroundImage: 'none' };
-
 // Measured container height can be 0 (before the first ResizeObserver
 // callback) or, in principle, smaller than drawerHeight — floor it so
 // visibleHeight never goes to or past 0 and produces invalid CSS values.
@@ -50,7 +38,6 @@ type ScrubberGeometry = {
   containerRef: React.RefObject<HTMLDivElement | null>;
   viewportStyle: CSSProperties;
   tiltStyle: CSSProperties;
-  fogStyle: CSSProperties;
   geometry: RunwayGeometry;
   playheadFraction: number;
   visibleHeight: number;
@@ -112,7 +99,6 @@ export function useScrubberGeometry(drawerHeight: number): ScrubberGeometry {
       geometry.perspectiveOriginY,
     ),
     tiltStyle: getTiltStyle(geometry.rotateXDeg, geometry.transformOriginY),
-    fogStyle: getFogStyle(config, geometry, visibleHeight),
     geometry,
     playheadFraction: baseConfig.playheadFraction,
     visibleHeight,
@@ -123,8 +109,6 @@ export function useScrubberGeometry(drawerHeight: number): ScrubberGeometry {
 
 // A flat plane (tiltDeg 0) makes solveGeometry take its identity-geometry
 // path — rotateX(0) disables the 3D effect without a separate code path.
-// getFogStyle's own FLAT_ROTATE_X_DEG check disables the fog the same way,
-// so this doesn't need its own fogStartFraction override.
 function getFlatVariant(config: RunwayPreset): RunwayPreset {
   return { ...config, tiltDeg: 0 };
 }
@@ -148,44 +132,6 @@ function getTiltStyle(
     ...baseTransformStyle,
     transformOrigin: `center ${transformOriginY}px`,
     transform: `rotateX(${rotateXDeg}deg)`,
-  };
-}
-
-/**
- * Computes the atmospheric fog overlay as a gradient anchored to the
- * solved `horizonY` and playhead position, expressed as percentages of the
- * visible box (the fog overlay's own rendered height always equals
- * `visibleHeight` — see `getFogOverlayStyle` in Scrubber.tsx, which shrinks
- * it to match the drawer-adjusted area the same way `visibleHeight` itself
- * is derived). Because those percentages are recomputed from the solved
- * geometry on every call, the fog band tracks wherever the horizon actually
- * lands (which shifts with tilt, elevation, and the drawer) instead of
- * drifting the way the pre-#410 gradient — hardcoded to fixed percentages
- * regardless of geometry — did.
- *
- * `fogStartFraction` is where the fade begins, measured as a fraction of
- * the playhead→horizon distance starting from the playhead (0 = fog starts
- * right at the playhead, covering the whole runway; 1 = fog collapses to
- * the horizon line itself, i.e. no visible fog). The fade band's actual
- * on-screen width is therefore the remaining `(1 - fogStartFraction)` of
- * that distance, ending at the horizon.
- */
-function getFogStyle(
-  config: RunwayPreset,
-  geometry: RunwayGeometry,
-  visibleHeight: number,
-): CSSProperties {
-  if (geometry.rotateXDeg === FLAT_ROTATE_X_DEG) return NO_FOG_STYLE;
-
-  const playheadPercent = config.playheadFraction * FRACTION_TO_PERCENT;
-  const horizonPercent =
-    (geometry.horizonY / visibleHeight) * FRACTION_TO_PERCENT;
-  const fogStartPercent =
-    playheadPercent -
-    config.fogStartFraction * (playheadPercent - horizonPercent);
-
-  return {
-    backgroundImage: `linear-gradient(${FOG_GRADIENT_DIRECTION}, rgb(var(${SHADE_COLOR_CSS_VAR})) ${horizonPercent}%, rgba(var(${SHADE_COLOR_CSS_VAR}), 0) ${fogStartPercent}%)`,
   };
 }
 
@@ -222,11 +168,8 @@ type TimelinePadding = {
  * `paddingTop` has no equally strict constraint from this invariant — it
  * only needs to provide enough scrollable space to see `runwayLengthPx` of
  * upcoming content, which is what it's set to directly. `runwayLengthPx` is
- * a pre-transform (flat) distance, not tied to where the fog gradient
- * starts on screen (`fogStartFraction`, a fraction of the solved,
- * screen-space playhead→horizon distance) — the two aren't currently
- * calibrated to align, so scrolled-to-the-top content can end well short of
- * (or past) the fog band rather than fading into it. Tuning that alignment
+ * a pre-transform (flat) distance, not tied to any screen-space anchor, so
+ * how far scrolled-to-the-top content actually reaches toward the horizon
  * is visual/preset work, not a geometry-correctness concern this function
  * owns.
  */
