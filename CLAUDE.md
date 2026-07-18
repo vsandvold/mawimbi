@@ -184,6 +184,21 @@ Playwright e2e tests live in `e2e/`; visual regression snapshots in `e2e/__scree
 2. If a visual regression test fails because the UI intentionally changed, update the snapshot: `npx playwright test e2e/visual.spec.ts -g "<test name>" --update-snapshots`
 3. Commit the updated snapshot(s) alongside your code changes
 
+**In a headless/sandboxed environment (no display — e.g. a Claude Code session):** always use `npm run test:e2e:list` (or pass `--reporter=list` explicitly) instead of the default `npm run test:e2e` / `npx playwright test`. `playwright.config.ts`'s `reporter: 'html'` auto-opens the report in a browser on failure whenever `CI` isn't set — harmless with a real display, but with no browser to open it hangs **indefinitely with no error output**, which is easy to mistake for a genuinely stuck test or app bug. Real CI is unaffected: GitHub Actions sets `CI=true`, which the html reporter's own `open` option already treats as `'never'`.
+
+**Iterating on a single spec quickly:** start the dev server once and reuse it across runs instead of paying Playwright's `webServer` startup cost on every invocation (`webServer.reuseExistingServer` is already configured to detect and reuse it):
+```bash
+nohup npm start > /tmp/vite-dev.log 2>&1 &
+until curl -sf http://localhost:5173 > /dev/null; do sleep 1; done
+npx playwright test e2e/your-spec.spec.ts --reporter=list
+```
+
+**Custom pointer gestures (long-press, drag, swipe):** prefer `locator.dispatchEvent('pointerdown', {...})` over driving raw `page.mouse.move()/down()/up()` coordinates. Much of this app's UI is absolutely-positioned and 3D-transformed (the scrubber/runway, drawer-adjusted overlays), so an element's on-screen bounding box can land at unexpected — even off-viewport — coordinates depending on layout state; raw mouse coordinates can then silently miss the element with no error, while `dispatchEvent` targets it directly regardless of geometry.
+
+**One-off scratch specs:** name throwaway verification specs `e2e/zzz-*.spec.ts` (gitignored) so they're easy to spot and don't risk landing in a commit.
+
+**If `tsc`/`vitest`/`playwright` suddenly fail with missing-package errors:** `node_modules` can be wiped between sessions. Reinstall with `npm ci --onnxruntime-node-install-cuda=skip` (the plain onnx CUDA binary download 403s in sandboxed environments; the flag skips it).
+
 ## Pull Requests
 
 After all tasks are done — code changes committed and pushed — run the `/code-review` skill and address confirmed findings, then create a pull request with `gh pr create --repo vsandvold/mawimbi` targeting `master`. Include a summary of what changed and a test plan in the PR body.

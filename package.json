@@ -67,6 +67,7 @@
     "test": "vitest",
     "coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
+    "test:e2e:list": "playwright test --reporter=list",
     "test:e2e:update": "playwright test --update-snapshots",
     "prepare": "husky"
   },

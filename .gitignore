@@ -9,6 +9,8 @@
 /coverage
 /e2e/test-results/
 /playwright-report/
+# throwaway verification specs (see CLAUDE.md's E2E Tests section)
+/e2e/zzz-*.spec.ts
 
 # production
 /build
