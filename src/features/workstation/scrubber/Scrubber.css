@@ -8,22 +8,17 @@
   min-height: 0;
 }
 
-/* ScrubberViewport: perspective positioning/scaling when drawer opens */
+/* ScrubberViewport: perspective wrapper for the 3D tilt */
 
 .scrubber__viewport {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  perspective: var(--timeline-perspective);
-  /* perspective-origin is set via inline style (dynamic, drawer-aware) */
+  /* perspective + perspective-origin are set via inline style by
+     useScrubberGeometry (solved from RunwayConfig; disabled entirely,
+     not just visually, when prefers-reduced-motion is set) */
   pointer-events: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .scrubber__viewport {
-    perspective: none;
-  }
 }
 
 /* ScrubberTilt: 3D perspective tilt + passive scroll container */
@@ -42,11 +37,6 @@
      The tilt container is kept scrollable so child components (spectrogram)
      can read scrollTop to determine their viewport offset. */
   scrollbar-width: none;
-  /* Size container for cqh units in .timeline padding.
-     The timeline padding must reference this container's height
-     (not the viewport) so the content boundary at time=0 aligns with
-     the cursor position (which is a % of the scrubber height). */
-  container-type: size;
 }
 
 .scrubber__tilt::-webkit-scrollbar {
@@ -70,14 +60,18 @@
   display: none;
 }
 
-/* Playhead: loudness meter overlay centered at cursor position */
+/* Playhead: loudness meter overlay centered at the playhead position */
 
 .scrubber__playhead {
-  --available-height: calc(100% - var(--drawer-height, 0px));
+  /* --available-height is set directly (in px) via inline style from
+     Playhead.tsx, using the same visibleHeight value useScrubberGeometry
+     solves the runway transform against — not recomputed here via
+     calc(100% - drawer-height), so there is exactly one derivation of
+     "visible height" instead of two that could silently drift apart. */
   --meter-height: calc(var(--available-height) * 0.4);
   position: absolute;
   top: calc(
-    var(--cursor-position) * var(--available-height) - var(--meter-height) / 2
+    var(--playhead-fraction) * var(--available-height) - var(--meter-height) / 2
   );
   left: 0;
   right: 0;

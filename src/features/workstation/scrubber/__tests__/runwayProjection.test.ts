@@ -38,6 +38,7 @@ describe('solveGeometry', () => {
     expect(geometry.rotateXDeg).toBe(70);
     expect(geometry.horizonY).toBeCloseTo(130, 3);
     expect(geometry.farEdgeS).toBeCloseTo(2665.896, 2);
+    expect(geometry.nearEdgeS).toBeCloseTo(545.896, 2);
   });
 
   it('solves subtleRamp golden values at an 800px visible height', () => {
@@ -47,6 +48,7 @@ describe('solveGeometry', () => {
     expect(geometry.transformOriginY).toBeCloseTo(497.778, 2);
     expect(geometry.horizonY).toBeCloseTo(320, 3);
     expect(geometry.farEdgeS).toBeCloseTo(1222.809, 2);
+    expect(geometry.nearEdgeS).toBeCloseTo(-127.191, 2);
   });
 
   it('places the horizon exactly elevationFraction above the playhead line', () => {
@@ -60,23 +62,33 @@ describe('solveGeometry', () => {
   });
 });
 
-describe('projection invariants', () => {
-  const visible = { width: 1000, height: 650 };
-  const geometry = solveGeometry(noteHighway, visible);
+describe.each([
+  {
+    name: 'noteHighway',
+    config: noteHighway,
+    visible: { width: 1000, height: 650 },
+  },
+  {
+    name: 'subtleRamp',
+    config: subtleRamp,
+    visible: { width: 1000, height: 800 },
+  },
+])('projection invariants ($name)', ({ config, visible }) => {
+  const geometry = solveGeometry(config, visible);
   const sPlayhead = screenYToPlane(
-    noteHighway.playheadFraction * visible.height,
+    config.playheadFraction * visible.height,
     geometry,
   );
 
   it('widthAtPlane at the playhead distance equals the configured playheadWidth', () => {
     expect(widthAtPlane(sPlayhead, geometry)).toBeCloseTo(
-      noteHighway.playheadWidth,
+      config.playheadWidth,
       6,
     );
   });
 
   it('planeToScreenY at the playhead distance equals playheadFraction × height', () => {
-    const expectedY = noteHighway.playheadFraction * visible.height;
+    const expectedY = config.playheadFraction * visible.height;
 
     expect(planeToScreenY(sPlayhead, geometry)).toBeCloseTo(expectedY, 6);
   });
@@ -89,6 +101,11 @@ describe('projection invariants', () => {
       expect(screenYToPlane(y, geometry)).toBeCloseTo(s, 4);
     }
   });
+
+  it('sPlayhead matches farEdgeS/nearEdgeS minus their respective config offsets', () => {
+    expect(geometry.farEdgeS - config.runwayLengthPx).toBeCloseTo(sPlayhead, 6);
+    expect(geometry.nearEdgeS + config.overhangPx).toBeCloseTo(sPlayhead, 6);
+  });
 });
 
 describe('degenerate configs', () => {
@@ -97,10 +114,9 @@ describe('degenerate configs', () => {
     const geometry = solveGeometry(flatConfig, { width: 1000, height: 650 });
 
     expect(geometry.rotateXDeg).toBe(0);
-    expect(Number.isNaN(geometry.perspectivePx)).toBe(false);
-    expect(Number.isNaN(geometry.transformOriginY)).toBe(false);
-    expect(Number.isNaN(geometry.horizonY)).toBe(false);
-    expect(Number.isNaN(geometry.farEdgeS)).toBe(false);
+    for (const value of Object.values(geometry)) {
+      expect(Number.isNaN(value)).toBe(false);
+    }
   });
 
   it('produces finite values at a near-edge-on tilt of 89.9deg', () => {
@@ -121,11 +137,109 @@ describe('degenerate configs', () => {
     }
   });
 
+  it('clamps negative tilt to the flat boundary instead of mirroring it', () => {
+    const negativeConfig: RunwayConfig = { ...noteHighway, tiltDeg: -70 };
+    const geometry = solveGeometry(negativeConfig, {
+      width: 1000,
+      height: 650,
+    });
+
+    expect(geometry.rotateXDeg).toBe(0);
+    for (const value of Object.values(geometry)) {
+      expect(Number.isFinite(value)).toBe(true);
+    }
+  });
+
   it('produces finite values for a tiny 1px container height', () => {
     const geometry = solveGeometry(noteHighway, { width: 1000, height: 1 });
 
     for (const value of Object.values(geometry)) {
       expect(Number.isFinite(value)).toBe(true);
     }
+  });
+
+  it('produces finite values for a zero container height', () => {
+    const geometry = solveGeometry(noteHighway, { width: 1000, height: 0 });
+
+    for (const value of Object.values(geometry)) {
+      expect(Number.isFinite(value)).toBe(true);
+    }
+  });
+
+  it('produces finite values for a negative container height', () => {
+    const geometry = solveGeometry(noteHighway, { width: 1000, height: -100 });
+
+    for (const value of Object.values(geometry)) {
+      expect(Number.isFinite(value)).toBe(true);
+    }
+  });
+
+  it('produces finite values for a zero playheadWidth instead of Infinity/NaN', () => {
+    const zeroWidthConfig: RunwayConfig = { ...noteHighway, playheadWidth: 0 };
+    const geometry = solveGeometry(zeroWidthConfig, {
+      width: 1000,
+      height: 650,
+    });
+
+    for (const value of Object.values(geometry)) {
+      expect(Number.isFinite(value)).toBe(true);
+    }
+  });
+
+  it('produces finite values for a zero elevationFraction instead of NaN', () => {
+    const zeroElevationConfig: RunwayConfig = {
+      ...noteHighway,
+      elevationFraction: 0,
+    };
+    const geometry = solveGeometry(zeroElevationConfig, {
+      width: 1000,
+      height: 650,
+    });
+
+    for (const value of Object.values(geometry)) {
+      expect(Number.isFinite(value)).toBe(true);
+    }
+
+    // The zero-elevation degenerate case is exactly where widthAtPlane and
+    // screenYToPlane would previously divide 0/0 — exercise both directly.
+    expect(Number.isFinite(widthAtPlane(0, geometry))).toBe(true);
+    const playheadScreenY = zeroElevationConfig.playheadFraction * 650;
+    expect(Number.isFinite(screenYToPlane(playheadScreenY, geometry))).toBe(
+      true,
+    );
+  });
+
+  it('produces a farEdgeS at or ahead of the playhead for a negative runwayLengthPx', () => {
+    const negativeRunwayConfig: RunwayConfig = {
+      ...noteHighway,
+      runwayLengthPx: -500,
+    };
+    const geometry = solveGeometry(negativeRunwayConfig, {
+      width: 1000,
+      height: 650,
+    });
+
+    for (const value of Object.values(geometry)) {
+      expect(Number.isFinite(value)).toBe(true);
+    }
+    expect(geometry.farEdgeS).toBeGreaterThanOrEqual(geometry.nearEdgeS);
+  });
+
+  it('screenYToPlane at the horizon returns a large finite value instead of Infinity', () => {
+    const geometry = solveGeometry(noteHighway, { width: 1000, height: 650 });
+
+    const result = screenYToPlane(geometry.horizonY, geometry);
+
+    expect(Number.isFinite(result)).toBe(true);
+  });
+
+  it('widthAtPlane behind the camera returns a large finite value instead of Infinity', () => {
+    const geometry = solveGeometry(noteHighway, { width: 1000, height: 650 });
+    const tiltRad = (geometry.rotateXDeg * Math.PI) / 180;
+    const behindCameraS = -geometry.perspectivePx / Math.sin(tiltRad);
+
+    const result = widthAtPlane(behindCameraS, geometry);
+
+    expect(Number.isFinite(result)).toBe(true);
   });
 });
