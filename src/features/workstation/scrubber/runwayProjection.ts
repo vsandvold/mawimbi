@@ -12,10 +12,7 @@ export type RunwayConfig = {
    *  visible height; smaller = camera closer to the ground. */
   elevationFraction: number;
   /** How much upcoming audio is scrollable into view above the playhead,
-   *  in pre-transform px. Not tied to where the fog gradient visually
-   *  starts — that's controlled independently by `fogStartFraction`
-   *  (`RunwayPreset`, runwayConfig.ts) against the solved screen-space
-   *  horizon, a different coordinate space from this pre-transform value. */
+   *  in pre-transform px. */
   runwayLengthPx: number;
   /** Road under your feet — scrollable below the playhead, in
    *  pre-transform px. */

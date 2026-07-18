@@ -1,10 +1,6 @@
 import type { RunwayConfig } from './runwayProjection';
 
-export type RunwayPreset = RunwayConfig & {
-  /** Fraction of the playhead→horizon distance where the fog gradient
-   *  begins (0 = fog covers the whole runway, 1 = no fog). */
-  fogStartFraction: number;
-};
+export type RunwayPreset = RunwayConfig;
 
 /**
  * Guitar Hero-style note highway — the target look pinned from reference
@@ -19,7 +15,6 @@ export const noteHighway: RunwayPreset = {
   elevationFraction: 0.55,
   runwayLengthPx: 1800,
   overhangPx: 320,
-  fogStartFraction: 0.8,
 };
 
 /**
@@ -43,7 +38,6 @@ export const subtleRamp: RunwayPreset = {
   elevationFraction: 0.2,
   runwayLengthPx: 1200,
   overhangPx: 150,
-  fogStartFraction: 0.8,
 };
 
 /**
@@ -62,7 +56,6 @@ export const flat: RunwayPreset = {
   elevationFraction: 0.55,
   runwayLengthPx: 1800,
   overhangPx: 320,
-  fogStartFraction: 1,
 };
 
 export const RUNWAY_PRESETS = {

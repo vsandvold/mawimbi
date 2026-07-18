@@ -43,14 +43,6 @@
   display: none;
 }
 
-/* ScrubberFog: atmospheric fog overlay, anchored to the solved horizon */
-
-.scrubber__fog {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
 /* PhantomScroller: invisible scroll overlay for native scroll physics */
 
 .scrubber__phantom {
