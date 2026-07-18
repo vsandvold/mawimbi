@@ -10,6 +10,7 @@ import { useRecordingService } from '../../recording/useRecordingService';
 import { useTimelineZoom } from '../../../shared/hooks/useTimelineZoom';
 import Playhead, { type PlayheadHandle } from './Playhead';
 import PhantomScroller from './PhantomScroller';
+import ScrubberFog from './ScrubberFog';
 import ScrubberTilt from './ScrubberTilt';
 import ScrubberViewport from './ScrubberViewport';
 import ZoomControls from './ZoomControls';
@@ -41,8 +42,16 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
   const scrubberTiltRef = useRef<HTMLDivElement>(null);
   const playheadRef = useRef<PlayheadHandle>(null);
 
-  const { containerRef, viewportStyle, tiltStyle } =
-    useScrubberGeometry(drawerHeight);
+  const {
+    containerRef,
+    viewportStyle,
+    tiltStyle,
+    fogStyle,
+    playheadFraction,
+    visibleHeight,
+    timelinePaddingTopPx,
+    timelinePaddingBottomPx,
+  } = useScrubberGeometry(drawerHeight);
 
   const {
     handlePointerDown,
@@ -72,7 +81,13 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
   };
 
   const phantomStyle = getPhantomStyle(drawerHeight);
+  const fogOverlayStyle = getFogOverlayStyle(drawerHeight, fogStyle);
   const zoomControlsStyle = getZoomControlsStyle(drawerHeight);
+  const scrubberStyle = getScrubberStyle(
+    playheadFraction,
+    timelinePaddingTopPx,
+    timelinePaddingBottomPx,
+  );
 
   // The geometry ref measures the tilt container's height for 3D transform
   // calculations. Assign it via a callback ref alongside the scroll ref.
@@ -84,12 +99,16 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
   };
 
   return (
-    <div className="scrubber scrubber--firefox-scroll-fix">
+    <div
+      className="scrubber scrubber--firefox-scroll-fix"
+      style={scrubberStyle}
+    >
       <ScrubberViewport style={viewportStyle}>
         <ScrubberTilt ref={tiltRef} style={tiltStyle}>
           {props.children}
         </ScrubberTilt>
       </ScrubberViewport>
+      <ScrubberFog style={fogOverlayStyle} />
       <PhantomScroller
         ref={phantomRef}
         spacerHeight={spacerHeight}
@@ -100,7 +119,7 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
         onScroll={handleScroll}
         onWheel={handleWheel}
       />
-      <Playhead ref={playheadRef} drawerHeight={drawerHeight} />
+      <Playhead ref={playheadRef} visibleHeight={visibleHeight} />
       <ZoomControls style={zoomControlsStyle} />
     </div>
   );
@@ -111,12 +130,33 @@ Scrubber.displayName = 'Scrubber';
 export default Scrubber;
 
 /**
+ * When the drawer is open, shrinks an `inset: 0` overlay's clickable/visible
+ * area to the same drawer-adjusted visible box `useScrubberGeometry` solves
+ * against — shared by every such overlay (phantom scroller, fog) so they
+ * can't drift out of sync with each other or with the geometry itself.
+ */
+function getDrawerBottomStyle(drawerHeight: number): CSSProperties | undefined {
+  if (drawerHeight <= 0) return undefined;
+  return { bottom: `${drawerHeight}px` };
+}
+
+/**
  * When the drawer is open, shrink the phantom scroller's clickable area
  * so it doesn't overlap the drawer controls.
  */
 function getPhantomStyle(drawerHeight: number): CSSProperties | undefined {
-  if (drawerHeight <= 0) return undefined;
-  return { bottom: `${drawerHeight}px` };
+  return getDrawerBottomStyle(drawerHeight);
+}
+
+/**
+ * When the drawer is open, shrink the fog overlay to match the same
+ * drawer-adjusted visible area the gradient itself was solved against.
+ */
+function getFogOverlayStyle(
+  drawerHeight: number,
+  fogStyle: CSSProperties,
+): CSSProperties {
+  return { ...fogStyle, ...getDrawerBottomStyle(drawerHeight) };
 }
 
 function getZoomControlsStyle(drawerHeight: number): CSSProperties {
@@ -124,4 +164,23 @@ function getZoomControlsStyle(drawerHeight: number): CSSProperties {
     ...baseTransformStyle,
     transform: `translateY(-${drawerHeight}px)`,
   };
+}
+
+/**
+ * Exposes the playhead's screen-space position and the timeline's
+ * projection-corrected content padding as CSS custom properties on the
+ * shared ancestor. Timeline.css and the playhead overlay both inherit
+ * these, so layout (where "now" is scrolled to) and geometry (the 3D
+ * transform) stay anchored to the same runway instead of drifting apart.
+ */
+function getScrubberStyle(
+  playheadFraction: number,
+  timelinePaddingTopPx: number,
+  timelinePaddingBottomPx: number,
+): CSSProperties {
+  return {
+    '--playhead-fraction': playheadFraction,
+    '--timeline-padding-top': `${timelinePaddingTopPx}px`,
+    '--timeline-padding-bottom': `${timelinePaddingBottomPx}px`,
+  } as CSSProperties;
 }

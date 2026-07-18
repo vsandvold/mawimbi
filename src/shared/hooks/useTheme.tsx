@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { useMediaQuery } from './useMediaQuery';
 
 type Theme = 'light' | 'dark' | 'system';
 
@@ -15,6 +16,7 @@ type ThemeContextValue = {
 };
 
 const STORAGE_KEY = 'mawimbi-theme';
+const DARK_SCHEME_QUERY = '(prefers-color-scheme: dark)';
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
@@ -29,8 +31,7 @@ function getStoredTheme(): Theme {
 function applyTheme(theme: Theme) {
   const isDark =
     theme === 'dark' ||
-    (theme === 'system' &&
-      window.matchMedia('(prefers-color-scheme: dark)').matches);
+    (theme === 'system' && window.matchMedia(DARK_SCHEME_QUERY).matches);
 
   if (isDark) {
     document.documentElement.classList.add('dark');
@@ -41,6 +42,7 @@ function applyTheme(theme: Theme) {
 
 export const ThemeProvider = ({ children }: { children: ReactNode }) => {
   const [theme, setThemeState] = useState<Theme>(getStoredTheme);
+  const systemPrefersDark = useMediaQuery(DARK_SCHEME_QUERY);
 
   const setTheme = useCallback((newTheme: Theme) => {
     localStorage.setItem(STORAGE_KEY, newTheme);
@@ -52,14 +54,15 @@ export const ThemeProvider = ({ children }: { children: ReactNode }) => {
     applyTheme(theme);
   }, [theme]);
 
+  // Re-applies when the OS-level dark/light preference changes while the
+  // user has selected 'system' — the effect above already handles
+  // user-initiated theme changes, so this one intentionally reacts only to
+  // systemPrefersDark, not theme, to avoid a redundant double-apply.
   useEffect(() => {
     if (theme !== 'system') return;
-
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => applyTheme('system');
-    mediaQuery.addEventListener('change', handler);
-    return () => mediaQuery.removeEventListener('change', handler);
-  }, [theme]);
+    applyTheme('system');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [systemPrefersDark]);
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme }}>

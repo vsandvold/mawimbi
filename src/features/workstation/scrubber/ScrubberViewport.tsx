@@ -5,13 +5,13 @@ type ScrubberViewportProps = PropsWithChildren<{
 }>;
 
 /**
- * Perspective wrapper that positions and scales the scrubber to fit the
- * visible area above the bottom sheet.
+ * Perspective wrapper for the 3D tilt.
  *
- * Sets the CSS `perspective` property for the 3D tilt effect and applies
- * `translateY`/`scaleY` when the drawer is open so the scrubber shrinks
- * to fit the reduced viewport — without touching the child tilt
- * container's own 3D transform.
+ * Sets the CSS `perspective` and `perspective-origin` solved by
+ * `runwayProjection.solveGeometry()` for the current visible area
+ * (container minus drawer height) — geometry re-solves when the drawer
+ * opens or closes, so no separate drawer-compensating transform is needed
+ * here.
  *
  * This container is purely visual — pointer events pass through to the
  * PhantomScroller overlay behind it.
