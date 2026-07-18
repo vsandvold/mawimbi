@@ -104,3 +104,40 @@ test.describe('Runway alignment invariant', () => {
     await expectContentAlignedToPlayhead(page);
   });
 });
+
+/**
+ * Runway edge rails — glowing `.timeline::before`/`::after` lines along the
+ * runway's sides (mawimbi#443's visual simplification pass).
+ *
+ * `.timeline::before`/`::after` are absolutely positioned and excluded from
+ * grid placement, so — unlike `.timeline__track` grid items, whose z-index
+ * establishes a stacking context per the CSS Grid spec even at `z-index: 0`
+ * — they default to `z-index: auto` and paint per DOM order instead: the
+ * `::before` rail (generated first) would paint *behind* every track, while
+ * `::after` (generated last) would paint in front of untouched tracks but
+ * behind a focused one (`.timeline__track--foreground`, `z-index: 1`). Both
+ * rails must sit above every track's stacking level to render consistently.
+ */
+test.describe('Runway edge rails', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/project/test-id');
+    await uploadAudioFile(page, SHORT_AUDIO);
+    await expect(page.locator('.timeline__track')).toBeVisible();
+  });
+
+  test('both rails share a z-index above every possible track stacking level', async ({
+    page,
+  }) => {
+    const [beforeZIndex, afterZIndex] = await page.evaluate(() => {
+      const timeline = document.querySelector('.timeline')!;
+      return [
+        getComputedStyle(timeline, '::before').zIndex,
+        getComputedStyle(timeline, '::after').zIndex,
+      ];
+    });
+
+    expect(beforeZIndex).toBe(afterZIndex);
+    // .timeline__track--foreground (the highest track stacking level) is 1.
+    expect(Number(beforeZIndex)).toBeGreaterThan(1);
+  });
+});

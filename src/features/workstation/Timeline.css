@@ -29,6 +29,16 @@
  * (runwayLengthPx and the overhang, not visual "sides") whenever a short
  * timeline scrolls one of those edges into view. A 0-width strip's own
  * top/bottom shadow is a negligible end-cap, not a full-width bar.
+ *
+ * Hardcoded white, not `--foreground` (which is near-black in the light
+ * theme, inverting the glow into a dark smudge) — matches the established
+ * runway-accent color already used regardless of theme by the loudness
+ * meter that sits on this same runway (loudnessMeterRenderer.ts's
+ * BORDER_COLOR). z-index above `.timeline__track--foreground` (1) so both
+ * rails paint consistently on top of every track, focused or not — without
+ * it they'd default to z-index:auto and paint in DOM order interleaved with
+ * the tracks' own z-index:0 grid-item stacking contexts, hiding the left
+ * rail behind track content while the right rail floats above it.
  */
 .timeline::before,
 .timeline::after {
@@ -37,7 +47,8 @@
   top: 0;
   bottom: 0;
   width: 0;
-  box-shadow: 0 0 12px 1px var(--foreground);
+  z-index: 2;
+  box-shadow: 0 0 12px 1px rgba(255, 255, 255, 0.8);
   pointer-events: none;
 }
 
