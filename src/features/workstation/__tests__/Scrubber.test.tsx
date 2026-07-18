@@ -2,8 +2,13 @@ import { act, fireEvent, render } from '@testing-library/react';
 import { createRef } from 'react';
 import * as Tone from 'tone';
 import AudioService from '../../audio/AudioService';
-import { activeRunwayConfig } from '../scrubber/runwayConfig';
+import { activeRunwayConfig, beatSaber } from '../scrubber/runwayConfig';
 import { solveGeometry } from '../scrubber/runwayProjection';
+import {
+  resetTuningSignals,
+  setTuningValue,
+  toggleTuningOverlay,
+} from '../scrubber/tuningSignals';
 import Scrubber, { type ScrubberHandle } from '../scrubber/Scrubber';
 
 const audioService = AudioService.getInstance();
@@ -22,6 +27,7 @@ afterEach(() => {
   playbackService.reset();
   recordingService.reset();
   Tone.getTransport().seconds = 0;
+  resetTuningSignals();
 });
 
 /**
@@ -174,6 +180,113 @@ it('re-solves perspective geometry for the smaller visible area when the drawer 
   expect(openGeometry.perspectivePx).not.toBeCloseTo(
     closedGeometry.perspectivePx,
     0,
+  );
+
+  restoreOffsetHeight();
+});
+
+it('re-solves geometry from the tuning overlay override when active', () => {
+  const containerHeight = 650;
+  const restoreOffsetHeight = mockOffsetHeight(containerHeight);
+
+  toggleTuningOverlay(activeRunwayConfig);
+  setTuningValue('tiltDeg', 20);
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+  const tilt = container.querySelector('.scrubber__tilt') as HTMLElement;
+
+  const overriddenGeometry = solveGeometry(
+    { ...activeRunwayConfig, tiltDeg: 20 },
+    { width: 0, height: containerHeight },
+  );
+
+  expect(tilt.style.transform).toBe(
+    `rotateX(${overriddenGeometry.rotateXDeg}deg)`,
+  );
+
+  restoreOffsetHeight();
+});
+
+it('reverts to the active preset once the tuning overlay closes', () => {
+  const containerHeight = 650;
+  const restoreOffsetHeight = mockOffsetHeight(containerHeight);
+
+  toggleTuningOverlay(activeRunwayConfig);
+  setTuningValue('tiltDeg', 20);
+  // Second toggleTuningOverlay call closes the overlay and clears the override.
+  toggleTuningOverlay(activeRunwayConfig);
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+  const tilt = container.querySelector('.scrubber__tilt') as HTMLElement;
+
+  const activeGeometry = solveGeometry(activeRunwayConfig, {
+    width: 0,
+    height: containerHeight,
+  });
+
+  expect(tilt.style.transform).toBe(`rotateX(${activeGeometry.rotateXDeg}deg)`);
+
+  restoreOffsetHeight();
+});
+
+it('reveals the tuning overlay on a long-press of the zoom controls', () => {
+  vi.useFakeTimers();
+  const restoreOffsetHeight = mockOffsetHeight(650);
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+
+  expect(container.querySelector('.tuning-overlay')).toBeNull();
+
+  const zoomControls = container.querySelector('.zoom-controls') as HTMLElement;
+  fireEvent.pointerDown(zoomControls);
+  act(() => {
+    vi.advanceTimersByTime(700);
+  });
+
+  expect(container.querySelector('.tuning-overlay')).not.toBeNull();
+
+  restoreOffsetHeight();
+  vi.useRealTimers();
+});
+
+it('does not reveal the tuning overlay on a short press of the zoom controls', () => {
+  vi.useFakeTimers();
+  const restoreOffsetHeight = mockOffsetHeight(650);
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+
+  const zoomControls = container.querySelector('.zoom-controls') as HTMLElement;
+  fireEvent.pointerDown(zoomControls);
+  act(() => {
+    vi.advanceTimersByTime(200);
+  });
+  fireEvent.pointerUp(zoomControls);
+  act(() => {
+    vi.advanceTimersByTime(700);
+  });
+
+  expect(container.querySelector('.tuning-overlay')).toBeNull();
+
+  restoreOffsetHeight();
+  vi.useRealTimers();
+});
+
+it('selects beatSaber preset via the tuning overlay and re-solves geometry', () => {
+  const containerHeight = 650;
+  const restoreOffsetHeight = mockOffsetHeight(containerHeight);
+
+  toggleTuningOverlay(beatSaber);
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+  const tilt = container.querySelector('.scrubber__tilt') as HTMLElement;
+
+  const beatSaberGeometry = solveGeometry(beatSaber, {
+    width: 0,
+    height: containerHeight,
+  });
+
+  expect(tilt.style.transform).toBe(
+    `rotateX(${beatSaberGeometry.rotateXDeg}deg)`,
   );
 
   restoreOffsetHeight();

@@ -1,20 +1,37 @@
 import { Minus, Plus } from 'lucide-react';
 import { Button } from '../../../shared/ui/button';
-import { type CSSProperties } from 'react';
+import { type CSSProperties, type PointerEventHandler } from 'react';
 import { useRecordingService } from '../../recording/useRecordingService';
 import { useWorkstation } from '../useWorkstation';
 import './ZoomControls.css';
 
 type ZoomControlsProps = {
   style?: CSSProperties;
+  // Forwarded to the root element as-is — currently used by the dev tuning
+  // overlay (mawimbi#447) to attach its long-press reveal gesture, without
+  // coupling this component to tuning specifics.
+  onPointerDown?: PointerEventHandler;
+  onPointerUp?: PointerEventHandler;
+  onPointerLeave?: PointerEventHandler;
 };
 
-const ZoomControls = ({ style }: ZoomControlsProps) => {
+const ZoomControls = ({
+  style,
+  onPointerDown,
+  onPointerUp,
+  onPointerLeave,
+}: ZoomControlsProps) => {
   const { isRecording } = useRecordingService();
   const { isMaxZoom, isMinZoom, zoomIn, zoomOut } = useWorkstation();
 
   return (
-    <div className="zoom-controls" style={style}>
+    <div
+      className="zoom-controls"
+      style={style}
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      onPointerLeave={onPointerLeave}
+    >
       <Button
         variant="ghost"
         size="icon-sm"

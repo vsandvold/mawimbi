@@ -1,3 +1,4 @@
+import { useSignals } from '@preact/signals-react/runtime';
 import { type CSSProperties, useLayoutEffect, useRef, useState } from 'react';
 import { useMediaQuery } from '../../../shared/hooks/useMediaQuery';
 import { activeRunwayConfig, type RunwayPreset } from './runwayConfig';
@@ -6,6 +7,7 @@ import {
   type RunwayConfig,
   type RunwayGeometry,
 } from './runwayProjection';
+import { signals as tuningSignals } from './tuningSignals';
 
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
@@ -20,16 +22,6 @@ const FRACTION_TO_PERCENT = 100;
 // incidental side effect of solveFlatGeometry's internal constants.
 const FLAT_ROTATE_X_DEG = 0;
 const NO_FOG_STYLE: CSSProperties = { backgroundImage: 'none' };
-
-// A flat plane (tiltDeg 0) makes solveGeometry take its identity-geometry
-// path — rotateX(0) disables the 3D effect without a separate code path.
-// getFogStyle's own FLAT_ROTATE_X_DEG check disables the fog the same way,
-// so this doesn't need its own fogStartFraction override. Defined once so
-// referential equality is stable across renders.
-const REDUCED_MOTION_CONFIG: RunwayPreset = {
-  ...activeRunwayConfig,
-  tiltDeg: 0,
-};
 
 // Measured container height can be 0 (before the first ResizeObserver
 // callback) or, in principle, smaller than drawerHeight — floor it so
@@ -59,6 +51,7 @@ type ScrubberGeometry = {
   viewportStyle: CSSProperties;
   tiltStyle: CSSProperties;
   fogStyle: CSSProperties;
+  geometry: RunwayGeometry;
   playheadFraction: number;
   visibleHeight: number;
   timelinePaddingTopPx: number;
@@ -76,19 +69,28 @@ type ScrubberGeometry = {
  * re-solved for the new visible box, so the runway's screen-space anchors
  * (playhead position, playhead width, horizon) stay true rather than being
  * patched with ad hoc compensating transforms.
+ *
+ * The base config is `activeRunwayConfig`, composed with the dev tuning
+ * overlay's override signal when one is active (mawimbi#447) — a slider
+ * tweak re-solves geometry the same way a drawer resize does, through this
+ * one function, never by writing CSS directly. Subscribing to that signal
+ * via `useSignals()` is the only reactive cost this hot-path hook takes on;
+ * when the overlay has never been opened the override stays `null` and this
+ * behaves exactly as before.
  */
 export function useScrubberGeometry(drawerHeight: number): ScrubberGeometry {
+  useSignals();
   const containerRef = useRef<HTMLDivElement>(null);
   const containerSize = useContainerSize(containerRef);
   const prefersReducedMotion = useMediaQuery(REDUCED_MOTION_QUERY);
+  const configOverride = tuningSignals.configOverride.value;
 
   const visibleHeight = Math.max(
     containerSize.height - drawerHeight,
     MIN_VISIBLE_HEIGHT_PX,
   );
-  const config = prefersReducedMotion
-    ? REDUCED_MOTION_CONFIG
-    : activeRunwayConfig;
+  const baseConfig = configOverride ?? activeRunwayConfig;
+  const config = prefersReducedMotion ? getFlatVariant(baseConfig) : baseConfig;
   const geometry = solveGeometry(config, {
     width: containerSize.width,
     height: visibleHeight,
@@ -103,11 +105,20 @@ export function useScrubberGeometry(drawerHeight: number): ScrubberGeometry {
     ),
     tiltStyle: getTiltStyle(geometry.rotateXDeg, geometry.transformOriginY),
     fogStyle: getFogStyle(config, geometry, visibleHeight),
-    playheadFraction: activeRunwayConfig.playheadFraction,
+    geometry,
+    playheadFraction: baseConfig.playheadFraction,
     visibleHeight,
     timelinePaddingTopPx: timelinePadding.top,
     timelinePaddingBottomPx: timelinePadding.bottom,
   };
+}
+
+// A flat plane (tiltDeg 0) makes solveGeometry take its identity-geometry
+// path — rotateX(0) disables the 3D effect without a separate code path.
+// getFogStyle's own FLAT_ROTATE_X_DEG check disables the fog the same way,
+// so this doesn't need its own fogStartFraction override.
+function getFlatVariant(config: RunwayPreset): RunwayPreset {
+  return { ...config, tiltDeg: 0 };
 }
 
 function getViewportStyle(
