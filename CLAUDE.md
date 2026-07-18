@@ -40,6 +40,7 @@ gh pr create --repo vsandvold/mawimbi ...
 - Before reporting work as complete, verify it: run `npm run lint` and the tests relevant to the change. Only claim what you have evidence for from this session.
 - Do the simplest thing that works. No features, refactors, or abstractions beyond what the task requires.
 - When a decision is ambiguous, state the assumption you're making and proceed with a recommendation rather than presenting a menu of options.
+- Prefer `git stash push -- <file>` over manual backup copies (`cp file file.bak`) when temporarily reverting a file to verify behavior (e.g. confirming a regression test fails without a fix). It's atomic and exact; ad-hoc copies can silently diverge from a linter or dev-server rewrite happening in between.
 
 ## Tech Stack
 
@@ -145,6 +146,9 @@ Tone.js uses `standardized-audio-context`, which wraps the native `AudioContext`
 
 Code that needs native nodes (`WorkletRecorder`/`RecordingProcessor` recording chain, `FrequencyVisualizer`) extracts the real native context via the wrapper's private `_nativeContext` field and creates **all** nodes in the chain on it. If `_nativeContext` is unavailable, fall back to `rawContext` directly. See `AudioService`, `RecordingService.initializeWorkletRecorder()`, and `FrequencyVisualizer` for the established pattern.
 
+### CSS Grid items get z-index stacking contexts; absolutely-positioned pseudo-elements don't
+A grid item's `z-index` — even `0`, even with no `position` set — creates a stacking context per the CSS Grid spec. An absolutely-positioned `::before`/`::after` sibling with no explicit `z-index` (defaults to `auto`) does **not** get that treatment: it's out-of-flow, never becomes a grid item, and paints in plain DOM order relative to the grid items' stacking contexts instead of sharing their level. `Timeline.css`'s `.timeline__track` items (`z-index: 0`, `.timeline__track--foreground` at `1`) and its `.timeline::before`/`::after` rail pseudo-elements are exactly this pattern — the rails need an explicit `z-index` higher than any track's to paint consistently on top. Without it, `::before` (generated first) paints under every track, and `::after` (generated last) paints under only the focused one — an asymmetric bug that shipped once already. The same trap applies to any future absolutely-positioned overlay added inside a `z-index`-using grid/flex container.
+
 ## Code Conventions
 
 - Functional components only, with `React.memo` for performance-sensitive components
@@ -175,6 +179,8 @@ Vitest + React Testing Library, jsdom environment. `setupTests.ts` globally prov
 `clearMocks: true` in `vite.config.ts` resets mock call counts between tests. `fake-indexeddb` is available for storage tests.
 
 Tests read service state through plain getters (`service.playbackState`, `getFocusedTracks()`, `getPixelsPerSecond()`), not through `.signals.*.value`.
+
+jsdom can't verify real CSS: no paint/stacking order, no pseudo-element computed styles (`getComputedStyle(el, '::before')` returns nothing meaningful), no actual layout. A unit test asserting on inline `style.*` objects (as most of `Scrubber.test.tsx` does) only proves a value was computed, not that it renders correctly. Visual/stacking/pseudo-element behavior needs a Playwright e2e assertion instead — e.g. `page.evaluate(() => getComputedStyle(el, '::before').zIndex)`.
 
 ### E2E Tests
 
