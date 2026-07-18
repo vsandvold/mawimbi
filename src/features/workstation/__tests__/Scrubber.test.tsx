@@ -56,6 +56,14 @@ function parseOriginY(origin: string): number {
   return parseFloat(origin.split(' ')[1]);
 }
 
+/** Extracts the two `<number>%` gradient stop positions from a `linear-gradient(...)` string. */
+function parseGradientPercents(backgroundImage: string): [number, number] {
+  const matches = [...backgroundImage.matchAll(/(-?[\d.]+)%/g)].map((m) =>
+    parseFloat(m[1]),
+  );
+  return [matches[0], matches[1]];
+}
+
 it('pauses playback when phantom scroller is scrolled while playing', () => {
   playbackService.play();
 
@@ -223,10 +231,30 @@ it('disables the 3D tilt when prefers-reduced-motion is set', () => {
   window.matchMedia = originalMatchMedia;
 });
 
-it('does not render a shade overlay', () => {
-  const { container } = render(<Scrubber {...defaultProps} />);
+it('renders a fog overlay gradient anchored to the solved horizon', () => {
+  const containerHeight = 650;
+  const restoreOffsetHeight = mockOffsetHeight(containerHeight);
 
-  expect(container.querySelector('.scrubber__shade')).toBeNull();
+  const { container } = render(<Scrubber {...defaultProps} />);
+  const fog = container.querySelector('.scrubber__fog') as HTMLElement;
+
+  const geometry = solveGeometry(activeRunwayConfig, {
+    width: 0,
+    height: containerHeight,
+  });
+  const playheadPercent = activeRunwayConfig.playheadFraction * 100;
+  const horizonPercent = (geometry.horizonY / containerHeight) * 100;
+  const expectedFogStartPercent =
+    playheadPercent -
+    activeRunwayConfig.fogStartFraction * (playheadPercent - horizonPercent);
+
+  const [actualHorizonPercent, actualFogStartPercent] = parseGradientPercents(
+    fog.style.backgroundImage,
+  );
+  expect(actualHorizonPercent).toBeCloseTo(horizonPercent, 4);
+  expect(actualFogStartPercent).toBeCloseTo(expectedFogStartPercent, 4);
+
+  restoreOffsetHeight();
 });
 
 it('passes drawer-adjusted visible height as CSS variable to playhead for position alignment', () => {

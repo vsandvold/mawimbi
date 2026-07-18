@@ -1,6 +1,6 @@
 import { type CSSProperties, useLayoutEffect, useRef, useState } from 'react';
 import { useMediaQuery } from '../../../shared/hooks/useMediaQuery';
-import { activeRunwayConfig } from './runwayConfig';
+import { activeRunwayConfig, type RunwayPreset } from './runwayConfig';
 import {
   solveGeometry,
   type RunwayConfig,
@@ -12,7 +12,7 @@ const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 // A flat plane (tiltDeg 0) makes solveGeometry take its identity-geometry
 // path — rotateX(0) disables the 3D effect without a separate code path.
 // Defined once so referential equality is stable across renders.
-const REDUCED_MOTION_CONFIG: RunwayConfig = {
+const REDUCED_MOTION_CONFIG: RunwayPreset = {
   ...activeRunwayConfig,
   tiltDeg: 0,
 };
@@ -44,6 +44,7 @@ type ScrubberGeometry = {
   containerRef: React.RefObject<HTMLDivElement | null>;
   viewportStyle: CSSProperties;
   tiltStyle: CSSProperties;
+  fogStyle: CSSProperties;
   playheadFraction: number;
   visibleHeight: number;
   timelinePaddingTopPx: number;
@@ -87,6 +88,7 @@ export function useScrubberGeometry(drawerHeight: number): ScrubberGeometry {
       geometry.perspectiveOriginY,
     ),
     tiltStyle: getTiltStyle(geometry.rotateXDeg, geometry.transformOriginY),
+    fogStyle: getFogStyle(config, geometry, visibleHeight),
     playheadFraction: activeRunwayConfig.playheadFraction,
     visibleHeight,
     timelinePaddingTopPx: timelinePadding.top,
@@ -113,6 +115,34 @@ function getTiltStyle(
     ...baseTransformStyle,
     transformOrigin: `center ${transformOriginY}px`,
     transform: `rotateX(${rotateXDeg}deg)`,
+  };
+}
+
+/**
+ * Computes the atmospheric fog overlay as a gradient anchored to the
+ * solved `horizonY`, not a fixed fraction of the container — so the fog
+ * band tracks wherever the runway's horizon actually lands (which shifts
+ * with tilt, elevation, and the drawer-adjusted visible height) instead of
+ * drifting out of alignment the way the pre-#410 fixed-percentage gradient
+ * did.
+ *
+ * The fog fades in over the last `fogStartFraction` of the playhead→horizon
+ * distance: opaque from the horizon up, transitioning to fully transparent
+ * by `fogStartFraction` of the way back toward the playhead.
+ */
+function getFogStyle(
+  config: RunwayPreset,
+  geometry: RunwayGeometry,
+  visibleHeight: number,
+): CSSProperties {
+  const playheadPercent = config.playheadFraction * 100;
+  const horizonPercent = (geometry.horizonY / visibleHeight) * 100;
+  const fogStartPercent =
+    playheadPercent -
+    config.fogStartFraction * (playheadPercent - horizonPercent);
+
+  return {
+    backgroundImage: `linear-gradient(to bottom, rgb(var(--shade-color)) ${horizonPercent}%, rgba(var(--shade-color), 0) ${fogStartPercent}%)`,
   };
 }
 
@@ -149,7 +179,7 @@ type TimelinePadding = {
  * `paddingTop` has no equally strict constraint from this invariant — it
  * only needs to provide enough scrollable space to see `runwayLengthPx` of
  * upcoming content before the far edge/fog, which is what it's set to
- * directly (fog placement itself lands in a later issue).
+ * directly.
  */
 function getTimelinePadding(
   config: RunwayConfig,
