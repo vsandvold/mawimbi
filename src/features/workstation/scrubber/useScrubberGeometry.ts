@@ -1,121 +1,183 @@
 import { type CSSProperties, useLayoutEffect, useRef, useState } from 'react';
+import { activeRunwayConfig } from './runwayConfig';
+import {
+  screenYToPlane,
+  solveGeometry,
+  type RunwayConfig,
+  type RunwayGeometry,
+} from './runwayProjection';
 
-// The scrubber bottom sits at this fraction from the top of the visible area
-// (viewport minus drawer). 0.75 = bottom 25% of visible area is empty.
-const SCRUBBER_BOTTOM_FRACTION = 0.75;
-
-// Fallbacks if CSS custom properties are missing or unparseable
-const FALLBACK_PERSPECTIVE = 500;
-const FALLBACK_TILT = 75;
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
 const baseTransformStyle = {
   willChange: 'transform',
   transition: 'transform 0.25s ease-out',
 };
 
+type ContainerSize = {
+  width: number;
+  height: number;
+};
+
 type ScrubberGeometry = {
   containerRef: React.RefObject<HTMLDivElement | null>;
   viewportStyle: CSSProperties;
   tiltStyle: CSSProperties;
+  playheadFraction: number;
+  timelinePaddingTopPx: number;
+  timelinePaddingBottomPx: number;
 };
 
 /**
- * Computes the 3D perspective geometry for the scrubber.
+ * Computes the 3D perspective geometry for the scrubber by delegating to
+ * `runwayProjection.solveGeometry()` — this hook only measures the DOM and
+ * maps the solved geometry onto CSS properties; it holds no geometry math
+ * of its own.
  *
- * Tracks the scroll container's height via ResizeObserver and derives:
- * - `viewportStyle` — perspective-origin + drawer-aware translateY/scaleY
- * - `tiltStyle` — rotateX tilt + foreshortening-compensating scaleY
- *
- * The container height is measured from the scroll container (ScrubberTilt),
- * not the viewport wrapper. This keeps the 3D transform stable when the
- * bottom sheet opens — only the viewport wrapper scales/repositions.
+ * The visible box passed to the solver is the container's size minus the
+ * open drawer's height. When the drawer opens or closes, geometry is
+ * re-solved for the new visible box, so the runway's screen-space anchors
+ * (playhead position, playhead width, horizon) stay true rather than being
+ * patched with ad hoc compensating transforms.
  */
 export function useScrubberGeometry(drawerHeight: number): ScrubberGeometry {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [containerHeight, setContainerHeight] = useState(0);
+  const containerSize = useContainerSize(containerRef);
+  const prefersReducedMotion = usePrefersReducedMotion();
+
+  const visibleHeight = containerSize.height - drawerHeight;
+  const config = getEffectiveConfig(prefersReducedMotion);
+  const geometry = solveGeometry(config, {
+    width: containerSize.width,
+    height: visibleHeight,
+  });
+  const timelinePadding = getTimelinePadding(config, geometry, visibleHeight);
+
+  return {
+    containerRef,
+    viewportStyle: getViewportStyle(
+      geometry.perspectivePx,
+      geometry.perspectiveOriginY,
+    ),
+    tiltStyle: getTiltStyle(geometry.rotateXDeg, geometry.transformOriginY),
+    playheadFraction: activeRunwayConfig.playheadFraction,
+    timelinePaddingTopPx: timelinePadding.top,
+    timelinePaddingBottomPx: timelinePadding.bottom,
+  };
+}
+
+function getEffectiveConfig(prefersReducedMotion: boolean): RunwayConfig {
+  if (!prefersReducedMotion) return activeRunwayConfig;
+  // A flat plane (tiltDeg 0) makes solveGeometry take its identity-geometry
+  // path — rotateX(0) disables the 3D effect without a separate code path.
+  return { ...activeRunwayConfig, tiltDeg: 0 };
+}
+
+function getViewportStyle(
+  perspectivePx: number,
+  perspectiveOriginY: number,
+): CSSProperties {
+  return {
+    ...baseTransformStyle,
+    perspective: `${perspectivePx}px`,
+    perspectiveOrigin: `center ${perspectiveOriginY}px`,
+  };
+}
+
+function getTiltStyle(
+  rotateXDeg: number,
+  transformOriginY: number,
+): CSSProperties {
+  return {
+    ...baseTransformStyle,
+    transformOrigin: `center ${transformOriginY}px`,
+    transform: `rotateX(${rotateXDeg}deg)`,
+  };
+}
+
+type TimelinePadding = {
+  top: number;
+  bottom: number;
+};
+
+/**
+ * Computes the `.timeline` padding (in px, pre-transform layout space) that
+ * keeps scrolled content aligned with the runway's screen-space anchors.
+ *
+ * The projection is nonlinear, so content laid out at plane-space distance
+ * `playheadFraction × visibleHeight` from the origin does NOT project onto
+ * the playhead line — only content at distance `sPlayhead` does. Padding
+ * must be sized so that when scrolled to time 0 (`scrollTop = maxScrollTop`,
+ * inverted scroll — see useScrubberScroll.ts), the boundary between actual
+ * audio content and this padding sits at the plane-space distance the
+ * geometry solver actually anchored to the playhead line, found via the
+ * inverse projection (`screenYToPlane`).
+ *
+ * Scroll position is driven by the (untransformed) PhantomScroller, whose
+ * clientHeight already equals `visibleHeight` (it shrinks with the drawer
+ * via its own CSS). Given that, the local Y (within the tilt container,
+ * relative to its own — undiminished — box) of content scrolled to time 0
+ * works out to `visibleHeight - paddingBottom`, independent of paddingTop.
+ * Setting that equal to the playhead's own local Y (`transformOriginY -
+ * sPlayhead`) and solving gives the formula below.
+ *
+ * `paddingTop` has no equally strict constraint from this invariant — it
+ * only needs to provide enough scrollable space to see `runwayLengthPx` of
+ * upcoming content before the far edge/fog, which is what it's set to
+ * directly (fog placement itself lands in a later issue).
+ */
+function getTimelinePadding(
+  config: RunwayConfig,
+  geometry: RunwayGeometry,
+  visibleHeight: number,
+): TimelinePadding {
+  const playheadScreenY = config.playheadFraction * visibleHeight;
+  const sPlayhead = screenYToPlane(playheadScreenY, geometry);
+  const playheadLocalY = geometry.transformOriginY - sPlayhead;
+
+  return {
+    top: config.runwayLengthPx,
+    bottom: visibleHeight - playheadLocalY,
+  };
+}
+
+/** Tracks the scrubber tilt container's size via ResizeObserver. */
+function useContainerSize(
+  containerRef: React.RefObject<HTMLDivElement | null>,
+): ContainerSize {
+  const [size, setSize] = useState<ContainerSize>({ width: 0, height: 0 });
 
   useLayoutEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
-    const update = () => setContainerHeight(el.offsetHeight);
+    const update = () =>
+      setSize({ width: el.offsetWidth, height: el.offsetHeight });
     update();
 
     const observer = new ResizeObserver(() => update());
     observer.observe(el);
 
     return () => observer.disconnect();
+    // containerRef is a stable ref object
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Using the full height (not visible height) keeps the perspective geometry
-  // stable when the bottom sheet opens — the 3D transform and scaleY
-  // compensation stay constant, preventing the timeline from appearing wider.
-  const scrubberBottomY = SCRUBBER_BOTTOM_FRACTION * containerHeight;
-  const extendFactor = computeExtendFactor(scrubberBottomY);
+  return size;
+}
 
-  const viewportStyle = getViewportStyle(
-    scrubberBottomY,
-    drawerHeight,
-    containerHeight,
+/** Tracks the `prefers-reduced-motion` media query, live. */
+function usePrefersReducedMotion(): boolean {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(
+    () => window.matchMedia(REDUCED_MOTION_QUERY).matches,
   );
-  const tiltStyle = getTiltStyle(extendFactor, scrubberBottomY);
 
-  return { containerRef, viewportStyle, tiltStyle };
-}
+  useLayoutEffect(() => {
+    const mediaQuery = window.matchMedia(REDUCED_MOTION_QUERY);
+    const handler = () => setPrefersReducedMotion(mediaQuery.matches);
+    mediaQuery.addEventListener('change', handler);
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, []);
 
-/**
- * Compensate for perspective foreshortening so the far edge (top) fills
- * the viewport. `scrubberBottomY` is the distance from the top of the
- * container to the tilt origin — content above the origin is the visible
- * scrubber that needs to fill the viewport width after foreshortening.
- */
-function computeExtendFactor(scrubberBottomY: number): number {
-  if (scrubberBottomY <= 0) return 1;
-
-  const tiltRad = (FALLBACK_TILT * Math.PI) / 180;
-  const depth = scrubberBottomY * Math.sin(tiltRad);
-  const projectionRatio = FALLBACK_PERSPECTIVE / (FALLBACK_PERSPECTIVE + depth);
-  return 1 / projectionRatio;
-}
-
-/**
- * Style for the viewport wrapper. Places `perspective-origin` at the
- * scrubber bottom so the vanishing point matches the tilt pivot.
- *
- * When the drawer is open, `translateY` and `scaleY` reposition and shrink
- * the scrubber to fit the visible area above the drawer — without touching
- * the child tilt container's own 3D transform or styling.
- */
-function getViewportStyle(
-  scrubberBottomY: number,
-  drawerHeight: number,
-  containerHeight: number,
-): CSSProperties {
-  const hasDrawer = drawerHeight > 0 && containerHeight > 0;
-  const scaleY = hasDrawer ? 0.5 : 1;
-
-  return {
-    perspectiveOrigin: `center ${scrubberBottomY}px`,
-    ...baseTransformStyle,
-    transform: `translateY(-100px) scaleY(${scaleY})`,
-  };
-}
-
-/**
- * Style for the tilt container. The transform tilts the timeline into a
- * dramatic scrubber perspective:
- * - rotateX tilts the plane around the scrubber bottom
- * - scaleY(extendFactor) compensates for perspective foreshortening so the
- *   far edge (top) fills the viewport regardless of screen size
- * - transformOrigin is placed at the scrubber bottom so the tilt pivots there
- */
-function getTiltStyle(
-  extendFactor: number,
-  scrubberBottomY: number,
-): CSSProperties {
-  return {
-    ...baseTransformStyle,
-    transformOrigin: `center ${scrubberBottomY}px`,
-    transform: `rotateX(var(--timeline-tilt, 0deg)) scaleY(${extendFactor})`,
-  };
+  return prefersReducedMotion;
 }

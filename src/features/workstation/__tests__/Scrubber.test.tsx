@@ -2,6 +2,8 @@ import { act, fireEvent, render } from '@testing-library/react';
 import { createRef } from 'react';
 import * as Tone from 'tone';
 import AudioService from '../../audio/AudioService';
+import { activeRunwayConfig } from '../scrubber/runwayConfig';
+import { solveGeometry } from '../scrubber/runwayProjection';
 import Scrubber, { type ScrubberHandle } from '../scrubber/Scrubber';
 
 const audioService = AudioService.getInstance();
@@ -21,6 +23,38 @@ afterEach(() => {
   recordingService.reset();
   Tone.getTransport().seconds = 0;
 });
+
+/**
+ * jsdom's offsetHeight always reads 0, so geometry tests that need a
+ * realistic container size mock it on the prototype (matching the pattern
+ * `useScrubberGeometry` measures in real browsers).
+ */
+function mockOffsetHeight(height: number): () => void {
+  const originalDescriptor = Object.getOwnPropertyDescriptor(
+    HTMLElement.prototype,
+    'offsetHeight',
+  );
+  Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
+    configurable: true,
+    get() {
+      return height;
+    },
+  });
+  return () => {
+    if (originalDescriptor) {
+      Object.defineProperty(
+        HTMLElement.prototype,
+        'offsetHeight',
+        originalDescriptor,
+      );
+    }
+  };
+}
+
+/** Extracts the trailing `<number>px` token from a `center <y>px` origin string. */
+function parseOriginY(origin: string): number {
+  return parseFloat(origin.split(' ')[1]);
+}
 
 it('pauses playback when phantom scroller is scrolled while playing', () => {
   playbackService.play();
@@ -42,7 +76,10 @@ it('does not pause playback when phantom scroller is scrolled while paused', () 
   expect(playbackService.isPlaying).toBe(false);
 });
 
-it('positions perspective-origin and transform-origin at scrubber bottom', () => {
+it('derives perspective and tilt styles from the active runway config', () => {
+  const containerHeight = 650;
+  const restoreOffsetHeight = mockOffsetHeight(containerHeight);
+
   const { container } = render(<Scrubber {...defaultProps} />);
 
   const viewport = container.querySelector(
@@ -50,89 +87,86 @@ it('positions perspective-origin and transform-origin at scrubber bottom', () =>
   ) as HTMLElement;
   const tilt = container.querySelector('.scrubber__tilt') as HTMLElement;
 
-  // Both origins should use the same Y coordinate (scrubber bottom).
-  // In jsdom offsetHeight is 0, so scrubberBottomY = 0.75 * 0 = 0.
-  expect(viewport.style.perspectiveOrigin).toBe('center 0px');
-  expect(tilt.style.transformOrigin).toBe('center 0px');
+  const geometry = solveGeometry(activeRunwayConfig, {
+    width: 0,
+    height: containerHeight,
+  });
+
+  expect(parseFloat(viewport.style.perspective)).toBeCloseTo(
+    geometry.perspectivePx,
+    6,
+  );
+  expect(parseOriginY(viewport.style.perspectiveOrigin)).toBeCloseTo(
+    geometry.perspectiveOriginY,
+    6,
+  );
+  expect(parseOriginY(tilt.style.transformOrigin)).toBeCloseTo(
+    geometry.transformOriginY,
+    6,
+  );
+  expect(tilt.style.transform).toBe(`rotateX(${geometry.rotateXDeg}deg)`);
+
+  restoreOffsetHeight();
 });
 
-it('keeps perspective geometry stable when drawer height changes', () => {
-  // Mock offsetHeight so the layout effect reads a non-zero container height
-  const originalDescriptor = Object.getOwnPropertyDescriptor(
-    HTMLElement.prototype,
-    'offsetHeight',
-  );
-  Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
-    configurable: true,
-    get() {
-      return 800;
-    },
-  });
+it('re-solves perspective geometry for the smaller visible area when the drawer opens', () => {
+  const containerHeight = 800;
+  const restoreOffsetHeight = mockOffsetHeight(containerHeight);
 
   const { container, rerender } = render(<Scrubber {...defaultProps} />);
-
   const tilt = container.querySelector('.scrubber__tilt') as HTMLElement;
 
-  const transformWithoutDrawer = tilt.style.transform;
-
-  // Open the drawer — the perspective geometry should NOT change
-  rerender(<Scrubber {...defaultProps} drawerHeight={280} />);
-
-  const transformWithDrawer = tilt.style.transform;
-
-  expect(transformWithDrawer).toBe(transformWithoutDrawer);
-
-  // Restore
-  if (originalDescriptor) {
-    Object.defineProperty(
-      HTMLElement.prototype,
-      'offsetHeight',
-      originalDescriptor,
-    );
-  }
-});
-
-it('applies translateY and scaleY to viewport div when drawer is open', () => {
-  const containerHeight = 800;
-  const originalDescriptor = Object.getOwnPropertyDescriptor(
-    HTMLElement.prototype,
-    'offsetHeight',
-  );
-  Object.defineProperty(HTMLElement.prototype, 'offsetHeight', {
-    configurable: true,
-    get() {
-      return containerHeight;
-    },
+  const closedGeometry = solveGeometry(activeRunwayConfig, {
+    width: 0,
+    height: containerHeight,
   });
-
-  const drawerHeight = 280;
-  const { container } = render(
-    <Scrubber {...defaultProps} drawerHeight={drawerHeight} />,
+  expect(parseOriginY(tilt.style.transformOrigin)).toBeCloseTo(
+    closedGeometry.transformOriginY,
+    6,
   );
 
-  const viewport = container.querySelector(
-    '.scrubber__viewport',
-  ) as HTMLElement;
+  // Open the drawer — geometry re-solves for the smaller visible area
+  // (container height minus drawer height), so the origin moves.
+  const drawerHeight = 280;
+  rerender(<Scrubber {...defaultProps} drawerHeight={drawerHeight} />);
 
-  expect(viewport.style.transform).toBe(`translateY(-100px) scaleY(0.5)`);
+  const openGeometry = solveGeometry(activeRunwayConfig, {
+    width: 0,
+    height: containerHeight - drawerHeight,
+  });
+  expect(parseOriginY(tilt.style.transformOrigin)).toBeCloseTo(
+    openGeometry.transformOriginY,
+    6,
+  );
+  expect(openGeometry.transformOriginY).not.toBeCloseTo(
+    closedGeometry.transformOriginY,
+    0,
+  );
 
-  if (originalDescriptor) {
-    Object.defineProperty(
-      HTMLElement.prototype,
-      'offsetHeight',
-      originalDescriptor,
-    );
-  }
+  restoreOffsetHeight();
 });
 
-it('does not apply viewport transform when drawer is closed', () => {
-  const { container } = render(<Scrubber {...defaultProps} drawerHeight={0} />);
+it('disables the 3D tilt when prefers-reduced-motion is set', () => {
+  const originalMatchMedia = window.matchMedia;
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: query === '(prefers-reduced-motion: reduce)',
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
 
-  const viewport = container.querySelector(
-    '.scrubber__viewport',
-  ) as HTMLElement;
+  const restoreOffsetHeight = mockOffsetHeight(650);
+  const { container } = render(<Scrubber {...defaultProps} />);
+  const tilt = container.querySelector('.scrubber__tilt') as HTMLElement;
 
-  expect(viewport.style.transform).toBe('translateY(-100px) scaleY(1)');
+  expect(tilt.style.transform).toBe('rotateX(0deg)');
+
+  restoreOffsetHeight();
+  window.matchMedia = originalMatchMedia;
 });
 
 it('does not render a shade overlay', () => {

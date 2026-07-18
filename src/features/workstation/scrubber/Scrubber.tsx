@@ -41,8 +41,14 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
   const scrubberTiltRef = useRef<HTMLDivElement>(null);
   const playheadRef = useRef<PlayheadHandle>(null);
 
-  const { containerRef, viewportStyle, tiltStyle } =
-    useScrubberGeometry(drawerHeight);
+  const {
+    containerRef,
+    viewportStyle,
+    tiltStyle,
+    playheadFraction,
+    timelinePaddingTopPx,
+    timelinePaddingBottomPx,
+  } = useScrubberGeometry(drawerHeight);
 
   const {
     handlePointerDown,
@@ -73,6 +79,11 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
 
   const phantomStyle = getPhantomStyle(drawerHeight);
   const zoomControlsStyle = getZoomControlsStyle(drawerHeight);
+  const scrubberStyle = getScrubberStyle(
+    playheadFraction,
+    timelinePaddingTopPx,
+    timelinePaddingBottomPx,
+  );
 
   // The geometry ref measures the tilt container's height for 3D transform
   // calculations. Assign it via a callback ref alongside the scroll ref.
@@ -84,7 +95,10 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
   };
 
   return (
-    <div className="scrubber scrubber--firefox-scroll-fix">
+    <div
+      className="scrubber scrubber--firefox-scroll-fix"
+      style={scrubberStyle}
+    >
       <ScrubberViewport style={viewportStyle}>
         <ScrubberTilt ref={tiltRef} style={tiltStyle}>
           {props.children}
@@ -124,4 +138,23 @@ function getZoomControlsStyle(drawerHeight: number): CSSProperties {
     ...baseTransformStyle,
     transform: `translateY(-${drawerHeight}px)`,
   };
+}
+
+/**
+ * Exposes the playhead's screen-space position and the timeline's
+ * projection-corrected content padding as CSS custom properties on the
+ * shared ancestor. Timeline.css and the playhead overlay both inherit
+ * these, so layout (where "now" is scrolled to) and geometry (the 3D
+ * transform) stay anchored to the same runway instead of drifting apart.
+ */
+function getScrubberStyle(
+  playheadFraction: number,
+  timelinePaddingTopPx: number,
+  timelinePaddingBottomPx: number,
+): CSSProperties {
+  return {
+    '--playhead-fraction': playheadFraction,
+    '--timeline-padding-top': `${timelinePaddingTopPx}px`,
+    '--timeline-padding-bottom': `${timelinePaddingBottomPx}px`,
+  } as CSSProperties;
 }

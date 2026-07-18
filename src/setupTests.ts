@@ -18,6 +18,22 @@ if (!HTMLCanvasElement.prototype.getContext) {
   HTMLCanvasElement.prototype.getContext = vi.fn().mockReturnValue(null);
 }
 
+// jsdom does not implement matchMedia — provide a default stub (no
+// preference matched) so components can query media features without
+// throwing. Tests that need a specific match override it locally.
+if (!window.matchMedia) {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+}
+
 vi.mock('tone', () => {
   function mockBlob() {
     return { arrayBuffer: vi.fn().mockResolvedValue(new ArrayBuffer(16)) };
