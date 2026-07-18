@@ -130,12 +130,22 @@ Scrubber.displayName = 'Scrubber';
 export default Scrubber;
 
 /**
+ * When the drawer is open, shrinks an `inset: 0` overlay's clickable/visible
+ * area to the same drawer-adjusted visible box `useScrubberGeometry` solves
+ * against — shared by every such overlay (phantom scroller, fog) so they
+ * can't drift out of sync with each other or with the geometry itself.
+ */
+function getDrawerBottomStyle(drawerHeight: number): CSSProperties | undefined {
+  if (drawerHeight <= 0) return undefined;
+  return { bottom: `${drawerHeight}px` };
+}
+
+/**
  * When the drawer is open, shrink the phantom scroller's clickable area
  * so it doesn't overlap the drawer controls.
  */
 function getPhantomStyle(drawerHeight: number): CSSProperties | undefined {
-  if (drawerHeight <= 0) return undefined;
-  return { bottom: `${drawerHeight}px` };
+  return getDrawerBottomStyle(drawerHeight);
 }
 
 /**
@@ -146,8 +156,7 @@ function getFogOverlayStyle(
   drawerHeight: number,
   fogStyle: CSSProperties,
 ): CSSProperties {
-  if (drawerHeight <= 0) return fogStyle;
-  return { ...fogStyle, bottom: `${drawerHeight}px` };
+  return { ...fogStyle, ...getDrawerBottomStyle(drawerHeight) };
 }
 
 function getZoomControlsStyle(drawerHeight: number): CSSProperties {
