@@ -1,6 +1,7 @@
 import AudioService from '../../audio/AudioService';
 import { resetFocusSignals } from '../focusSignals';
 import { resetWorkstationSignals } from '../../workstation/workstationSignals';
+import { resetTuningSignals } from '../../workstation/scrubber/tuningSignals';
 
 export function resetAllSignals(): void {
   const audioService = AudioService.getInstance();
@@ -10,4 +11,5 @@ export function resetAllSignals(): void {
   audioService.classificationService.reset();
   resetFocusSignals();
   resetWorkstationSignals();
+  resetTuningSignals();
 }

@@ -97,9 +97,11 @@ const MIN_DENOMINATOR_MAGNITUDE = 1e-6;
  * numerical approximation: as tiltRad → 0 the tilted formula's own
  * `perspectivePx` → 0 (near-edge-on foreshortening), the opposite extreme
  * from the flat mode's scale-1-everywhere — so there is no continuous
- * handoff to protect between the two. The only caller of the flat mode
- * (`prefers-reduced-motion`) always passes tiltDeg exactly 0, never an
- * intermediate value.
+ * handoff to protect between the two. `prefers-reduced-motion` always passes
+ * tiltDeg exactly 0; the dev tuning overlay's tilt slider (#447) can also
+ * land in this band by direct user input, but never at an intermediate
+ * value straddling the two modes — the threshold is crossed as a discrete
+ * step, same as any other slider move.
  */
 export function solveGeometry(
   config: RunwayConfig,

@@ -2,8 +2,13 @@ import { act, fireEvent, render } from '@testing-library/react';
 import { createRef } from 'react';
 import * as Tone from 'tone';
 import AudioService from '../../audio/AudioService';
-import { activeRunwayConfig } from '../scrubber/runwayConfig';
+import { activeRunwayConfig, beatSaber } from '../scrubber/runwayConfig';
 import { solveGeometry } from '../scrubber/runwayProjection';
+import {
+  resetTuningSignals,
+  setTuningValue,
+  toggleTuningOverlay,
+} from '../scrubber/tuningSignals';
 import Scrubber, { type ScrubberHandle } from '../scrubber/Scrubber';
 
 const audioService = AudioService.getInstance();
@@ -22,6 +27,12 @@ afterEach(() => {
   playbackService.reset();
   recordingService.reset();
   Tone.getTransport().seconds = 0;
+  // Wrapped in act() — this writes tuningSignals, which useScrubberGeometry
+  // subscribes to, and RTL's own unmount cleanup (registered before this
+  // afterEach) hasn't necessarily run yet for the current test's tree.
+  act(() => {
+    resetTuningSignals();
+  });
 });
 
 /**
@@ -179,6 +190,113 @@ it('re-solves perspective geometry for the smaller visible area when the drawer 
   restoreOffsetHeight();
 });
 
+it('re-solves geometry from the tuning overlay override when active', () => {
+  const containerHeight = 650;
+  const restoreOffsetHeight = mockOffsetHeight(containerHeight);
+
+  toggleTuningOverlay(activeRunwayConfig);
+  setTuningValue('tiltDeg', 20);
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+  const tilt = container.querySelector('.scrubber__tilt') as HTMLElement;
+
+  const overriddenGeometry = solveGeometry(
+    { ...activeRunwayConfig, tiltDeg: 20 },
+    { width: 0, height: containerHeight },
+  );
+
+  expect(tilt.style.transform).toBe(
+    `rotateX(${overriddenGeometry.rotateXDeg}deg)`,
+  );
+
+  restoreOffsetHeight();
+});
+
+it('reverts to the active preset once the tuning overlay closes', () => {
+  const containerHeight = 650;
+  const restoreOffsetHeight = mockOffsetHeight(containerHeight);
+
+  toggleTuningOverlay(activeRunwayConfig);
+  setTuningValue('tiltDeg', 20);
+  // Second toggleTuningOverlay call closes the overlay and clears the override.
+  toggleTuningOverlay(activeRunwayConfig);
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+  const tilt = container.querySelector('.scrubber__tilt') as HTMLElement;
+
+  const activeGeometry = solveGeometry(activeRunwayConfig, {
+    width: 0,
+    height: containerHeight,
+  });
+
+  expect(tilt.style.transform).toBe(`rotateX(${activeGeometry.rotateXDeg}deg)`);
+
+  restoreOffsetHeight();
+});
+
+it('reveals the tuning overlay on a long-press of the zoom controls', () => {
+  vi.useFakeTimers();
+  const restoreOffsetHeight = mockOffsetHeight(650);
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+
+  expect(container.querySelector('.tuning-overlay')).toBeNull();
+
+  const zoomControls = container.querySelector('.zoom-controls') as HTMLElement;
+  fireEvent.pointerDown(zoomControls);
+  act(() => {
+    vi.advanceTimersByTime(700);
+  });
+
+  expect(container.querySelector('.tuning-overlay')).not.toBeNull();
+
+  restoreOffsetHeight();
+  vi.useRealTimers();
+});
+
+it('does not reveal the tuning overlay on a short press of the zoom controls', () => {
+  vi.useFakeTimers();
+  const restoreOffsetHeight = mockOffsetHeight(650);
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+
+  const zoomControls = container.querySelector('.zoom-controls') as HTMLElement;
+  fireEvent.pointerDown(zoomControls);
+  act(() => {
+    vi.advanceTimersByTime(200);
+  });
+  fireEvent.pointerUp(zoomControls);
+  act(() => {
+    vi.advanceTimersByTime(700);
+  });
+
+  expect(container.querySelector('.tuning-overlay')).toBeNull();
+
+  restoreOffsetHeight();
+  vi.useRealTimers();
+});
+
+it('selects beatSaber preset via the tuning overlay and re-solves geometry', () => {
+  const containerHeight = 650;
+  const restoreOffsetHeight = mockOffsetHeight(containerHeight);
+
+  toggleTuningOverlay(beatSaber);
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+  const tilt = container.querySelector('.scrubber__tilt') as HTMLElement;
+
+  const beatSaberGeometry = solveGeometry(beatSaber, {
+    width: 0,
+    height: containerHeight,
+  });
+
+  expect(tilt.style.transform).toBe(
+    `rotateX(${beatSaberGeometry.rotateXDeg}deg)`,
+  );
+
+  restoreOffsetHeight();
+});
+
 it('exposes playhead fraction and timeline padding as CSS custom properties on the scrubber element', () => {
   const containerHeight = 650;
   const restoreOffsetHeight = mockOffsetHeight(containerHeight);
@@ -252,6 +370,42 @@ it('disables the fog overlay when prefers-reduced-motion is set', () => {
   // explicitly disabled rather than merely landing off-screen, since a
   // future retuning of the flat-geometry constants must not resurrect it.
   expect(fog.style.backgroundImage).toBe('none');
+
+  restoreOffsetHeight();
+  window.matchMedia = originalMatchMedia;
+});
+
+it('does not flatten geometry for prefers-reduced-motion while the tuning overlay is active', () => {
+  const originalMatchMedia = window.matchMedia;
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: query === '(prefers-reduced-motion: reduce)',
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+
+  // Opening the tuning overlay is an explicit request to see the real 3D
+  // effect — without this, every slider would look like a no-op to a
+  // developer who happens to have this OS accessibility preference set.
+  toggleTuningOverlay(activeRunwayConfig);
+  setTuningValue('tiltDeg', 45);
+
+  const containerHeight = 650;
+  const restoreOffsetHeight = mockOffsetHeight(containerHeight);
+  const { container } = render(<Scrubber {...defaultProps} />);
+  const tilt = container.querySelector('.scrubber__tilt') as HTMLElement;
+
+  const tunedGeometry = solveGeometry(
+    { ...activeRunwayConfig, tiltDeg: 45 },
+    { width: 0, height: containerHeight },
+  );
+
+  expect(tilt.style.transform).toBe(`rotateX(${tunedGeometry.rotateXDeg}deg)`);
+  expect(tilt.style.transform).not.toBe('rotateX(0deg)');
 
   restoreOffsetHeight();
   window.matchMedia = originalMatchMedia;

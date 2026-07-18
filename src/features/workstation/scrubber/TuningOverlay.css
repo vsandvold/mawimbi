@@ -1,0 +1,70 @@
+.tuning-overlay {
+  position: absolute;
+  right: 16px;
+  top: 48px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 260px;
+  padding: 12px;
+  border-radius: 8px;
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  font-size: 12px;
+}
+
+.tuning-overlay__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.tuning-overlay__title {
+  font-weight: 600;
+}
+
+.tuning-overlay__preset {
+  align-self: flex-start;
+}
+
+.tuning-overlay__knob {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tuning-overlay__knob-label {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted-foreground);
+}
+
+.tuning-overlay__knob-value {
+  font-variant-numeric: tabular-nums;
+}
+
+.tuning-overlay__readout {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 2px 8px;
+  margin: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  color: var(--muted-foreground);
+}
+
+.tuning-overlay__readout dt {
+  font-weight: 400;
+}
+
+.tuning-overlay__readout dd {
+  margin: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.tuning-overlay__copy {
+  align-self: stretch;
+}
