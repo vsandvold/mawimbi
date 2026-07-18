@@ -5,8 +5,12 @@
   grid-column-gap: 0px;
   grid-row-gap: 0px;
   align-items: end;
-  padding-top: calc(var(--cursor-position) * 100cqh);
-  padding-bottom: calc((1 - var(--cursor-position)) * 100cqh);
+  /* Projection-corrected padding computed by useScrubberGeometry — the
+     mapping between pre-transform layout position and on-screen position is
+     nonlinear under perspective, so these can't be expressed as a simple
+     fraction of the container here; see getTimelinePadding()'s comment. */
+  padding-top: var(--timeline-padding-top);
+  padding-bottom: var(--timeline-padding-bottom);
 }
 
 .timeline__track {

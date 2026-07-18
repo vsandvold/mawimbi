@@ -13,22 +13,26 @@ export type PlayheadHandle = {
 };
 
 type PlayheadProps = {
-  drawerHeight: number;
+  visibleHeight: number;
 };
 
 /**
  * Playhead overlay that shows the current playback position.
  *
  * Renders a `LoudnessMeterPlayhead` canvas and keeps the canvas size
- * in sync with the container via ResizeObserver. Receives `drawerHeight`
- * to offset the playhead position within the visible area above the
- * bottom sheet.
+ * in sync with the container via ResizeObserver. Receives `visibleHeight`
+ * (the same drawer-adjusted height useScrubberGeometry solves the runway
+ * transform against) so the playhead's on-screen position and the 3D
+ * geometry are always derived from one JS computation, rather than each
+ * independently re-deriving "visible height" through a different
+ * mechanism (this used to be a `calc(100% - drawer-height)` CSS
+ * expression here, computed separately from the JS geometry).
  *
  * Exposes `render` and `renderIdle` via imperative handle so the
  * animation loop can drive the loudness meter visualization each frame.
  */
 const Playhead = forwardRef<PlayheadHandle, PlayheadProps>(
-  ({ drawerHeight }, ref) => {
+  ({ visibleHeight }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const meterRef =
       useRef<React.ComponentRef<typeof LoudnessMeterPlayhead>>(null);
@@ -68,7 +72,7 @@ const Playhead = forwardRef<PlayheadHandle, PlayheadProps>(
     }));
 
     const style: CSSProperties = {
-      '--drawer-height': `${drawerHeight}px`,
+      '--available-height': `${visibleHeight}px`,
     } as CSSProperties;
 
     return (
