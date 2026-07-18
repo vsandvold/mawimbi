@@ -77,6 +77,11 @@ type ScrubberGeometry = {
  * via `useSignals()` is the only reactive cost this hot-path hook takes on;
  * when the overlay has never been opened the override stays `null` and this
  * behaves exactly as before.
+ *
+ * `prefers-reduced-motion` flattens the tilt for regular playback, but not
+ * while actively tuning — opening the overlay is an explicit request to see
+ * the real 3D effect, which would otherwise make every slider look like a
+ * no-op for a developer who happens to have that OS preference set.
  */
 export function useScrubberGeometry(drawerHeight: number): ScrubberGeometry {
   useSignals();
@@ -90,7 +95,10 @@ export function useScrubberGeometry(drawerHeight: number): ScrubberGeometry {
     MIN_VISIBLE_HEIGHT_PX,
   );
   const baseConfig = configOverride ?? activeRunwayConfig;
-  const config = prefersReducedMotion ? getFlatVariant(baseConfig) : baseConfig;
+  const shouldFlattenForReducedMotion = prefersReducedMotion && !configOverride;
+  const config = shouldFlattenForReducedMotion
+    ? getFlatVariant(baseConfig)
+    : baseConfig;
   const geometry = solveGeometry(config, {
     width: containerSize.width,
     height: visibleHeight,

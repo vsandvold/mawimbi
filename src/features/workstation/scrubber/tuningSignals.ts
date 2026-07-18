@@ -1,12 +1,10 @@
 import { signal, type ReadonlySignal } from '@preact/signals-react';
 import { type RunwayPreset } from './runwayConfig';
 
-const _isOverlayOpen = signal(false);
 const _configOverride = signal<RunwayPreset | null>(null);
 
 // Narrow channel for reactive consumers (hooks)
 export const signals = {
-  isOverlayOpen: _isOverlayOpen as ReadonlySignal<boolean>,
   configOverride: _configOverride as ReadonlySignal<RunwayPreset | null>,
 };
 
@@ -17,19 +15,19 @@ export function getConfigOverride(): RunwayPreset | null {
 
 /**
  * Opens the overlay and seeds the override from `preset`, or closes it and
- * clears the override, reverting the scrubber to `activeRunwayConfig`.
+ * clears the override, reverting the scrubber to `activeRunwayConfig`. The
+ * override being non-null IS the overlay's open state — there is no separate
+ * open flag to keep in sync with it.
  */
 export function toggleTuningOverlay(preset: RunwayPreset): void {
-  if (_isOverlayOpen.value) {
+  if (_configOverride.value) {
     closeTuningOverlay();
     return;
   }
-  _isOverlayOpen.value = true;
   _configOverride.value = { ...preset };
 }
 
 export function closeTuningOverlay(): void {
-  _isOverlayOpen.value = false;
   _configOverride.value = null;
 }
 
@@ -44,6 +42,5 @@ export function setTuningValue(key: keyof RunwayPreset, value: number): void {
 }
 
 export function resetTuningSignals(): void {
-  _isOverlayOpen.value = false;
   _configOverride.value = null;
 }

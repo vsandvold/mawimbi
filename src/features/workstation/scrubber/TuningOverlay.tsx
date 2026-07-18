@@ -8,19 +8,12 @@ import {
 } from '../../../shared/ui/dropdown-menu';
 import { Slider } from '../../../shared/ui/slider';
 import useMessage from '../../../shared/message';
-import { type RunwayPreset } from './runwayConfig';
-import { type RunwayGeometry } from './runwayProjection';
-import { useTuningOverlay } from './useTuningOverlay';
+import { RUNWAY_PRESETS, type RunwayPreset } from './runwayConfig';
+import { type RunwayConfig, type RunwayGeometry } from './runwayProjection';
 import './TuningOverlay.css';
 
 type KnobSpec = {
-  key:
-    | 'tiltDeg'
-    | 'playheadFraction'
-    | 'playheadWidth'
-    | 'elevationFraction'
-    | 'runwayLengthPx'
-    | 'overhangPx';
+  key: keyof RunwayConfig;
   label: string;
   min: number;
   max: number;
@@ -78,7 +71,11 @@ const KNOBS: readonly KnobSpec[] = [
 const SERIALIZE_PRECISION = 4;
 
 type TuningOverlayProps = {
+  config: RunwayPreset;
   geometry: RunwayGeometry;
+  close: () => void;
+  selectPreset: (preset: RunwayPreset) => void;
+  setValue: (key: keyof RunwayPreset, value: number) => void;
 };
 
 /**
@@ -86,20 +83,28 @@ type TuningOverlayProps = {
  * "tune by PR" cycle six prior PRs went through, each requiring a commit
  * and deploy just to see the result of one parameter change.
  *
- * Every control writes through `tuningSignals`' config-override signal,
- * which `useScrubberGeometry` composes over `activeRunwayConfig` — this
- * overlay never touches CSS directly, so what you tune here is exactly
+ * Every control writes through `tuningSignals`' config-override signal
+ * (via the callbacks passed down from Scrubber.tsx's single `useTuningOverlay()`
+ * subscription), which `useScrubberGeometry` composes over `activeRunwayConfig`
+ * — this overlay never touches CSS directly, so what you tune here is exactly
  * what a preset (runwayConfig.ts) can persist.
  */
-function TuningOverlay({ geometry }: TuningOverlayProps) {
-  const { config, presets, close, selectPreset, setValue } = useTuningOverlay();
+function TuningOverlay({
+  config,
+  geometry,
+  close,
+  selectPreset,
+  setValue,
+}: TuningOverlayProps) {
   const message = useMessage();
 
-  if (!config) return null;
-
   const handleCopyPreset = async () => {
-    await navigator.clipboard.writeText(serializePreset(config));
-    message('Preset copied to clipboard', { type: 'success' });
+    try {
+      await navigator.clipboard.writeText(serializePreset(config));
+      message('Preset copied to clipboard', { type: 'success' });
+    } catch {
+      message('Could not copy preset to clipboard', { type: 'error' });
+    }
   };
 
   return (
@@ -127,7 +132,7 @@ function TuningOverlay({ geometry }: TuningOverlayProps) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="bottom" align="start">
-          {Object.entries(presets).map(([name, preset]) => (
+          {Object.entries(RUNWAY_PRESETS).map(([name, preset]) => (
             <DropdownMenuItem key={name} onSelect={() => selectPreset(preset)}>
               {name}
             </DropdownMenuItem>

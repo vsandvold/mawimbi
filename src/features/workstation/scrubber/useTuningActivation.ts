@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const TUNE_QUERY_PARAM = 'tune';
 const LONG_PRESS_MS = 600;
@@ -34,6 +34,12 @@ export function useLongPress(onLongPress: () => void): LongPressHandlers {
     clearTimeout(timerRef.current);
     timerRef.current = null;
   };
+
+  // A pending timer left running past unmount (e.g. navigating away mid-press)
+  // would fire later against the module-level tuningSignals singleton with no
+  // component left to display the result, silently opening the overlay on a
+  // future mount instead.
+  useEffect(() => cancel, []);
 
   return {
     onPointerDown: () => {

@@ -58,7 +58,13 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
   } = useScrubberGeometry(drawerHeight);
 
   const isTuningAvailable = useTuningAvailable();
-  const { isOpen: isTuningOpen, toggle: toggleTuning } = useTuningOverlay();
+  const {
+    config: tuningConfig,
+    toggle: toggleTuning,
+    close: closeTuning,
+    selectPreset: selectTuningPreset,
+    setValue: setTuningValue,
+  } = useTuningOverlay();
   const longPressZoomControls = useLongPress(toggleTuning);
 
   const {
@@ -132,8 +138,14 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
         style={zoomControlsStyle}
         {...(isTuningAvailable ? longPressZoomControls : undefined)}
       />
-      {isTuningAvailable && isTuningOpen && (
-        <TuningOverlay geometry={geometry} />
+      {isTuningAvailable && tuningConfig && (
+        <TuningOverlay
+          config={tuningConfig}
+          geometry={geometry}
+          close={closeTuning}
+          selectPreset={selectTuningPreset}
+          setValue={setTuningValue}
+        />
       )}
     </div>
   );

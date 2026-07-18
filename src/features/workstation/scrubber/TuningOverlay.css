@@ -9,7 +9,7 @@
   width: 260px;
   padding: 12px;
   border-radius: 8px;
-  background: var(--background);
+  background-color: var(--surface);
   border: 1px solid var(--border);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   font-size: 12px;

@@ -27,7 +27,12 @@ afterEach(() => {
   playbackService.reset();
   recordingService.reset();
   Tone.getTransport().seconds = 0;
-  resetTuningSignals();
+  // Wrapped in act() — this writes tuningSignals, which useScrubberGeometry
+  // subscribes to, and RTL's own unmount cleanup (registered before this
+  // afterEach) hasn't necessarily run yet for the current test's tree.
+  act(() => {
+    resetTuningSignals();
+  });
 });
 
 /**
@@ -365,6 +370,42 @@ it('disables the fog overlay when prefers-reduced-motion is set', () => {
   // explicitly disabled rather than merely landing off-screen, since a
   // future retuning of the flat-geometry constants must not resurrect it.
   expect(fog.style.backgroundImage).toBe('none');
+
+  restoreOffsetHeight();
+  window.matchMedia = originalMatchMedia;
+});
+
+it('does not flatten geometry for prefers-reduced-motion while the tuning overlay is active', () => {
+  const originalMatchMedia = window.matchMedia;
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: query === '(prefers-reduced-motion: reduce)',
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+
+  // Opening the tuning overlay is an explicit request to see the real 3D
+  // effect — without this, every slider would look like a no-op to a
+  // developer who happens to have this OS accessibility preference set.
+  toggleTuningOverlay(activeRunwayConfig);
+  setTuningValue('tiltDeg', 45);
+
+  const containerHeight = 650;
+  const restoreOffsetHeight = mockOffsetHeight(containerHeight);
+  const { container } = render(<Scrubber {...defaultProps} />);
+  const tilt = container.querySelector('.scrubber__tilt') as HTMLElement;
+
+  const tunedGeometry = solveGeometry(
+    { ...activeRunwayConfig, tiltDeg: 45 },
+    { width: 0, height: containerHeight },
+  );
+
+  expect(tilt.style.transform).toBe(`rotateX(${tunedGeometry.rotateXDeg}deg)`);
+  expect(tilt.style.transform).not.toBe('rotateX(0deg)');
 
   restoreOffsetHeight();
   window.matchMedia = originalMatchMedia;

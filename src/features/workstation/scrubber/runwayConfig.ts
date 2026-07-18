@@ -49,10 +49,11 @@ export const subtleRamp: RunwayPreset = {
 /**
  * Identity geometry — no tilt, no perspective. Documents what "flat" looks
  * like as a preset; `prefers-reduced-motion` does not switch to this fixed
- * preset, since that would ignore whichever preset is actually active. It
- * instead derives its own flattened variant of `activeRunwayConfig` (see
- * `useScrubberGeometry`'s `REDUCED_MOTION_CONFIG`), so reduced motion stays
- * correct regardless of which preset the dev tuning overlay (#447) selects.
+ * preset, since that would ignore whichever preset (or dev tuning overlay
+ * override, #447) is actually active. It instead derives its own flattened
+ * variant of that active config (see `useScrubberGeometry`'s
+ * `getFlatVariant`), so reduced motion stays correct regardless of what's
+ * currently selected.
  */
 export const flat: RunwayPreset = {
   tiltDeg: 0,

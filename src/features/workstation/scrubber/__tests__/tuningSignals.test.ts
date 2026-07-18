@@ -5,7 +5,6 @@ import {
   resetTuningSignals,
   selectTuningPreset,
   setTuningValue,
-  signals,
   toggleTuningOverlay,
 } from '../tuningSignals';
 
@@ -17,7 +16,6 @@ describe('toggleTuningOverlay', () => {
   it('opens the overlay and seeds the override from the given preset', () => {
     toggleTuningOverlay(activeRunwayConfig);
 
-    expect(signals.isOverlayOpen.value).toBe(true);
     expect(getConfigOverride()).toEqual(activeRunwayConfig);
     // A copy, not the same reference — mutating the override must not
     // mutate the preset it was seeded from.
@@ -29,7 +27,6 @@ describe('toggleTuningOverlay', () => {
 
     toggleTuningOverlay(activeRunwayConfig);
 
-    expect(signals.isOverlayOpen.value).toBe(false);
     expect(getConfigOverride()).toBeNull();
   });
 });
@@ -72,7 +69,6 @@ describe('closeTuningOverlay', () => {
 
     closeTuningOverlay();
 
-    expect(signals.isOverlayOpen.value).toBe(false);
     expect(getConfigOverride()).toBeNull();
     // The "compose over the active preset" contract useScrubberGeometry
     // relies on: `override ?? activeRunwayConfig`.

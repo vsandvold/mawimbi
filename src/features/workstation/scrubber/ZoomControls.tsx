@@ -38,6 +38,9 @@ const ZoomControls = ({
         className="button zoom-controls__button"
         title="Zoom in"
         onClick={zoomIn}
+        // Stops the long-press reveal gesture (mawimbi#447) from firing when
+        // a normal press-and-hold on the button itself runs past its delay.
+        onPointerDown={(e) => e.stopPropagation()}
         disabled={isMaxZoom || isRecording}
       >
         <Plus />
@@ -48,6 +51,7 @@ const ZoomControls = ({
         className="button zoom-controls__button"
         title="Zoom out"
         onClick={zoomOut}
+        onPointerDown={(e) => e.stopPropagation()}
         disabled={isMinZoom || isRecording}
       >
         <Minus />
