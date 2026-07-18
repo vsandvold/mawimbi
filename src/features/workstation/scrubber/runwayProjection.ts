@@ -1,9 +1,24 @@
 export type RunwayConfig = {
+  /** Slope of the road, in degrees (CSS rotateX). Higher = flatter road,
+   *  stronger compression toward the horizon. Range: 0–85. */
   tiltDeg: number;
+  /** Vertical position of the playhead line, as a fraction of visible
+   *  height from the top (0 = top, 1 = bottom). */
   playheadFraction: number;
+  /** Measured width of the runway at the playhead line, as a fraction of
+   *  visible width. Range: 0.4–1.0. */
   playheadWidth: number;
+  /** How high the horizon floats above the playhead, as a fraction of
+   *  visible height; smaller = camera closer to the ground. */
   elevationFraction: number;
+  /** How much upcoming audio is scrollable into view above the playhead,
+   *  in pre-transform px. Not tied to where the fog gradient visually
+   *  starts — that's controlled independently by `fogStartFraction`
+   *  (`RunwayPreset`, runwayConfig.ts) against the solved screen-space
+   *  horizon, a different coordinate space from this pre-transform value. */
   runwayLengthPx: number;
+  /** Road under your feet — scrollable below the playhead, in
+   *  pre-transform px. */
   overhangPx: number;
 };
 

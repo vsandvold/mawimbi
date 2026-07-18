@@ -56,6 +56,14 @@ function parseOriginY(origin: string): number {
   return parseFloat(origin.split(' ')[1]);
 }
 
+/** Extracts the two `<number>%` gradient stop positions from a `linear-gradient(...)` string. */
+function parseGradientPercents(backgroundImage: string): [number, number] {
+  const matches = [...backgroundImage.matchAll(/(-?[\d.]+)%/g)].map((m) =>
+    parseFloat(m[1]),
+  );
+  return [matches[0], matches[1]];
+}
+
 it('pauses playback when phantom scroller is scrolled while playing', () => {
   playbackService.play();
 
@@ -223,10 +231,56 @@ it('disables the 3D tilt when prefers-reduced-motion is set', () => {
   window.matchMedia = originalMatchMedia;
 });
 
-it('does not render a shade overlay', () => {
-  const { container } = render(<Scrubber {...defaultProps} />);
+it('disables the fog overlay when prefers-reduced-motion is set', () => {
+  const originalMatchMedia = window.matchMedia;
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches: query === '(prefers-reduced-motion: reduce)',
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
 
-  expect(container.querySelector('.scrubber__shade')).toBeNull();
+  const restoreOffsetHeight = mockOffsetHeight(650);
+  const { container } = render(<Scrubber {...defaultProps} />);
+  const fog = container.querySelector('.scrubber__fog') as HTMLElement;
+
+  // A flat plane has no horizon to sell depth toward — the fog must be
+  // explicitly disabled rather than merely landing off-screen, since a
+  // future retuning of the flat-geometry constants must not resurrect it.
+  expect(fog.style.backgroundImage).toBe('none');
+
+  restoreOffsetHeight();
+  window.matchMedia = originalMatchMedia;
+});
+
+it('renders a fog overlay gradient anchored to the solved horizon', () => {
+  const containerHeight = 650;
+  const restoreOffsetHeight = mockOffsetHeight(containerHeight);
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+  const fog = container.querySelector('.scrubber__fog') as HTMLElement;
+
+  const geometry = solveGeometry(activeRunwayConfig, {
+    width: 0,
+    height: containerHeight,
+  });
+  const playheadPercent = activeRunwayConfig.playheadFraction * 100;
+  const horizonPercent = (geometry.horizonY / containerHeight) * 100;
+  const expectedFogStartPercent =
+    playheadPercent -
+    activeRunwayConfig.fogStartFraction * (playheadPercent - horizonPercent);
+
+  const [actualHorizonPercent, actualFogStartPercent] = parseGradientPercents(
+    fog.style.backgroundImage,
+  );
+  expect(actualHorizonPercent).toBeCloseTo(horizonPercent, 4);
+  expect(actualFogStartPercent).toBeCloseTo(expectedFogStartPercent, 4);
+
+  restoreOffsetHeight();
 });
 
 it('passes drawer-adjusted visible height as CSS variable to playhead for position alignment', () => {
@@ -505,4 +559,15 @@ it('shrinks phantom scroller when drawer is open', () => {
   const phantom = container.querySelector('.scrubber__phantom') as HTMLElement;
 
   expect(phantom.style.bottom).toBe(`${drawerHeight}px`);
+});
+
+it('shrinks fog overlay when drawer is open', () => {
+  const drawerHeight = 280;
+  const { container } = render(
+    <Scrubber {...defaultProps} drawerHeight={drawerHeight} />,
+  );
+
+  const fog = container.querySelector('.scrubber__fog') as HTMLElement;
+
+  expect(fog.style.bottom).toBe(`${drawerHeight}px`);
 });
