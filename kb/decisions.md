@@ -23,7 +23,7 @@ Architectural decisions with rationale and provenance, newest first. Entry forma
 ## 2026-07-18 — Edge rails instead of fog on the runway
 
 **Decision:** Atmospheric fog gradient removed in favor of glowing rails along the timeline edges, rendered as CSS pseudo-elements so the existing `rotateX` projects them.
-**Why:** Fog sat behind the playhead's frequency-bar overlay and read as mud; rails match the Beat Saber-style reference art. Fog is deliberately not coming back (scope note on #446).
+**Why:** Fog sat behind the playhead's frequency-bar overlay and read as mud; rails match the Beat Saber-style reference art. Fog is deliberately not coming back (scope note on #446). Fog's *first* life was PR #397, removed in #410 — #454 was already a second attempt.
 **Source:** PRs #454 (fog reintroduced), #456 (replaced by rails).
 
 ## 2026-07-18 — Dev-only tuning overlay instead of tune-by-PR
@@ -32,8 +32,110 @@ Architectural decisions with rationale and provenance, newest first. Entry forma
 **Why:** Six consecutive PRs had shipped just to adjust single parameters; a feedback loop measured in seconds replaces one measured in deploys.
 **Source:** Issue #447, PR #455.
 
-## 2026 (Q1) — Signals-based service layer
+## 2026-07-18 — Tap-to-seek rejected; seeking is drag-only
+
+**Decision:** Tapping the runway toggles playback; seeking happens only by dragging the flat, untransformed PhantomScroller.
+**Why:** Inverse-transform tap seeking (`DOMMatrix.inverse()`) would add screen→plane remapping for a gesture drag already covers. `runwayProjection.screenYToPlane` stays as the general inverse projection, exercised only by round-trip tests — don't delete it as "unused", don't re-propose tap-to-seek.
+**Source:** Issue #403 (closed not-planned).
+
+## 2026-03-16 — PhantomScroller: a native scroll surface, not a JS touch proxy
+
+**Decision:** Scrolling is owned by an invisible, untransformed overlay that is a real native scroll container.
+**Why:** The 3D tilt shrinks the transformed container's hit-test area to a narrow trapezoid, breaking native touch scrolling. A JS pointer-capture touch proxy (#419) shipped and was replaced one day later: the phantom gets wheel/touch/momentum physics for free and deleted the proxy plus dead-zone wheel forwarding. Precursor of the 2026-07-19 only-scroll-container rule.
+**Source:** PRs #419, #420.
+
+## 2026-03-15 — Package-by-feature reorg
+
+**Decision:** `src/` reorganized from package-by-layer (`services/`, `hooks/`, `components/`…) to package-by-feature (207 files moved), layout-only.
+**Why:** Understanding one feature required searching several top-level directories; `ls src/features/<x>` now shows everything — navigability for agents as much as humans. Public APIs, signal ownership, and the bridge-hook pattern were deliberately unchanged.
+**Source:** PR #415.
+
+## 2026-03-15 — Loudness meter replaces the plasma playhead
+
+**Decision:** The playhead visualization is CQT bins as bars in a bordered 2:1 rect; its width is later derived from the solved runway geometry so its edges sit on the rails (#461).
+**Why:** The plasma beam (beat detection, spark particles, tendrils) traded simplicity away and its particle internals were untestable (flagged in #365). Deliberate spectacle→simplicity trade.
+**Source:** PRs #417, #418.
+
+## 2026-03-12 — Inverted scroll math, not a CSS mirror flip
+
+**Decision:** Time 0 lives at the *bottom* of the scroll area (`scrollTop = maxScrollTop − time × pps`), with `perspective-origin: center bottom` and `align-items: end` on the timeline grid.
+**Why:** The alternative — top-down DOM rendering plus `scaleY(-1)` on the container (#381, eliminating 11 inversion points) — inverts the `rotateX` direction and fought every perspective tuning; #401 reverted it. `align-items: end` fixes the track-placement bug that motivated the flip. Don't reintroduce a mirror flip.
+**Source:** PRs #375, #381, #401.
+
+## 2026-03-11 — Runway look from `perspective + rotateX` only; scaleX narrowing rejected
+
+**Decision:** No scale-based narrowing in the runway transform.
+**Why:** A `scaleX(0.16)` + 85° tilt build (#395, unmerged) made hit-testing and `getBoundingClientRect` fundamentally unreliable — tests had to be deleted; #397 achieved the look while keeping every test. The same thread documented cross-browser interop problems with `overflow` on perspective containers (CSSWG #8193/#9458): keep overflow on a separate wrapper (foreshadowed the #459 clipping bug).
+**Source:** PRs #395, #397.
+
+## 2026-03-09 — Basic Pitch replaces MELODIA for melody extraction
+
+**Decision:** Melody extraction uses Spotify Basic Pitch (TF.js, 22.05 kHz, model self-hosted in `public/basic-pitch-model/`); essentia.js remains only for the classification mel spectrogram.
+**Why:** essentia's `PredominantPitchMelodia` is monophonic DSP tuned for vocals — chords collapsed to one note, real-world recordings gave mediocre contours. Basic Pitch is polyphonic and instrument-agnostic, and adds pitch-bend data (a path to MIDI export, #182). The swap stayed contained to `MelodyExtractor` because downstream consumes the stable `MelodyNote[]` types.
+**Source:** PRs #306 (MELODIA), #354/#355 (replacement).
+
+## 2026-03-08 — Tailwind 4 + shadcn/ui + Vaul replace Ant Design
+
+**Decision:** UI stack is Tailwind CSS 4 + shadcn/ui (owned source) + Vaul bottom sheets; Sonner replaced the message API, Lucide replaced `@ant-design/icons`.
+**Why:** Research compared six libraries on mobile-native criteria. AntD lost on enterprise aesthetic, no snap-point bottom sheet, CSS-in-JS runtime cost, and its v5 static `message` API rendering outside the React tree (dark theme never applied to toasts, #247). Mantine was runner-up; MUI rejected (heaviest). Migration ran incrementally with Tailwind coexisting beside AntD via `@layer` until final removal.
+**Source:** Issue #282, PRs #283 (research), #296–#333.
+
+## 2026-03-07 — Essentia.js + Discogs-EffNet classification, after four failed model swaps
+
+**Decision:** Instrument classification is a purpose-built supervised pipeline: essentia WASM mel spectrogram → Discogs-EffNet embeddings → MTG-Jamendo instrument head (~21 MB total vs 205 MB CLAP).
+**Why:** The failures: `Xenova/clap-large` was deleted from HuggingFace hosting and 401'd in production (#244); AST/AudioSet returns broad event labels useless on isolated stems (#249); CLAP zero-shot, loudest-segment CLAP, and music-trained CLAP each labeled *every* stem "singing vocals" (#250, #261, #266); filename-keyword classification was built and rejected before merge — recordings have no filename and users don't name files by instrument (#259, #261). Lesson: for a narrow classification task, a small supervised head beat every general-purpose/zero-shot model tried.
+**Source:** Issue #176; PRs #244–#269.
+
+## 2026-03-06 — Model downloads proxied through same origin
+
+**Decision:** Model URLs use app-relative `/models/*`, proxied by the Vite dev server in development and a Netlify redirect (`/models/* → essentia.upf.edu/models/:splat`) in production.
+**Why:** essentia.upf.edu serves no CORS headers, so direct browser `fetch()` fails. Anyone changing model hosting must preserve the indirection.
+**Source:** PR #270; `netlify.toml`.
+
+## 2026-03 — IndexedDB: separate stores; storage failures degrade, never wedge
+
+**Decision:** `ProjectStorageService` uses separate object stores (`projects`, `audioData`, `spectrograms`; later melodies v2, transcriptions v3) so metadata lists load without pulling audio, with `idb` for async/await and upgrade management (design: issue #237).
+**Why (rules from shipped bugs):** a cached *rejected* `openDB` promise permanently wedged storage for the session — the promise cache must reset on rejection and handle `blocked` (multi-tab; relevant on every `DB_VERSION` bump) (#342). IndexedDB can be wholly unavailable (private browsing) — reads must try/catch/finally into an empty-state render, never a stuck loading state (#311).
+**Source:** Issue #237; PRs #241–#246, #311, #342.
+
+## 2026-03-03 — Services own Tone.js; the relay-hook layer was removed
+
+**Decision:** The current architecture — services encapsulate Tone.js, private signals with plain getters plus a `signals` accessor, bridge hooks, workflows coordinate — was fixed in #200–#208.
+**Why:** An earlier design had signal-to-signal relay hooks (`useTransportBridge` etc.) translating service signals into engine commands; it was deleted because reactive chains (signal → effect → service → effect) add indirection when the trigger is already a known workflow. Don't reintroduce relay layers as "decoupling". The Q1 migration introduced signals; these PRs defined their ownership discipline.
+**Source:** PRs #200, #202–#208.
+
+## 2026-03-03 — AudioWorklet PCM capture for recording; MediaRecorder rejected
+
+**Decision:** `WorkletRecorder` captures raw PCM in an AudioWorklet; `Tone.Recorder` is only the silent fallback — both stop-recording branches must stay maintained.
+**Why:** MediaRecorder-based paths are structurally unfit for overdubbing: no sample-accurate timing, unpredictable silence trimming, encoding delay; a `MediaStreamDestination` mix loses track separation; `Tone.Offline` can't capture a live mic. Low-latency mic constraints require bypassing `Tone.UserMedia.open()` (see kb/domain.md, Audio engine).
+**Source:** PR #123 (research), #209, #210, #219.
+
+## 2026-02-23 — CI runs e2e on PRs only; Netlify deploys itself
+
+**Decision:** No deploy job in GitHub Actions; e2e restricted to `pull_request` events.
+**Why:** A deploy-to-Netlify job (#115) was removed the next day (#120): Netlify's own build integration deploys master, and PR-only e2e saves CI minutes. The final state is intentional, not forgotten deployment.
+**Source:** PRs #115, #120.
+
+## 2026-02-22 — Undo/redo: command history over project mutations only
+
+**Decision:** `useUndoReducer` records reverse actions computed from *pre-mutation* state; workstation UI state is deliberately separate so view toggles can never be "undone"; `AudioSourceRepository` buffers are intentionally never disposed in-session, so undo-delete restores a track without re-decoding.
+**Why:** The non-disposal especially reads as a leak to a future reader — it is a cache.
+**Source:** PR #110.
+
+## 2026-02-22 — React Compiler removed; `useSignals()` is the reactivity mechanism
+
+**Decision:** `babel-plugin-react-compiler` is not wired into the build (the devDep lingers unwired in `package.json` — removal candidate). Every component/hook that reads signals during render calls `useSignals()` — the reason bridge hooks exist in their current form.
+**Why:** The compiler's auto-memoization caches signal reads and breaks `@preact/signals-react` v3 reactivity; the library requires either its Babel transform or explicit `useSignals()`. Enabling the compiler reintroduces the #114 failure class: audio engine responds, UI silently frozen.
+**Source:** PRs #103 (enabled), #114 (root-caused and removed).
+
+## 2026-02-22 — Signals-based service layer
 
 **Decision:** Service state lives in `@preact/signals-react` signals with single-owner semantics, bridge hooks translating to React, and services as state machines.
-**Why:** Decouples the audio engine's state from React render cycles; gives tests synchronous plain-getter access; makes ownership auditable. The full design and its rules are in CLAUDE.md ("Design Principles").
-**Source:** `FUTURE_PLANS.md` ("Signal-Synced Architecture"), PRs #103–#111, #114.
+**Why:** Decouples the audio engine's state from React render cycles; gives tests synchronous plain-getter access; makes ownership auditable. Seeded by research issue #100, planned as 8 independently-deployable phases (`MIGRATION.md`, PR #102), executed one PR per phase in a day, then regression-cleaned in #114 (lesson: kb/verification.md). Ownership discipline was finalized later in #200–#208 (see above). Full rules: CLAUDE.md ("Design Principles").
+**Source:** `FUTURE_PLANS.md` ("Signal-Synced Architecture"), issue #100, PRs #102–#111, #114.
+
+## 2026-02-18 — Modernization stack: Vite; npm and Netlify kept
+
+**Decision:** CRA → Vite; npm and Netlify retained.
+**Why:** A client-side audio app with no SSR needs → Vite over Next.js/Remix; npm for single-repo simplicity; a static SPA gains nothing from leaving Netlify. The forcing blocker for the whole migration was `react-beautiful-dnd` (unmaintained, React 18-incompatible) → replaced with @dnd-kit.
+**Source:** PRs #76 (plan), #77 (execution).
