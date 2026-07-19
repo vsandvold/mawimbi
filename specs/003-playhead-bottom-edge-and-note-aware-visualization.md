@@ -1,8 +1,8 @@
 # 003 — Playhead: bottom-edge alignment and note-aware visualization
 
-**Status:** Draft
+**Status:** Issues filed
 **Date:** 2026-07-19
-**Issues:** (filled by /spec-to-issues)
+**Issues:** #479 (tracking); milestones #480 (verification harness), #481 (bottom-edge alignment), #482 (12-TET bars), #483 (fundamental emphasis), #484 (sparkles), #485 (onset pulse + QA handoff)
 
 ## Summary
 
