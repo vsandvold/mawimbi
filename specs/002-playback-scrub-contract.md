@@ -129,7 +129,7 @@ New verification infrastructure required (**Milestone 1**):
 2. **Gesture model** — pointercancel/lostpointercapture handling; scrub state machine replacing the boolean flags; movement threshold; rAF-loop/gesture exclusivity. Flips G1/G2/G4/G6 green.
 3. **Command epoch** — `PlaybackService.commandEpoch` + controller cancellation; unit tests for every explicit transition; G3 green.
 4. **Pinch integration** — wire `isPinchingRef` into the controller; `e2e/timeline-zoom.spec.ts`; G5 green.
-5. **KB payback** — flap-tracer pattern to `kb/verification.md`; gesture-model decision to `kb/decisions.md`; human-QA checklist issue for on-device feel.
+5. **KB payback** — gesture-model decision to `kb/decisions.md` (the council record above, once delivered); human-QA checklist issue for on-device feel. (The flap-tracer pattern is already in `kb/verification.md` — captured in the spec session.)
 
 Each milestone is independently landable; M2–M4 each flip a named set of tests.
 
