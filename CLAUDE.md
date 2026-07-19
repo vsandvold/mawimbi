@@ -34,6 +34,19 @@ gh issue view 19 --repo vsandvold/mawimbi
 gh pr create --repo vsandvold/mawimbi ...
 ```
 
+## Agent Harness
+
+This repo has a harness for autonomous agent work: a knowledge base, a spec pipeline, and audit skills. The loop:
+
+```
+idea ──/spec──▶ specs/NNN-*.md ──/spec-to-issues──▶ GH issues ──/work-issue──▶ PRs
+         │                                                            │
+         └────────────── /kb read (ground) … /kb write (pay back) ────┘
+                              /harness-audit keeps it all true
+```
+
+Session defaults: **ground nontrivial work with `/kb read` before planning, and capture durable learnings with `/kb write` before finishing.** When a request will clearly span multiple PRs, propose or create a spec first rather than waiting to be asked. The KB holds what/why (product, domain, rationale, verification know-how); CLAUDE.md stays the operating manual — the canonical boundary statement is in `kb/INDEX.md`. Specs pair every requirement with a verification an agent can run (or an explicit human-QA flag), and new verification infrastructure is built before the feature code that needs it; the spec lifecycle is defined in `specs/README.md`. `/council` deliberation is part of `/spec` planning and of architecturally significant decisions — for ordinary ambiguity, the Working Defaults' state-your-assumption rule below applies, not a council. `bash scripts/check-harness.sh` validates harness structure.
+
 ## Working Defaults
 
 - Before creating a pull request, run the `/code-review` skill on the diff and address confirmed findings first.
@@ -153,12 +166,10 @@ Channel volume (slider 0–100) is converted to decibels inside `MixerService`: 
 Several `useEffect`/`useCallback` deps arrays intentionally omit stable refs (services, `dispatch`) with `eslint-disable-next-line react-hooks/exhaustive-deps` comments. Don't "fix" these — adding the deps causes spurious re-runs.
 
 ### Tone.js context is not the native AudioContext
-Tone.js uses `standardized-audio-context`, which wraps the native `AudioContext` in a proxy with an internal node registry. `Tone.getContext().rawContext` returns this **wrapper**, and connecting wrapper-created nodes to native nodes throws a "value with the given key could not be found" registry error ([Tone.js #712](https://github.com/Tonejs/Tone.js/issues/712)).
-
-Code that needs native nodes (`WorkletRecorder`/`RecordingProcessor` recording chain, `FrequencyVisualizer`) extracts the real native context via the wrapper's private `_nativeContext` field and creates **all** nodes in the chain on it. If `_nativeContext` is unavailable, fall back to `rawContext` directly. See `AudioService`, `RecordingService.initializeWorkletRecorder()`, and `FrequencyVisualizer` for the established pattern.
+`Tone.getContext().rawContext` returns a **wrapper**, not the native `AudioContext`, and connecting wrapper-created nodes to native nodes throws a "value with the given key could not be found" registry error (why: `kb/domain.md`, "Audio engine"). Code that needs native nodes (`WorkletRecorder`/`RecordingProcessor` recording chain, `FrequencyVisualizer`) extracts the real native context via the wrapper's private `_nativeContext` field and creates **all** nodes in the chain on it. If `_nativeContext` is unavailable, fall back to `rawContext` directly. See `AudioService`, `RecordingService.initializeWorkletRecorder()`, and `FrequencyVisualizer` for the established pattern.
 
 ### CSS Grid items get z-index stacking contexts; absolutely-positioned pseudo-elements don't
-A grid item's `z-index` — even `0`, even with no `position` set — creates a stacking context per the CSS Grid spec. An absolutely-positioned `::before`/`::after` sibling with no explicit `z-index` (defaults to `auto`) does **not** get that treatment: it's out-of-flow, never becomes a grid item, and paints in plain DOM order relative to the grid items' stacking contexts instead of sharing their level. `Timeline.css`'s `.timeline__track` items (`z-index: 0`, `.timeline__track--foreground` at `1`) and its `.timeline::before`/`::after` rail pseudo-elements are exactly this pattern — the rails need an explicit `z-index` higher than any track's to paint consistently on top. Without it, `::before` (generated first) paints under every track, and `::after` (generated last) paints under only the focused one — an asymmetric bug that shipped once already. The same trap applies to any future absolutely-positioned overlay added inside a `z-index`-using grid/flex container.
+A grid item's `z-index` — even `0`, even with no `position` set — creates a stacking context per the CSS Grid spec; an absolutely-positioned `::before`/`::after` sibling with `z-index: auto` does **not**, and paints in plain DOM order instead of sharing the items' level. So any absolutely-positioned overlay inside a `z-index`-using grid/flex container needs an explicit `z-index` above the items'. In this repo: `Timeline.css`'s `.timeline::before`/`::after` rail pseudo-elements over the `.timeline__track` grid items — an asymmetric rails-under-tracks bug shipped once already (fixed in PR #456).
 
 ## Code Conventions
 
@@ -214,10 +225,10 @@ npx playwright test e2e/your-spec.spec.ts --reporter=list
 
 **One-off scratch specs:** name throwaway verification specs `e2e/zzz-*.spec.ts` (gitignored) so they're easy to spot and don't risk landing in a commit.
 
-**If `tsc`/`vitest`/`playwright` suddenly fail with missing-package errors:** the remote environment's disk reclaimer wipes `node_modules` — not only between sessions but **mid-session** (observed twice within one active session on 2026-07-19, while the dev server kept running). Run `bash scripts/ensure-deps.sh` — it's a no-op when deps are intact and reinstalls cache-first when they're not (`npm ci --prefer-offline --onnxruntime-node-install-cuda=skip`; the npm cache survives the reclaim, and the onnx flag skips a CUDA binary download that 403s in sandboxes). Run it cheaply before kicking off a long test run. Two more traits of the same reclaim events, so you recognize them instead of misdiagnosing:
+**If `tsc`/`vitest`/`playwright` suddenly fail with missing-package errors:** the remote environment's disk reclaimer wipes `node_modules` — not only between sessions but **mid-session**, even while the dev server keeps running. Run `bash scripts/ensure-deps.sh` — it's a no-op when deps are intact and reinstalls cache-first when they're not (`npm ci --prefer-offline --onnxruntime-node-install-cuda=skip`; the npm cache survives the reclaim, and the onnx flag skips a CUDA binary download that 403s in sandboxes). Run it cheaply before kicking off a long test run. Two more traits of the same reclaim events, so you recognize them instead of misdiagnosing (incident evidence: `kb/environment.md`):
 
 - `df` misleads: "Avail" reflects a fixed per-session write allowance (~28G), not the volume size — a sudden "no space left" with low "Used" means the allowance is spent, and deleting files (e.g. `e2e/test-results/`, stale traces) immediately frees writable space.
-- The same reclaim sweep can **silently kill background subagents** mid-task (7 of 8 died simultaneously in the observed event, with no error surfaced — their transcripts just stop). For results you depend on, prefer synchronous subagents or verify that background agents actually returned output rather than assuming silence means still-running.
+- The same reclaim sweep can **silently kill background subagents** mid-task, with no error surfaced. For results you depend on, prefer synchronous subagents or verify that background agents actually returned output rather than assuming silence means still-running.
 
 ## Pull Requests
 
