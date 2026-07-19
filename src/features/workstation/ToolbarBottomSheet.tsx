@@ -246,7 +246,7 @@ const OverflowMenu = (props: OverflowMenuProps) => {
     toggleLogOverlay,
   } = props;
   const isTuningAvailable = useTuningAvailable();
-  const { config: tuningConfig, toggle: toggleTuning } = useTuningOverlay();
+  const { isOpen: isTuningOpen, toggle: toggleTuning } = useTuningOverlay();
 
   return (
     <DropdownMenu>
@@ -278,7 +278,7 @@ const OverflowMenu = (props: OverflowMenuProps) => {
             disabled={isEmpty}
             onClick={() => !isEmpty && toggleTuning()}
           >
-            {tuningConfig ? 'Hide Runway Tuning' : 'Show Runway Tuning'}
+            {isTuningOpen ? 'Hide Runway Tuning' : 'Show Runway Tuning'}
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>
