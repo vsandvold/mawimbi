@@ -10,6 +10,8 @@ import {
 } from '../../shared/ui/dropdown-menu';
 import ControlSvg from '../../icons/control.svg?react';
 import FloatingToolbar from './FloatingToolbar';
+import { useTuningAvailable } from './scrubber/useTuningActivation';
+import { useTuningOverlay } from './scrubber/useTuningOverlay';
 import { useBottomSheetDrag } from './useBottomSheetDrag';
 import './Toolbar.css';
 import './ToolbarBottomSheet.css';
@@ -172,6 +174,7 @@ const ToolbarBottomSheet = (props: ToolbarBottomSheetProps) => {
               <Redo />
             </Button>
             <OverflowMenu
+              isEmpty={isEmpty}
               isFullscreen={isFullscreen}
               toggleFullscreen={toggleFullscreen}
               isLogOverlayOpen={isLogOverlayOpen}
@@ -227,6 +230,7 @@ const UploadButton = (props: UploadButtonProps) => {
 };
 
 type OverflowMenuProps = {
+  isEmpty: boolean;
   isFullscreen: boolean;
   toggleFullscreen: (state?: boolean) => void;
   isLogOverlayOpen: boolean;
@@ -234,8 +238,15 @@ type OverflowMenuProps = {
 };
 
 const OverflowMenu = (props: OverflowMenuProps) => {
-  const { isFullscreen, toggleFullscreen, isLogOverlayOpen, toggleLogOverlay } =
-    props;
+  const {
+    isEmpty,
+    isFullscreen,
+    toggleFullscreen,
+    isLogOverlayOpen,
+    toggleLogOverlay,
+  } = props;
+  const isTuningAvailable = useTuningAvailable();
+  const { config: tuningConfig, toggle: toggleTuning } = useTuningOverlay();
 
   return (
     <DropdownMenu>
@@ -256,6 +267,20 @@ const OverflowMenu = (props: OverflowMenuProps) => {
         <DropdownMenuItem onClick={toggleLogOverlay}>
           {isLogOverlayOpen ? 'Hide Logs' : 'View Logs'}
         </DropdownMenuItem>
+        {isTuningAvailable && (
+          // Disabled when empty: TuningOverlay only renders inside Scrubber,
+          // which Workstation unmounts when there's no timeline to show. The
+          // disabled prop alone only fades the item via CSS, so the click is
+          // guarded too — toggling the signal with nothing mounted to
+          // display it would silently no-op now and pop the overlay open
+          // unexpectedly later.
+          <DropdownMenuItem
+            disabled={isEmpty}
+            onClick={() => !isEmpty && toggleTuning()}
+          >
+            {tuningConfig ? 'Hide Runway Tuning' : 'Show Runway Tuning'}
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
