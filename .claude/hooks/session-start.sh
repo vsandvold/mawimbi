@@ -35,12 +35,16 @@ fi
 # Wait for all parallel jobs before proceeding
 wait $NPM_PID
 
-# Install Playwright browsers if not present (requires node_modules from npm ci).
-# Skipped when the environment pre-installs Chromium and pins it via
-# PLAYWRIGHT_BROWSERS_PATH — downloading a duplicate browser (~150MB) both
-# wastes time and burns the session's fixed disk allowance.
-if [ "${PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD:-}" != "1" ] \
-  && ! npx playwright show-browsers 2>/dev/null | grep -q chromium; then
+# Install Playwright browsers only when no chromium exists under the
+# browsers path. Checked via the directory, not a playwright CLI probe:
+# `playwright show-browsers` is not a real subcommand, so the previous
+# check always failed and re-ran the install (~150MB download risk +
+# apt-get round trip) on every single session start. The remote
+# environment pre-installs Chromium under PLAYWRIGHT_BROWSERS_PATH
+# (/opt/pw-browsers); duplicating it would also burn the session's fixed
+# disk allowance.
+if ! ls -d "${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"/chromium* \
+  > /dev/null 2>&1; then
   echo "Installing Playwright Chromium..."
   npx playwright install --with-deps chromium
 fi
