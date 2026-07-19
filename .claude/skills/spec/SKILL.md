@@ -10,11 +10,7 @@ A spec turns a feature idea into something an agent can deliver *and verify* aut
 
 ## 1. Ground
 
-Do all three; do not write a line of spec before this is done:
-
-- **KB:** `/kb read` — product rules, domain facts, prior decisions, verification patterns that bear on this feature.
-- **Issues & PRs:** search open/closed issues and recent PRs (per CLAUDE.md's GitHub CLI section, or the GitHub MCP tools) for prior art, related follow-ups, and decisions already made in review threads. A spec that re-litigates a settled decision (e.g. "bring back fog") without new evidence is ungrounded.
-- **Code:** read the features the work touches (spawn parallel Explore agents for breadth). Identify the services, signals, and patterns the design must fit.
+Before writing a line of spec: `/kb read`, and search open/closed issues and recent PRs (per CLAUDE.md's GitHub CLI section) for prior art and decisions already settled in review threads — a spec that re-litigates a settled decision (e.g. "bring back fog") without new evidence is ungrounded. Read whatever code the KB and the issue trail point at.
 
 ## 2. Deliberate
 
