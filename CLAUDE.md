@@ -203,7 +203,10 @@ npx playwright test e2e/your-spec.spec.ts --reporter=list
 
 **One-off scratch specs:** name throwaway verification specs `e2e/zzz-*.spec.ts` (gitignored) so they're easy to spot and don't risk landing in a commit.
 
-**If `tsc`/`vitest`/`playwright` suddenly fail with missing-package errors:** `node_modules` can be wiped between sessions. Reinstall with `npm ci --onnxruntime-node-install-cuda=skip` (the plain onnx CUDA binary download 403s in sandboxed environments; the flag skips it).
+**If `tsc`/`vitest`/`playwright` suddenly fail with missing-package errors:** the remote environment's disk reclaimer wipes `node_modules` — not only between sessions but **mid-session** (observed twice within one active session on 2026-07-19, while the dev server kept running). Run `bash scripts/ensure-deps.sh` — it's a no-op when deps are intact and reinstalls cache-first when they're not (`npm ci --prefer-offline --onnxruntime-node-install-cuda=skip`; the npm cache survives the reclaim, and the onnx flag skips a CUDA binary download that 403s in sandboxes). Run it cheaply before kicking off a long test run. Two more traits of the same reclaim events, so you recognize them instead of misdiagnosing:
+
+- `df` misleads: "Avail" reflects a fixed per-session write allowance (~28G), not the volume size — a sudden "no space left" with low "Used" means the allowance is spent, and deleting files (e.g. `e2e/test-results/`, stale traces) immediately frees writable space.
+- The same reclaim sweep can **silently kill background subagents** mid-task (7 of 8 died simultaneously in the observed event, with no error surfaced — their transcripts just stop). For results you depend on, prefer synchronous subagents or verify that background agents actually returned output rather than assuming silence means still-running.
 
 ## Pull Requests
 
