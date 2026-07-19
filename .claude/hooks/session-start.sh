@@ -8,9 +8,12 @@ fi
 
 cd "${CLAUDE_PROJECT_DIR:-$(git rev-parse --show-toplevel)}"
 
-# Run npm ci and system tool installs in parallel — they are independent
-echo "Installing npm dependencies..."
-npm ci &
+# Run npm install and system tool installs in parallel — they are independent.
+# ensure-deps.sh is a no-op when node_modules is intact, and reinstalls
+# cache-first when the environment's disk reclaimer has wiped it (which can
+# also happen mid-session — see CLAUDE.md).
+echo "Ensuring npm dependencies..."
+bash scripts/ensure-deps.sh &
 NPM_PID=$!
 
 # Install Netlify CLI if not present
@@ -32,8 +35,12 @@ fi
 # Wait for all parallel jobs before proceeding
 wait $NPM_PID
 
-# Install Playwright browsers if not present (requires node_modules from npm ci)
-if ! npx playwright show-browsers 2>/dev/null | grep -q chromium; then
+# Install Playwright browsers if not present (requires node_modules from npm ci).
+# Skipped when the environment pre-installs Chromium and pins it via
+# PLAYWRIGHT_BROWSERS_PATH — downloading a duplicate browser (~150MB) both
+# wastes time and burns the session's fixed disk allowance.
+if [ "${PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD:-}" != "1" ] \
+  && ! npx playwright show-browsers 2>/dev/null | grep -q chromium; then
   echo "Installing Playwright Chromium..."
   npx playwright install --with-deps chromium
 fi
