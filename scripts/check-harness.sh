@@ -28,8 +28,9 @@ for skill in .claude/skills/*/SKILL.md; do
 done
 
 # KB: the INDEX table and the directory agree in both directions. Filenames
-# are parsed once, from table rows only, and compared as exact strings.
-indexed=$(grep '^|' kb/INDEX.md | grep -o '[A-Za-z0-9_-]\+\.md' | sort -u)
+# are parsed once, from the first backticked cell of each table row (later
+# cells are prose and may mention other files), and compared as exact strings.
+indexed=$(sed -n 's/^| *`\([A-Za-z0-9_-]\+\.md\)`.*/\1/p' kb/INDEX.md | sort -u)
 for kbfile in kb/*.md; do
   base=$(basename "$kbfile")
   [ "$base" = "INDEX.md" ] && continue

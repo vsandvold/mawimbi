@@ -7,6 +7,7 @@ Compounding knowledge captured across agent sessions. **Read before planning; wr
 | `product.md` | Product vision, target user, business rules |
 | `domain.md` | Audio and music domain knowledge behind the features |
 | `decisions.md` | Architectural decisions with rationale and provenance |
+| `environment.md` | Observed remote-environment incidents — the evidence behind CLAUDE.md's operational guidance |
 | `verification.md` | Catalog of verification patterns that work (and fail) in this repo |
 
 ## Boundary with CLAUDE.md

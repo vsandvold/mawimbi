@@ -31,7 +31,7 @@ A harness that lets an autonomous agent (Fable/Opus/Sonnet session) take a featu
 
 ## Design
 
-Six skills under `.claude/skills/`, each a procedure over shared artifacts: `kb/` (four seeded files + INDEX), `specs/` (this file + README + template), and `scripts/check-harness.sh`. CLAUDE.md gains an Agent Harness section wiring the loop into every session's defaults.
+Six skills under `.claude/skills/`, each a procedure over shared artifacts: `kb/` (seeded topic files + INDEX), `specs/` (this file + README + template), and `scripts/check-harness.sh`. CLAUDE.md gains an Agent Harness section wiring the loop into every session's defaults.
 
 > **Decision:** knowledge lives in flat markdown at repo root, keyed by an INDEX, with a hard content boundary against CLAUDE.md.
 > **Rationale:** CLAUDE.md is auto-loaded every session and must stay lean; the KB is read on demand and can grow. Duplication is the main failure mode of two knowledge stores, so the boundary (how-to-work vs. what-and-why) is stated in both places and checked by `/harness-audit`.
