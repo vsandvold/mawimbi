@@ -1,19 +1,25 @@
 .spectrogram {
   position: relative;
-  display: grid;
 }
 
+/* The canvases are positioned imperatively (translateY, set in the same
+   rAF loop that draws them) to cover the runway's canvas window — the
+   pre-transform span that can project into view. `position: sticky` can't
+   do this anymore: the scrubber's tilt stage is no longer a scroll
+   container (mawimbi#459), so there is no scrolling ancestor to stick to. */
 .spectrogram__canvas {
-  grid-area: 1 / 1;
-  position: sticky;
+  position: absolute;
   top: 0;
+  left: 0;
   display: block;
+  will-change: transform;
 }
 
 .spectrogram__overlay {
-  grid-area: 1 / 1;
-  position: sticky;
+  position: absolute;
   top: 0;
+  left: 0;
   display: block;
   pointer-events: none;
+  will-change: transform;
 }

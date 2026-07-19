@@ -7,33 +7,22 @@ import { expect, test, uploadAudioFile, SHORT_AUDIO } from './fixtures';
  *
  * Covers the alignment invariant required by #445 (the bug class behind
  * #391/#411/#412: content scrolled to a given time must render on the
- * playhead line), the edge rail stacking-order invariant from #443's
+ * playhead line), the *visibility* invariant from #459 (content on the
+ * playhead line must actually paint — rect alignment alone is blind to
+ * scroll clipping, which once hid the entire runway while this suite
+ * passed), the edge rail stacking-order invariant from #443's
  * fog-to-rails visual pass, and the width anchor and reduced-motion
- * invariants from #448's stated scope, plus drawer stability for the
- * alignment and width anchor cases. Visual regression per preset and the
- * scrubber-seek.spec.ts/spectrogram-timeline.spec.ts workaround cleanup
- * from #448 remain unaddressed here.
+ * invariants from #448's stated scope, plus drawer stability throughout.
  *
- * Tolerance note: a small residual drift (a few px with the drawer closed,
- * up to ~35px with the mixer open) is expected here and tracked separately
- * in #450 — `.scrubber__tilt`'s own scrollTop gets silently clamped by the
- * browser to its (undiminished) box's scrollable range whenever the drawer
- * is open, short of what `.scrubber__phantom` (which does shrink) asks for.
- * That's a pre-existing scroll-mechanics issue from #419/#420, orthogonal to
- * the projection math this file is validating. The width anchor invariant
- * below inherits the same drift (measuring width at the "time 0" boundary
- * is only exact when that boundary truly lands on the playhead line), so
- * its tolerance is widened for the same documented reason rather than a new
- * one — see #450's comment thread for a further contributing factor found
- * while adding this invariant (a `.scrubber__tilt`-only `scrollHeight`
- * inflation that leaks into the phantom scroller's spacer sync).
+ * Tolerances are tight (single-digit px) since #459 removed the tilt-side
+ * scroll clamping (#450) that used to add up-to-drawerHeight drift.
  */
 
 const MIXER_ANIMATION_MS = 350;
-const ALIGNMENT_TOLERANCE_PX = 40;
+const ALIGNMENT_TOLERANCE_PX = 8;
 const ALIGNMENT_POLL_TIMEOUT_MS = 2000;
 const CONTENT_SETTLE_WAIT_MS = 1000;
-const WIDTH_ANCHOR_TOLERANCE_FRACTION = 0.06;
+const WIDTH_ANCHOR_TOLERANCE_FRACTION = 0.03;
 
 /**
  * The on-screen Y of the boundary between actual audio content and the
@@ -139,6 +128,54 @@ async function expectTrackWidthMatchesPlayheadWidth(
   }).toPass({ timeout: ALIGNMENT_POLL_TIMEOUT_MS });
 }
 
+/**
+ * Asserts that audio content is *painted* at the playhead line — not just
+ * rect-aligned there. Rects ignore overflow clipping, so before #459 this
+ * suite's alignment invariant passed while the whole runway was scroll-
+ * clipped invisible. Hit-testing can't detect this either (the tilt
+ * subtree is pointer-events: none), so this decodes an actual screenshot:
+ * spectrogram content is the only *saturated* paint in the scrubber (the
+ * rails, loudness meter, and background are all grayscale), so a colored
+ * pixel in a band around the playhead line proves the track is visible.
+ */
+async function expectContentVisibleAtPlayhead(
+  page: import('@playwright/test').Page,
+) {
+  const playheadLineY = await getPlayheadLineY(page);
+  const viewportWidth = page.viewportSize()?.width ?? 0;
+  const clip = {
+    x: viewportWidth / 2 - 200,
+    y: playheadLineY - 6,
+    width: 400,
+    height: 12,
+  };
+  const screenshot = await page.screenshot({ clip });
+
+  const hasSaturatedPixel = await page.evaluate(async (b64) => {
+    const img = new Image();
+    img.src = `data:image/png;base64,${b64}`;
+    await img.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = img.width;
+    canvas.height = img.height;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(img, 0, 0);
+    const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const SATURATION_THRESHOLD = 40;
+    for (let i = 0; i < data.length; i += 4) {
+      const max = Math.max(data[i], data[i + 1], data[i + 2]);
+      const min = Math.min(data[i], data[i + 1], data[i + 2]);
+      if (max - min > SATURATION_THRESHOLD) return true;
+    }
+    return false;
+  }, screenshot.toString('base64'));
+
+  expect(
+    hasSaturatedPixel,
+    'no colored (track content) pixel found in the band around the playhead line',
+  ).toBe(true);
+}
+
 test.describe('Runway alignment invariant', () => {
   test.beforeEach(async ({ page }) => {
     await setUpTimeline(page);
@@ -157,6 +194,29 @@ test.describe('Runway alignment invariant', () => {
     await openMixerDrawer(page);
     await rewindToStart(page);
     await expectContentAlignedToPlayhead(page);
+  });
+});
+
+test.describe('Runway visibility invariant', () => {
+  test.beforeEach(async ({ page }) => {
+    await setUpTimeline(page);
+  });
+
+  test('content at time 0 is actually painted on the playhead line, drawer closed', async ({
+    page,
+  }) => {
+    await rewindToStart(page);
+    await expectContentAlignedToPlayhead(page);
+    await expectContentVisibleAtPlayhead(page);
+  });
+
+  test('content at time 0 is actually painted on the playhead line, drawer open', async ({
+    page,
+  }) => {
+    await openMixerDrawer(page);
+    await rewindToStart(page);
+    await expectContentAlignedToPlayhead(page);
+    await expectContentVisibleAtPlayhead(page);
   });
 });
 
@@ -209,12 +269,13 @@ test.describe('Runway width anchor invariant', () => {
     await expectTrackWidthMatchesPlayheadWidth(page);
   });
 
-  // No drawer-open variant: #450's scrollTop clamping (see this file's
-  // header) distorts which content actually sits at the measured boundary
-  // far more for width (non-linear under perspective) than for the Y-only
-  // alignment invariant above, to the point that no tolerance both survives
-  // it and still means anything. The closed-drawer case above already
-  // exercises the same width-anchor math the open case would.
+  test('rendered track width at the playhead line matches the configured playheadWidth, drawer open', async ({
+    page,
+  }) => {
+    await openMixerDrawer(page);
+    await rewindToStart(page);
+    await expectTrackWidthMatchesPlayheadWidth(page);
+  });
 });
 
 test.describe('Runway reduced-motion invariant', () => {

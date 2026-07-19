@@ -3,6 +3,7 @@ import { type CSSProperties, useLayoutEffect, useRef, useState } from 'react';
 import { useMediaQuery } from '../../../shared/hooks/useMediaQuery';
 import { activeRunwayConfig, type RunwayPreset } from './runwayConfig';
 import {
+  runwayWindowTop,
   solveGeometry,
   type RunwayConfig,
   type RunwayGeometry,
@@ -43,6 +44,7 @@ type ScrubberGeometry = {
   visibleHeight: number;
   timelinePaddingTopPx: number;
   timelinePaddingBottomPx: number;
+  runwayWindowTopPx: number;
 };
 
 /**
@@ -104,6 +106,7 @@ export function useScrubberGeometry(drawerHeight: number): ScrubberGeometry {
     visibleHeight,
     timelinePaddingTopPx: timelinePadding.top,
     timelinePaddingBottomPx: timelinePadding.bottom,
+    runwayWindowTopPx: runwayWindowTop(geometry),
   };
 }
 

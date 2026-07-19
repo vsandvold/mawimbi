@@ -549,19 +549,17 @@ it('syncs timeline scroll position via imperative handle (inverted scroll)', () 
   const { container } = render(<Scrubber ref={ref} {...defaultProps} />);
 
   const phantom = container.querySelector('.scrubber__phantom')!;
-  const tilt = container.querySelector('.scrubber__tilt')!;
+  const offset = container.querySelector('.scrubber__offset') as HTMLElement;
 
   // Mock scroll dimensions so maxScrollTop is non-zero
-  for (const el of [phantom, tilt]) {
-    Object.defineProperty(el, 'scrollHeight', {
-      value: 2000,
-      configurable: true,
-    });
-    Object.defineProperty(el, 'clientHeight', {
-      value: 500,
-      configurable: true,
-    });
-  }
+  Object.defineProperty(phantom, 'scrollHeight', {
+    value: 2000,
+    configurable: true,
+  });
+  Object.defineProperty(phantom, 'clientHeight', {
+    value: 500,
+    configurable: true,
+  });
 
   act(() => {
     ref.current!.syncScrollToTime(2.5);
@@ -571,8 +569,9 @@ it('syncs timeline scroll position via imperative handle (inverted scroll)', () 
   // maxScrollTop = 2000 - 500 = 1500
   // scrollTop = 1500 - (2.5 * 200) = 1500 - 500 = 1000
   expect(phantom.scrollTop).toBe(1000);
-  // Tilt container is synced so spectrograms can read scrollTop
-  expect(tilt.scrollTop).toBe(1000);
+  // The offset stage follows the phantom via a translateY — the tilt never
+  // scrolls (mawimbi#459/#450), so spectrograms read the phantom instead.
+  expect(offset.style.transform).toBe('translate3d(0, -1000px, 0)');
 });
 
 it('scrolls to maxScrollTop when time is zero (beginning at bottom)', () => {
@@ -581,18 +580,16 @@ it('scrolls to maxScrollTop when time is zero (beginning at bottom)', () => {
   const { container } = render(<Scrubber ref={ref} {...defaultProps} />);
 
   const phantom = container.querySelector('.scrubber__phantom')!;
-  const tilt = container.querySelector('.scrubber__tilt')!;
+  const offset = container.querySelector('.scrubber__offset') as HTMLElement;
 
-  for (const el of [phantom, tilt]) {
-    Object.defineProperty(el, 'scrollHeight', {
-      value: 2000,
-      configurable: true,
-    });
-    Object.defineProperty(el, 'clientHeight', {
-      value: 500,
-      configurable: true,
-    });
-  }
+  Object.defineProperty(phantom, 'scrollHeight', {
+    value: 2000,
+    configurable: true,
+  });
+  Object.defineProperty(phantom, 'clientHeight', {
+    value: 500,
+    configurable: true,
+  });
 
   act(() => {
     ref.current!.syncScrollToTime(0);
@@ -600,25 +597,22 @@ it('scrolls to maxScrollTop when time is zero (beginning at bottom)', () => {
 
   // At time=0, scrollTop should be at max (beginning at bottom)
   expect(phantom.scrollTop).toBe(1500);
-  expect(tilt.scrollTop).toBe(1500);
+  expect(offset.style.transform).toBe('translate3d(0, -1500px, 0)');
 });
 
 it('syncs scroll to beginning when rewinding while paused', () => {
   const { container } = render(<Scrubber {...defaultProps} />);
 
   const phantom = container.querySelector('.scrubber__phantom')!;
-  const tilt = container.querySelector('.scrubber__tilt')!;
 
-  for (const el of [phantom, tilt]) {
-    Object.defineProperty(el, 'scrollHeight', {
-      value: 2000,
-      configurable: true,
-    });
-    Object.defineProperty(el, 'clientHeight', {
-      value: 500,
-      configurable: true,
-    });
-  }
+  Object.defineProperty(phantom, 'scrollHeight', {
+    value: 2000,
+    configurable: true,
+  });
+  Object.defineProperty(phantom, 'clientHeight', {
+    value: 500,
+    configurable: true,
+  });
 
   // Play, then pause at a non-zero position
   playbackService.seekTo(2.5);

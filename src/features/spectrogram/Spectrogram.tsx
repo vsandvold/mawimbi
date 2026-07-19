@@ -20,7 +20,8 @@ type SpectrogramProps = {
 };
 
 const TILE_FRAMES = 4096;
-const SCROLL_CONTAINER_CLASS = '.scrubber__tilt';
+const SCRUBBER_CLASS = 'scrubber';
+const PHANTOM_SCROLLER_SELECTOR = '.scrubber__phantom';
 
 const Spectrogram = ({
   pixelsPerSecond,
@@ -162,6 +163,112 @@ const Spectrogram = ({
   );
 };
 
+/**
+ * The pre-transform region a spectrogram canvas must cover, in the
+ * scrubber's scroll-content coordinate space.
+ *
+ * The scrubber exposes the runway's canvas window as CSS custom properties
+ * (`--runway-window-top`/`--runway-window-bottom`, in the tilt box's local
+ * coordinates): the span of pre-transform local Y that can project into
+ * the visible area. Under a steep tilt this extends far above the box —
+ * plane-space distances are much longer than the screen distances they
+ * project to — which is exactly why the canvas cannot be one viewport-tall
+ * slice pinned by `position: sticky` (mawimbi#459).
+ *
+ * Scroll position comes from the PhantomScroller — the scrubber's only
+ * scroll container. The tilt stage itself is translated, not scrolled, so
+ * content coordinates are `local Y + phantom.scrollTop`.
+ */
+type CanvasWindow = {
+  /** Canvas bitmap width — the full plane width. */
+  width: number;
+  /** Canvas bitmap height — the window's pre-transform span. */
+  height: number;
+  /** Scroll-content Y of the window's top edge. */
+  contentTop: number;
+  /** Scroll-content Y of this track container's top edge. */
+  containerTop: number;
+};
+
+function getCanvasWindow(container: HTMLDivElement): CanvasWindow {
+  const scrubber = container.closest(
+    `.${SCRUBBER_CLASS}`,
+  ) as HTMLElement | null;
+  const phantom = scrubber?.querySelector(PHANTOM_SCROLLER_SELECTOR) ?? null;
+  const scrollTop = phantom?.scrollTop ?? 0;
+  const width = scrubber?.clientWidth ?? window.innerWidth;
+  const fallbackHeight = scrubber?.clientHeight ?? window.innerHeight;
+
+  let windowTop = 0;
+  let windowBottom = fallbackHeight;
+  if (scrubber) {
+    const styles = getComputedStyle(scrubber);
+    const top = parseFloat(styles.getPropertyValue('--runway-window-top'));
+    const bottom = parseFloat(
+      styles.getPropertyValue('--runway-window-bottom'),
+    );
+    if (Number.isFinite(top) && Number.isFinite(bottom) && bottom > top) {
+      windowTop = top;
+      windowBottom = bottom;
+    }
+  }
+
+  return {
+    width,
+    height: Math.ceil(windowBottom - windowTop),
+    contentTop: scrollTop + windowTop,
+    containerTop: getContentOffsetTop(container),
+  };
+}
+
+/**
+ * Layout position of an element within the scrubber's scroll content.
+ * Walks offsetParents up to the scrubber; `offsetTop` ignores transforms,
+ * so this measures the untranslated content position regardless of the
+ * offset stage's current translateY.
+ */
+function getContentOffsetTop(container: HTMLElement): number {
+  let top = 0;
+  let el: HTMLElement | null = container;
+  while (el && !el.classList.contains(SCRUBBER_CLASS)) {
+    top += el.offsetTop;
+    el = el.offsetParent as HTMLElement | null;
+  }
+  return top;
+}
+
+/**
+ * Places the canvas over the window. The canvas is laid out at its
+ * container's top (`position: absolute; top: 0`); translating it by the
+ * window's offset from the container keeps it covering the window while
+ * the offset stage moves the surrounding content.
+ */
+function positionCanvas(canvas: HTMLCanvasElement, win: CanvasWindow): void {
+  const translateY = win.contentTop - win.containerTop;
+  const transform = `translateY(${translateY}px)`;
+  if (canvas.style.transform !== transform) {
+    canvas.style.transform = transform;
+  }
+}
+
+/**
+ * Position of the track's time-0 edge in flipped canvas coordinates
+ * (0 = canvas bottom, increasing toward the horizon). Content at time t
+ * draws at `trackBase + t × pixelsPerSecond`.
+ */
+function getTrackBase(win: CanvasWindow, contentLength: number): number {
+  return win.contentTop + win.height - (win.containerTop + contentLength);
+}
+
+/**
+ * Flips the canvas Y-axis so that y=0 draws at the bottom of the canvas.
+ * This makes time=0 content appear at the bottom (beginning at the bottom).
+ */
+function flipCanvasY(ctx: CanvasRenderingContext2D, canvasHeight: number) {
+  ctx.translate(0, canvasHeight);
+  ctx.scale(1, -1);
+}
+
 function drawRecordingFrame(
   canvas: HTMLCanvasElement,
   container: HTMLDivElement,
@@ -198,92 +305,44 @@ function drawRecordingFrame(
 
   if (buffer.frameCount === 0) return;
 
-  const { viewportWidth, viewportHeight, contentOffset, maxContentOffset } =
-    getViewportInfo(container, contentHeight);
-
-  // Flip: map DOM content offset to inverted content offset
-  const flippedOffset = maxContentOffset - contentOffset;
-
-  // When content is shorter than the viewport, shift drawing up (in flipped
-  // coords) so content stays within the container bounds instead of being
-  // rendered at the canvas bottom (which extends past the container).
-  const drawYOffset = Math.max(0, viewportHeight - contentHeight);
+  // Measured after the height/margin writes above so the layout offset
+  // reflects this frame's content size.
+  const win = getCanvasWindow(container);
+  positionCanvas(canvas, win);
+  const trackBase = getTrackBase(win, contentHeight);
 
   const needsResize =
-    canvas.width !== viewportWidth || canvas.height !== viewportHeight;
+    canvas.width !== win.width || canvas.height !== win.height;
   if (needsResize) {
-    canvas.width = viewportWidth;
-    canvas.height = viewportHeight;
+    canvas.width = win.width;
+    canvas.height = win.height;
   }
 
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  // Visible slice of the recording content, in flipped canvas coords.
+  const visibleStart = Math.max(0, trackBase);
+  const visibleEnd = Math.min(win.height, trackBase + contentHeight);
+  if (visibleEnd <= visibleStart || contentHeight <= 0) return;
+
   ctx.save();
-  flipCanvasY(ctx, viewportHeight);
+  flipCanvasY(ctx, win.height);
 
   // Map buffer frames (1 frame = 1 pixel in the buffer) to display pixels.
   // bufferFrames maps to contentHeight display pixels.
   const framesPerPixel = buffer.frameCount / contentHeight;
-  // Clamp destination height so the buffer is never stretched beyond the
-  // actual content area. Without this, when the recording is shorter than
-  // the viewport the buffer was drawn across the full viewport height,
-  // making the spectrogram appear to move faster than existing tracks.
-  const destHeight = Math.min(viewportHeight, contentHeight - flippedOffset);
-  const srcY = Math.floor(flippedOffset * framesPerPixel);
+  const destHeight = visibleEnd - visibleStart;
+  const srcY = Math.floor((visibleStart - trackBase) * framesPerPixel);
   const srcHeight = Math.min(
     Math.ceil(destHeight * framesPerPixel),
     buffer.frameCount - srcY,
   );
 
-  buffer.drawTo(ctx, srcY, srcHeight, drawYOffset, destHeight, viewportWidth);
+  buffer.drawTo(ctx, srcY, srcHeight, visibleStart, destHeight, win.width);
 
   ctx.restore();
-}
-
-type ViewportInfo = {
-  viewportWidth: number;
-  viewportHeight: number;
-  contentOffset: number;
-  maxContentOffset: number;
-};
-
-/**
- * Computes viewport dimensions and content offset for a spectrogram container.
- * The content offset measures how far into the DOM content the viewport's top
- * edge has scrolled. With marginBottom positioning, all containers start at
- * the grid cell top (paddingTop) — no top margin to subtract.
- */
-function getViewportInfo(
-  container: HTMLDivElement,
-  contentLength: number,
-): ViewportInfo {
-  const scrollParent = container.closest(SCROLL_CONTAINER_CLASS);
-  const viewportWidth = scrollParent?.clientWidth ?? window.innerWidth;
-  const viewportHeight = scrollParent?.clientHeight ?? window.innerHeight;
-
-  const scrollTop = scrollParent?.scrollTop ?? 0;
-  const timeline = container.closest('.timeline');
-  const paddingTop = timeline
-    ? parseFloat(getComputedStyle(timeline).paddingTop) || 0
-    : 0;
-  const maxContentOffset = Math.max(0, contentLength - viewportHeight);
-  const contentOffset = Math.min(
-    Math.max(0, scrollTop - paddingTop),
-    maxContentOffset,
-  );
-
-  return { viewportWidth, viewportHeight, contentOffset, maxContentOffset };
-}
-
-/**
- * Flips the canvas Y-axis so that y=0 draws at the bottom of the canvas.
- * This makes time=0 content appear at the bottom (beginning at the bottom).
- */
-function flipCanvasY(ctx: CanvasRenderingContext2D, viewportHeight: number) {
-  ctx.translate(0, viewportHeight);
-  ctx.scale(1, -1);
 }
 
 function drawTilesFrame(
@@ -302,37 +361,29 @@ function drawTilesFrame(
   }>,
 ): void {
   const contentLength = duration * pixelsPerSecond;
-  const { viewportWidth, viewportHeight, contentOffset, maxContentOffset } =
-    getViewportInfo(container, contentLength);
-
-  // Flip: map DOM content offset to inverted content offset so that
-  // tile 0 (beginning) draws at the bottom of the canvas.
-  const flippedOffset = maxContentOffset - contentOffset;
-
-  // When content is shorter than the viewport, shift drawing up (in flipped
-  // coords) so content stays within the container bounds instead of being
-  // rendered at the canvas bottom (which extends past the container).
-  const drawYOffset = Math.max(0, viewportHeight - contentLength);
+  const win = getCanvasWindow(container);
+  positionCanvas(canvas, win);
+  const trackBase = getTrackBase(win, contentLength);
 
   const needsResize =
-    canvas.width !== viewportWidth || canvas.height !== viewportHeight;
+    canvas.width !== win.width || canvas.height !== win.height;
 
   const last = lastDrawnRef.current;
   if (
     !needsResize &&
-    flippedOffset === last.offset &&
+    trackBase === last.offset &&
     pixelsPerSecond === last.pps &&
     tiles.length === last.tileCount
   ) {
     return;
   }
-  last.offset = flippedOffset;
+  last.offset = trackBase;
   last.pps = pixelsPerSecond;
   last.tileCount = tiles.length;
 
   if (needsResize) {
-    canvas.width = viewportWidth;
-    canvas.height = viewportHeight;
+    canvas.width = win.width;
+    canvas.height = win.height;
   }
 
   const ctx = canvas.getContext('2d');
@@ -340,24 +391,25 @@ function drawTilesFrame(
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   ctx.save();
-  flipCanvasY(ctx, viewportHeight);
+  flipCanvasY(ctx, win.height);
 
-  const firstTile = Math.max(0, Math.floor(flippedOffset / tileDisplayHeight));
+  // Tile t spans [trackBase + t·tileH, ...] in flipped coords; draw the
+  // tiles that intersect the canvas span [0, win.height].
+  const firstTile = Math.max(0, Math.floor(-trackBase / tileDisplayHeight));
   const lastTile = Math.min(
     tiles.length - 1,
-    Math.floor((flippedOffset + viewportHeight) / tileDisplayHeight),
+    Math.floor((win.height - trackBase) / tileDisplayHeight),
   );
 
   for (let t = firstTile; t <= lastTile; t++) {
-    const tileTopPx = t * tileDisplayHeight;
-    const drawY = tileTopPx - flippedOffset + drawYOffset;
+    const drawY = trackBase + t * tileDisplayHeight;
     const isLastTile = t === tiles.length - 1;
     const tileFrameCount = isLastTile
       ? totalFrames - t * TILE_FRAMES
       : TILE_FRAMES;
     const drawHeight = tileFrameCount * frameDisplayHeight;
 
-    ctx.drawImage(tiles[t], 0, drawY, viewportWidth, drawHeight);
+    ctx.drawImage(tiles[t], 0, drawY, win.width, drawHeight);
   }
 
   ctx.restore();
@@ -381,18 +433,12 @@ function drawMelodyOverlay(
   }>,
 ): void {
   const contentLength = duration * pixelsPerSecond;
-  const { viewportWidth, viewportHeight, contentOffset, maxContentOffset } =
-    getViewportInfo(container, contentLength);
-
-  // Flip: map DOM content offset to inverted content offset
-  const flippedOffset = maxContentOffset - contentOffset;
-
-  // When content is shorter than the viewport, shift drawing up (in flipped
-  // coords) so content stays within the container bounds.
-  const drawYOffset = Math.max(0, viewportHeight - contentLength);
+  const win = getCanvasWindow(container);
+  positionCanvas(canvas, win);
+  const trackBase = getTrackBase(win, contentLength);
 
   const needsResize =
-    canvas.width !== viewportWidth || canvas.height !== viewportHeight;
+    canvas.width !== win.width || canvas.height !== win.height;
 
   // During playback, always redraw to update the playhead glow effect.
   // When stopped, use memoization to skip unchanged frames.
@@ -400,19 +446,19 @@ function drawMelodyOverlay(
   if (
     !isPlaying &&
     !needsResize &&
-    flippedOffset === last.offset &&
+    trackBase === last.offset &&
     pixelsPerSecond === last.pps &&
     notes.length === last.noteCount
   ) {
     return;
   }
-  last.offset = flippedOffset;
+  last.offset = trackBase;
   last.pps = pixelsPerSecond;
   last.noteCount = notes.length;
 
   if (needsResize) {
-    canvas.width = viewportWidth;
-    canvas.height = viewportHeight;
+    canvas.width = win.width;
+    canvas.height = win.height;
   }
 
   const ctx = canvas.getContext('2d');
@@ -420,16 +466,18 @@ function drawMelodyOverlay(
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   ctx.save();
-  flipCanvasY(ctx, viewportHeight);
+  flipCanvasY(ctx, win.height);
 
   // Playhead time relative to this track's start time
   const trackPlayheadTime = playheadTime - startTime;
 
   const viewport: PianoRollViewport = {
     pixelsPerSecond,
-    contentOffset: flippedOffset - drawYOffset,
-    viewportHeight,
-    canvasWidth: viewportWidth,
+    // The renderer draws note t at `t·pps − contentOffset` in flipped
+    // coords; the canvas bottom sits at −trackBase in flipped track coords.
+    contentOffset: -trackBase,
+    viewportHeight: win.height,
+    canvasWidth: win.width,
     frequencyBinCount,
     playheadTime: trackPlayheadTime,
   };

@@ -41,7 +41,7 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
   const { drawerHeight, onStopRecording, pixelsPerSecond } = props;
 
   const phantomRef = useRef<HTMLDivElement>(null);
-  const scrubberTiltRef = useRef<HTMLDivElement>(null);
+  const offsetRef = useRef<HTMLDivElement>(null);
   const playheadRef = useRef<PlayheadHandle>(null);
 
   const {
@@ -53,6 +53,7 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     visibleHeight,
     timelinePaddingTopPx,
     timelinePaddingBottomPx,
+    runwayWindowTopPx,
   } = useScrubberGeometry(drawerHeight);
 
   const isTuningAvailable = useTuningAvailable();
@@ -73,14 +74,14 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     syncScrollToTime,
   } = useScrubberScroll({
     phantomRef,
-    tiltRef: scrubberTiltRef,
+    offsetRef,
     playheadRef,
     pixelsPerSecond,
   });
 
   useTimelineZoom(phantomRef);
 
-  const spacerHeight = useSpacerHeight(scrubberTiltRef);
+  const spacerHeight = useSpacerHeight(offsetRef);
 
   useImperativeHandle(ref, () => ({ syncScrollToTime }), [syncScrollToTime]);
 
@@ -98,24 +99,18 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     playheadFraction,
     timelinePaddingTopPx,
     timelinePaddingBottomPx,
+    runwayWindowTopPx,
+    visibleHeight,
   );
 
-  // The geometry ref measures the tilt container's height for 3D transform
-  // calculations. Assign it via a callback ref alongside the scroll ref.
-  const tiltRef = (el: HTMLDivElement | null) => {
-    (scrubberTiltRef as React.MutableRefObject<HTMLDivElement | null>).current =
-      el;
-    (containerRef as React.MutableRefObject<HTMLDivElement | null>).current =
-      el;
-  };
-
   return (
-    <div
-      className="scrubber scrubber--firefox-scroll-fix"
-      style={scrubberStyle}
-    >
+    <div className="scrubber" style={scrubberStyle}>
       <ScrubberViewport style={viewportStyle}>
-        <ScrubberTilt ref={tiltRef} style={tiltStyle}>
+        <ScrubberTilt
+          ref={containerRef}
+          offsetRef={offsetRef}
+          style={tiltStyle}
+        >
           {props.children}
         </ScrubberTilt>
       </ScrubberViewport>
@@ -178,20 +173,26 @@ function getZoomControlsStyle(drawerHeight: number): CSSProperties {
 }
 
 /**
- * Exposes the playhead's screen-space position and the timeline's
- * projection-corrected content padding as CSS custom properties on the
- * shared ancestor. Timeline.css and the playhead overlay both inherit
- * these, so layout (where "now" is scrolled to) and geometry (the 3D
- * transform) stay anchored to the same runway instead of drifting apart.
+ * Exposes the playhead's screen-space position, the timeline's
+ * projection-corrected content padding, and the runway's canvas window (the
+ * pre-transform local-Y span that can project into view) as CSS custom
+ * properties on the shared ancestor. Timeline.css, the playhead overlay,
+ * and the spectrogram canvases all inherit these, so layout (where "now"
+ * is scrolled to), geometry (the 3D transform), and canvas coverage stay
+ * anchored to the same runway instead of drifting apart.
  */
 function getScrubberStyle(
   playheadFraction: number,
   timelinePaddingTopPx: number,
   timelinePaddingBottomPx: number,
+  runwayWindowTopPx: number,
+  visibleHeight: number,
 ): CSSProperties {
   return {
     '--playhead-fraction': playheadFraction,
     '--timeline-padding-top': `${timelinePaddingTopPx}px`,
     '--timeline-padding-bottom': `${timelinePaddingBottomPx}px`,
+    '--runway-window-top': `${runwayWindowTopPx}px`,
+    '--runway-window-bottom': `${visibleHeight}px`,
   } as CSSProperties;
 }
