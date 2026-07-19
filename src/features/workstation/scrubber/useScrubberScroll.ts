@@ -56,6 +56,7 @@ export function useScrubberScroll({
   const isProgrammaticScrollRef = useRef(false);
   const shouldResumeRef = useRef(false);
   const isPointerDownRef = useRef(false);
+  const isUserScrubbingRef = useRef(false);
 
   /**
    * Ensure the phantom scroller's spacer height matches the offset stage's
@@ -181,6 +182,7 @@ export function useScrubberScroll({
   }, [playbackState, setScrollPosition]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setTransportTimeFromScroll = () => {
+    isUserScrubbingRef.current = false;
     const el = phantomRef.current;
     if (el) {
       const maxScrollTop = el.scrollHeight - el.clientHeight;
@@ -224,6 +226,7 @@ export function useScrubberScroll({
     if (e.ctrlKey || e.metaKey) return;
     if (recording.isActivelyRecording) return;
     isProgrammaticScrollRef.current = false;
+    isUserScrubbingRef.current = true;
     pauseForUserScroll();
     debouncedSetTransportTime();
   };
@@ -233,9 +236,18 @@ export function useScrubberScroll({
     syncOffset();
 
     // When a pointer is down, the user is dragging — override the
-    // programmatic flag so the scroll is treated as user-initiated.
+    // programmatic flag so the scroll is treated as user-initiated. Only a
+    // genuine drag (or wheel, above) raises the scrubbing flag: scroll
+    // events the browser generates itself (e.g. scrollTop clamping after a
+    // layout change) reach this handler too, and marking those as scrubs
+    // would wrongly suppress the geometry-change resync.
     if (isPointerDownRef.current) {
       isProgrammaticScrollRef.current = false;
+      // Not during active recording: the early return below would skip the
+      // debounced seek that clears the flag, leaving it stuck.
+      if (!recording.isActivelyRecording) {
+        isUserScrubbingRef.current = true;
+      }
     }
 
     if (isProgrammaticScrollRef.current) {
@@ -256,11 +268,21 @@ export function useScrubberScroll({
     [setScrollPosition, playheadRef],
   );
 
+  // True from a user-initiated scroll until its debounced seek commits.
+  // Geometry-change resyncs must not fire in this window: they would snap
+  // scrollTop back to the stale pre-scrub transport time, yanking the
+  // timeline out from under an active drag (e.g. when the drag itself
+  // collapses the mobile address bar and resizes the viewport). Skipping
+  // is safe — the pending seek re-derives the time from the final scroll
+  // position against the then-current mapping.
+  const isUserScrubbing = useCallback(() => isUserScrubbingRef.current, []);
+
   return {
     handlePointerDown,
     handlePointerUp,
     handleWheel,
     handleScroll,
+    isUserScrubbing,
     syncScrollToTime,
   };
 }

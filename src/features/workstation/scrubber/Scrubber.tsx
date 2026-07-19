@@ -73,6 +73,7 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     handlePointerUp,
     handleWheel,
     handleScroll,
+    isUserScrubbing,
     syncScrollToTime,
   } = useScrubberScroll({
     phantomRef,
@@ -92,10 +93,13 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
   // resize, orientation change, fullscreen/address-bar transitions
   // (mawimbi#462). During playback the animation loop re-syncs every frame
   // anyway; while stopped or paused, a stale scrollTop would leave content
-  // drifted off the playhead line. Layout effect so it runs after the new
-  // padding custom properties have been committed to the DOM.
+  // drifted off the playhead line. Skipped while a user scrub is in
+  // flight — transportTime is stale until the debounced seek commits, and
+  // that seek re-derives the time from the final scroll position anyway
+  // (see isUserScrubbing). Layout effect so it runs after the new padding
+  // custom properties have been committed to the DOM.
   useLayoutEffect(() => {
-    if (!playback.isPlaying) {
+    if (!playback.isPlaying && !isUserScrubbing()) {
       syncScrollToTime(playback.transportTime);
     }
     // playback is a stable service bridge; transportTime is read as a
@@ -105,6 +109,7 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     visibleHeight,
     timelinePaddingTopPx,
     timelinePaddingBottomPx,
+    isUserScrubbing,
     syncScrollToTime,
   ]);
 
