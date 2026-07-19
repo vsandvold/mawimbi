@@ -1,11 +1,19 @@
-import { signal, type ReadonlySignal } from '@preact/signals-react';
+import { computed, signal, type ReadonlySignal } from '@preact/signals-react';
 import { type RunwayPreset } from './runwayConfig';
 
 const _configOverride = signal<RunwayPreset | null>(null);
 
+// A `computed` re-evaluates on every `_configOverride` write (each tuning
+// slider drag replaces the object), but only notifies subscribers when its
+// own output changes — so a consumer that only needs open/closed (e.g. a
+// menu item) can subscribe here instead of `configOverride` and skip
+// re-rendering on every knob tick.
+const _isOpen = computed(() => _configOverride.value !== null);
+
 // Narrow channel for reactive consumers (hooks)
 export const signals = {
   configOverride: _configOverride as ReadonlySignal<RunwayPreset | null>,
+  isOpen: _isOpen,
 };
 
 // Plain getter for non-reactive consumers (tests, workflows)

@@ -15,7 +15,7 @@ import ScrubberTilt from './ScrubberTilt';
 import ScrubberViewport from './ScrubberViewport';
 import TuningOverlay from './TuningOverlay';
 import ZoomControls from './ZoomControls';
-import { useLongPress, useTuningAvailable } from './useTuningActivation';
+import { useTuningAvailable } from './useTuningActivation';
 import { useScrubberGeometry } from './useScrubberGeometry';
 import { useScrubberScroll, useSpacerHeight } from './useScrubberScroll';
 import { useTuningOverlay } from './useTuningOverlay';
@@ -61,12 +61,10 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
   const isTuningAvailable = useTuningAvailable();
   const {
     config: tuningConfig,
-    toggle: toggleTuning,
     close: closeTuning,
     selectPreset: selectTuningPreset,
     setValue: setTuningValue,
   } = useTuningOverlay();
-  const longPressZoomControls = useLongPress(toggleTuning);
 
   const {
     handlePointerDown,
@@ -157,10 +155,7 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
         visibleHeight={visibleHeight}
         meterWidthFraction={playheadWidthFraction}
       />
-      <ZoomControls
-        style={zoomControlsStyle}
-        {...(isTuningAvailable ? longPressZoomControls : undefined)}
-      />
+      <ZoomControls style={zoomControlsStyle} />
       {isTuningAvailable && tuningConfig && (
         <TuningOverlay
           config={tuningConfig}

@@ -1,21 +1,3 @@
-.toolbar {
-  display: flex;
-  align-items: center;
-  padding: 8px 12px;
-}
-
-.toolbar__button {
-  margin-right: 4px;
-}
-
-.toolbar__button:last-child {
-  margin-right: 0;
-}
-
-.toolbar__spacer {
-  flex: 1;
-}
-
 .show-lyrics {
   color: var(--primary);
 }

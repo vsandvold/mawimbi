@@ -226,46 +226,16 @@ it('reverts to the active preset once the tuning overlay closes', () => {
   restoreOffsetHeight();
 });
 
-it('reveals the tuning overlay on a long-press of the zoom controls', () => {
-  vi.useFakeTimers();
+it('renders the tuning overlay once opened via toggleTuningOverlay', () => {
   const restoreOffsetHeight = mockOffsetHeight(650);
 
+  toggleTuningOverlay(activeRunwayConfig);
+
   const { container } = render(<Scrubber {...defaultProps} />);
-
-  expect(container.querySelector('.tuning-overlay')).toBeNull();
-
-  const zoomControls = container.querySelector('.zoom-controls') as HTMLElement;
-  fireEvent.pointerDown(zoomControls);
-  act(() => {
-    vi.advanceTimersByTime(700);
-  });
 
   expect(container.querySelector('.tuning-overlay')).not.toBeNull();
 
   restoreOffsetHeight();
-  vi.useRealTimers();
-});
-
-it('does not reveal the tuning overlay on a short press of the zoom controls', () => {
-  vi.useFakeTimers();
-  const restoreOffsetHeight = mockOffsetHeight(650);
-
-  const { container } = render(<Scrubber {...defaultProps} />);
-
-  const zoomControls = container.querySelector('.zoom-controls') as HTMLElement;
-  fireEvent.pointerDown(zoomControls);
-  act(() => {
-    vi.advanceTimersByTime(200);
-  });
-  fireEvent.pointerUp(zoomControls);
-  act(() => {
-    vi.advanceTimersByTime(700);
-  });
-
-  expect(container.querySelector('.tuning-overlay')).toBeNull();
-
-  restoreOffsetHeight();
-  vi.useRealTimers();
 });
 
 it('selects beatSaber preset via the tuning overlay and re-solves geometry', () => {

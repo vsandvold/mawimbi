@@ -19,6 +19,11 @@ export function useTuningOverlay() {
     get config(): RunwayPreset | null {
       return tuningSignals.configOverride.value;
     },
+    // Prefer this over `config !== null` when only the open/closed state is
+    // needed — it doesn't re-notify on every tuning slider drag (tuningSignals.ts).
+    get isOpen(): boolean {
+      return tuningSignals.isOpen.value;
+    },
 
     // --- Actions ---
 
