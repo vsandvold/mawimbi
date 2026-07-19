@@ -278,6 +278,63 @@ test.describe('Runway width anchor invariant', () => {
   });
 });
 
+/**
+ * Geometry-change resync (mawimbi#462): whenever the solved geometry
+ * changes the time↔scroll mapping (drawer, resize, orientation, zoom),
+ * the scroll position must be re-mapped to the transport time — without
+ * requiring a user scroll or an explicit rewind afterwards.
+ */
+test.describe('Runway geometry-change resync', () => {
+  const RESIZE_SETTLE_MS = 300;
+
+  test.beforeEach(async ({ page }) => {
+    await setUpTimeline(page);
+  });
+
+  test('alignment holds after a viewport resize without user interaction', async ({
+    page,
+  }) => {
+    await rewindToStart(page);
+    await expectContentAlignedToPlayhead(page);
+
+    // Simulates a rotation-sized viewport change.
+    await page.setViewportSize({ width: 800, height: 900 });
+    await page.waitForTimeout(RESIZE_SETTLE_MS);
+
+    await expectContentAlignedToPlayhead(page);
+  });
+
+  test('alignment holds after opening the mixer without re-seeking', async ({
+    page,
+  }) => {
+    await rewindToStart(page);
+    await expectContentAlignedToPlayhead(page);
+
+    // No rewind after opening — the resync alone must keep time 0 on the
+    // playhead line for the re-solved (smaller) visible area.
+    await openMixerDrawer(page);
+
+    await expectContentAlignedToPlayhead(page);
+  });
+
+  test('alignment holds after zooming the timeline', async ({ page }) => {
+    await rewindToStart(page);
+    await expectContentAlignedToPlayhead(page);
+
+    // Ctrl+wheel is the zoom gesture (useTimelineZoom); zooming rescales
+    // the content while time 0 must stay pinned to the playhead line.
+    for (let i = 0; i < 5; i++) {
+      await page
+        .locator('.scrubber__phantom')
+        .dispatchEvent('wheel', { deltaY: -100, ctrlKey: true, bubbles: true });
+    }
+    await page.waitForTimeout(RESIZE_SETTLE_MS);
+
+    await expectContentAlignedToPlayhead(page);
+    await expectContentVisibleAtPlayhead(page);
+  });
+});
+
 test.describe('Runway reduced-motion invariant', () => {
   // Playwright's `test.use({ reducedMotion: 'reduce' })` context option is
   // not honored by the built-in page fixture in this environment (confirmed

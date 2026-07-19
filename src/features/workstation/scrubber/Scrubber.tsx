@@ -3,6 +3,7 @@ import {
   forwardRef,
   PropsWithChildren,
   useImperativeHandle,
+  useLayoutEffect,
   useRef,
 } from 'react';
 import { usePlaybackService } from '../../playback/usePlaybackService';
@@ -54,6 +55,7 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     timelinePaddingTopPx,
     timelinePaddingBottomPx,
     runwayWindowTopPx,
+    playheadWidthFraction,
   } = useScrubberGeometry(drawerHeight);
 
   const isTuningAvailable = useTuningAvailable();
@@ -84,6 +86,27 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
   const spacerHeight = useSpacerHeight(offsetRef);
 
   useImperativeHandle(ref, () => ({ syncScrollToTime }), [syncScrollToTime]);
+
+  // Re-map the scroll position to the transport time whenever the solved
+  // geometry changes the time↔scroll mapping — drawer open/close, window
+  // resize, orientation change, fullscreen/address-bar transitions
+  // (mawimbi#462). During playback the animation loop re-syncs every frame
+  // anyway; while stopped or paused, a stale scrollTop would leave content
+  // drifted off the playhead line. Layout effect so it runs after the new
+  // padding custom properties have been committed to the DOM.
+  useLayoutEffect(() => {
+    if (!playback.isPlaying) {
+      syncScrollToTime(playback.transportTime);
+    }
+    // playback is a stable service bridge; transportTime is read as a
+    // snapshot on purpose — only geometry changes should trigger this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    visibleHeight,
+    timelinePaddingTopPx,
+    timelinePaddingBottomPx,
+    syncScrollToTime,
+  ]);
 
   const handleTimelineClick = () => {
     if (recording.isCountingIn || recording.isActivelyRecording) {
@@ -124,7 +147,11 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
         onScroll={handleScroll}
         onWheel={handleWheel}
       />
-      <Playhead ref={playheadRef} visibleHeight={visibleHeight} />
+      <Playhead
+        ref={playheadRef}
+        visibleHeight={visibleHeight}
+        meterWidthFraction={playheadWidthFraction}
+      />
       <ZoomControls
         style={zoomControlsStyle}
         {...(isTuningAvailable ? longPressZoomControls : undefined)}

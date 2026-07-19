@@ -13,12 +13,16 @@ export type LoudnessMeterPlayheadHandle = {
 type LoudnessMeterPlayheadProps = {
   width: number;
   height: number;
+  /** Runway width at the playhead line, as a fraction of the canvas width —
+      derived from the solved geometry so the meter's edges align with the
+      runway rails (mawimbi#461). */
+  meterWidthFraction: number;
 };
 
 const LoudnessMeterPlayhead = forwardRef<
   LoudnessMeterPlayheadHandle,
   LoudnessMeterPlayheadProps
->(({ width, height }, ref) => {
+>(({ width, height, meterWidthFraction }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useImperativeHandle(ref, () => ({
@@ -28,7 +32,13 @@ const LoudnessMeterPlayhead = forwardRef<
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      renderLoudnessMeterFrame(ctx, frequencyData, canvas.width, canvas.height);
+      renderLoudnessMeterFrame(
+        ctx,
+        frequencyData,
+        canvas.width,
+        canvas.height,
+        meterWidthFraction,
+      );
     },
 
     renderIdle() {
@@ -37,7 +47,12 @@ const LoudnessMeterPlayhead = forwardRef<
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      renderLoudnessMeterIdle(ctx, canvas.width, canvas.height);
+      renderLoudnessMeterIdle(
+        ctx,
+        canvas.width,
+        canvas.height,
+        meterWidthFraction,
+      );
     },
 
     resize(newWidth: number, newHeight: number) {
