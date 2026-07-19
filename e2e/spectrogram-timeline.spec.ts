@@ -6,42 +6,16 @@ import {
 } from './fixtures';
 
 /**
- * Measures the fraction of canvas rows that contain at least one
- * non-transparent pixel. Scans the full canvas buffer rather than
- * computing a projected visible range — the 3D perspective tilt
- * distorts getBoundingClientRect() coordinates, making screen-space
- * visibility calculations unreliable. Since the canvas is sticky-
- * positioned and sized to the scroll container viewport, its entire
- * buffer represents the currently rendered content.
+ * Spectrogram canvas-window invariants.
+ *
+ * The spectrogram canvas covers the runway's *canvas window* — the fixed
+ * pre-transform span that can project into view (mawimbi#459) — and stays
+ * put while the scrubber's offset stage moves the surrounding content.
+ * Scrolling therefore never moves the canvas element; it shifts which
+ * slice of audio content is drawn *inside* it. These tests pin down that
+ * split: the canvas element is stationary across scroll positions, and
+ * the drawn content tracks the scroll offset exactly.
  */
-async function visibleCanvasFilledHeightRatio(
-  canvasLocator: import('@playwright/test').Locator,
-): Promise<number> {
-  return canvasLocator.evaluate((canvas: HTMLCanvasElement) => {
-    const ctx = canvas.getContext('2d');
-    if (!ctx || canvas.width === 0 || canvas.height === 0) return 0;
-
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const pixels = imageData.data;
-    const width = canvas.width;
-    const height = canvas.height;
-    let filledRows = 0;
-
-    for (let row = 0; row < height; row++) {
-      let hasCoverage = false;
-      for (let col = 0; col < width; col++) {
-        const alphaIndex = (row * width + col) * 4 + 3;
-        if (pixels[alphaIndex] > 0) {
-          hasCoverage = true;
-          break;
-        }
-      }
-      if (hasCoverage) filledRows++;
-    }
-
-    return filledRows / height;
-  });
-}
 
 /**
  * Returns true if the canvas has at least `threshold` non-transparent pixels.
@@ -67,9 +41,32 @@ async function canvasHasContent(
 }
 
 /**
- * Scrolls the phantom scroller and syncs the tilt container.
- * The phantom scroller handles user scroll interaction while the tilt
- * container provides scrollTop for spectrogram viewport calculations.
+ * The first (topmost) canvas bitmap row containing any non-transparent
+ * pixel, or -1 if the canvas is empty. Content rows move 1:1 with scroll
+ * position, so this is the observable for scroll-tracking assertions.
+ */
+async function firstFilledCanvasRow(
+  canvasLocator: import('@playwright/test').Locator,
+): Promise<number> {
+  return canvasLocator.evaluate((canvas: HTMLCanvasElement) => {
+    const ctx = canvas.getContext('2d');
+    if (!ctx || canvas.width === 0 || canvas.height === 0) return -1;
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const pixels = imageData.data;
+    for (let row = 0; row < canvas.height; row++) {
+      for (let col = 0; col < canvas.width; col += 4) {
+        if (pixels[(row * canvas.width + col) * 4 + 3] > 0) {
+          return row;
+        }
+      }
+    }
+    return -1;
+  });
+}
+
+/**
+ * Scrolls the phantom scroller — the scrubber's only scroll container.
+ * The offset stage and spectrogram canvases follow via the scroll event.
  */
 async function scrollTimeline(
   page: import('@playwright/test').Page,
@@ -77,16 +74,20 @@ async function scrollTimeline(
 ) {
   await page.evaluate((pos) => {
     const phantom = document.querySelector('.scrubber__phantom') as HTMLElement;
-    const tilt = document.querySelector('.scrubber__tilt') as HTMLElement;
     if (phantom) phantom.scrollTop = pos;
-    if (tilt) tilt.scrollTop = pos;
   }, scrollTop);
 }
 
-// Alignment test removed: getBoundingClientRect() returns unreliable projected
-// coordinates under 3D perspective with perspective-origin: center bottom.
+async function getTimelinePaddingTop(
+  page: import('@playwright/test').Page,
+): Promise<number> {
+  return page.evaluate(() => {
+    const tl = document.querySelector('.timeline') as HTMLElement;
+    return parseFloat(getComputedStyle(tl).paddingTop);
+  });
+}
 
-test.describe('Spectrogram canvas sticky positioning on mobile', () => {
+test.describe('Spectrogram canvas window', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 
   test.beforeEach(async ({ page }) => {
@@ -102,196 +103,49 @@ test.describe('Spectrogram canvas sticky positioning on mobile', () => {
     }).toPass({ timeout: 15000 });
   });
 
-  test('canvas sticks at the scroll container edge, not the content edge', async ({
+  test('canvas element is stationary across scroll positions', async ({
     page,
   }) => {
-    const tiltContainer = page.locator('.scrubber__tilt');
     const spectrogramCanvas = page.locator('.spectrogram__canvas');
+    const paddingTop = await getTimelinePaddingTop(page);
 
-    const paddingTop = await tiltContainer.evaluate((el) => {
-      const tl = el.querySelector('.timeline') as HTMLElement;
-      return parseFloat(getComputedStyle(tl).paddingTop);
-    });
+    await scrollTimeline(page, Math.floor(paddingTop + 100));
+    await page.waitForTimeout(200);
+    const rectA = await spectrogramCanvas.evaluate((el) =>
+      el.getBoundingClientRect().toJSON(),
+    );
 
-    // Scroll well past the padding so sticky positioning is active
-    const scrollPos = Math.floor(paddingTop + 300);
-    await scrollTimeline(page, scrollPos);
+    await scrollTimeline(page, Math.floor(paddingTop + 300));
+    await page.waitForTimeout(200);
+    const rectB = await spectrogramCanvas.evaluate((el) =>
+      el.getBoundingClientRect().toJSON(),
+    );
 
-    // Wait for scroll to settle and sticky position to update
-    await expect(async () => {
-      const { canvasTop, scrollContainerTop } = await page.evaluate(() => {
-        const canvas = document.querySelector(
-          '.spectrogram__canvas',
-        ) as HTMLCanvasElement;
-        const scrollEl = document.querySelector(
-          '.scrubber__tilt',
-        ) as HTMLElement;
-        return {
-          canvasTop: canvas.getBoundingClientRect().top,
-          scrollContainerTop: scrollEl.getBoundingClientRect().top,
-        };
-      });
-
-      expect(
-        canvasTop,
-        `Canvas top edge is at ${canvasTop}px instead of scroll container top ` +
-          `(${scrollContainerTop}px) — it is stuck at the content edge ` +
-          `instead of the scroll container edge`,
-      ).toBeCloseTo(scrollContainerTop, 0);
-    }).toPass({ timeout: 2000 });
-  });
-});
-
-test.describe('Spectrogram timeline visualization during scroll', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.goto('/project/test-id');
-    await uploadAudioFile(page, CHIRP_AUDIO_10S);
-
-    const spectrogramCanvas = page.locator('.spectrogram__canvas');
-    await expect(spectrogramCanvas).toBeVisible({ timeout: 15000 });
-
-    // Wait for spectrogram tiles to finish rendering
-    await expect(async () => {
-      const hasContent = await canvasHasContent(spectrogramCanvas);
-      expect(hasContent).toBe(true);
-    }).toPass({ timeout: 15000 });
+    // The canvas covers the runway window, which is fixed in screen space —
+    // scrolling moves content within it, never the canvas itself.
+    expect(rectB.top).toBeCloseTo(rectA.top, 1);
+    expect(rectB.bottom).toBeCloseTo(rectA.bottom, 1);
   });
 
-  test('spectrogram content updates when scrolling into content range', async ({
-    page,
-  }) => {
-    const tiltContainer = page.locator('.scrubber__tilt');
+  test('drawn content tracks the scroll offset exactly', async ({ page }) => {
     const spectrogramCanvas = page.locator('.spectrogram__canvas');
+    const paddingTop = await getTimelinePaddingTop(page);
 
-    // Compute the scroll position where the spectrogram container's top
-    // edge aligns with the scroll parent's top edge. Beyond this point,
-    // contentOffset increases and the canvas draws different audio content.
-    const paddingTop = await tiltContainer.evaluate((el) => {
-      const tl = el.querySelector('.timeline') as HTMLElement;
-      return parseFloat(getComputedStyle(tl).paddingTop);
-    });
-
-    // Hash sampled pixels across the full canvas to detect content changes.
-    // Samples every 10th row across multiple columns instead of a single
-    // column, since in the vertical layout the middle column corresponds
-    // to a single frequency bin that may be empty for certain audio.
-    const getCanvasPixelHash = async () => {
-      return spectrogramCanvas.evaluate((canvas: HTMLCanvasElement) => {
-        const ctx = canvas.getContext('2d');
-        if (!ctx || canvas.width === 0 || canvas.height === 0) return '';
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const pixels = imageData.data;
-        const w = canvas.width;
-        const h = canvas.height;
-        let hash = 0;
-        const colStep = Math.max(1, Math.floor(w / 10));
-        for (let row = 0; row < h; row += 10) {
-          for (let col = 0; col < w; col += colStep) {
-            const idx = (row * w + col) * 4;
-            hash = (hash * 31 + pixels[idx]) | 0;
-            hash = (hash * 31 + pixels[idx + 1]) | 0;
-            hash = (hash * 31 + pixels[idx + 2]) | 0;
-            hash = (hash * 31 + pixels[idx + 3]) | 0;
-          }
-        }
-        return `${h}:${hash}`;
-      });
-    };
-
-    // Scroll just past the padding so the spectrogram enters the content
-    // range where contentOffset starts increasing.
     const scrollA = Math.floor(paddingTop + 100);
     await scrollTimeline(page, scrollA);
     await page.waitForTimeout(200);
+    const rowA = await firstFilledCanvasRow(spectrogramCanvas);
+    expect(rowA).toBeGreaterThanOrEqual(0);
 
-    const hashA = await getCanvasPixelHash();
-
-    // Scroll further into the content range
-    const scrollB = scrollA + 400;
-    await scrollTimeline(page, scrollB);
+    const scrollDelta = 150;
+    await scrollTimeline(page, scrollA + scrollDelta);
     await page.waitForTimeout(200);
+    const rowB = await firstFilledCanvasRow(spectrogramCanvas);
+    expect(rowB).toBeGreaterThanOrEqual(0);
 
-    const hashB = await getCanvasPixelHash();
-
-    // The pixel content must differ — proving the spectrogram redraws
-    // with different audio content as the user scrolls. With the original
-    // bug (contentOffset stuck at 0), both positions produced identical pixels.
-    expect(
-      hashB,
-      `Spectrogram content did not change after scrolling from ${scrollA} to ${scrollB} — ` +
-        'the spectrogram appears frozen',
-    ).not.toBe(hashA);
-  });
-
-  test('spectrogram coverage is consistent across the full scroll range', async ({
-    page,
-  }) => {
-    const tiltContainer = page.locator('.scrubber__tilt');
-    const spectrogramCanvas = page.locator('.spectrogram__canvas');
-
-    const contentInfo = await tiltContainer.evaluate((el) => {
-      const tl = el.querySelector('.timeline') as HTMLElement;
-      const paddingTop = parseFloat(getComputedStyle(tl).paddingTop);
-      const spectrogram = el.querySelector('.spectrogram') as HTMLElement;
-      const spectrogramHeight = spectrogram?.offsetHeight ?? 0;
-      return {
-        paddingTop,
-        spectrogramHeight,
-        clientHeight: el.clientHeight,
-        scrollHeight: el.scrollHeight,
-      };
-    });
-
-    const maxScroll = contentInfo.scrollHeight - contentInfo.clientHeight;
-
-    // Scan the full range where the spectrogram should be visible
-    const scanStart = 0;
-    const scanEnd = Math.min(
-      maxScroll,
-      contentInfo.paddingTop + contentInfo.spectrogramHeight,
-    );
-
-    // Use 5 steps instead of 10 — sufficient to detect coverage gaps
-    // while cutting scroll+render wait time in half.
-    const numSteps = 5;
-    const results: Array<{ scrollPos: number; ratio: number }> = [];
-
-    for (let i = 0; i <= numSteps; i++) {
-      const scrollPos = Math.floor(
-        scanStart + ((scanEnd - scanStart) * i) / numSteps,
-      );
-      if (scrollPos < 0 || scrollPos > maxScroll) continue;
-
-      await scrollTimeline(page, scrollPos);
-      await page.waitForTimeout(100);
-
-      const ratio = await visibleCanvasFilledHeightRatio(spectrogramCanvas);
-      results.push({ scrollPos, ratio });
-    }
-
-    // Every scroll position where the spectrogram is in view should have
-    // high visible canvas coverage (>90%).
-    const stickyBoundary = Math.floor(
-      contentInfo.paddingTop +
-        contentInfo.spectrogramHeight -
-        contentInfo.clientHeight,
-    );
-
-    const coverageReport = results
-      .map(
-        (r) =>
-          `  scrollTop=${String(r.scrollPos).padStart(5)}: ` +
-          `${(r.ratio * 100).toFixed(1).padStart(5)}% filled` +
-          (r.scrollPos > stickyBoundary ? '  [past sticky boundary]' : ''),
-      )
-      .join('\n');
-
-    const lowCoveragePositions = results.filter((r) => r.ratio < 0.9);
-
-    expect(
-      lowCoveragePositions,
-      `Spectrogram had low visible coverage (<90%) at ${lowCoveragePositions.length} of ${results.length} positions ` +
-        `(sticky boundary=${stickyBoundary}):\n${coverageReport}`,
-    ).toHaveLength(0);
+    // Increasing scrollTop moves the window deeper into the content, so the
+    // content's top edge moves up the bitmap by exactly the scroll delta.
+    // (A frozen canvas — the #419/#420 bug class — fails with rowB == rowA.)
+    expect(Math.abs(rowA - rowB - scrollDelta)).toBeLessThanOrEqual(2);
   });
 });

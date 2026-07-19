@@ -3,6 +3,7 @@ import {
   forwardRef,
   PropsWithChildren,
   useImperativeHandle,
+  useLayoutEffect,
   useRef,
 } from 'react';
 import { usePlaybackService } from '../../playback/usePlaybackService';
@@ -41,7 +42,7 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
   const { drawerHeight, onStopRecording, pixelsPerSecond } = props;
 
   const phantomRef = useRef<HTMLDivElement>(null);
-  const scrubberTiltRef = useRef<HTMLDivElement>(null);
+  const offsetRef = useRef<HTMLDivElement>(null);
   const playheadRef = useRef<PlayheadHandle>(null);
 
   const {
@@ -53,6 +54,8 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     visibleHeight,
     timelinePaddingTopPx,
     timelinePaddingBottomPx,
+    runwayWindowTopPx,
+    playheadWidthFraction,
   } = useScrubberGeometry(drawerHeight);
 
   const isTuningAvailable = useTuningAvailable();
@@ -68,19 +71,45 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     handlePointerUp,
     handleWheel,
     handleScroll,
+    isUserScrubbing,
     syncScrollToTime,
   } = useScrubberScroll({
     phantomRef,
-    tiltRef: scrubberTiltRef,
+    offsetRef,
     playheadRef,
     pixelsPerSecond,
   });
 
   useTimelineZoom(phantomRef);
 
-  const spacerHeight = useSpacerHeight(scrubberTiltRef);
+  const spacerHeight = useSpacerHeight(offsetRef);
 
   useImperativeHandle(ref, () => ({ syncScrollToTime }), [syncScrollToTime]);
+
+  // Re-map the scroll position to the transport time whenever the solved
+  // geometry changes the time↔scroll mapping — drawer open/close, window
+  // resize, orientation change, fullscreen/address-bar transitions
+  // (mawimbi#462). During playback the animation loop re-syncs every frame
+  // anyway; while stopped or paused, a stale scrollTop would leave content
+  // drifted off the playhead line. Skipped while a user scrub is in
+  // flight — transportTime is stale until the debounced seek commits, and
+  // that seek re-derives the time from the final scroll position anyway
+  // (see isUserScrubbing). Layout effect so it runs after the new padding
+  // custom properties have been committed to the DOM.
+  useLayoutEffect(() => {
+    if (!playback.isPlaying && !isUserScrubbing()) {
+      syncScrollToTime(playback.transportTime);
+    }
+    // playback is a stable service bridge; transportTime is read as a
+    // snapshot on purpose — only geometry changes should trigger this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    visibleHeight,
+    timelinePaddingTopPx,
+    timelinePaddingBottomPx,
+    isUserScrubbing,
+    syncScrollToTime,
+  ]);
 
   const handleTimelineClick = () => {
     if (recording.isCountingIn || recording.isActivelyRecording) {
@@ -96,24 +125,18 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     playheadFraction,
     timelinePaddingTopPx,
     timelinePaddingBottomPx,
+    runwayWindowTopPx,
+    visibleHeight,
   );
 
-  // The geometry ref measures the tilt container's height for 3D transform
-  // calculations. Assign it via a callback ref alongside the scroll ref.
-  const tiltRef = (el: HTMLDivElement | null) => {
-    (scrubberTiltRef as React.MutableRefObject<HTMLDivElement | null>).current =
-      el;
-    (containerRef as React.MutableRefObject<HTMLDivElement | null>).current =
-      el;
-  };
-
   return (
-    <div
-      className="scrubber scrubber--firefox-scroll-fix"
-      style={scrubberStyle}
-    >
+    <div className="scrubber" style={scrubberStyle}>
       <ScrubberViewport style={viewportStyle}>
-        <ScrubberTilt ref={tiltRef} style={tiltStyle}>
+        <ScrubberTilt
+          ref={containerRef}
+          offsetRef={offsetRef}
+          style={tiltStyle}
+        >
           {props.children}
         </ScrubberTilt>
       </ScrubberViewport>
@@ -127,7 +150,11 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
         onScroll={handleScroll}
         onWheel={handleWheel}
       />
-      <Playhead ref={playheadRef} visibleHeight={visibleHeight} />
+      <Playhead
+        ref={playheadRef}
+        visibleHeight={visibleHeight}
+        meterWidthFraction={playheadWidthFraction}
+      />
       <ZoomControls style={zoomControlsStyle} />
       {isTuningAvailable && tuningConfig && (
         <TuningOverlay
@@ -173,20 +200,26 @@ function getZoomControlsStyle(drawerHeight: number): CSSProperties {
 }
 
 /**
- * Exposes the playhead's screen-space position and the timeline's
- * projection-corrected content padding as CSS custom properties on the
- * shared ancestor. Timeline.css and the playhead overlay both inherit
- * these, so layout (where "now" is scrolled to) and geometry (the 3D
- * transform) stay anchored to the same runway instead of drifting apart.
+ * Exposes the playhead's screen-space position, the timeline's
+ * projection-corrected content padding, and the runway's canvas window (the
+ * pre-transform local-Y span that can project into view) as CSS custom
+ * properties on the shared ancestor. Timeline.css, the playhead overlay,
+ * and the spectrogram canvases all inherit these, so layout (where "now"
+ * is scrolled to), geometry (the 3D transform), and canvas coverage stay
+ * anchored to the same runway instead of drifting apart.
  */
 function getScrubberStyle(
   playheadFraction: number,
   timelinePaddingTopPx: number,
   timelinePaddingBottomPx: number,
+  runwayWindowTopPx: number,
+  visibleHeight: number,
 ): CSSProperties {
   return {
     '--playhead-fraction': playheadFraction,
     '--timeline-padding-top': `${timelinePaddingTopPx}px`,
     '--timeline-padding-bottom': `${timelinePaddingBottomPx}px`,
+    '--runway-window-top': `${runwayWindowTopPx}px`,
+    '--runway-window-bottom': `${visibleHeight}px`,
   } as CSSProperties;
 }

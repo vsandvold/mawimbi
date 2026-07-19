@@ -4,15 +4,17 @@ export type RunwayPreset = RunwayConfig;
 
 /**
  * Guitar Hero-style note highway — the target look pinned from reference
- * screenshots (see mawimbi#443's decision comment). Values are proportional
- * (fractions of the visible area), not fixed pixels, so the look holds
- * across screen sizes.
+ * screenshots (see mawimbi#443's decision comment), with the playhead
+ * moved up to mid-screen per the owner's screenshot review (mawimbi#460).
+ * The horizon sits at `playheadFraction − elevationFraction` from the top
+ * (0.15 here). Values are proportional (fractions of the visible area),
+ * not fixed pixels, so the look holds across screen sizes.
  */
 export const noteHighway: RunwayPreset = {
   tiltDeg: 70,
-  playheadFraction: 0.75,
+  playheadFraction: 0.5,
   playheadWidth: 0.65,
-  elevationFraction: 0.55,
+  elevationFraction: 0.35,
   runwayLengthPx: 1800,
   overhangPx: 320,
 };
@@ -24,7 +26,7 @@ export const noteHighway: RunwayPreset = {
 export const beatSaber: RunwayPreset = {
   ...noteHighway,
   playheadWidth: 0.85,
-  elevationFraction: 0.35,
+  elevationFraction: 0.25,
 };
 
 /**
@@ -51,9 +53,9 @@ export const subtleRamp: RunwayPreset = {
  */
 export const flat: RunwayPreset = {
   tiltDeg: 0,
-  playheadFraction: 0.75,
+  playheadFraction: 0.5,
   playheadWidth: 1,
-  elevationFraction: 0.55,
+  elevationFraction: 0.35,
   runwayLengthPx: 1800,
   overhangPx: 320,
 };

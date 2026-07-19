@@ -21,26 +21,32 @@
   pointer-events: none;
 }
 
-/* ScrubberTilt: 3D perspective tilt + passive scroll container */
+/* ScrubberTilt: 3D perspective tilt stage (never scrolls, never clips) */
 
 .scrubber__tilt {
-  /* Fill the viewport container. The inline transform tilts and scales
-     the timeline for the scrubber perspective effect. */
+  /* Fill the viewport container. The inline transform tilts the timeline
+     plane for the scrubber perspective effect. */
   flex: 1;
   display: flex;
   flex-direction: column;
-  /* Constrain height so content scrolls instead of expanding the container */
   min-height: 0;
-  overflow-y: scroll;
   pointer-events: none;
-  /* Hide scrollbar — scroll interaction is handled by PhantomScroller.
-     The tilt container is kept scrollable so child components (spectrogram)
-     can read scrollTop to determine their viewport offset. */
-  scrollbar-width: none;
+  /* Overflow stays visible on purpose: under a steep tilt the solved
+     geometry anchors the playhead's content at negative pre-transform
+     local Y — above this box — and rotateX projects it back down into
+     view. Any overflow clipping here happens in pre-transform space and
+     hides the whole runway above ~80% of the screen (mawimbi#459). Scroll
+     position is applied as a translateY on .scrubber__offset instead of
+     scrollTop, so nothing is scroll-clipped or range-clamped
+     (mawimbi#450). */
 }
 
-.scrubber__tilt::-webkit-scrollbar {
-  display: none;
+/* Offset stage inside the tilt: translated by -phantom.scrollTop
+   (imperatively, by useScrubberScroll) so the timeline content follows the
+   PhantomScroller's native scroll physics without being a scroll container
+   itself. */
+.scrubber__offset {
+  will-change: transform;
 }
 
 /* PhantomScroller: invisible scroll overlay for native scroll physics */

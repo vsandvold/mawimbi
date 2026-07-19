@@ -1,7 +1,13 @@
-import { type CSSProperties, forwardRef, type PropsWithChildren } from 'react';
+import {
+  type CSSProperties,
+  forwardRef,
+  type PropsWithChildren,
+  type Ref,
+} from 'react';
 
 type ScrubberTiltProps = PropsWithChildren<{
   style: CSSProperties;
+  offsetRef: Ref<HTMLDivElement>;
 }>;
 
 /**
@@ -13,16 +19,20 @@ type ScrubberTiltProps = PropsWithChildren<{
  * not by scaling the plane — the rendered tilt always matches the
  * configured tilt.
  *
- * This container is purely visual — it does not scroll or handle
+ * This container is purely visual — it does not scroll, clip, or handle
  * pointer events. Scroll interaction is handled by the PhantomScroller
- * overlay, which syncs scroll position to a translateY wrapper inside
- * this container.
+ * overlay; useScrubberScroll applies its scroll position as a translateY
+ * on the offset stage rendered here. Making the tilt itself a scroll
+ * container would clip the runway in pre-transform space (mawimbi#459)
+ * and clamp its scroll range short of the phantom's (mawimbi#450).
  */
 const ScrubberTilt = forwardRef<HTMLDivElement, ScrubberTiltProps>(
-  ({ style, children }, ref) => {
+  ({ style, offsetRef, children }, ref) => {
     return (
       <div ref={ref} className="scrubber__tilt" style={style}>
-        {children}
+        <div ref={offsetRef} className="scrubber__offset">
+          {children}
+        </div>
       </div>
     );
   },

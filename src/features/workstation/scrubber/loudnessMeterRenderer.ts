@@ -13,20 +13,25 @@ export type MeterRect = {
   height: number;
 };
 
-const METER_WIDTH_FRACTION = 0.75;
 const METER_ASPECT_RATIO = 2; // width:height = 2:1
 
 /**
- * Compute the meter rectangle with a 2:1 (width > height) aspect ratio,
- * centered within the canvas. Width is 75% of canvas width;
- * height is derived from the aspect ratio.
+ * Compute the meter rectangle, centered within the canvas. Width is the
+ * runway's rendered width at the playhead line (`widthFraction`, derived
+ * from the solved geometry — mawimbi#461) so the meter's edges align with
+ * the runway rails. Height follows the 2:1 aspect ratio, clamped to the
+ * canvas height so wide viewports don't silently clip the rectangle.
  */
 export function computeMeterRect(
   canvasWidth: number,
   canvasHeight: number,
+  widthFraction: number,
 ): MeterRect {
-  const width = Math.round(canvasWidth * METER_WIDTH_FRACTION);
-  const height = Math.round(width / METER_ASPECT_RATIO);
+  const width = Math.round(canvasWidth * widthFraction);
+  const height = Math.min(
+    Math.round(width / METER_ASPECT_RATIO),
+    Math.round(canvasHeight),
+  );
   const x = Math.round((canvasWidth - width) / 2);
   const y = Math.round((canvasHeight - height) / 2);
   return { x, y, width, height };
@@ -94,10 +99,11 @@ export function renderLoudnessMeterFrame(
   frequencyData: Uint8Array | null,
   canvasWidth: number,
   canvasHeight: number,
+  widthFraction: number,
 ): void {
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
-  const rect = computeMeterRect(canvasWidth, canvasHeight);
+  const rect = computeMeterRect(canvasWidth, canvasHeight, widthFraction);
   drawMeterBackground(ctx, rect);
 
   if (frequencyData) {
@@ -109,9 +115,10 @@ export function renderLoudnessMeterIdle(
   ctx: CanvasRenderingContext2D,
   canvasWidth: number,
   canvasHeight: number,
+  widthFraction: number,
 ): void {
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
-  const rect = computeMeterRect(canvasWidth, canvasHeight);
+  const rect = computeMeterRect(canvasWidth, canvasHeight, widthFraction);
   drawMeterBackground(ctx, rect);
 }

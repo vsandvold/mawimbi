@@ -96,7 +96,13 @@
 }
 
 body {
+  /* 100vh is the *large* viewport on mobile (address bar hidden), so the
+     layout — and the runway geometry solved from it — would overflow the
+     actual screen whenever the browser UI is visible. dvh tracks the
+     browser UI's show/hide; the vh line is a fallback for browsers
+     without dvh support (mawimbi#463). */
   height: 100vh;
+  height: 100dvh;
   width: 100vw;
   margin: 0;
   background-color: var(--color-background);

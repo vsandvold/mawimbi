@@ -3,7 +3,9 @@ import { type CSSProperties, useLayoutEffect, useRef, useState } from 'react';
 import { useMediaQuery } from '../../../shared/hooks/useMediaQuery';
 import { activeRunwayConfig, type RunwayPreset } from './runwayConfig';
 import {
+  runwayWindowTop,
   solveGeometry,
+  widthAtPlane,
   type RunwayConfig,
   type RunwayGeometry,
 } from './runwayProjection';
@@ -43,6 +45,8 @@ type ScrubberGeometry = {
   visibleHeight: number;
   timelinePaddingTopPx: number;
   timelinePaddingBottomPx: number;
+  runwayWindowTopPx: number;
+  playheadWidthFraction: number;
 };
 
 /**
@@ -104,7 +108,24 @@ export function useScrubberGeometry(drawerHeight: number): ScrubberGeometry {
     visibleHeight,
     timelinePaddingTopPx: timelinePadding.top,
     timelinePaddingBottomPx: timelinePadding.bottom,
+    runwayWindowTopPx: runwayWindowTop(geometry),
+    playheadWidthFraction: getPlayheadWidthFraction(config, geometry),
   };
+}
+
+/**
+ * The runway's rendered width at the playhead line, as a fraction of the
+ * visible width — `playheadWidth` in tilted mode, and (by the same
+ * formula) ~1 in flat/reduced-motion mode where the plane is unscaled, so
+ * consumers like the loudness meter go full-bleed exactly when the runway
+ * does, with no special-casing (mawimbi#461).
+ */
+function getPlayheadWidthFraction(
+  config: RunwayConfig,
+  geometry: RunwayGeometry,
+): number {
+  const sPlayhead = geometry.farEdgeS - config.runwayLengthPx;
+  return widthAtPlane(sPlayhead, geometry);
 }
 
 // A flat plane (tiltDeg 0) makes solveGeometry take its identity-geometry

@@ -18,7 +18,7 @@ const SCROLL_DEBOUNCE_MS = 200;
 
 type UseScrubberScrollOptions = {
   phantomRef: RefObject<HTMLDivElement | null>;
-  tiltRef: RefObject<HTMLDivElement | null>;
+  offsetRef: RefObject<HTMLDivElement | null>;
   playheadRef: RefObject<PlayheadHandle | null>;
   pixelsPerSecond: number;
 };
@@ -28,18 +28,21 @@ type UseScrubberScrollOptions = {
  * and scroll event handlers for the scrubber.
  *
  * Scroll interactions are captured by the PhantomScroller (an invisible,
- * untransformed overlay with native scroll physics). Scroll position is
- * synced to the tilt container's scrollTop so child components (spectrogram)
- * can read the current scroll offset.
+ * untransformed overlay with native scroll physics) — the only scroll
+ * container in the scrubber. Its scroll position is applied to the offset
+ * stage inside the tilt as a translateY, never as scrollTop: a scroll
+ * container inside the tilted plane would clip the runway in pre-transform
+ * space (mawimbi#459) and clamp its range short of the phantom's whenever
+ * the drawer is open (mawimbi#450).
  *
  * During playback, an animation loop reads the audio engine time and
- * updates both the phantom and tilt scroll positions each frame.
+ * updates the phantom scroll position and offset transform each frame.
  * When the user scrolls manually, playback pauses and resumes after a
  * debounced seek.
  */
 export function useScrubberScroll({
   phantomRef,
-  tiltRef,
+  offsetRef,
   playheadRef,
   pixelsPerSecond,
 }: UseScrubberScrollOptions) {
@@ -53,39 +56,40 @@ export function useScrubberScroll({
   const isProgrammaticScrollRef = useRef(false);
   const shouldResumeRef = useRef(false);
   const isPointerDownRef = useRef(false);
+  const isUserScrubbingRef = useRef(false);
 
   /**
-   * Ensure the phantom scroller's spacer height matches the tilt container's
-   * scrollHeight. This must happen synchronously before setting scrollTop
+   * Ensure the phantom scroller's spacer height matches the offset stage's
+   * content height. This must happen synchronously before setting scrollTop
    * so the phantom has the correct scrollable range. React state updates
    * for spacer height may lag behind DOM mutations (e.g. recording
    * spectrogram growth), so we patch the spacer directly.
    */
   const syncSpacerHeight = useCallback(() => {
     const phantom = phantomRef.current;
-    const tilt = tiltRef.current;
-    if (!phantom || !tilt) return;
+    const offset = offsetRef.current;
+    if (!phantom || !offset) return;
 
     const spacer = phantom.firstElementChild as HTMLElement | null;
-    if (spacer && tilt.scrollHeight !== phantom.scrollHeight) {
-      spacer.style.height = `${tilt.scrollHeight}px`;
+    const contentHeight = offset.offsetHeight;
+    if (spacer && spacer.offsetHeight !== contentHeight) {
+      spacer.style.height = `${contentHeight}px`;
     }
-  }, [phantomRef, tiltRef]);
+  }, [phantomRef, offsetRef]);
 
-  /** Sync the tilt container's scrollTop to match the phantom scroller. */
-  const syncTiltScroll = useCallback(() => {
+  /** Apply the phantom's scroll position to the offset stage's transform. */
+  const syncOffset = useCallback(() => {
     const phantom = phantomRef.current;
-    const tilt = tiltRef.current;
-    if (phantom && tilt) {
-      tilt.scrollTop = phantom.scrollTop;
+    const offset = offsetRef.current;
+    if (phantom && offset) {
+      offset.style.transform = `translate3d(0, ${-phantom.scrollTop}px, 0)`;
     }
-  }, [phantomRef, tiltRef]);
+  }, [phantomRef, offsetRef]);
 
   const setScrollPosition = useCallback(
     (time: number) => {
       const phantom = phantomRef.current;
-      const tilt = tiltRef.current;
-      if (phantom && tilt) {
+      if (phantom) {
         syncSpacerHeight();
         const maxScrollTop = phantom.scrollHeight - phantom.clientHeight;
         const scrollPosition =
@@ -94,10 +98,10 @@ export function useScrubberScroll({
           isProgrammaticScrollRef.current = true;
           phantom.scrollTop = scrollPosition;
         }
-        tilt.scrollTop = phantom.scrollTop;
+        syncOffset();
       }
     },
-    [pixelsPerSecond, phantomRef, tiltRef, syncSpacerHeight],
+    [pixelsPerSecond, phantomRef, syncSpacerHeight, syncOffset],
   );
 
   const visualizerRef = useRef<FrequencyVisualizer | null>(null);
@@ -178,6 +182,7 @@ export function useScrubberScroll({
   }, [playbackState, setScrollPosition]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const setTransportTimeFromScroll = () => {
+    isUserScrubbingRef.current = false;
     const el = phantomRef.current;
     if (el) {
       const maxScrollTop = el.scrollHeight - el.clientHeight;
@@ -221,18 +226,28 @@ export function useScrubberScroll({
     if (e.ctrlKey || e.metaKey) return;
     if (recording.isActivelyRecording) return;
     isProgrammaticScrollRef.current = false;
+    isUserScrubbingRef.current = true;
     pauseForUserScroll();
     debouncedSetTransportTime();
   };
 
   const handleScroll = () => {
     syncSpacerHeight();
-    syncTiltScroll();
+    syncOffset();
 
     // When a pointer is down, the user is dragging — override the
-    // programmatic flag so the scroll is treated as user-initiated.
+    // programmatic flag so the scroll is treated as user-initiated. Only a
+    // genuine drag (or wheel, above) raises the scrubbing flag: scroll
+    // events the browser generates itself (e.g. scrollTop clamping after a
+    // layout change) reach this handler too, and marking those as scrubs
+    // would wrongly suppress the geometry-change resync.
     if (isPointerDownRef.current) {
       isProgrammaticScrollRef.current = false;
+      // Not during active recording: the early return below would skip the
+      // debounced seek that clears the flag, leaving it stuck.
+      if (!recording.isActivelyRecording) {
+        isUserScrubbingRef.current = true;
+      }
     }
 
     if (isProgrammaticScrollRef.current) {
@@ -253,33 +268,43 @@ export function useScrubberScroll({
     [setScrollPosition, playheadRef],
   );
 
+  // True from a user-initiated scroll until its debounced seek commits.
+  // Geometry-change resyncs must not fire in this window: they would snap
+  // scrollTop back to the stale pre-scrub transport time, yanking the
+  // timeline out from under an active drag (e.g. when the drag itself
+  // collapses the mobile address bar and resizes the viewport). Skipping
+  // is safe — the pending seek re-derives the time from the final scroll
+  // position against the then-current mapping.
+  const isUserScrubbing = useCallback(() => isUserScrubbingRef.current, []);
+
   return {
     handlePointerDown,
     handlePointerUp,
     handleWheel,
     handleScroll,
+    isUserScrubbing,
     syncScrollToTime,
   };
 }
 
 /**
- * Tracks the scroll height of the tilt container and returns it
- * for use as the PhantomScroller spacer height.
+ * Tracks the offset stage's content height and returns it for use as the
+ * PhantomScroller spacer height.
  *
- * The tilt container's scrollHeight includes the Timeline content plus
- * its cqh-based padding. The phantom scroller's spacer must match this
- * height so both containers have the same scrollable range.
+ * The offset stage's height is the Timeline content plus its
+ * projection-corrected padding. The phantom scroller's spacer must match
+ * this height so the phantom's scrollable range covers the whole timeline.
  */
 export function useSpacerHeight(
-  tiltRef: RefObject<HTMLDivElement | null>,
+  offsetRef: RefObject<HTMLDivElement | null>,
 ): number {
   const [spacerHeight, setSpacerHeight] = useState(0);
 
   useLayoutEffect(() => {
-    const el = tiltRef.current;
+    const el = offsetRef.current;
     if (!el) return;
 
-    const update = () => setSpacerHeight(el.scrollHeight);
+    const update = () => setSpacerHeight(el.offsetHeight);
     update();
 
     // MutationObserver catches DOM structure changes (tracks added/removed)
@@ -300,7 +325,7 @@ export function useSpacerHeight(
       observer.disconnect();
       resizeObserver.disconnect();
     };
-  }, [tiltRef]);
+  }, [offsetRef]);
 
   return spacerHeight;
 }

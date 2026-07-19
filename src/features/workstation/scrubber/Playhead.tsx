@@ -14,6 +14,10 @@ export type PlayheadHandle = {
 
 type PlayheadProps = {
   visibleHeight: number;
+  /** Runway width at the playhead line as a fraction of the visible width,
+      from the solved geometry — keeps the meter's edges on the runway
+      rails (mawimbi#461). */
+  meterWidthFraction: number;
 };
 
 /**
@@ -32,7 +36,7 @@ type PlayheadProps = {
  * animation loop can drive the loudness meter visualization each frame.
  */
 const Playhead = forwardRef<PlayheadHandle, PlayheadProps>(
-  ({ visibleHeight }, ref) => {
+  ({ visibleHeight, meterWidthFraction }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const meterRef =
       useRef<React.ComponentRef<typeof LoudnessMeterPlayhead>>(null);
@@ -71,13 +75,25 @@ const Playhead = forwardRef<PlayheadHandle, PlayheadProps>(
       },
     }));
 
+    // Re-draw the idle frame when the geometry-derived meter width changes
+    // (opening the drawer re-solves the runway); during playback the
+    // animation loop overwrites this on the next frame anyway.
+    useLayoutEffect(() => {
+      meterRef.current?.renderIdle();
+    }, [meterWidthFraction]);
+
     const style: CSSProperties = {
       '--available-height': `${visibleHeight}px`,
     } as CSSProperties;
 
     return (
       <div ref={containerRef} className="scrubber__playhead" style={style}>
-        <LoudnessMeterPlayhead ref={meterRef} width={0} height={0} />
+        <LoudnessMeterPlayhead
+          ref={meterRef}
+          width={0}
+          height={0}
+          meterWidthFraction={meterWidthFraction}
+        />
       </div>
     );
   },

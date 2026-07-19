@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   planeToScreenY,
   type RunwayConfig,
+  runwayWindowTop,
   screenYToPlane,
   solveGeometry,
   widthAtPlane,
@@ -241,5 +242,51 @@ describe('degenerate configs', () => {
     const result = widthAtPlane(behindCameraS, geometry);
 
     expect(Number.isFinite(result)).toBe(true);
+  });
+});
+
+describe('runwayWindowTop', () => {
+  it('returns the far edge local Y when the horizon is on screen (tilted)', () => {
+    const geometry = solveGeometry(noteHighway, { width: 1000, height: 650 });
+
+    expect(geometry.horizonY).toBeGreaterThanOrEqual(0);
+    expect(runwayWindowTop(geometry)).toBeCloseTo(
+      geometry.transformOriginY - geometry.farEdgeS,
+      6,
+    );
+  });
+
+  it('returns 0 in flat mode (screen top cuts the plane at local 0)', () => {
+    const flatConfig: RunwayConfig = { ...noteHighway, tiltDeg: 0 };
+    const geometry = solveGeometry(flatConfig, { width: 1000, height: 650 });
+
+    expect(runwayWindowTop(geometry)).toBeCloseTo(0, 3);
+  });
+
+  it('caps the window at the screen top when the horizon lies above it', () => {
+    // elevation > playheadFraction pushes the horizon above screen Y 0;
+    // the long runway makes the far edge reach past the screen top, so the
+    // screen-top cut — not the far edge — must bound the window.
+    const highHorizonConfig: RunwayConfig = {
+      ...noteHighway,
+      playheadFraction: 0.5,
+      elevationFraction: 0.7,
+      runwayLengthPx: 100000,
+    };
+    const geometry = solveGeometry(highHorizonConfig, {
+      width: 1000,
+      height: 650,
+    });
+
+    expect(geometry.horizonY).toBeLessThan(0);
+    const windowTop = runwayWindowTop(geometry);
+    // The window stops at the plane point projecting to screen Y 0, which
+    // sits nearer than the far edge.
+    expect(windowTop).toBeGreaterThan(
+      geometry.transformOriginY - geometry.farEdgeS,
+    );
+    expect(
+      planeToScreenY(geometry.transformOriginY - windowTop, geometry),
+    ).toBeCloseTo(0, 3);
   });
 });

@@ -212,6 +212,25 @@ export function planeToScreenY(s: number, geometry: RunwayGeometry): number {
   );
 }
 
+/**
+ * Topmost pre-transform local Y (in the tilt container's box coordinates)
+ * that can still project into the visible area: the runway's far edge, or —
+ * if the plane meets the screen's top edge before that (flat mode, or a
+ * config whose horizon lies above the screen) — the plane point that
+ * projects to screen Y 0. Content above this line is invisible in every
+ * mode, so canvas windows never need to extend past it.
+ *
+ * When the horizon is on screen (`horizonY >= 0`), the screen's top edge
+ * lies above the horizon and no finite plane point reaches it — the far
+ * edge is the only limit.
+ */
+export function runwayWindowTop(geometry: RunwayGeometry): number {
+  const sAtScreenTop =
+    geometry.horizonY < 0 ? screenYToPlane(0, geometry) : Infinity;
+  const sLimit = Math.min(geometry.farEdgeS, sAtScreenTop);
+  return geometry.transformOriginY - sLimit;
+}
+
 /** Inverse projection: screen Y coordinate → plane-space distance `s`. */
 export function screenYToPlane(y: number, geometry: RunwayGeometry): number {
   const tiltRad = degToRad(geometry.rotateXDeg);
