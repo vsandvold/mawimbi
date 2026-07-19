@@ -1,3 +1,4 @@
+import { effect } from '@preact/signals-react';
 import { activeRunwayConfig, beatSaber } from '../runwayConfig';
 import {
   closeTuningOverlay,
@@ -5,6 +6,7 @@ import {
   resetTuningSignals,
   selectTuningPreset,
   setTuningValue,
+  signals,
   toggleTuningOverlay,
 } from '../tuningSignals';
 
@@ -73,5 +75,30 @@ describe('closeTuningOverlay', () => {
     // The "compose over the active preset" contract useScrubberGeometry
     // relies on: `override ?? activeRunwayConfig`.
     expect(getConfigOverride() ?? activeRunwayConfig).toBe(activeRunwayConfig);
+  });
+});
+
+describe('signals.isOpen', () => {
+  it('reflects whether the override is open', () => {
+    expect(signals.isOpen.value).toBe(false);
+
+    toggleTuningOverlay(activeRunwayConfig);
+
+    expect(signals.isOpen.value).toBe(true);
+  });
+
+  it('does not notify subscribers on a tuning value change while already open', () => {
+    toggleTuningOverlay(activeRunwayConfig);
+    const notifications: boolean[] = [];
+    const dispose = effect(() => {
+      notifications.push(signals.isOpen.value);
+    });
+    notifications.length = 0; // drop the initial run triggered by subscribing
+
+    setTuningValue('tiltDeg', 45);
+    setTuningValue('tiltDeg', 50);
+
+    expect(notifications).toEqual([]);
+    dispose();
   });
 });
