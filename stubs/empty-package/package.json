@@ -1,0 +1,6 @@
+{
+  "name": "mawimbi-empty-stub",
+  "version": "1.0.0",
+  "description": "In-repo empty stand-in for Node-only transitive dependencies this browser app never executes (see package.json overrides). Keeping it local avoids trusting a third-party 'empty package' from the registry.",
+  "main": "index.js"
+}

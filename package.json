@@ -103,6 +103,8 @@
     "fake-indexeddb": "^6.2.5"
   },
   "overrides": {
-    "ajv": "^6.14.0"
+    "ajv": "^6.14.0",
+    "onnxruntime-node": "file:./stubs/empty-package",
+    "sharp": "file:./stubs/empty-package"
   }
 }

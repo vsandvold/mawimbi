@@ -55,6 +55,17 @@ gh pr create --repo vsandvold/mawimbi ...
 - **Vitest** + React Testing Library (unit), **Playwright** (e2e)
 - **Node 22 LTS** (see `.nvmrc`), **npm** as package manager
 
+### Stubbed Node-only dependencies
+
+`package.json` `overrides` replaces two transitive dependencies of `@huggingface/transformers` with an in-repo empty package (`stubs/empty-package`):
+
+- `onnxruntime-node` (208MB of native binaries) — Node-runtime ONNX backend
+- `sharp` (33MB with its `@img/*` binaries) — Node-runtime image processing
+
+This app runs all inference in browser Web Workers via `onnxruntime-web` and never touches either package, so stubbing them cuts ~270MB (≈20%) from every install — which also speeds up the remote environment's `node_modules` reclaim recovery (see below).
+
+**Gotcha if a future feature needs them** (running transformers under Node — scripts, SSR, real-inference tests outside the browser — or using sharp): the stub makes imports *resolve successfully to an empty module*, so failures show up as `X is not a function` / `undefined` backend errors at runtime, **not** as a missing-module error at install or build time. If you hit that, delete the corresponding line(s) from `overrides` in `package.json` and run `npm install`. The `file:` overrides are version-independent, so upgrading `@huggingface/transformers` does not require touching them.
+
 ## Architecture
 
 The codebase uses a **package-by-feature** structure under `src/features/`. Each feature directory co-locates its service, bridge hook, signals, components, and tests (`__tests__/`). Cross-cutting utilities live in `src/shared/` (hooks, ui, layout, dropzone, fullscreen, log, message). `src/App.tsx` + `src/index.tsx` are the routing shell and bootstrap.
