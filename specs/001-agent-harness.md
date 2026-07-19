@@ -41,7 +41,7 @@ Six skills under `.claude/skills/`, each a procedure over shared artifacts: `kb/
 
 | Goal | Verification | Level | Artifact |
 | --- | --- | --- | --- |
-| 1–6 | skills have valid frontmatter; KB files all indexed; specs carry Status lines | structural check | `scripts/check-harness.sh` |
+| 1–6 | skills have valid frontmatter; KB files and index agree both ways; specs carry valid, unique-numbered Status lines | structural check | `scripts/check-harness.sh` |
 | 1–6 | skill procedures are followable and produce the named artifacts | human QA + first real use | next `/spec` run on a real feature |
 | 3, 6 | KB claims stay true against the tree | audit procedure | `/harness-audit` step 2 |
 

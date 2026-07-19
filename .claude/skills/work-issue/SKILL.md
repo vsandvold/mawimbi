@@ -27,12 +27,11 @@ Smallest thing that satisfies the acceptance criteria, on the session's designat
 
 ## 4. Verify
 
-Run the issue's verification commands plus the standing gates: `npm run lint`, `npx tsc --noEmit`, relevant vitest suites, relevant e2e specs (`--reporter=list` in headless sessions). Only claim what this session has evidence for. Check acceptance-criteria boxes only when their check actually ran green.
+Run the issue's verification commands, then verify per CLAUDE.md's Working Defaults (`npm run lint` plus the tests relevant to the change; e2e with `--reporter=list` in headless sessions). Only claim what this session has evidence for. Check acceptance-criteria boxes only when their check actually ran green.
 
-## 5. Review and ship
+## 5. Ship
 
-- `/code-review` on the diff; fix confirmed findings.
-- Commit, push, open a PR per CLAUDE.md (summary + test plan with the actual commands run), subscribe to its activity, and babysit CI.
+Follow CLAUDE.md's Pull Requests section: commit and push, run `/code-review` and address confirmed findings, then open the PR with a summary and a test plan listing the commands actually run. Subscribe to the PR's activity and babysit CI to green.
 
 ## 6. Pay back
 

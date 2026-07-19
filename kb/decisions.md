@@ -5,8 +5,8 @@ Architectural decisions with rationale and provenance, newest first. Entry forma
 ## 2026-07-19 — Stub Node-only transitive ML dependencies
 
 **Decision:** `package.json` `overrides` maps `onnxruntime-node` and `sharp` to an in-repo empty package.
-**Why:** All inference runs in browser workers via `onnxruntime-web`; the Node backends were 270MB (~20%) of dead weight per install, and install size directly affects remote-session recovery time. A local stub (not a registry "empty package") keeps third parties out of the supply chain.
-**Source:** PR #466. Failure-mode gotcha documented in CLAUDE.md ("Stubbed Node-only dependencies").
+**Why:** the packages are dead weight (all inference is in-browser), and a *local* stub — rather than a registry "empty package" — keeps third parties out of the supply chain. Sizes, recovery-speed rationale, and the runtime failure-mode gotcha: CLAUDE.md, "Stubbed Node-only dependencies".
+**Source:** PR #466.
 
 ## 2026-07-19 — Runway is a pure transform stage; PhantomScroller is the only scroll container
 
@@ -36,4 +36,4 @@ Architectural decisions with rationale and provenance, newest first. Entry forma
 
 **Decision:** Service state lives in `@preact/signals-react` signals with single-owner semantics, bridge hooks translating to React, and services as state machines.
 **Why:** Decouples the audio engine's state from React render cycles; gives tests synchronous plain-getter access; makes ownership auditable. The full design and its rules are in CLAUDE.md ("Design Principles").
-**Source:** MIGRATION plan, PRs #103–#111, #114.
+**Source:** `FUTURE_PLANS.md` ("Signal-Synced Architecture"), PRs #103–#111, #114.

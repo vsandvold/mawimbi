@@ -11,7 +11,7 @@ Facts about what Mawimbi is for and the rules that shape feature decisions. Cite
 
 - **Local-first, no accounts.** Projects persist to IndexedDB in the browser; there is no backend. Deployed as a static site on Netlify (https://mawimbi.netlify.app/). Any feature requiring a server needs explicit product sign-off first.
 - **Mobile is a first-class target.** Bottom sheets, dynamic-viewport (`dvh`) work, touch gestures, and on-device QA issues (e.g. #467) all assume phone use. Desktop-only interactions (hover, fine pointer) must have a mobile equivalent — see PR #458, where a hover-gated control had to move into the mobile overflow menu.
-- **Recording follows the GarageBand workflow**: arm → position → play to record. The `armed` state in RecordingService exists to model this; don't collapse it into a one-button record flow.
+- **Recording follows the GarageBand workflow** (mechanics: CLAUDE.md, RecordingService). The product rule behind it: the deliberate arm → position → play sequence is the point — don't collapse it into a one-button record flow.
 - **Dark theme is the default**; light theme must keep working (a light-theme glow-color inversion shipped as a bug once, fixed in PR #456).
 - **ML features run entirely in the browser** (Web Workers + WASM/ONNX). No inference service; model downloads must be cached (`ModelCache`).
 

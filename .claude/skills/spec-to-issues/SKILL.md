@@ -6,11 +6,11 @@ argument-hint: <spec file, e.g. specs/002-foo.md>
 
 # Spec → GitHub Issues
 
-Turn a spec's milestones into GitHub issues that a later `/work-issue` session can execute without re-reading the whole world. Use the GitHub MCP tools (no `gh` CLI in remote sessions); repo is `vsandvold/mawimbi`.
+Turn a spec's milestones into GitHub issues that a later `/work-issue` session can execute without re-reading the whole world. File issues per CLAUDE.md's GitHub CLI section (`gh --repo vsandvold/mawimbi`), falling back to the GitHub MCP tools when `gh` is unavailable in the session.
 
 ## 1. Read the spec; sanity-check it
 
-The spec must have Status `Draft`, a filled Verification design, and ordered milestones with verification infrastructure first. If not, stop and finish the spec (`/spec` step 3–4) instead of filing vague issues.
+The spec must have Status `Draft`, a filled Verification design, and ordered milestones — with verification infrastructure first whenever the spec calls for any. If not, stop and finish the spec (`/spec` step 3–4) instead of filing vague issues.
 
 ## 2. File the parent tracking issue
 
@@ -23,8 +23,8 @@ Match the repo's established issue style (see #300–#302 for the shape):
 - **Title:** imperative, specific.
 - **Body sections:** parent reference ("Sub-issue of #N — Step X of Y, depends on #M"), Summary, Requirements, Implementation notes (pointers into code and KB, e.g. "follow the mute/solo pattern in `Channel.tsx`"), and **Acceptance criteria** — a checklist whose items are the spec's verification artifacts for that milestone, plus the standing "build succeeds, lint passes".
 - **Verification section:** the exact commands/tests that prove the milestone, copied from the spec's verification design. An issue whose acceptance criteria can't be checked by an agent must say who checks them (human-QA checklist issue, pattern #467).
-- Link sub-issues to the parent with `sub_issue_write` where possible; otherwise the "Sub-issue of #N" body convention carries the relationship.
-- **The verification-infrastructure milestone is issue #1 of the spec and blocks the rest.** State the dependency chain explicitly in each body.
+- Link sub-issues to the parent (GitHub sub-issues where available; otherwise the "Sub-issue of #N" body convention carries the relationship).
+- **If the spec has a verification-infrastructure milestone, it is issue #1 and blocks the rest.** State the dependency chain explicitly in each body.
 
 ## 4. Order and prioritize
 

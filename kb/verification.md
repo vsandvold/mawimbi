@@ -15,8 +15,8 @@ Work down this list; prefer the earliest level that can actually falsify the cla
 
 ## Rules of thumb
 
-- **Bugs get a failing test first** (CLAUDE.md, Bug Fixes). The test that reproduces the bug defines what "fixed" means.
-- **A computed value is not a rendered value.** Asserting on inline `style.*` in jsdom proves computation, not correct rendering — stacking/pseudo-element/paint claims need e2e (CLAUDE.md, Testing).
+- **Bugs get a failing test first** — CLAUDE.md, Bug Fixes. The reproducing test is what defines "fixed".
+- **A computed value is not a rendered value** — jsdom's limits are catalogued in CLAUDE.md, Testing; stacking/pseudo-element/paint claims need e2e.
 - **Distrust green tests around transforms and clipping.** If a change touches scroll containers, CSS transforms, or z-index, ask what a rect-based test would miss (see #464's visibility invariant).
 - **Flakiness protocol:** re-run the failing spec in isolation before blaming the change; `audio.spec.ts` is known to flake under full parallel runs (PR #457 test plan).
 - **Verify the fix against a live reproduction when possible** — e.g. PR #465 validated its recovery script against a real `node_modules` wipe, not a simulation.

@@ -45,11 +45,7 @@ idea ──/spec──▶ specs/NNN-*.md ──/spec-to-issues──▶ GH issue
                               /harness-audit keeps it all true
 ```
 
-- **Knowledge base** (`kb/`, start at `kb/INDEX.md`): business rules, domain knowledge, decisions, verification patterns — compounding across sessions. **Ground nontrivial work in it before planning** (`/kb read`) **and capture durable learnings before finishing** (`/kb write`). Boundary: CLAUDE.md is the operating manual (how to work here); the KB is what/why (product, domain, rationale). Don't duplicate — link.
-- **Specs** (`specs/`, see `specs/README.md`): created with `/spec`, grounded in KB + issues/PRs + code, deliberated with `/council`. Every requirement carries a runnable verification or an explicit human-QA flag; **verification infrastructure is always Milestone 1** and gets built before feature code.
-- **Issues**: `/spec-to-issues` turns a spec into a parent tracking issue + ordered milestone sub-issues. `/work-issue <n>` executes one end-to-end (ground → verification first → implement → verify → review → ship → pay back the KB).
-- **Audits**: `/harness-audit` verifies KB/CLAUDE.md claims against the code, syncs spec statuses with GitHub, and runs the quality gates. `bash scripts/check-harness.sh` checks harness structure.
-- **Deliberation**: `/council` attacks a design question from 3–5 adversarial lenses (architect, adversary, simplicity, product, verification, …) and records decision + dissent. Mandatory during `/spec`; use it whenever torn between approaches.
+Session defaults: **ground nontrivial work with `/kb read` before planning, and capture durable learnings with `/kb write` before finishing.** The KB holds what/why (product, domain, rationale, verification know-how); CLAUDE.md stays the operating manual — the canonical boundary statement is in `kb/INDEX.md`. Specs pair every requirement with a verification an agent can run (or an explicit human-QA flag), and new verification infrastructure is built before the feature code that needs it; the spec lifecycle is defined in `specs/README.md`. `/council` deliberation is part of `/spec` planning and of architecturally significant decisions — for ordinary ambiguity, the Working Defaults' state-your-assumption rule below applies, not a council. `bash scripts/check-harness.sh` validates harness structure.
 
 ## Working Defaults
 

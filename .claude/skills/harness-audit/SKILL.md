@@ -6,7 +6,7 @@ argument-hint: [quick | full]
 
 # Harness Audit
 
-The KB only compounds if it stays true. This audit verifies recorded knowledge against reality and fixes what drifted. `quick` = structure + quality gates only; `full` (default) = everything below.
+The KB only compounds if it stays true. This audit verifies recorded knowledge against reality and fixes what drifted. `quick` = structure check (step 1) only; `full` (default) = everything below.
 
 ## 1. Structure
 
@@ -14,7 +14,7 @@ The KB only compounds if it stays true. This audit verifies recorded knowledge a
 
 ## 2. KB drift
 
-For each factual claim in `kb/*.md` that references code, files, or behavior, verify it against the current tree. Fan out parallel verifier subagents (one per KB file), each returning a per-claim verdict: **accurate / stale / wrong**, with evidence (file:line or issue/PR state).
+For each factual claim in `kb/*.md` that references code, files, or behavior, verify it against the current tree, giving each claim a verdict: **accurate / stale / wrong**, with evidence (file:line or issue/PR state). While the KB is small (a few short files), verify in one pass yourself; fan out parallel verifier subagents only once the KB outgrows a single sitting.
 
 - **Stale** (was true, now outdated): update the entry in place, with new provenance.
 - **Wrong** (never true, or misremembered): correct it and check whether anything downstream (a spec, an issue) was built on it — flag those.
@@ -27,11 +27,11 @@ Spot-check CLAUDE.md's factual claims the same way (commands still exist, named 
 
 ## 4. Spec staleness
 
-For each spec in `specs/`, compare its Status line against reality via the GitHub MCP: issues filed? closed? PRs merged? Update statuses (`Draft / Issues filed / In progress / Delivered / Superseded`) and the parent tracking issues' checklists to match. A spec contradicted by a later decision gets `Superseded` with a pointer.
+For each spec in `specs/`, compare its Status line against GitHub reality: issues filed? closed? PRs merged? Update statuses (lifecycle: `specs/README.md`) and the parent tracking issues' checklists to match. A spec contradicted by a later decision gets `Superseded` with a pointer.
 
 ## 5. Quality gates
 
-Run and report (don't silently skip any): `npm run lint`, `npx tsc --noEmit`, `npm test -- --run`. In a session with recent changes, also `/code-review` on the diff. Failures here are findings to fix, not footnotes.
+Run and report: `npm run lint`, `npx tsc --noEmit`, `npm test -- --run`. Exception: on a clean tree whose HEAD already passed CI, cite that CI run instead of re-running the suite. In a session with recent changes, also `/code-review` on the diff. Failures here are findings to fix, not footnotes.
 
 ## 6. Report and commit
 

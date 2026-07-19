@@ -16,5 +16,7 @@ Audio/music domain knowledge that explains *why* the features work the way they 
 
 ## Runway geometry (playhead/scrubber)
 
-- The tilted "runway" view is a perspective projection solved in JS (`workstation/scrubber/runwayProjection.ts`, `runwayConfig.ts`). The mapping from layout position to screen position is **nonlinear** under perspective — any linear-fraction shortcut (CSS `calc`, `cqh` padding) looks right in the flat case and drifts under real tilt (issue #453 records the tradeoff).
-- Scroll clipping happens in **pre-transform layout space**: a scroll container inside the tilt clips content before `rotateX` can project it into view. Hence the runway is a pure transform stage and `PhantomScroller` is the only scroll container (PR #464).
+Two physical facts govern all runway work; the decisions built on them are in `kb/decisions.md` (2026-07-18/19 entries):
+
+- Under perspective, the layout→screen mapping is **nonlinear** — any linear-fraction shortcut (CSS `calc`, `cqh` padding) looks right in the flat case and drifts under real tilt.
+- Scroll clipping happens in **pre-transform layout space** — a scroll container inside the tilt clips content before `rotateX` can project it into view (the #459 bug class).

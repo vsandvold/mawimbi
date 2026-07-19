@@ -42,13 +42,13 @@ How an agent proves each goal, before any of it is built:
 | 2 | … | unit | `src/…/__tests__/….test.ts` |
 | 3 | on-device feel | human QA | checklist issue |
 
-New verification infrastructure required (this becomes Milestone 1): …
+New verification infrastructure required (this becomes Milestone 1; write "none — existing patterns cover everything" if true): …
 
 ## Milestones
 
-Ordered chunks, each independently landable and verifiable. Milestone 1 is the verification infrastructure.
+Ordered chunks, each independently landable and verifiable. When new verification infrastructure is needed, it is Milestone 1.
 
-1. **Verification harness** — …
+1. **Verification harness** — … (omit if none is needed)
 2. …
 
 ## Open questions

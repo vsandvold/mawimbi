@@ -13,12 +13,12 @@ A spec turns a feature idea into something an agent can deliver *and verify* aut
 Do all three; do not write a line of spec before this is done:
 
 - **KB:** `/kb read` — product rules, domain facts, prior decisions, verification patterns that bear on this feature.
-- **Issues & PRs:** search open/closed issues and recent PRs (GitHub MCP, `--repo vsandvold/mawimbi` scope) for prior art, related follow-ups, and decisions already made in review threads. A spec that re-litigates a settled decision (e.g. "bring back fog") without new evidence is ungrounded.
+- **Issues & PRs:** search open/closed issues and recent PRs (per CLAUDE.md's GitHub CLI section, or the GitHub MCP tools) for prior art, related follow-ups, and decisions already made in review threads. A spec that re-litigates a settled decision (e.g. "bring back fog") without new evidence is ungrounded.
 - **Code:** read the features the work touches (spawn parallel Explore agents for breadth). Identify the services, signals, and patterns the design must fit.
 
 ## 2. Deliberate
 
-Run `/council` on the core design question(s). Small, obvious chunks of work may use the inline council; anything touching architecture, geometry, the audio path, or persistence gets the full parallel council. The decision record lands in the spec's Design section.
+Run `/council` on the core design question(s) — inline by default; escalate to the full parallel council when the spec introduces new architecture or the inline pass leaves a genuine unresolved conflict between lenses (see the escalation rule in the council skill). The decision record lands in the spec's Design section.
 
 ## 3. Design verification (the heart of the spec)
 
@@ -36,4 +36,4 @@ Write the spec from `template.md` (in this skill's directory). Then self-review:
 
 ## 5. Hand off
 
-Offer to run `/spec-to-issues` to break the spec into tracked GitHub issues. Update the spec's Status line as it moves through its life: `Draft → Issues filed → In progress → Delivered → Superseded`.
+Offer to run `/spec-to-issues` to break the spec into tracked GitHub issues. Update the spec's Status line as it moves through the lifecycle defined in `specs/README.md`.

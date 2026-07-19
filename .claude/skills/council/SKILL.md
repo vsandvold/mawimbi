@@ -25,14 +25,12 @@ Pick **3–5 lenses** that genuinely conflict for this question:
 | **Verification** | How will an agent *prove* this works autonomously (`kb/verification.md`)? If a claim can't be falsified by a test, the design must change until it can. Always include this lens. |
 | **Performance** | Audio-thread budget, canvas memory, layout thrash — only when the question touches the rAF/audio path. |
 
-Spawn one subagent per lens **in a single message** (parallel, `run_in_background: false` — this environment's disk reclaimer can silently kill background agents; verify every agent actually returned output). Each prompt gets: the framed question, constraints, repo pointers, its lens, and the required return shape:
+**Default to the inline council**: write each lens's position yourself, honestly, before synthesizing. **Escalate to parallel subagents** when the question is architecturally significant *and* the inline pass leaves lenses in genuine unresolved conflict (or you notice yourself steering every lens toward one answer). For the escalated form, spawn one subagent per lens **in a single message** (verify every agent actually returned output — this environment's disk reclaimer can silently kill background agents). Each prompt gets: the framed question, constraints, repo pointers, its lens, and the required return shape:
 
 1. Position (which approach, or a new one)
 2. Strongest argument **against** the other approaches
 3. Top 2 risks of its own position
 4. What evidence would change its mind
-
-For small questions, run the council inline instead: write each lens's position yourself, honestly, before synthesizing.
 
 ## 3. Synthesize
 
@@ -42,4 +40,4 @@ For small questions, run the council inline instead: write each lens's position 
 
 ## 4. File the record
 
-Inside a `/spec` run: the record goes in the spec's Design section. Standalone: append it to `kb/decisions.md`.
+Inside a `/spec` run: the record goes in the spec's Design section. Standalone: add it to `kb/decisions.md` (newest first, per that file's convention).
