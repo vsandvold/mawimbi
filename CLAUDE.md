@@ -34,6 +34,23 @@ gh issue view 19 --repo vsandvold/mawimbi
 gh pr create --repo vsandvold/mawimbi ...
 ```
 
+## Agent Harness
+
+This repo has a harness for autonomous agent work: a knowledge base, a spec pipeline, and audit skills. The loop:
+
+```
+idea ──/spec──▶ specs/NNN-*.md ──/spec-to-issues──▶ GH issues ──/work-issue──▶ PRs
+         │                                                            │
+         └────────────── /kb read (ground) … /kb write (pay back) ────┘
+                              /harness-audit keeps it all true
+```
+
+- **Knowledge base** (`kb/`, start at `kb/INDEX.md`): business rules, domain knowledge, decisions, verification patterns — compounding across sessions. **Ground nontrivial work in it before planning** (`/kb read`) **and capture durable learnings before finishing** (`/kb write`). Boundary: CLAUDE.md is the operating manual (how to work here); the KB is what/why (product, domain, rationale). Don't duplicate — link.
+- **Specs** (`specs/`, see `specs/README.md`): created with `/spec`, grounded in KB + issues/PRs + code, deliberated with `/council`. Every requirement carries a runnable verification or an explicit human-QA flag; **verification infrastructure is always Milestone 1** and gets built before feature code.
+- **Issues**: `/spec-to-issues` turns a spec into a parent tracking issue + ordered milestone sub-issues. `/work-issue <n>` executes one end-to-end (ground → verification first → implement → verify → review → ship → pay back the KB).
+- **Audits**: `/harness-audit` verifies KB/CLAUDE.md claims against the code, syncs spec statuses with GitHub, and runs the quality gates. `bash scripts/check-harness.sh` checks harness structure.
+- **Deliberation**: `/council` attacks a design question from 3–5 adversarial lenses (architect, adversary, simplicity, product, verification, …) and records decision + dissent. Mandatory during `/spec`; use it whenever torn between approaches.
+
 ## Working Defaults
 
 - Before creating a pull request, run the `/code-review` skill on the diff and address confirmed findings first.

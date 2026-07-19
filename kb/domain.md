@@ -1,0 +1,20 @@
+# Domain
+
+Audio/music domain knowledge that explains *why* the features work the way they do. Architecture and code layout live in CLAUDE.md; this file is the domain reasoning behind them.
+
+## Analysis and visualization
+
+- **CQT (constant-Q transform), not linear FFT**, drives the spectrograms: constant-Q spacing is logarithmic in frequency, so each octave gets equal visual height and musical pitch maps to consistent vertical distance. That is what makes the "see sounds like you hear them" promise hold. (`features/spectrogram/`)
+- **Two analysis paths** exist because their latency budgets differ: offline CQT analysis renders uploaded audio into cached tiles (`OfflineAnalyser`, `SpectrogramCache`); live worklet analysis (`LiveCQTAnalyser`, `AnalysisProcessor`) renders the in-progress recording frame-by-frame (~25ms hop). When recording completes, the rough live rendering is replaced by the polished offline result — the same live-then-refine pattern is planned for pitch (issue #302).
+- **Melody transcription** uses Spotify `basic-pitch`; **instrument classification** uses essentia.js features + an ONNX model. Both run in Web Workers to keep the UI and audio threads clean.
+
+## Timing and mixing
+
+- **`Tone.Transport` is the single timeline clock.** All track playback, the playhead, and recording alignment derive from it; never introduce a second clock.
+- **Loudness normalization on upload** (`LoudnessNormalizer`) exists so tracks recorded/uploaded at wildly different levels mix at comparable loudness without the user touching faders first — an amateur-friendliness rule, not an audio-engineering nicety.
+- **Latency compensation** (`features/recording/LatencyCompensation`): a recorded overdub is captured late relative to what the user heard (output latency + input latency), so the recording is shifted back before being placed on the timeline. Background research: `FUTURE_PLANS.md` (low-latency overdubbing).
+
+## Runway geometry (playhead/scrubber)
+
+- The tilted "runway" view is a perspective projection solved in JS (`workstation/scrubber/runwayProjection.ts`, `runwayConfig.ts`). The mapping from layout position to screen position is **nonlinear** under perspective — any linear-fraction shortcut (CSS `calc`, `cqh` padding) looks right in the flat case and drifts under real tilt (issue #453 records the tradeoff).
+- Scroll clipping happens in **pre-transform layout space**: a scroll container inside the tilt clips content before `rotateX` can project it into view. Hence the runway is a pure transform stage and `PhantomScroller` is the only scroll container (PR #464).
