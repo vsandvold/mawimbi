@@ -168,6 +168,15 @@ Several `useEffect`/`useCallback` deps arrays intentionally omit stable refs (se
 ### Tone.js context is not the native AudioContext
 `Tone.getContext().rawContext` returns a **wrapper**, not the native `AudioContext`, and connecting wrapper-created nodes to native nodes throws a "value with the given key could not be found" registry error (why: `kb/domain.md`, "Audio engine"). Code that needs native nodes (`WorkletRecorder`/`RecordingProcessor` recording chain, `FrequencyVisualizer`) extracts the real native context via the wrapper's private `_nativeContext` field and creates **all** nodes in the chain on it. If `_nativeContext` is unavailable, fall back to `rawContext` directly. See `AudioService`, `RecordingService.initializeWorkletRecorder()`, and `FrequencyVisualizer` for the established pattern.
 
+### `transportTime` is not a clock
+The `transportTime` signal is written by the scrubber animation loop, which only runs while `playbackState === 'playing'` — it does not advance otherwise. At least four bugs came from trusting it outside playback (#130, #153, #211, #217). Code that needs the real position (recording elapsed time, workflows) must call `playback.getEngineTime()`; this is also why count-in always starts playback even with zero lead-in.
+
+### React Compiler must stay disabled
+`babel-plugin-react-compiler` sits in devDependencies but is deliberately not wired into `vite.config.ts`: its auto-memoization caches signal reads and silently breaks `@preact/signals-react` reactivity (engine responds, UI frozen — the PR #114 regression class). Signal reactivity comes from `useSignals()` in bridge hooks instead. Rationale: `kb/decisions.md` (2026-02-22).
+
+### Workers loading TF.js need the window polyfill first
+`src/shared/workerWindowPolyfill.ts` aliases `globalThis.window = self` and must stay the **first** import in any worker that loads `@spotify/basic-pitch` (see `spectrogram.worker.ts`) — TensorFlow.js references `window` in its setTimeout mechanism and throws `window is not defined` in worker scope otherwise (PR #394).
+
 ### CSS Grid items get z-index stacking contexts; absolutely-positioned pseudo-elements don't
 A grid item's `z-index` — even `0`, even with no `position` set — creates a stacking context per the CSS Grid spec; an absolutely-positioned `::before`/`::after` sibling with `z-index: auto` does **not**, and paints in plain DOM order instead of sharing the items' level. So any absolutely-positioned overlay inside a `z-index`-using grid/flex container needs an explicit `z-index` above the items'. In this repo: `Timeline.css`'s `.timeline::before`/`::after` rail pseudo-elements over the `.timeline__track` grid items — an asymmetric rails-under-tracks bug shipped once already (fixed in PR #456).
 
@@ -202,11 +211,21 @@ Vitest + React Testing Library, jsdom environment. `setupTests.ts` globally prov
 
 Tests read service state through plain getters (`service.playbackState`, `getFocusedTracks()`, `getPixelsPerSecond()`), not through `.signals.*.value`.
 
+**On-device debugging:** for ML/audio behavior that only reproduces on the deployed site or a phone (no devtools), use the in-app LogOverlay (`shared/log/`) — it intercepts `console.*` (including worker logs forwarded via a `log` message type) and displays them in an overlay opened from the project header's overflow menu (#278, #279).
+
 jsdom can't verify real CSS: no paint/stacking order, no pseudo-element computed styles (`getComputedStyle(el, '::before')` returns nothing meaningful), no actual layout. A unit test asserting on inline `style.*` objects (as most of `Scrubber.test.tsx` does) only proves a value was computed, not that it renders correctly. Visual/stacking/pseudo-element behavior needs a Playwright e2e assertion instead — e.g. `page.evaluate(() => getComputedStyle(el, '::before').zIndex)`.
 
 ### E2E Tests
 
-Playwright e2e tests live in `e2e/`; visual regression snapshots in `e2e/__screenshots__/`. After implementation changes that affect the UI:
+Playwright e2e tests live in `e2e/`; visual regression snapshots in `e2e/__screenshots__/`.
+
+- **Always import `test`/`expect` from `e2e/fixtures.ts`**, never from `@playwright/test` directly — the fixture blocks ONNX model downloads (classification fires on every track creation, so an unblocked upload test pulls ~50MB from essentia.upf.edu) (#367, #368). `uploadAudioFile` also lives there.
+- **No blind waits**: use DOM polling / `expect(...).toPass()` instead of `waitForTimeout` (#367, #386).
+- **Reduced motion**: `test.use({ reducedMotion: 'reduce' })` is not honored by the built-in `page` fixture in this environment — use `page.emulateMedia()` (as `runway-geometry.spec.ts` does; PR #457).
+- **Pin `Math.random`** in an init script before any visual/color assertion — track colors are randomized across the full palette by design (#21, #36; pattern established in PR #88).
+- **Don't bump `@playwright/test` past ^1.56.x** until the remote environment's cached Chromium moves — the version must match the cached browser revision (incident evidence: `kb/environment.md`).
+
+After implementation changes that affect the UI:
 
 1. Run the e2e tests: `npx playwright test e2e/`
 2. If a visual regression test fails because the UI intentionally changed, update the snapshot: `npx playwright test e2e/visual.spec.ts -g "<test name>" --update-snapshots`
@@ -220,6 +239,8 @@ nohup npm start > /tmp/vite-dev.log 2>&1 &
 until curl -sf http://localhost:5173 > /dev/null; do sleep 1; done
 npx playwright test e2e/your-spec.spec.ts --reporter=list
 ```
+
+**Touch gestures (swipe scrub, touch drag-reorder):** Playwright's mouse API cannot exercise touch paths — use CDP touch events (`Input.dispatchTouchEvent` via `page.context().newCDPSession`) in a `hasTouch: true` context. For @dnd-kit drags, a small (~5px) initial move activates the PointerSensor and movement must be stepped (~10 steps, ~16ms apart) or collision detection never fires (PRs #92, #97; helpers in `e2e/mixer-reorder.spec.ts` and `e2e/swipe-playback.spec.ts`).
 
 **Custom pointer gestures (long-press, drag, swipe):** prefer `locator.dispatchEvent('pointerdown', {...})` over driving raw `page.mouse.move()/down()/up()` coordinates. Much of this app's UI is absolutely-positioned and 3D-transformed (the scrubber/runway, drawer-adjusted overlays), so an element's on-screen bounding box can land at unexpected — even off-viewport — coordinates depending on layout state; raw mouse coordinates can then silently miss the element with no error, while `dispatchEvent` targets it directly regardless of geometry.
 
