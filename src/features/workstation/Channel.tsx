@@ -36,6 +36,7 @@ type ChannelProps = {
 };
 
 const PERCENT_DIVISOR = 100;
+const PRIMARY_POINTER_BUTTON = 0;
 
 const Channel = ({
   isMuted,
@@ -47,15 +48,8 @@ const Channel = ({
   const { trackId, color } = track;
   const dispatch = useProjectDispatch();
 
-  const {
-    volume,
-    mute,
-    solo,
-    startFocus,
-    updateVolume,
-    commitVolume,
-    cycleState,
-  } = useChannelControls(trackId);
+  const { volume, mute, solo, startFocus, endFocus, updateVolume, cycleState } =
+    useChannelControls(trackId);
 
   const { getClassification, getClassificationState, downloadProgress } =
     useClassificationService();
@@ -74,6 +68,14 @@ const Channel = ({
 
   const handleValueChange = (values: number[]) => {
     updateVolume(values[0]);
+  };
+
+  const handleFocusPointerDown = (event: React.PointerEvent) => {
+    // Non-primary presses (right/middle click) open the context menu,
+    // which swallows the matching pointerup — never start a focus that
+    // nothing can end.
+    if (event.button !== PRIMARY_POINTER_BUTTON) return;
+    startFocus();
   };
 
   const { r, g, b } = color;
@@ -147,14 +149,23 @@ const Channel = ({
           {getChannelStateIcon(mute, solo)}
         </Button>
       </div>
-      <div className="channel__volume" onPointerDown={startFocus}>
+      {/* Focus follows the pointer lifecycle, not slider value events —
+          why: see useChannelControls. The terminal events bubble here from
+          Radix's pointer capture; lostpointercapture covers interruptions
+          (OS focus steal) that deliver neither up nor cancel. */}
+      <div
+        className="channel__volume"
+        onPointerDown={handleFocusPointerDown}
+        onPointerUp={endFocus}
+        onPointerCancel={endFocus}
+        onLostPointerCapture={endFocus}
+      >
         <Slider
           className="channel-slider"
           defaultValue={[volume]}
           min={0}
           max={100}
           onValueChange={handleValueChange}
-          onValueCommit={commitVolume}
         />
       </div>
       <div className="channel__move" {...dragHandleProps}>

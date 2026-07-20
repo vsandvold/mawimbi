@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -13,6 +13,10 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useTrackService } from '../tracks/useTrackService';
+// Command functions, not signals — module-scope import keeps the drag
+// effect's dependencies compile-time stable and avoids building the full
+// bridge-hook object on every row render during a drag.
+import { focusTrack, unfocusTrack } from '../tracks/focusSignals';
 import { type Track, type TrackId } from '../tracks/types';
 import { MOVE_TRACK } from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
@@ -91,8 +95,25 @@ const SortableChannelItem = ({
   isInstrumentDropdownOpen,
   onInstrumentDropdownOpenChange,
 }: SortableChannelItemProps) => {
-  const { attributes, listeners, setNodeRef, transform, transition } =
-    useSortable({ id: track.trackId });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: track.trackId });
+
+  // Reorder-dragging lifts the dragged track in the timeline, same as
+  // touching its fader. An effect on isDragging — not DndContext's
+  // onDragStart/onDragEnd — because only the effect's cleanup also fires
+  // when the item (or the whole mixer sheet) unmounts mid-drag; context
+  // callbacks would leave the focus stuck in that case.
+  useEffect(() => {
+    if (!isDragging) return;
+    focusTrack(track.trackId);
+    return () => unfocusTrack(track.trackId);
+  }, [isDragging, track.trackId]);
 
   const style = {
     transform: CSS.Transform.toString(transform),

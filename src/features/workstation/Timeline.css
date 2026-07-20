@@ -71,11 +71,26 @@
   transition: opacity 0.1s;
 }
 
-.timeline__track--foreground {
+/*
+ * Track lift — one mechanism shared by the mixer-driven focus effect
+ * (fader touch, drag-reorder) and the effects drawer's edit mode (spec
+ * 004, Goal 1): the lifted track wins the paint order via z-index, every
+ * other track dims via opacity. The class names stay distinct because the
+ * two states have different owners (focusSignals vs editModeSignals) and
+ * tests assert on which one is active, but the treatment is deliberately
+ * identical — opacity and z-index are cheap, compositor-friendly
+ * properties, unlike the per-track scale/blur/glow this replaced (each
+ * track's canvas covers the full runway window, so filters forced huge
+ * composited layers, and per-track glow duplicated the runway rails).
+ * Edit mode's true 3D lift is phase 2 (milestone 7).
+ */
+.timeline__track--foreground,
+.timeline__track--edit-active {
   z-index: 1;
 }
 
-.timeline__track--background {
+.timeline__track--background,
+.timeline__track--edit-background {
   opacity: 0.5;
   transition: opacity 0.3s;
 }
@@ -85,30 +100,9 @@
   transition: opacity 0.3s;
 }
 
-/*
- * Edit mode (spec 004, Goal 1) — separation uses the same mechanism as the
- * mixer-driven focus effect above: an opacity dim on background tracks and
- * a z-index lift on the active one. Cheap, compositor-friendly properties
- * only — the earlier scale/blur/box-shadow treatment forced per-track
- * filtered layers (each track's canvas covers the full runway window) and
- * duplicated the runway rails' glow on every track box; the rails on
- * .timeline::before/::after stay the single set of runway borders. The
- * true 3D lift is phase 2 (milestone 7).
- */
-.timeline__track--edit-active {
-  z-index: 1;
-  opacity: 1;
-}
-
-.timeline__track--edit-background {
-  opacity: 0.35;
-  transition: opacity 0.3s;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  /* Disables the crossfade but keeps the separation itself. Only
-     --edit-background declares its own transition; --edit-active rides
-     the base rule like every other track. */
+  /* Disables the dim crossfade but keeps the separation itself. */
+  .timeline__track--background,
   .timeline__track--edit-background {
     transition: none;
   }

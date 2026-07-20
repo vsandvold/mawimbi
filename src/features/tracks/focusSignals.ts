@@ -1,6 +1,11 @@
 import { signal, type ReadonlySignal } from '@preact/signals-react';
 import { type TrackId } from './types';
 
+// Membership set, not a reference count: focusTrack is idempotent and
+// unfocusTrack removes outright, so the writers (fader pointer lifecycle,
+// reorder drag) assume at most one live gesture per track. Overlapping
+// gestures on the same track (multi-touch) may drop the lift early; the
+// state self-heals on the next release because unfocus is idempotent.
 const _focusedTracks = signal<TrackId[]>([]);
 
 // Narrow channel for reactive consumers (hooks)
