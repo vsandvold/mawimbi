@@ -17,11 +17,11 @@ describe('computeMeterRect', () => {
     expect(rect.x).toBe(0);
   });
 
-  it('produces a 2:1 width-to-height aspect ratio when it fits', () => {
+  it('produces a 3:1 width-to-height aspect ratio when it fits', () => {
     const rect = computeMeterRect(1000, 400, 0.65);
 
     expect(rect.width).toBeGreaterThan(rect.height);
-    expect(rect.width / rect.height).toBeCloseTo(2, 0);
+    expect(rect.width / rect.height).toBeCloseTo(3, 0);
   });
 
   it('clamps the height to the canvas height on wide canvases', () => {
@@ -29,7 +29,6 @@ describe('computeMeterRect', () => {
     const rect = computeMeterRect(2000, canvasHeight, 0.65);
 
     expect(rect.height).toBe(canvasHeight);
-    expect(rect.y).toBe(0);
   });
 
   it('centers the meter horizontally within the canvas', () => {
@@ -40,11 +39,17 @@ describe('computeMeterRect', () => {
     expect(centerX).toBeCloseTo(canvasWidth / 2, 0);
   });
 
-  it('centers the meter vertically within the canvas', () => {
+  it('bottom-aligns the meter within the canvas', () => {
     const canvasHeight = 400;
     const rect = computeMeterRect(1000, canvasHeight, 0.65);
 
-    const centerY = rect.y + rect.height / 2;
-    expect(Math.abs(centerY - canvasHeight / 2)).toBeLessThanOrEqual(1);
+    expect(rect.y + rect.height).toBe(canvasHeight);
+  });
+
+  it('bottom-aligns the meter even when the height clamp engages', () => {
+    const canvasHeight = 200;
+    const rect = computeMeterRect(2000, canvasHeight, 0.65);
+
+    expect(rect.y + rect.height).toBe(canvasHeight);
   });
 });

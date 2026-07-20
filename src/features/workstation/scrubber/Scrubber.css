@@ -66,7 +66,7 @@
   display: none;
 }
 
-/* Playhead: loudness meter overlay centered at the playhead position */
+/* Playhead: loudness meter overlay, bottom edge on the playhead line */
 
 .scrubber__playhead {
   /* --available-height is set directly (in px) via inline style from
@@ -74,10 +74,10 @@
      solves the runway transform against — not recomputed here via
      calc(100% - drawer-height), so there is exactly one derivation of
      "visible height" instead of two that could silently drift apart. */
-  --meter-height: calc(var(--available-height) * 0.4);
+  --meter-height: calc(var(--available-height) * 0.25);
   position: absolute;
   top: calc(
-    var(--playhead-fraction) * var(--available-height) - var(--meter-height) / 2
+    var(--playhead-fraction) * var(--available-height) - var(--meter-height)
   );
   left: 0;
   right: 0;
