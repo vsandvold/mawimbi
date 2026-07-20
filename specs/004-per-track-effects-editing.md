@@ -1,8 +1,8 @@
 # 004 — Per-track effects and the spring-modal track-edit mode
 
-**Status:** Draft
+**Status:** Issues filed
 **Date:** 2026-07-19
-**Issues:** (filled by /spec-to-issues)
+**Issues:** #488 (tracking); milestones #489, #490, #491, #492, #493, #494, #495
 
 ## Summary
 
