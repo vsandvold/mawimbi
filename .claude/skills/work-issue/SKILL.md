@@ -26,12 +26,11 @@ Per CLAUDE.md's Working Defaults, on the session's designated branch. For a genu
 
 Run the issue's verification commands, then verify per CLAUDE.md's Working Defaults (`npm run lint` plus the tests relevant to the change; e2e with `--reporter=list` in headless sessions). Only claim what this session has evidence for. Check acceptance-criteria boxes only when their check actually ran green.
 
-## 5. Ship
+## 5. Pay back
 
-Follow CLAUDE.md's Pull Requests section: commit and push, run `/code-review` and address confirmed findings, then open the PR with a summary and a test plan listing the commands actually run. Subscribe to the PR's activity and babysit CI to green.
+- `/kb write` — capture durable learnings from this session, **before shipping**, so the update lands in this PR rather than a follow-up one.
+- If this was the spec's last milestone: spec Status → `Delivered`.
 
-## 6. Pay back
+## 6. Ship
 
-- `/kb write` — capture durable learnings from this session.
-- Comment on the issue per CLAUDE.md's Issue Updates format (what was done, recommended next steps).
-- If this was the spec's last milestone: spec Status → `Delivered`; close the parent tracking issue with a summary.
+Follow CLAUDE.md's Pull Requests section: commit and push everything (feature code and the KB update together), run `/code-review` and address confirmed findings, then open the PR with a summary, a test plan listing the commands actually run, and `Closes #<issue-number>` in the body so merging auto-closes the issue. Comment on the issue per CLAUDE.md's Issue Updates format (what was done, recommended next steps). Subscribe to the PR's activity and babysit CI to green. If this was the spec's last milestone, close the parent tracking issue with a summary once the PR merges.
