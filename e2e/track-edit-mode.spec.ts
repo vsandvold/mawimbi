@@ -1,4 +1,16 @@
-import { expect, test, uploadAudioFile, LONG_AUDIO, SHORT_AUDIO } from './fixtures';
+import {
+  expect,
+  test,
+  uploadAudioFile,
+  LONG_AUDIO,
+  SHORT_AUDIO,
+  dismissFullscreenOverlay,
+  swipeTimeline,
+  swipeTimelineHorizontal,
+  touchTap,
+  tracePlaybackState,
+  stopPlaybackTrace,
+} from './fixtures';
 import { meanLuminance } from './helpers/pixelDecode';
 
 /**
@@ -19,6 +31,12 @@ const DEFAULT_PIXELS_PER_SECOND = 200;
 // clip in stray content from either track's boundary.
 const BACKGROUND_ONLY_WINDOW_START_SEC = 0.6;
 const BACKGROUND_ONLY_WINDOW_END_SEC = 1.9;
+// Comfortably past SCRUB_MOVEMENT_THRESHOLD_PX (8px) so the axis-lock
+// reliably resolves to horizontal, and small enough to stay clear of the
+// phantom's edges at typical viewport widths.
+const SWIPE_DELTA_PX = 60;
+const TOUCH_TAP_HOLD_MS = 50;
+const GESTURE_SETTLE_WAIT_MS = 100;
 
 /**
  * Uploads the longer tone first (becomes the background track once edit
@@ -254,5 +272,94 @@ test.describe('Track edit mode reduced-motion invariant', () => {
       .first()
       .evaluate((el) => getComputedStyle(el).transitionDuration);
     expect(transitionDuration).toMatch(/^0s(,\s*0s)*$/);
+  });
+});
+
+test.describe('Track edit mode swipe-to-cycle gesture', () => {
+  test.use({ hasTouch: true });
+
+  test.beforeEach(async ({ page }) => {
+    await setUpTwoTracks(page);
+    await dismissFullscreenOverlay(page);
+    await openEffectsDrawer(page);
+  });
+
+  test('swiping right moves the active class to the older track; swiping left moves it back', async ({
+    page,
+  }) => {
+    const tracks = page.locator('.timeline__track');
+    // Defaults to the newest track (mixer's top row, product rule #20).
+    await expect(tracks.last()).toHaveClass(/timeline__track--edit-active/);
+
+    // Swipe right = next-older (negative deltaX per swipeTimelineHorizontal).
+    await swipeTimelineHorizontal(page, -SWIPE_DELTA_PX);
+    await expect(tracks.first()).toHaveClass(/timeline__track--edit-active/);
+    await expect(tracks.last()).toHaveClass(
+      /timeline__track--edit-background/,
+    );
+
+    // Swipe left = next-newer, moving it back.
+    await swipeTimelineHorizontal(page, SWIPE_DELTA_PX);
+    await expect(tracks.last()).toHaveClass(/timeline__track--edit-active/);
+    await expect(tracks.first()).toHaveClass(
+      /timeline__track--edit-background/,
+    );
+  });
+
+  test('swiping left past the newest track leaves the active track unchanged', async ({
+    page,
+  }) => {
+    const tracks = page.locator('.timeline__track');
+    await expect(tracks.last()).toHaveClass(/timeline__track--edit-active/);
+
+    await swipeTimelineHorizontal(page, SWIPE_DELTA_PX);
+
+    await expect(tracks.last()).toHaveClass(/timeline__track--edit-active/);
+  });
+
+  test('swiping right past the oldest track leaves the active track unchanged', async ({
+    page,
+  }) => {
+    const tracks = page.locator('.timeline__track');
+    await page.getByTitle('Previous track').click();
+    await expect(tracks.first()).toHaveClass(/timeline__track--edit-active/);
+
+    await swipeTimelineHorizontal(page, -SWIPE_DELTA_PX);
+
+    await expect(tracks.first()).toHaveClass(/timeline__track--edit-active/);
+  });
+
+  test('a horizontal swipe does not toggle playback', async ({ page }) => {
+    await tracePlaybackState(page);
+
+    await swipeTimelineHorizontal(page, SWIPE_DELTA_PX);
+    await page.waitForTimeout(GESTURE_SETTLE_WAIT_MS);
+
+    const trace = await stopPlaybackTrace(page);
+    expect(trace.length).toBe(0);
+  });
+
+  test('a plain tap still toggles playback', async ({ page }) => {
+    await tracePlaybackState(page);
+
+    await touchTap(page, TOUCH_TAP_HOLD_MS);
+    await page.waitForTimeout(GESTURE_SETTLE_WAIT_MS);
+
+    const trace = await stopPlaybackTrace(page);
+    expect(trace.length).toBe(1);
+  });
+
+  test('a vertical swipe still scrubs the timeline', async ({ page }) => {
+    const phantom = page.locator('.scrubber__phantom');
+    // The runway opens at transport time 0, which is scrollTop's max end
+    // (inverted scroll, kb/domain.md) — swipe with a negative delta so the
+    // gesture moves away from that clamp instead of being absorbed by it.
+    const scrollBefore = await phantom.evaluate((el) => el.scrollTop);
+
+    await swipeTimeline(page, -SWIPE_DELTA_PX * 5);
+    await page.waitForTimeout(GESTURE_SETTLE_WAIT_MS);
+
+    const scrollAfter = await phantom.evaluate((el) => el.scrollTop);
+    expect(scrollAfter).not.toBe(scrollBefore);
   });
 });

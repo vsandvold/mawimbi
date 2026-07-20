@@ -2,6 +2,11 @@ import { act, fireEvent, render } from '@testing-library/react';
 import { createRef } from 'react';
 import * as Tone from 'tone';
 import AudioService from '../../audio/AudioService';
+import {
+  enterEditMode,
+  getActiveEditTrackId,
+  resetEditModeSignals,
+} from '../editModeSignals';
 import { activeRunwayConfig, beatSaber } from '../scrubber/runwayConfig';
 import { solveGeometry } from '../scrubber/runwayProjection';
 import {
@@ -21,7 +26,13 @@ const defaultProps = {
   isMixerOpen: false,
   onStopRecording: vi.fn(),
   pixelsPerSecond: 200,
+  tracks: [],
 };
+
+const twoTracks = [
+  { trackId: 'track-1', color: { r: 0, g: 0, b: 0 }, fileName: 'a', index: 0 },
+  { trackId: 'track-2', color: { r: 0, g: 0, b: 0 }, fileName: 'b', index: 1 },
+];
 
 // Margin above useScrubberScroll's SCROLL_DEBOUNCE_MS (200ms) so fake-timer
 // advances reliably clear the debounce without depending on its exact value.
@@ -31,11 +42,13 @@ afterEach(() => {
   playbackService.reset();
   recordingService.reset();
   Tone.getTransport().seconds = 0;
-  // Wrapped in act() — this writes tuningSignals, which useScrubberGeometry
-  // subscribes to, and RTL's own unmount cleanup (registered before this
-  // afterEach) hasn't necessarily run yet for the current test's tree.
+  // Wrapped in act() — this writes tuningSignals/editModeSignals, which
+  // useScrubberGeometry/the track-cycle gesture subscribe to, and RTL's own
+  // unmount cleanup (registered before this afterEach) hasn't necessarily
+  // run yet for the current test's tree.
   act(() => {
     resetTuningSignals();
+    resetEditModeSignals();
   });
 });
 
@@ -807,6 +820,111 @@ it('does not toggle playback via click after a tap that crossed the scrub thresh
   fireEvent.click(phantom);
 
   expect(playbackService.isPlaying).toBe(false);
+});
+
+// Spec 004, milestone 3: horizontal swipe cycles the active edit-mode
+// track. These tests exercise the axis-lock (useTrackCycleGesture) through
+// the real (unmocked) Scrubber, mirroring how the vertical scrub gesture is
+// tested above.
+it('cycles the active track on a horizontal drag in edit mode (swipe left = next-newer)', () => {
+  act(() => {
+    enterEditMode('track-1');
+  });
+
+  const { container } = render(
+    <Scrubber {...defaultProps} tracks={twoTracks} />,
+  );
+  const phantom = container.querySelector('.scrubber__phantom')!;
+
+  // Predominantly horizontal movement past the threshold, moving left.
+  fireEvent.pointerDown(phantom, { clientX: 100, clientY: 0 });
+  fireEvent.pointerMove(phantom, { clientX: 70, clientY: 2 });
+  fireEvent.pointerUp(phantom);
+
+  expect(getActiveEditTrackId()).toBe('track-2');
+});
+
+it('cycles back on the opposite horizontal drag (swipe right = next-older)', () => {
+  act(() => {
+    enterEditMode('track-2');
+  });
+
+  const { container } = render(
+    <Scrubber {...defaultProps} tracks={twoTracks} />,
+  );
+  const phantom = container.querySelector('.scrubber__phantom')!;
+
+  fireEvent.pointerDown(phantom, { clientX: 0, clientY: 0 });
+  fireEvent.pointerMove(phantom, { clientX: 30, clientY: 2 });
+  fireEvent.pointerUp(phantom);
+
+  expect(getActiveEditTrackId()).toBe('track-1');
+});
+
+it('does not pause playback for a horizontal swipe, and does not toggle it via the trailing click, in edit mode', () => {
+  act(() => {
+    enterEditMode('track-1');
+  });
+  playbackService.play();
+
+  const { container } = render(
+    <Scrubber {...defaultProps} tracks={twoTracks} />,
+  );
+  const phantom = container.querySelector('.scrubber__phantom')!;
+
+  fireEvent.pointerDown(phantom, { clientX: 100, clientY: 0 });
+  fireEvent.pointerMove(phantom, { clientX: 70, clientY: 2 });
+  fireEvent.pointerUp(phantom);
+
+  // A horizontal gesture must never enter the vertical scrub's pause path.
+  expect(playbackService.isPlaying).toBe(true);
+
+  fireEvent.click(phantom);
+
+  expect(playbackService.isPlaying).toBe(true);
+});
+
+it('still scrubs vertically in edit mode (a predominantly vertical drag is untouched)', () => {
+  act(() => {
+    enterEditMode('track-1');
+  });
+  playbackService.play();
+
+  const { container } = render(
+    <Scrubber {...defaultProps} tracks={twoTracks} />,
+  );
+  const phantom = container.querySelector('.scrubber__phantom')!;
+  Object.defineProperty(phantom, 'scrollHeight', {
+    value: 2000,
+    configurable: true,
+  });
+  Object.defineProperty(phantom, 'clientHeight', {
+    value: 500,
+    configurable: true,
+  });
+
+  fireEvent.pointerDown(phantom, { clientX: 0, clientY: 0 });
+  fireEvent.pointerMove(phantom, { clientX: 2, clientY: 20 });
+
+  expect(playbackService.isPlaying).toBe(false);
+  expect(getActiveEditTrackId()).toBe('track-1');
+});
+
+it('still toggles playback via a plain tap (no movement) in edit mode', () => {
+  act(() => {
+    enterEditMode('track-1');
+  });
+
+  const { container } = render(
+    <Scrubber {...defaultProps} tracks={twoTracks} />,
+  );
+  const phantom = container.querySelector('.scrubber__phantom')!;
+
+  fireEvent.pointerDown(phantom, { clientX: 0, clientY: 0 });
+  fireEvent.pointerUp(phantom);
+  fireEvent.click(phantom);
+
+  expect(playbackService.isPlaying).toBe(true);
 });
 
 it('does not permanently stick the gesture state if recording starts before a scroll event schedules the debounce', () => {

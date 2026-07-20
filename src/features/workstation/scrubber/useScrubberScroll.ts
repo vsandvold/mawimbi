@@ -29,6 +29,7 @@ type UseScrubberScrollOptions = {
   playheadRef: RefObject<PlayheadHandle | null>;
   pixelsPerSecond: number;
   isPinchingRef: RefObject<boolean>;
+  isTrackCyclingRef: RefObject<boolean>;
 };
 
 /**
@@ -54,6 +55,7 @@ export function useScrubberScroll({
   playheadRef,
   pixelsPerSecond,
   isPinchingRef,
+  isTrackCyclingRef,
 }: UseScrubberScrollOptions) {
   const playback = usePlaybackService();
   const recording = useRecordingService();
@@ -314,6 +316,11 @@ export function useScrubberScroll({
       cancelGestureForPinch();
       return;
     }
+    // A horizontal track-cycle gesture (spec 004, milestone 3) has already
+    // claimed this pointer sequence — stand down entirely rather than also
+    // entering a vertical scrub for the same movement (useTrackCycleGesture
+    // locks axis on the same threshold this hook uses).
+    if (isTrackCyclingRef.current) return;
     // Once a gesture is active, further movement no longer changes the
     // outcome (see scrubGesture.ts's pointerMove case) — skip the distance
     // calculation for the remainder of the drag, not just its result.
@@ -399,16 +406,18 @@ export function useScrubberScroll({
   );
 
   // True from a user-initiated gesture until its debounced seek commits
-  // (gestureActive or pendingSeek — see scrubGesture.ts). Geometry-change
-  // resyncs must not fire in this window: they would snap scrollTop back to
-  // the stale pre-scrub transport time, yanking the timeline out from under
-  // an active drag (e.g. when the drag itself collapses the mobile address
-  // bar and resizes the viewport). Skipping is safe — the pending seek
-  // re-derives the time from the final scroll position against the
-  // then-current mapping.
+  // (gestureActive or pendingSeek — see scrubGesture.ts), or while a
+  // horizontal track-cycle gesture is locked in (useTrackCycleGesture).
+  // Geometry-change resyncs must not fire in this window: they would snap
+  // scrollTop back to the stale pre-scrub transport time, yanking the
+  // timeline out from under an active drag (e.g. when the drag itself
+  // collapses the mobile address bar and resizes the viewport). Skipping is
+  // safe — the pending seek re-derives the time from the final scroll
+  // position against the then-current mapping.
   const isUserScrubbing = useCallback(
-    () => isGestureInProgress(scrubStateRef.current),
-    [],
+    () =>
+      isGestureInProgress(scrubStateRef.current) || isTrackCyclingRef.current,
+    [isTrackCyclingRef],
   );
 
   return {

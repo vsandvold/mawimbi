@@ -95,6 +95,46 @@ export async function swipeTimeline(page: Page, deltaY: number): Promise<void> {
 }
 
 /**
+ * Simulates a horizontal touch-swipe on the timeline. Outside edit mode
+ * this is a no-op (touch-action: pan-y leaves horizontal movement to JS,
+ * and nothing currently reads it); in edit mode it cycles the active track
+ * (spec 004, milestone 3). Positive `deltaX` swipes left (finger moves
+ * toward negative x) — the same "swipe left" a real left-swipe gesture
+ * produces.
+ */
+export async function swipeTimelineHorizontal(
+  page: Page,
+  deltaX: number,
+): Promise<void> {
+  const { x: startX, y: startY } = await getPhantomCenter(page);
+  const endX = startX - deltaX;
+
+  await withTouchSession(page, async (client) => {
+    await client.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ x: startX, y: startY }],
+    });
+
+    for (let i = 1; i <= SWIPE_STEPS; i++) {
+      const currentX = Math.round(
+        startX + ((endX - startX) * i) / SWIPE_STEPS,
+      );
+      await page.waitForTimeout(GESTURE_STEP_MS);
+      await client.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [{ x: currentX, y: startY }],
+      });
+    }
+
+    await page.waitForTimeout(GESTURE_STEP_MS);
+    await client.send('Input.dispatchTouchEvent', {
+      type: 'touchEnd',
+      touchPoints: [],
+    });
+  });
+}
+
+/**
  * Simulates a two-finger pinch on the timeline, moving both touch points
  * apart (scale > 1) or together (scale < 1) from an initial separation
  * around the phantom's center — mirroring `useTimelineZoom`'s

@@ -4,10 +4,12 @@ import {
   PropsWithChildren,
   useImperativeHandle,
   useLayoutEffect,
+  useMemo,
   useRef,
 } from 'react';
 import { usePlaybackService } from '../../playback/usePlaybackService';
 import { useRecordingService } from '../../recording/useRecordingService';
+import { type Track } from '../../tracks/types';
 import { useTimelineZoom } from '../../../shared/hooks/useTimelineZoom';
 import Playhead, { type PlayheadHandle } from './Playhead';
 import PhantomScroller from './PhantomScroller';
@@ -18,6 +20,7 @@ import ZoomControls from './ZoomControls';
 import { useTuningAvailable } from './useTuningActivation';
 import { useScrubberGeometry } from './useScrubberGeometry';
 import { useScrubberScroll, useSpacerHeight } from './useScrubberScroll';
+import { useTrackCycleGesture } from './useTrackCycleGesture';
 import { useTuningOverlay } from './useTuningOverlay';
 import './Scrubber.css';
 
@@ -29,6 +32,7 @@ type ScrubberProps = PropsWithChildren<{
   drawerHeight: number;
   onStopRecording: () => void;
   pixelsPerSecond: number;
+  tracks: Track[];
 }>;
 
 const baseTransformStyle = {
@@ -39,7 +43,11 @@ const baseTransformStyle = {
 const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
   const playback = usePlaybackService();
   const recording = useRecordingService();
-  const { drawerHeight, onStopRecording, pixelsPerSecond } = props;
+  const { drawerHeight, onStopRecording, pixelsPerSecond, tracks } = props;
+  const trackIds = useMemo(
+    () => tracks.map((track) => track.trackId),
+    [tracks],
+  );
 
   const phantomRef = useRef<HTMLDivElement>(null);
   const offsetRef = useRef<HTMLDivElement>(null);
@@ -69,9 +77,16 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
   const { isPinchingRef } = useTimelineZoom(phantomRef);
 
   const {
-    handlePointerDown,
-    handlePointerMove,
-    handlePointerEnd,
+    isCyclingRef: isTrackCyclingRef,
+    handlePointerDown: handleTrackCyclePointerDown,
+    handlePointerMove: handleTrackCyclePointerMove,
+    handlePointerEnd: handleTrackCyclePointerEnd,
+  } = useTrackCycleGesture({ trackIds });
+
+  const {
+    handlePointerDown: handleScrubPointerDown,
+    handlePointerMove: handleScrubPointerMove,
+    handlePointerEnd: handleScrubPointerEnd,
     handleWheel,
     handleScroll,
     isUserScrubbing,
@@ -82,7 +97,26 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     playheadRef,
     pixelsPerSecond,
     isPinchingRef,
+    isTrackCyclingRef,
   });
+
+  // The track-cycle gesture recognizer runs first so it can lock the axis
+  // and set isTrackCyclingRef before the scrub gesture's own distance check
+  // sees the same movement (mirrors how isPinchingRef pre-empts a scrub).
+  const handlePointerDown = (e: React.PointerEvent) => {
+    handleTrackCyclePointerDown(e);
+    handleScrubPointerDown(e);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    handleTrackCyclePointerMove(e);
+    handleScrubPointerMove(e);
+  };
+
+  const handlePointerEnd = () => {
+    handleTrackCyclePointerEnd();
+    handleScrubPointerEnd();
+  };
 
   const spacerHeight = useSpacerHeight(offsetRef);
 
