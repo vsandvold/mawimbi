@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useTrackService } from '../tracks/useTrackService';
 import { type TrackId } from '../tracks/types';
 
@@ -10,10 +11,15 @@ export function useChannelControls(trackId: TrackId) {
   const mute = trackSignals?.mute.value ?? false;
   const solo = trackSignals?.solo.value ?? false;
 
-  // Focus is driven purely by the pointer lifecycle (down → up/cancel),
-  // never by slider value events: Radix's onValueCommit does not fire when
-  // an interaction ends without a value change (press the thumb, release),
-  // which left the timeline focus stuck after a plain fader tap.
+  // Focus is driven purely by the pointer lifecycle (down → up/cancel/
+  // lost capture), never by slider value events: Radix's onValueCommit
+  // does not fire when an interaction ends without a value change (press
+  // the thumb, release), which left the timeline focus stuck after a
+  // plain fader tap. Deliberate tradeoff: keyboard volume changes (arrow
+  // keys on the focused thumb) get no timeline lift — they have no
+  // release event that could reliably clear it, and the pre-fix behavior
+  // (focus from updateVolume) left keyboard focus stuck for the same
+  // reason. Don't re-add startFocus to updateVolume.
   const startFocus = () => {
     trackHook.focusTrack(trackId);
   };
@@ -21,6 +27,17 @@ export function useChannelControls(trackId: TrackId) {
   const endFocus = () => {
     trackHook.unfocusTrack(trackId);
   };
+
+  // The channel can unmount while the pointer is still down (sheet closed
+  // via a keyboard-activated toggle, track removed) — no pointerup would
+  // ever reach the wrapper then, so the hook itself must release the
+  // focus. unfocusTrack is idempotent, so this is a no-op when the
+  // interaction ended normally.
+  useEffect(() => {
+    return () => trackHook.unfocusTrack(trackId);
+    // trackHook delegates to stable module functions
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackId]);
 
   const updateVolume = (value: number) => {
     if (trackSignals) {

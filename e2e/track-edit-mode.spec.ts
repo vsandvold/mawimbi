@@ -40,6 +40,10 @@ const GESTURE_SETTLE_WAIT_MS = 100;
 // Well below the shared background dim (0.5) yet above 0, so the assertion
 // tolerates a mid-transition read while still failing on a hidden track.
 const MIN_VISIBLE_OPACITY = 0.1;
+// Comfortably above the shared dim (0.5) but well below the 0.9 base, so
+// the separation stays perceptible — a dim that crept toward the base
+// opacity would pass a bare < 0.9 check while being invisible in practice.
+const MAX_DIMMED_OPACITY = 0.7;
 
 /**
  * Uploads the longer tone first (becomes the background track once edit
@@ -105,7 +109,7 @@ test.describe('Track edit mode entry/exit', () => {
     expect(parseFloat(activeOpacity)).toBeGreaterThan(
       parseFloat(backgroundOpacity),
     );
-    expect(parseFloat(backgroundOpacity)).toBeLessThan(0.9);
+    expect(parseFloat(backgroundOpacity)).toBeLessThan(MAX_DIMMED_OPACITY);
 
     // Separation uses the same cheap mechanism as the mixer-driven focus
     // effect — an opacity dim plus a z-index lift. No per-track filter,
@@ -374,7 +378,7 @@ test.describe('Track edit mode reduced-motion invariant', () => {
     const backgroundOpacity = await tracks
       .first()
       .evaluate((el) => getComputedStyle(el).opacity);
-    expect(parseFloat(backgroundOpacity)).toBeLessThan(0.9);
+    expect(parseFloat(backgroundOpacity)).toBeLessThan(MAX_DIMMED_OPACITY);
 
     const transitionDuration = await tracks
       .first()

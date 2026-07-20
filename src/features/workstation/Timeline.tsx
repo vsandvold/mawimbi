@@ -84,9 +84,13 @@ function getTimelineTrackClass(
   const isMuted = mutedTracks.includes(track.trackId);
   const isForeground = focusedTracks.includes(track.trackId);
   const isBackground = focusedTracks.length > 0 && !isForeground;
+  // The lift wins over mute: touching a muted channel's fader or dragging
+  // it to reorder reveals its track for the interaction (same principle
+  // as edit mode) — otherwise every other track dims with nothing lifted
+  // to explain it.
   return classNames('timeline__track', {
-    'timeline__track--muted': isMuted,
-    'timeline__track--foreground': !isMuted && isForeground,
+    'timeline__track--muted': isMuted && !isForeground,
+    'timeline__track--foreground': isForeground,
     'timeline__track--background': !isMuted && isBackground,
   });
 }
