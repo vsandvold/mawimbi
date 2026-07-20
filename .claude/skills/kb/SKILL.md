@@ -16,7 +16,7 @@ The KB lives in `kb/` at the repo root (`INDEX.md` is the map). It compounds: ev
 
 ## /kb write
 
-Run near the end of a session, **after `/code-review` and before opening a PR** — code review often surfaces the mistakes and tradeoffs most worth capturing, so let it run first (see `work-issue`'s Review and Pay back steps). Commit the KB update as its own commit on the same branch/PR as the change it came from (not squashed into that change's commit, and not a follow-up PR — see `work-issue`'s Ship step). For ad hoc sessions with no PR in flight, right after a PR merges also works. Distill what this session learned, then filter hard:
+Run near the end of a session, **after `/code-review` and before opening a PR** — code review often surfaces the mistakes and tradeoffs most worth capturing, so let it run first (see `work-issue`'s Review and Pay back steps). Commit the KB update as its own commit on the same branch/PR as the change it came from (not squashed into the feature or review-fix commit, and not a follow-up PR — see `work-issue`'s Pay back step). For ad hoc sessions with no PR in flight, right after a PR merges also works. Distill what this session learned, then filter hard:
 
 **Include** only entries that are all three of:
 - **Durable** — still true and useful months from now (not "test X was flaky today").

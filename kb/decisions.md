@@ -4,6 +4,12 @@ Architectural decisions with rationale and provenance, newest first. Entry forma
 
 **Hygiene note:** this file is past the KB's ~150-line guideline (`kb/INDEX.md`) — due a split (e.g. by year, or into `decisions.md` + `decisions-archive.md`) in a future `/harness-audit` or dedicated session, not blocking here.
 
+## 2026-07-20 — `work-issue` commits feature code, review fixes, and the KB update as three separate commits
+
+**Decision:** `work-issue`'s old combined "Ship" step (commit feature code including any review fixes, then commit the KB update separately) is split into three steps — Commit (feature code, before review runs), Review (`/code-review`, its fixes committed separately), Pay back (`/kb write`, committed separately) — landing three distinct commits per PR instead of two.
+**Why:** Committing the feature code only at Ship time meant `/code-review` ran against an uncommitted diff and its fixes were silently folded into the same commit as the original implementation — the PR history couldn't show what review actually changed. Committing before review makes the fix commit a visible, separate diff.
+**Source:** `.claude/skills/work-issue/SKILL.md`, `.claude/skills/kb/SKILL.md`.
+
 ## 2026-07-20 — A React-state-derived signal module's enter/exit lives in one `useEffect`, not scattered across every setter of that state
 
 **Decision:** `editModeSignals`' `activeEditTrackId` (spec 004 milestone 2, #490) is entered/exited from a single `useEffect` in `Workstation.tsx` keyed on `activeSheet`, not from each individual handler that can change `activeSheet` (`toggleMixer`, `toggleLyrics`, `toggleEffects`, `toggleRecording`, the drawer's own close button).
