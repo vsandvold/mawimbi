@@ -6,7 +6,7 @@ argument-hint: <issue number>
 
 # Work an Issue
 
-The delivery loop for one issue. The ordering is the point: **verification exists before implementation**, and **the KB gets paid back before the session ends**.
+The delivery loop for one issue. The ordering is the point: **verification exists before implementation**, **code review runs before the KB gets paid back**, and **the KB gets paid back before the session ends**.
 
 ## 1. Ground
 
@@ -26,11 +26,15 @@ Per CLAUDE.md's Working Defaults, on the session's designated branch. For a genu
 
 Run the issue's verification commands, then verify per CLAUDE.md's Working Defaults (`npm run lint` plus the tests relevant to the change; e2e with `--reporter=list` in headless sessions). Only claim what this session has evidence for. Check acceptance-criteria boxes only when their check actually ran green.
 
-## 5. Pay back
+## 5. Review
 
-- `/kb write` — capture durable learnings from this session, **before shipping**, so the update lands in this PR rather than a follow-up one.
+Run `/code-review` on the diff and address confirmed findings (CLAUDE.md, Working Defaults). Do this before `/kb write` — review often surfaces the mistakes and tradeoffs that are actually worth capturing.
+
+## 6. Pay back
+
+- `/kb write` — capture durable learnings from this session, **before shipping**, so the update lands in this PR rather than a follow-up one. Include anything code review surfaced that's durable and non-derivable, not just narration of the review itself.
 - If this was the spec's last milestone: spec Status → `Delivered`.
 
-## 6. Ship
+## 7. Ship
 
-Follow CLAUDE.md's Pull Requests section: commit the feature code, then commit the KB update **separately** (`kb/*.md`, `CLAUDE.md`, `specs/*.md` changes in their own commit) — same branch and PR, distinct commit — and push both. Run `/code-review` and address confirmed findings, then open the PR with a summary, a test plan listing the commands actually run, and `Closes #<issue-number>` in the body so merging auto-closes the issue. Comment on the issue per CLAUDE.md's Issue Updates format (what was done, recommended next steps). Subscribe to the PR's activity and babysit CI to green. If this was the spec's last milestone, close the parent tracking issue with a summary once the PR merges.
+Follow CLAUDE.md's Pull Requests section: commit the feature code (including any review fixes), then commit the KB update **separately** (`kb/*.md`, `CLAUDE.md`, `specs/*.md` changes in their own commit) — same branch and PR, distinct commit — and push both. Open the PR with a summary, a test plan listing the commands actually run, and `Closes #<issue-number>` in the body so merging auto-closes the issue. Comment on the issue per CLAUDE.md's Issue Updates format (what was done, recommended next steps). Subscribe to the PR's activity and babysit CI to green. If this was the spec's last milestone, close the parent tracking issue with a summary once the PR merges.

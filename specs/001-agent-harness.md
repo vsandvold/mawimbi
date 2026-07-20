@@ -20,7 +20,7 @@ A harness that lets an autonomous agent (Fable/Opus/Sonnet session) take a featu
 2. `/spec-to-issues` files a parent tracking issue plus ordered milestone sub-issues matching the repo's established issue style.
 3. `/kb` gives every session a read-before-planning / write-before-finishing protocol over `kb/`, with a clean boundary against CLAUDE.md.
 4. `/council` structures multi-perspective deliberation (parallel adversarial lenses, evidence-based synthesis, recorded dissent) during planning.
-5. `/work-issue` executes an issue end-to-end: ground → verification first → implement → verify → review → ship → pay back the KB.
+5. `/work-issue` executes an issue end-to-end: ground → verification first → implement → verify → review → pay back the KB → ship.
 6. `/harness-audit` detects and fixes KB/CLAUDE.md/spec drift and runs the quality gates.
 
 ## Non-goals
