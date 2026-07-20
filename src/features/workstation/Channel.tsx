@@ -47,15 +47,8 @@ const Channel = ({
   const { trackId, color } = track;
   const dispatch = useProjectDispatch();
 
-  const {
-    volume,
-    mute,
-    solo,
-    startFocus,
-    updateVolume,
-    commitVolume,
-    cycleState,
-  } = useChannelControls(trackId);
+  const { volume, mute, solo, startFocus, endFocus, updateVolume, cycleState } =
+    useChannelControls(trackId);
 
   const { getClassification, getClassificationState, downloadProgress } =
     useClassificationService();
@@ -147,14 +140,21 @@ const Channel = ({
           {getChannelStateIcon(mute, solo)}
         </Button>
       </div>
-      <div className="channel__volume" onPointerDown={startFocus}>
+      {/* Focus follows the pointer, not slider value events — pointerup/
+          pointercancel bubble here from Radix's pointer capture even when
+          the interaction never changed the value (see useChannelControls). */}
+      <div
+        className="channel__volume"
+        onPointerDown={startFocus}
+        onPointerUp={endFocus}
+        onPointerCancel={endFocus}
+      >
         <Slider
           className="channel-slider"
           defaultValue={[volume]}
           min={0}
           max={100}
           onValueChange={handleValueChange}
-          onValueCommit={commitVolume}
         />
       </div>
       <div className="channel__move" {...dragHandleProps}>

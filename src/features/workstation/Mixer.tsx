@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -91,8 +91,24 @@ const SortableChannelItem = ({
   isInstrumentDropdownOpen,
   onInstrumentDropdownOpenChange,
 }: SortableChannelItemProps) => {
-  const { attributes, listeners, setNodeRef, transform, transition } =
-    useSortable({ id: track.trackId });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: track.trackId });
+  const { focusTrack, unfocusTrack } = useTrackService();
+
+  // Reorder-dragging lifts the dragged track in the timeline, same as
+  // touching its fader. The cleanup covers drop, drag cancel, and the item
+  // unmounting mid-drag alike.
+  useEffect(() => {
+    if (!isDragging) return;
+    focusTrack(track.trackId);
+    return () => unfocusTrack(track.trackId);
+  }, [isDragging, track.trackId, focusTrack, unfocusTrack]);
 
   const style = {
     transform: CSS.Transform.toString(transform),

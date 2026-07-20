@@ -10,19 +10,22 @@ export function useChannelControls(trackId: TrackId) {
   const mute = trackSignals?.mute.value ?? false;
   const solo = trackSignals?.solo.value ?? false;
 
+  // Focus is driven purely by the pointer lifecycle (down → up/cancel),
+  // never by slider value events: Radix's onValueCommit does not fire when
+  // an interaction ends without a value change (press the thumb, release),
+  // which left the timeline focus stuck after a plain fader tap.
   const startFocus = () => {
     trackHook.focusTrack(trackId);
+  };
+
+  const endFocus = () => {
+    trackHook.unfocusTrack(trackId);
   };
 
   const updateVolume = (value: number) => {
     if (trackSignals) {
       trackSignals.volume.value = value;
     }
-    startFocus();
-  };
-
-  const commitVolume = () => {
-    trackHook.unfocusTrack(trackId);
   };
 
   const cycleState = () => {
@@ -46,8 +49,8 @@ export function useChannelControls(trackId: TrackId) {
     mute,
     solo,
     startFocus,
+    endFocus,
     updateVolume,
-    commitVolume,
     cycleState,
   };
 }
