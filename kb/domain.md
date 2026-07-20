@@ -38,7 +38,8 @@ All inference runs in Web Workers (melody: Spotify Basic Pitch; lyrics: Whisper;
 
 ## Runway geometry (playhead/scrubber)
 
-Two physical facts govern all runway work; the decisions built on them are in `kb/decisions.md` (2026-07-18/19 entries):
+Three physical facts govern all runway work; the decisions built on them are in `kb/decisions.md` (2026-07-18/19 entries):
 
 - Under perspective, the layout→screen mapping is **nonlinear** — any linear-fraction shortcut (CSS `calc`, `cqh` padding) looks right in the flat case and drifts under real tilt.
 - Scroll clipping happens in **pre-transform layout space** — a scroll container inside the tilt clips content before `rotateX` can project it into view (the #459 bug class).
+- **2D child transforms compose with the plane's tilt; per-child depth does not.** A `.timeline__track`'s own scale/translate/filter renders fine inside the flattened `rotateX` plane, but giving a child its *own* `translateZ` requires `transform-style: preserve-3d` on every intermediate ancestor (any `overflow`/`opacity<1`/`filter` on the chain silently flattens it), and the lifted content then un-anchors from the playhead line unless a compensating translate is solved via `runwayProjection` (fact 1). This is why spec 004 phases per-track separation: in-plane emphasis first, true 3D lift last.
