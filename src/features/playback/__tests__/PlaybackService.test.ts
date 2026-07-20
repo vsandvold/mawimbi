@@ -328,6 +328,82 @@ describe('PlaybackService', () => {
       expect(service.transportTime).toBe(0);
       expect(service.totalTime).toBe(0);
       expect(service.loudness).toBe(0);
+      expect(service.commandEpoch).toBe(0);
     });
+  });
+
+  describe('commandEpoch', () => {
+    it('starts at 0', () => {
+      expect(service.commandEpoch).toBe(0);
+    });
+
+    it.each([
+      ['play', () => service.play()],
+      ['togglePlayback', () => service.togglePlayback()],
+      ['rewind', () => service.rewind()],
+      ['seekTo', () => service.seekTo(5.0)],
+    ])('bumps the epoch exactly once on %s from stopped', (_name, command) => {
+      const before = service.commandEpoch;
+
+      command();
+
+      expect(service.commandEpoch).toBe(before + 1);
+    });
+
+    it.each([
+      ['pause', () => service.pause()],
+      ['stop', () => service.stop()],
+    ])('bumps the epoch exactly once on %s from playing', (_name, command) => {
+      service.play();
+      const before = service.commandEpoch;
+
+      command();
+
+      expect(service.commandEpoch).toBe(before + 1);
+    });
+
+    it('does not bump the epoch on setTransportTime', () => {
+      const before = service.commandEpoch;
+
+      service.setTransportTime(1.0);
+
+      expect(service.commandEpoch).toBe(before);
+    });
+
+    it('does not bump the epoch when auto-stopping at end of timeline', () => {
+      service.setTotalTime(10.0);
+      service.play();
+      const before = service.commandEpoch;
+
+      service.setTransportTime(10.0);
+
+      expect(service.playbackState).toBe('stopped');
+      expect(service.commandEpoch).toBe(before);
+    });
+
+    // play()/pause()/stop() are also called as incidental cleanup by other
+    // services (e.g. RecordingService's count-in cancellation, overdub
+    // lifecycle) where playback may already be in the target state — bumping
+    // on those no-ops would spuriously cancel an unrelated armed follow-up
+    // (issue #475 review).
+    it.each([
+      [
+        'play while already playing',
+        () => service.play(),
+        () => service.play(),
+      ],
+      ['pause while already stopped', () => {}, () => service.pause()],
+      ['stop while already stopped', () => {}, () => service.stop()],
+    ])(
+      'does not bump the epoch for a no-op call: %s',
+      (_name, setup, command) => {
+        setup();
+        const before = service.commandEpoch;
+
+        command();
+
+        expect(service.commandEpoch).toBe(before);
+      },
+    );
   });
 });

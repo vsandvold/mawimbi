@@ -39,6 +39,9 @@ export function usePlaybackService() {
     get loudness(): number {
       return service.signals.loudness.value;
     },
+    get commandEpoch(): number {
+      return service.commandEpoch;
+    },
 
     // --- State machine transitions ---
 

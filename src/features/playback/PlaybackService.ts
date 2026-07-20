@@ -27,6 +27,22 @@ class PlaybackService {
   private readonly _loudness = signal(0);
   private readonly _isPlaying: ReadonlySignal<boolean>;
 
+  // Monotonic counter bumped by every explicit state *transition* — play(),
+  // pause(), and stop() bump it only when they actually change state, not on
+  // a guarded no-op (e.g. pause() while already paused); rewind() and
+  // seekTo() have no such guard and always bump, since every call is a real
+  // command. Never bumped by engine-driven updates (setTransportTime, the
+  // internal stopAtEndOfTimeline). The "no-op doesn't bump" rule matters
+  // because play()/pause() are also called as incidental cleanup elsewhere
+  // (e.g. cancelling a count-in, RecordingService's overdub lifecycle) where
+  // playback may already be in the target state — bumping there too would
+  // spuriously cancel an unrelated armed follow-up. Lets a caller that armed
+  // a delayed follow-up action (the scrubber's auto-resume after a debounced
+  // seek, issue #475) detect whether an explicit command intervened before
+  // that follow-up fires, by comparing epoch snapshots. Nothing renders from
+  // it, so a plain field is enough — no signal.
+  private _commandEpoch = 0;
+
   // --- Narrow channel for reactive consumers (hooks) ---
 
   readonly signals: {
@@ -73,6 +89,10 @@ class PlaybackService {
     return this._isPlaying.value;
   }
 
+  get commandEpoch(): number {
+    return this._commandEpoch;
+  }
+
   // --- Setters for values that external code needs to update ---
 
   setTransportTime(time: number): void {
@@ -95,6 +115,7 @@ class PlaybackService {
   play(): void {
     const state = this._playbackState.value;
     if (state === 'playing') return;
+    this.bumpCommandEpoch();
 
     if (state === 'stopped' && this.isAtEndOfTimeline()) {
       this._transportTime.value = 0;
@@ -114,12 +135,14 @@ class PlaybackService {
 
   pause(): void {
     if (this._playbackState.value !== 'playing') return;
+    this.bumpCommandEpoch();
     this._playbackState.value = 'paused';
     this.transport.pause();
   }
 
   stop(): void {
     if (this._playbackState.value === 'stopped') return;
+    this.bumpCommandEpoch();
     this._playbackState.value = 'stopped';
     this.transport.stop();
   }
@@ -133,6 +156,7 @@ class PlaybackService {
   }
 
   rewind(): void {
+    this.bumpCommandEpoch();
     this.transport.stop();
     this.transport.seconds = 0;
     this._playbackState.value = 'stopped';
@@ -140,6 +164,7 @@ class PlaybackService {
   }
 
   seekTo(time: number): void {
+    this.bumpCommandEpoch();
     this._transportTime.value = time;
     this.transport.seconds = time;
   }
@@ -171,11 +196,20 @@ class PlaybackService {
     this._transportTime.value = 0;
     this._totalTime.value = 0;
     this._loudness.value = 0;
+    this._commandEpoch = 0;
+  }
+
+  private bumpCommandEpoch(): void {
+    this._commandEpoch += 1;
   }
 
   // Stops playback at the end of the timeline without rewinding.
   // Uses transport.pause() instead of transport.stop() to preserve
-  // the current position, so the scrubber stays at the end.
+  // the current position, so the scrubber stays at the end. Deliberately
+  // does not bump the command epoch: an armed scrub auto-resume (issue #475)
+  // should still fire after this, restarting playback from 0 via play()'s
+  // own end-of-timeline check — the least-surprise outcome (spec 002, Open
+  // questions) rather than silently swallowing the resume.
   private stopAtEndOfTimeline(): void {
     this._playbackState.value = 'stopped';
     this.transport.pause();
