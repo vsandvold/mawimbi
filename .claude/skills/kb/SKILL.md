@@ -16,7 +16,7 @@ The KB lives in `kb/` at the repo root (`INDEX.md` is the map). It compounds: ev
 
 ## /kb write
 
-Run near the end of a session, **before opening a PR** — commit the KB update alongside the change it came from so it ships in the same PR, not a follow-up one (see `work-issue`'s Pay back step). For ad hoc sessions with no PR in flight, right after a PR merges also works. Distill what this session learned, then filter hard:
+Run near the end of a session, **before opening a PR** — commit the KB update as its own commit on the same branch/PR as the change it came from (not squashed into that change's commit, and not a follow-up PR — see `work-issue`'s Ship step). For ad hoc sessions with no PR in flight, right after a PR merges also works. Distill what this session learned, then filter hard:
 
 **Include** only entries that are all three of:
 - **Durable** — still true and useful months from now (not "test X was flaky today").
