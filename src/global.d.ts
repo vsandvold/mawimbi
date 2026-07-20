@@ -12,7 +12,7 @@ declare global {
      * builds; e2e always runs against `npm start` (playwright.config.ts).
      */
     __mawimbi?: {
-      spectrogramCache: SpectrogramCache;
+      spectrogramCache: Pick<SpectrogramCache, 'getMelody'>;
     };
   }
 }

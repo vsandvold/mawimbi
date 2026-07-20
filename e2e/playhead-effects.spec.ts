@@ -1,6 +1,5 @@
-import type { Page } from '@playwright/test';
-import type SpectrogramCache from '../src/features/spectrogram/SpectrogramCache';
 import { expect, test, uploadAudioFile, SHORT_AUDIO } from './fixtures';
+import { getFirstTrackId, waitForMelody } from './helpers/mawimbiBridge';
 
 /**
  * Proving e2e for the melody path (mawimbi#480, spec 003 milestone 1).
@@ -24,48 +23,21 @@ import { expect, test, uploadAudioFile, SHORT_AUDIO } from './fixtures';
  * pixel) assertions for sparkle/pulse rendering on top of this same path.
  */
 
-type MawimbiWindow = Window & {
-  __mawimbi?: { spectrogramCache: SpectrogramCache };
-};
+// SHORT_AUDIO is a 0.5s 440 Hz sine wave — MIDI 69 (A4), no other pitch.
+const EXPECTED_MIDI_NOTE = 69;
+const EXPECTED_START_TIME_MAX_S = 0.1;
+const EXPECTED_END_TIME_MIN_S = 0.4;
 
-const MELODY_TIMEOUT_MS = 30_000;
-const MELODY_POLL_INTERVAL_MS = 200;
-
-async function getFirstTrackId(page: Page): Promise<string> {
-  const trackId = await page
-    .locator('.timeline__track')
-    .first()
-    .getAttribute('data-track-id');
-  if (!trackId) throw new Error('track id not found on .timeline__track');
-  return trackId;
-}
-
-async function waitForMelody(page: Page, trackId: string) {
-  await expect
-    .poll(
-      () =>
-        page.evaluate(
-          (id) =>
-            (window as MawimbiWindow).__mawimbi?.spectrogramCache.getMelody(
-              id,
-            )?.notes.length,
-          trackId,
-        ),
-      { timeout: MELODY_TIMEOUT_MS, intervals: [MELODY_POLL_INTERVAL_MS] },
-    )
-    .toBeGreaterThan(0);
-
-  return page.evaluate(
-    (id) =>
-      (window as MawimbiWindow).__mawimbi!.spectrogramCache.getMelody(id)!,
-    trackId,
-  );
-}
+// Real transcription can take up to ~11s (kb/verification.md); give the
+// test itself headroom beyond the poll's own timeout for setup/teardown.
+const TEST_TIMEOUT_MS = 45_000;
 
 test.describe('Melody transcription path', () => {
   test('a known note is present at a known time after uploading a pure tone', async ({
     page,
   }) => {
+    test.setTimeout(TEST_TIMEOUT_MS);
+
     await page.goto('/project/test-id');
     await uploadAudioFile(page, SHORT_AUDIO);
     await expect(page.locator('.timeline__track')).toBeVisible();
@@ -73,12 +45,11 @@ test.describe('Melody transcription path', () => {
     const trackId = await getFirstTrackId(page);
     const melody = await waitForMelody(page, trackId);
 
-    // SHORT_AUDIO is a 0.5s 440 Hz sine wave — MIDI 69 (A4), no other pitch.
     expect(melody.notes).toHaveLength(1);
     const [note] = melody.notes;
-    expect(note.midiNote).toBe(69);
-    expect(note.startTime).toBeLessThan(0.1);
-    expect(note.endTime).toBeGreaterThan(0.4);
+    expect(note.midiNote).toBe(EXPECTED_MIDI_NOTE);
+    expect(note.startTime).toBeLessThan(EXPECTED_START_TIME_MAX_S);
+    expect(note.endTime).toBeGreaterThan(EXPECTED_END_TIME_MIN_S);
     expect(note.confidence).toBeGreaterThan(0);
   });
 });
