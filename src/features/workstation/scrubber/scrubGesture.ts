@@ -9,9 +9,17 @@
  * Scrub state is entered only from real input events — a wheel tick, or
  * pointer movement past `SCRUB_MOVEMENT_THRESHOLD_PX` — never inferred from
  * `scroll` events. A resting finger (pointerdown with no movement) never
- * enters a gesture (G4). `scroll` events carry no state transition of their
- * own; they only extend the seek debounce while a gesture is already
- * active or settling (handled by the caller, not this reducer).
+ * enters a gesture (G4). `scroll` events never reach this reducer at all —
+ * the caller (useScrubberScroll.ts) only uses them to sync visuals and, via
+ * `isGestureInProgress`, to extend the seek debounce while a gesture is
+ * already active or settling.
+ *
+ * `gestureActive` and `pendingSeek` are currently treated identically by
+ * every consumer (both are "in progress" per `isGestureInProgress`) — the
+ * distinction exists for the council-decided design (spec 002) and for
+ * milestone 3's command epoch (issue #475), which needs to tell "a gesture
+ * is live" apart from "a gesture ended, resume still armed" when deciding
+ * whether an intervening explicit command should cancel it.
  */
 
 export type ScrubState = 'idle' | 'gestureActive' | 'pendingSeek';
@@ -23,8 +31,6 @@ export type ScrubEvent =
   | { type: 'wheel' }
   /** Pointer released, cancelled, or lost capture (up/cancel/lostpointercapture). */
   | { type: 'pointerEnd' }
-  /** A native `scroll` event — never drives a transition on its own. */
-  | { type: 'scroll' }
   /** The debounced seek fired and (if armed) playback resumed. */
   | { type: 'seekCommitted' };
 
@@ -43,8 +49,6 @@ export function nextScrubState(
       return 'gestureActive';
     case 'pointerEnd':
       return state === 'gestureActive' ? 'pendingSeek' : state;
-    case 'scroll':
-      return state;
     case 'seekCommitted':
       return 'idle';
   }

@@ -112,7 +112,13 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     syncScrollToTime,
   ]);
 
+  // A native click can still fire after movement crosses the scrub
+  // threshold (the browser's own click-vs-drag tolerance doesn't match
+  // SCRUB_MOVEMENT_THRESHOLD_PX) — once that movement has registered as a
+  // gesture, this is no longer "a tap" per this app's own model (C4: tap
+  // toggles, drags seek), so it must not also toggle playback.
   const handleTimelineClick = () => {
+    if (isUserScrubbing()) return;
     if (recording.isCountingIn || recording.isActivelyRecording) {
       onStopRecording();
       return;

@@ -63,6 +63,7 @@ export function useScrubberScroll({
   const scrubStateRef = useRef<ScrubState>('idle');
   const shouldResumeRef = useRef(false);
   const pointerDownPosRef = useRef<PointerPosition | null>(null);
+  const activePointerCountRef = useRef(0);
 
   /**
    * Ensure the phantom scroller's spacer height matches the offset stage's
@@ -172,6 +173,14 @@ export function useScrubberScroll({
           const isEndOfScroll = phantomRef.current.scrollTop <= 0;
           if (isEndOfScroll) {
             playback.setTransportTime(playback.totalTime);
+            if (playback.isPlaying) {
+              // isAtEndOfTimeline requires totalTime > 0 (PlaybackService),
+              // so the call above is a no-op when totalTime just dropped to
+              // 0 (e.g. the last track was removed mid-playback). Stop
+              // directly so this loop doesn't die mid-"playing" — the old
+              // rewind()-based fallback stopped unconditionally here.
+              playback.pause();
+            }
             return;
           }
         }
@@ -198,18 +207,27 @@ export function useScrubberScroll({
     // Hook objects reference stable service singletons via getters
   }, [playbackState, setScrollPosition]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Always clears the gesture state and the armed-resume flag, even if the
+  // seek/resume below is skipped — otherwise a debounce that commits while
+  // actively recording (C9: scroll-to-seek is disabled during active
+  // recording) would leave scrubStateRef/shouldResumeRef stuck armed with
+  // no further scroll event ever scheduled to retry them.
   const setTransportTimeFromScroll = () => {
     scrubStateRef.current = nextScrubState(scrubStateRef.current, {
       type: 'seekCommitted',
     });
+    const shouldResume = shouldResumeRef.current;
+    shouldResumeRef.current = false;
+
+    if (recording.isActivelyRecording) return;
+
     const el = phantomRef.current;
     if (el) {
       const maxScrollTop = el.scrollHeight - el.clientHeight;
       const time = (maxScrollTop - el.scrollTop) / pixelsPerSecond;
       playback.seekTo(time);
     }
-    if (shouldResumeRef.current) {
-      shouldResumeRef.current = false;
+    if (shouldResume) {
       playback.play();
     }
   };
@@ -226,24 +244,36 @@ export function useScrubberScroll({
   };
 
   // A gesture is entered only from real input events (below), never
-  // inferred from `scroll` events — see scrubGesture.ts. Recording position
-  // is tracked so a subsequent pointermove can measure cumulative movement
-  // against it (G4: a resting finger never scrubs).
+  // inferred from `scroll` events — see scrubGesture.ts. Pointer position is
+  // tracked so a subsequent pointermove can measure cumulative movement
+  // against it (G4: a resting finger never scrubs). A second pointer
+  // joining (e.g. a pinch's first two touches) clears the origin: pinch is
+  // multi-touch, never a single-finger scrub, so it must never reach the
+  // movement-threshold check below (G5 groundwork — full pinch integration
+  // is #476, but a two-finger touch was never meant to read as a drag).
   const handlePointerDown = (e: React.PointerEvent) => {
-    pointerDownPosRef.current = { x: e.clientX, y: e.clientY };
+    activePointerCountRef.current += 1;
+    pointerDownPosRef.current =
+      activePointerCountRef.current === 1
+        ? { x: e.clientX, y: e.clientY }
+        : null;
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
+    // Once a gesture is active, further movement no longer changes the
+    // outcome (see scrubGesture.ts's pointerMove case) — skip the distance
+    // calculation for the remainder of the drag, not just its result.
+    if (scrubStateRef.current !== 'idle') return;
+    if (activePointerCountRef.current !== 1) return;
     const origin = pointerDownPosRef.current;
     if (!origin || recording.isActivelyRecording) return;
 
     const distancePx = Math.hypot(e.clientX - origin.x, e.clientY - origin.y);
-    const wasIdle = scrubStateRef.current === 'idle';
     scrubStateRef.current = nextScrubState(scrubStateRef.current, {
       type: 'pointerMove',
       distancePx,
     });
-    if (wasIdle && scrubStateRef.current !== 'idle') {
+    if (scrubStateRef.current !== 'idle') {
       pauseForUserScroll();
     }
   };
@@ -255,11 +285,27 @@ export function useScrubberScroll({
   // instead). The gesture may still be settling (momentum scroll events
   // extending the debounce), so this only ends the *pointer*, not the
   // gesture — pendingSeek is exited by the debounced seek committing.
+  //
+  // A real gesture always schedules that commit itself, rather than
+  // depending on a `scroll` event to schedule it: on a fast flick the
+  // pointer can release before the browser has dispatched even one native
+  // scroll event, and recording can start mid-gesture and make handleScroll
+  // stop scheduling (see setTransportTimeFromScroll) — either way, with
+  // nothing scheduled, scrubStateRef would stay stuck at 'pendingSeek'
+  // forever, permanently blocking the geometry-resync guard.
   const handlePointerEnd = () => {
+    activePointerCountRef.current = Math.max(
+      0,
+      activePointerCountRef.current - 1,
+    );
     pointerDownPosRef.current = null;
+    const wasActive = scrubStateRef.current === 'gestureActive';
     scrubStateRef.current = nextScrubState(scrubStateRef.current, {
       type: 'pointerEnd',
     });
+    if (wasActive) {
+      debouncedSetTransportTime();
+    }
   };
 
   const handleWheel = (e: React.WheelEvent) => {
@@ -278,13 +324,15 @@ export function useScrubberScroll({
   // inferring intent from them is exactly what misclassified them as user
   // scrubs). They only sync visuals, and — while a gesture is already
   // active or settling — extend the seek debounce, which is what keeps
-  // touch momentum seeking working after the finger lifts.
+  // touch momentum seeking working after the finger lifts. Recording is not
+  // checked here: setTransportTimeFromScroll already skips the seek/resume
+  // side effects while actively recording, and gating scheduling here too
+  // risks a debounce that never gets re-armed once recording ends.
   const handleScroll = () => {
     syncSpacerHeight();
     syncOffset();
 
     if (!isGestureInProgress(scrubStateRef.current)) return;
-    if (recording.isActivelyRecording) return;
     debouncedSetTransportTime();
   };
 

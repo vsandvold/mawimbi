@@ -65,14 +65,6 @@ describe('nextScrubState', () => {
     });
   });
 
-  describe('scroll', () => {
-    const states: ScrubState[] = ['idle', 'gestureActive', 'pendingSeek'];
-
-    it.each(states)('never changes state on its own (from %s)', (state) => {
-      expect(nextScrubState(state, { type: 'scroll' })).toBe(state);
-    });
-  });
-
   describe('seekCommitted', () => {
     const states: ScrubState[] = ['idle', 'gestureActive', 'pendingSeek'];
 
