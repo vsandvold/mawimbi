@@ -2,6 +2,12 @@
 
 Architectural decisions with rationale and provenance, newest first. Entry format: date, decision, why, source. When a decision is reversed, mark the old entry **Superseded** with a pointer — don't delete it; the rationale trail is the point.
 
+## 2026-07-20 — Gesture entry requires exactly one active pointer; end-of-timeline compares raw numbers, never toFixed(1) strings
+
+**Decision:** `useScrubberScroll.ts`'s gesture-entry threshold check (issue #474) only fires with exactly one pointer down; a second pointer joining clears the tracked origin. `PlaybackService.isAtEndOfTimeline()` compares `transportTime >= totalTime` directly, never `toFixed(1)` string equality.
+**Why:** A two-finger pinch's `touchmove` handler calling `preventDefault()` suppresses the native *scroll* the browser would otherwise generate, but not the parallel `pointermove` events per finger — each still fires and can cross a movement threshold on its own, so any pointermove-driven gesture check must explicitly gate on pointer count or a pinch misreads as a one-finger drag. Separately, `"10.06".toFixed(1)` → `"10.1"`, never `"10.0"` — a frame that steps over the 0.1s rounding bucket makes string-equality end-of-timeline detection miss the end entirely; the raw numeric `>=` has no such gap. Both found by code review during #474's implementation, before either shipped.
+**Source:** Issue #474 (spec 002 milestone 2), PR #498.
+
 ## 2026-07-19 — Stub Node-only transitive ML dependencies
 
 **Decision:** `package.json` `overrides` maps `onnxruntime-node` and `sharp` to an in-repo empty package.
