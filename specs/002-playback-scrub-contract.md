@@ -1,6 +1,6 @@
 # 002 — Playback & scrub interaction contract (and the misfire/stutter fixes)
 
-**Status:** Issues filed
+**Status:** Delivered
 **Date:** 2026-07-19
 **Issues:** #472 (tracking) · #473 (M1 verification harness) · #474 (M2 gesture model) · #475 (M3 command epoch) · #476 (M4 pinch integration) · #477 (M5 KB payback)
 
