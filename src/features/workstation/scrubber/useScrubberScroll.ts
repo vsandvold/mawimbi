@@ -406,18 +406,27 @@ export function useScrubberScroll({
   );
 
   // True from a user-initiated gesture until its debounced seek commits
-  // (gestureActive or pendingSeek — see scrubGesture.ts), or while a
-  // horizontal track-cycle gesture is locked in (useTrackCycleGesture).
-  // Geometry-change resyncs must not fire in this window: they would snap
-  // scrollTop back to the stale pre-scrub transport time, yanking the
-  // timeline out from under an active drag (e.g. when the drag itself
-  // collapses the mobile address bar and resizes the viewport). Skipping is
-  // safe — the pending seek re-derives the time from the final scroll
-  // position against the then-current mapping.
+  // (gestureActive or pendingSeek — see scrubGesture.ts). Geometry-change
+  // resyncs must not fire in this window: they would snap scrollTop back to
+  // the stale pre-scrub transport time, yanking the timeline out from under
+  // an active drag (e.g. when the drag itself collapses the mobile address
+  // bar and resizes the viewport). Skipping is safe — the pending seek
+  // re-derives the time from the final scroll position against the
+  // then-current mapping.
+  //
+  // Deliberately does NOT also check isTrackCyclingRef: that ref stays true
+  // from a horizontal cycle gesture's release until the *next* pointerdown
+  // (so the trailing synthetic click is still suppressed — see
+  // useTrackCycleGesture.ts), an unbounded window with no relationship to
+  // "is a geometry resync unsafe right now". Folding it in here used to
+  // starve this effect's resync for as long as that window lasted — e.g. a
+  // drawer opened via a toolbar button (not a phantom touch) after a
+  // completed swipe would resolve new geometry but never re-sync scroll to
+  // it. Click suppression is a Scrubber.tsx-only concern; it checks
+  // isTrackCyclingRef directly there instead.
   const isUserScrubbing = useCallback(
-    () =>
-      isGestureInProgress(scrubStateRef.current) || isTrackCyclingRef.current,
-    [isTrackCyclingRef],
+    () => isGestureInProgress(scrubStateRef.current),
+    [],
   );
 
   return {

@@ -64,25 +64,36 @@ export async function touchTap(page: Page, holdMs: number): Promise<void> {
 }
 
 /**
- * Simulates a vertical touch-swipe on the timeline, mirroring what a real
- * user does when dragging the timeline with their finger.
+ * Shared touchStart/stepped-touchMove/touchEnd sequence for a single-finger
+ * swipe along one axis, from the phantom's center offset by `delta` along
+ * that axis. `swipeTimeline`/`swipeTimelineHorizontal` below are thin,
+ * axis-specific wrappers so call sites keep a plain `(page, delta)` shape.
  */
-export async function swipeTimeline(page: Page, deltaY: number): Promise<void> {
-  const { x: startX, y: startY } = await getPhantomCenter(page);
-  const endY = startY - deltaY;
+async function swipeTimelineAxis(
+  page: Page,
+  axis: 'x' | 'y',
+  delta: number,
+): Promise<void> {
+  const start = await getPhantomCenter(page);
+  const end = { ...start, [axis]: start[axis] - delta };
 
   await withTouchSession(page, async (client) => {
     await client.send('Input.dispatchTouchEvent', {
       type: 'touchStart',
-      touchPoints: [{ x: startX, y: startY }],
+      touchPoints: [start],
     });
 
     for (let i = 1; i <= SWIPE_STEPS; i++) {
-      const currentY = Math.round(startY + ((endY - startY) * i) / SWIPE_STEPS);
+      const current = {
+        ...start,
+        [axis]: Math.round(
+          start[axis] + ((end[axis] - start[axis]) * i) / SWIPE_STEPS,
+        ),
+      };
       await page.waitForTimeout(GESTURE_STEP_MS);
       await client.send('Input.dispatchTouchEvent', {
         type: 'touchMove',
-        touchPoints: [{ x: startX, y: currentY }],
+        touchPoints: [current],
       });
     }
 
@@ -92,6 +103,14 @@ export async function swipeTimeline(page: Page, deltaY: number): Promise<void> {
       touchPoints: [],
     });
   });
+}
+
+/**
+ * Simulates a vertical touch-swipe on the timeline, mirroring what a real
+ * user does when dragging the timeline with their finger.
+ */
+export async function swipeTimeline(page: Page, deltaY: number): Promise<void> {
+  await swipeTimelineAxis(page, 'y', deltaY);
 }
 
 /**
@@ -106,32 +125,7 @@ export async function swipeTimelineHorizontal(
   page: Page,
   deltaX: number,
 ): Promise<void> {
-  const { x: startX, y: startY } = await getPhantomCenter(page);
-  const endX = startX - deltaX;
-
-  await withTouchSession(page, async (client) => {
-    await client.send('Input.dispatchTouchEvent', {
-      type: 'touchStart',
-      touchPoints: [{ x: startX, y: startY }],
-    });
-
-    for (let i = 1; i <= SWIPE_STEPS; i++) {
-      const currentX = Math.round(
-        startX + ((endX - startX) * i) / SWIPE_STEPS,
-      );
-      await page.waitForTimeout(GESTURE_STEP_MS);
-      await client.send('Input.dispatchTouchEvent', {
-        type: 'touchMove',
-        touchPoints: [{ x: currentX, y: startY }],
-      });
-    }
-
-    await page.waitForTimeout(GESTURE_STEP_MS);
-    await client.send('Input.dispatchTouchEvent', {
-      type: 'touchEnd',
-      touchPoints: [],
-    });
-  });
+  await swipeTimelineAxis(page, 'x', deltaX);
 }
 
 /**

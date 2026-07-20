@@ -35,19 +35,23 @@ export function useTrackCycleGesture({
   const axisRef = useRef<Axis | null>(null);
   const pointerCountRef = useRef(0);
 
-  // A second pointer joining (e.g. a pinch) resets origin/axis below via the
-  // `pointerCountRef.current === 1` check, aborting any in-progress cycle
-  // gesture the same way scrubGesture.ts's G5 aborts a vertical one.
+  // Only a pointer sequence's first finger starts (or restarts) a gesture —
+  // a second pointer joining mid-gesture (e.g. a pinch's other finger) just
+  // increments the count and otherwise leaves origin/axis/isCycling alone,
+  // the same way useScrubberScroll's own handlePointerDown never touches
+  // scrubStateRef on a second pointer. Resetting unconditionally here would
+  // wipe out an already-locked horizontal gesture the moment any second
+  // pointer briefly touches down (e.g. an incidental palm brush) without
+  // ever becoming a real pinch, silently dropping a legitimate one-finger
+  // swipe that never lifted.
   const handlePointerDown = (e: React.PointerEvent) => {
     pointerCountRef.current += 1;
+    if (pointerCountRef.current !== 1) return;
+
     isCyclingRef.current = false;
     axisRef.current = null;
-
-    const isSinglePointerInEditMode =
-      pointerCountRef.current === 1 && getActiveEditTrackId() !== null;
-    originRef.current = isSinglePointerInEditMode
-      ? { x: e.clientX, y: e.clientY }
-      : null;
+    originRef.current =
+      getActiveEditTrackId() !== null ? { x: e.clientX, y: e.clientY } : null;
     lastPosRef.current = originRef.current;
   };
 

@@ -927,6 +927,76 @@ it('still toggles playback via a plain tap (no movement) in edit mode', () => {
   expect(playbackService.isPlaying).toBe(true);
 });
 
+// Regression coverage from code review: isTrackCyclingRef intentionally
+// stays true from a cycle gesture's release until the next pointerdown (so
+// the trailing synthetic click is suppressed), but that must not also
+// starve the geometry-resync effect — which fires from drawer/resize
+// changes unrelated to any pointer activity, and previously read the same
+// ref via isUserScrubbing().
+it('resyncs scroll after a completed horizontal track-cycle gesture, even without an intervening pointerdown', () => {
+  const restoreOffsetHeight = mockOffsetHeight(800);
+  act(() => {
+    enterEditMode('track-1');
+  });
+
+  const { container, rerender } = render(
+    <Scrubber {...defaultProps} tracks={twoTracks} />,
+  );
+  const phantom = container.querySelector('.scrubber__phantom')!;
+  Object.defineProperty(phantom, 'scrollHeight', {
+    value: 2000,
+    configurable: true,
+  });
+  Object.defineProperty(phantom, 'clientHeight', {
+    value: 500,
+    configurable: true,
+  });
+
+  fireEvent.pointerDown(phantom, { clientX: 100, clientY: 0 });
+  fireEvent.pointerMove(phantom, { clientX: 70, clientY: 2 });
+  fireEvent.pointerUp(phantom);
+  expect(getActiveEditTrackId()).toBe('track-2');
+
+  // Force scrollTop out of sync with transportTime (0), then trigger the
+  // resync effect via an unrelated drawer-height change — no further
+  // pointer event on the phantom at all.
+  phantom.scrollTop = 700;
+  rerender(
+    <Scrubber {...defaultProps} tracks={twoTracks} drawerHeight={120} />,
+  );
+
+  // maxScrollTop = 2000 - 500 = 1500; time 0 resyncs to scrollTop 1500.
+  expect(phantom.scrollTop).toBe(1500);
+
+  restoreOffsetHeight();
+});
+
+// Regression coverage from code review: a second pointer touching down
+// mid-gesture (e.g. an incidental palm brush that never becomes a real
+// pinch) must not discard the first finger's already-locked horizontal
+// gesture — mirrors how useScrubberScroll's own handlePointerDown never
+// touches scrubStateRef on a second pointer.
+it('keeps a locked horizontal cycle gesture alive when a second pointer briefly touches down mid-gesture', () => {
+  act(() => {
+    enterEditMode('track-1');
+  });
+
+  const { container } = render(
+    <Scrubber {...defaultProps} tracks={twoTracks} />,
+  );
+  const phantom = container.querySelector('.scrubber__phantom')!;
+
+  fireEvent.pointerDown(phantom, { clientX: 100, clientY: 0, pointerId: 1 });
+  fireEvent.pointerMove(phantom, { clientX: 70, clientY: 2, pointerId: 1 });
+
+  fireEvent.pointerDown(phantom, { clientX: 200, clientY: 200, pointerId: 2 });
+
+  fireEvent.pointerMove(phantom, { clientX: 40, clientY: 3, pointerId: 1 });
+  fireEvent.pointerUp(phantom, { pointerId: 1 });
+
+  expect(getActiveEditTrackId()).toBe('track-2');
+});
+
 it('does not permanently stick the gesture state if recording starts before a scroll event schedules the debounce', () => {
   vi.useFakeTimers();
   playbackService.play();
