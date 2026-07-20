@@ -13,6 +13,22 @@ import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+/**
+ * Deterministic PRNG (mulberry32) so the noise burst fixture regenerates to
+ * identical bytes every run, matching the other (fully deterministic)
+ * fixtures in this file rather than silently diffing on every regeneration.
+ */
+function createSeededRandom(seed) {
+  let state = seed;
+  return function random() {
+    state |= 0;
+    state = (state + 0x6d2b79f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 function writeWavHeader(buffer, { numSamples, numChannels, sampleRate, bitsPerSample }) {
   const bytesPerSample = bitsPerSample / 8;
   const blockAlign = numChannels * bytesPerSample;
@@ -88,6 +104,13 @@ function generateChirpWav(durationSeconds, startFreq, endFreq, sampleRate = 4410
  * frequency bins; the trailing silence gives reverb-tail assertions a known
  * near-black dry region to compare against (spec 004, #489).
  */
+// Number of decay time-constants that fit inside the burst window — at 5,
+// the envelope reaches e^-5 (~1% of peak) by the burst's end, so the
+// burst/silence boundary has no audible discontinuity.
+const BURST_TIME_CONSTANTS = 5;
+// Arbitrary fixed seed — only its determinism matters, not its value.
+const BURST_TAIL_NOISE_SEED = 442;
+
 function generateBurstTailWav(burstSeconds, silenceSeconds, sampleRate = 44100) {
   const numSamples = Math.floor(sampleRate * (burstSeconds + silenceSeconds));
   const burstSamples = Math.floor(sampleRate * burstSeconds);
@@ -98,10 +121,12 @@ function generateBurstTailWav(burstSeconds, silenceSeconds, sampleRate = 44100) 
   writeWavHeader(buffer, { numSamples, numChannels: 1, sampleRate, bitsPerSample: 16 });
 
   const amplitude = 0.8 * 32767;
+  const decayTimeConstant = burstSeconds / BURST_TIME_CONSTANTS;
+  const random = createSeededRandom(BURST_TAIL_NOISE_SEED);
   for (let i = 0; i < burstSamples; i++) {
     const t = i / sampleRate;
-    const envelope = Math.exp(-t / (burstSeconds / 5));
-    const sample = Math.round(amplitude * envelope * (Math.random() * 2 - 1));
+    const envelope = Math.exp(-t / decayTimeConstant);
+    const sample = Math.round(amplitude * envelope * (random() * 2 - 1));
     buffer.writeInt16LE(sample, headerSize + i * bytesPerSample);
   }
   // Remaining samples stay zeroed by Buffer.alloc — true silence.
