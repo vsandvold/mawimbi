@@ -112,4 +112,14 @@ describe('BarSmoother', () => {
 
     expect(Array.from(values)).toEqual([10, 20, 30]);
   });
+
+  it('drops smoothed state on reset, so the next update snaps to target', () => {
+    const smoother = new BarSmoother();
+    smoother.update([255]);
+
+    smoother.reset();
+    const values = smoother.update([0]);
+
+    expect(values[0]).toBe(0);
+  });
 });

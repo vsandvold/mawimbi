@@ -58,6 +58,7 @@ const LoudnessMeterPlayhead = forwardRef<
         canvas.width,
         canvas.height,
         meterWidthFraction,
+        barSmootherRef.current,
       );
     },
 

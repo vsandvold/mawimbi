@@ -37,11 +37,8 @@ const BAND_CURVE_MIN_WEIGHT = 0.85;
  * gap widens as bytes get further from 255 — so strong bins pull further
  * ahead of weak ones than the source's dB-linear scale does.
  */
-export function applyGammaTransfer(
-  byte: number,
-  gamma: number = GAMMA,
-): number {
-  return Math.pow(byte / 255, gamma) * 255;
+export function applyGammaTransfer(byte: number): number {
+  return Math.pow(byte / 255, GAMMA) * 255;
 }
 
 /**
@@ -76,6 +73,17 @@ export function computeTargetBarValues(semitoneBars: Uint8Array): Float32Array {
  */
 export class BarSmoother {
   private values: Float32Array = new Float32Array(0);
+
+  /**
+   * Drops the smoothed state so the next `update()` snaps to its target
+   * with no ramp. Call this on any playback discontinuity (pause, stop,
+   * seek) — without it, resuming after a loud passage decays the stale
+   * pre-pause bars over the DECAY_COEFF ballistics instead of reflecting
+   * the new position immediately.
+   */
+  reset(): void {
+    this.values = new Float32Array(0);
+  }
 
   update(targets: ArrayLike<number>): Float32Array {
     if (this.values.length !== targets.length) {

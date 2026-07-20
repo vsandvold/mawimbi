@@ -127,7 +127,15 @@ export function renderLoudnessMeterIdle(
   canvasWidth: number,
   canvasHeight: number,
   widthFraction: number,
+  barSmoother: BarSmoother,
 ): void {
+  // The idle frame is drawn on every playback discontinuity (pause, stop,
+  // seek — see Playhead.tsx/useScrubberScroll.ts's renderIdle() call
+  // sites), so it doubles as the smoother's reset signal: without it,
+  // resuming decays the stale pre-pause bars instead of reflecting the
+  // new position immediately.
+  barSmoother.reset();
+
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
   const rect = computeMeterRect(canvasWidth, canvasHeight, widthFraction);
