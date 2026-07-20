@@ -68,16 +68,7 @@
   grid-row-end: 1;
   z-index: 0;
   opacity: 0.9;
-  /* transform/filter/box-shadow only ever change via the edit-mode
-     modifiers below, but their transition lives here (not only on the
-     modifiers) so leaving edit mode — which removes those classes and
-     reverts to this base rule — still animates them out instead of
-     snapping to their default values. */
-  transition:
-    opacity 0.1s,
-    transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
-    filter 0.35s cubic-bezier(0.34, 1.56, 0.64, 1),
-    box-shadow 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: opacity 0.1s;
 }
 
 .timeline__track--foreground {
@@ -95,58 +86,27 @@
 }
 
 /*
- * Edit mode (spec 004, Goal 1) — phase-1 separation is purely 2D in-plane
- * (opacity/scale/filter/box-shadow), composing with the plane's rotateX
- * without preserve-3d (kb/domain.md, Runway geometry). The true 3D lift is
- * phase 2 (milestone 7). Spring-timed via an overshoot cubic-bezier so the
- * active track settles with a little bounce rather than easing flatly.
+ * Edit mode (spec 004, Goal 1) — separation uses the same mechanism as the
+ * mixer-driven focus effect above: an opacity dim on background tracks and
+ * a z-index lift on the active one. Cheap, compositor-friendly properties
+ * only — the earlier scale/blur/box-shadow treatment forced per-track
+ * filtered layers (each track's canvas covers the full runway window) and
+ * duplicated the runway rails' glow on every track box; the rails on
+ * .timeline::before/::after stay the single set of runway borders. The
+ * true 3D lift is phase 2 (milestone 7).
  */
-.timeline__track--edit-active,
-.timeline__track--edit-background {
-  transition-duration: 0.35s;
-  transition-timing-function: cubic-bezier(0.34, 1.56, 0.64, 1);
-  transition-property: opacity, transform, filter, box-shadow;
-}
-
 .timeline__track--edit-active {
   z-index: 1;
   opacity: 1;
-  transform: scale(1);
-  filter: none;
-  /* Hardcoded white, not --foreground (near-black in the light theme) —
-     matches the runway-accent color already used regardless of theme by
-     the edge rails and the loudness meter (see Timeline.css's rail
-     comment above). */
-  box-shadow: 0 0 20px 4px rgba(255, 255, 255, 0.35);
 }
 
 .timeline__track--edit-background {
   opacity: 0.35;
-  transform: scale(0.96);
-  filter: blur(2px);
-}
-
-/*
- * A muted background track must stay fully invisible, same as outside edit
- * mode (Timeline.tsx's getTimelineTrackClass applies both classes). The
- * combined selector's higher specificity beats --edit-background's opacity
- * regardless of declaration order — two same-specificity classes on the
- * same element would otherwise resolve by source order alone, silently
- * un-hiding a muted track (caught in review, spec 004 milestone 2).
- */
-.timeline__track--edit-background.timeline__track--muted {
-  opacity: 0;
+  transition: opacity 0.3s;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* Disables the spring animation but keeps the separation itself. Resets
-     the base rule's transform/filter/box-shadow transitions too (not just
-     the edit-mode modifiers) — otherwise leaving edit mode still animates
-     those properties back to their defaults via the base rule alone. */
-  .timeline__track {
-    transition: opacity 0.1s;
-  }
-
+  /* Disables the crossfade but keeps the separation itself. */
   .timeline__track--edit-active,
   .timeline__track--edit-background {
     transition: none;

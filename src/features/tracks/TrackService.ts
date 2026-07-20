@@ -48,6 +48,13 @@ type TrackCreatedCallback = (trackId: string, audioBuffer: AudioBuffer) => void;
 
 const DEFAULT_VOLUME = 100;
 
+// Sonic counterpart of edit mode's visual background dim (spec 004):
+// non-active tracks drop by this much so the edited track reads as the
+// foreground of one mix without silencing its context (edit mode never
+// auto-solos). Ear-tuning belongs to the on-device QA pass, like the
+// effect-macro curves.
+export const EDIT_FOCUS_DIM_DB = -12;
+
 class TrackService {
   private readonly mixer: MixerService;
 
@@ -70,6 +77,11 @@ class TrackService {
   // Bumped on every store mutation so computed signals that depend on the
   // store's membership (e.g. mutedTracks) know to re-evaluate.
   private storeVersion = signal(0);
+
+  // Mirrors the workstation's edit mode into the audio engine (see
+  // setEditFocus). Private so the channel-sync effects are the only
+  // consumers; the workstation drives it through the setter.
+  private readonly _editFocusTrackId = signal<TrackId | null>(null);
 
   constructor(context: Context) {
     this.context = context;
@@ -95,6 +107,21 @@ class TrackService {
 
   get mutedTracks(): TrackId[] {
     return this._mutedTracks.value;
+  }
+
+  get editFocusTrackId(): TrackId | null {
+    return this._editFocusTrackId.value;
+  }
+
+  // --- Edit-mode audio focus ---
+
+  // While a track is focused for editing, muting and solo are bypassed at
+  // the channel level and every other track is dimmed by
+  // EDIT_FOCUS_DIM_DB, so the edited track is always audible over a
+  // quieter mix. The user's mute/solo/volume signals are never touched —
+  // clearing the focus (null) restores the mix exactly as it was.
+  setEditFocus(trackId: TrackId | null): void {
+    this._editFocusTrackId.value = trackId;
   }
 
   // --- Lifecycle hooks ---
@@ -351,13 +378,25 @@ class TrackService {
 
     disposers.push(
       effect(() => {
-        channel.mute = signals.mute.value;
+        const editFocus = this._editFocusTrackId.value;
+        const isDimmed = editFocus !== null && editFocus !== trackId;
+        channel.setDimGainDb(isDimmed ? EDIT_FOCUS_DIM_DB : 0);
       }),
     );
 
     disposers.push(
       effect(() => {
-        channel.solo = signals.solo.value;
+        // Edit focus bypasses muting at the channel level only — the
+        // user's signal stays untouched, so exiting edit mode restores it.
+        const isEditFocusActive = this._editFocusTrackId.value !== null;
+        channel.mute = isEditFocusActive ? false : signals.mute.value;
+      }),
+    );
+
+    disposers.push(
+      effect(() => {
+        const isEditFocusActive = this._editFocusTrackId.value !== null;
+        channel.solo = isEditFocusActive ? false : signals.solo.value;
       }),
     );
 

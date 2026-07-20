@@ -1,6 +1,6 @@
 import { vi } from 'vitest';
 import * as Tone from 'tone';
-import TrackService from '../TrackService';
+import TrackService, { EDIT_FOCUS_DIM_DB } from '../TrackService';
 
 // jsdom doesn't implement URL.createObjectURL
 if (typeof URL.createObjectURL === 'undefined') {
@@ -209,6 +209,115 @@ describe('TrackService', () => {
       service.disposeSignals('track-2');
 
       expect(service.mutedTracks).toEqual([]);
+    });
+  });
+
+  describe('setEditFocus (edit-mode audio)', () => {
+    // The mocked audio buffer sits exactly at the normalization target
+    // (RMS 0.2), so initialVolume is 100 and the synced channel volume is
+    // 0 dB — any dim offset shows up as the ramp target verbatim.
+    const lastRampDb = (toneChannel: {
+      volume: { rampTo: ReturnType<typeof vi.fn> };
+    }) => toneChannel.volume.rampTo.mock.lastCall?.[0];
+
+    it('bypasses channel mute while edit focus is active and restores it on exit', async () => {
+      const { trackId } = await service.createTrack(new ArrayBuffer(8));
+      service.getSignals(trackId)!.mute.value = true;
+      expect(service.retrieveChannel(trackId)!.mute).toBe(true);
+
+      service.setEditFocus(trackId);
+      expect(service.retrieveChannel(trackId)!.mute).toBe(false);
+
+      service.setEditFocus(null);
+      expect(service.retrieveChannel(trackId)!.mute).toBe(true);
+    });
+
+    it('bypasses channel solo while edit focus is active and restores it on exit', async () => {
+      const { trackId } = await service.createTrack(new ArrayBuffer(8));
+      service.getSignals(trackId)!.solo.value = true;
+      expect(service.retrieveChannel(trackId)!.solo).toBe(true);
+
+      service.setEditFocus(trackId);
+      expect(service.retrieveChannel(trackId)!.solo).toBe(false);
+
+      service.setEditFocus(null);
+      expect(service.retrieveChannel(trackId)!.solo).toBe(true);
+    });
+
+    it('keeps the user mute/solo signals untouched while bypassed', async () => {
+      const { trackId } = await service.createTrack(new ArrayBuffer(8));
+      const signals = service.getSignals(trackId)!;
+      signals.mute.value = true;
+      signals.solo.value = true;
+
+      service.setEditFocus(trackId);
+
+      expect(signals.mute.value).toBe(true);
+      expect(signals.solo.value).toBe(true);
+    });
+
+    it('keeps a mute toggled mid-edit bypassed until exit', async () => {
+      const { trackId } = await service.createTrack(new ArrayBuffer(8));
+      service.setEditFocus(trackId);
+
+      service.getSignals(trackId)!.mute.value = true;
+      expect(service.retrieveChannel(trackId)!.mute).toBe(false);
+
+      service.setEditFocus(null);
+      expect(service.retrieveChannel(trackId)!.mute).toBe(true);
+    });
+
+    it('dims only background channels while edit focus is active', async () => {
+      await service.createTrack(new ArrayBuffer(8));
+      const second = await service.createTrack(new ArrayBuffer(8));
+      const firstTone = vi.mocked(Tone.Channel).mock.results[0].value;
+      const secondTone = vi.mocked(Tone.Channel).mock.results[1].value;
+
+      service.setEditFocus(second.trackId);
+
+      expect(lastRampDb(firstTone)).toBeCloseTo(EDIT_FOCUS_DIM_DB, 5);
+      expect(lastRampDb(secondTone)).toBeCloseTo(0, 5);
+    });
+
+    it('moves the dim when the focus cycles to another track', async () => {
+      const first = await service.createTrack(new ArrayBuffer(8));
+      const second = await service.createTrack(new ArrayBuffer(8));
+      const firstTone = vi.mocked(Tone.Channel).mock.results[0].value;
+      const secondTone = vi.mocked(Tone.Channel).mock.results[1].value;
+
+      service.setEditFocus(second.trackId);
+      service.setEditFocus(first.trackId);
+
+      expect(lastRampDb(firstTone)).toBeCloseTo(0, 5);
+      expect(lastRampDb(secondTone)).toBeCloseTo(EDIT_FOCUS_DIM_DB, 5);
+    });
+
+    it('restores background volume when edit focus exits', async () => {
+      await service.createTrack(new ArrayBuffer(8));
+      const second = await service.createTrack(new ArrayBuffer(8));
+      const firstTone = vi.mocked(Tone.Channel).mock.results[0].value;
+
+      service.setEditFocus(second.trackId);
+      service.setEditFocus(null);
+
+      expect(lastRampDb(firstTone)).toBeCloseTo(0, 5);
+    });
+
+    it('applies the bypass and dim to a channel recreated mid-edit', async () => {
+      const { trackId } = await service.createTrack(new ArrayBuffer(8));
+      const second = await service.createTrack(new ArrayBuffer(8));
+      service.getSignals(trackId)!.mute.value = true;
+      service.setEditFocus(second.trackId);
+
+      service.disposeSignals(trackId);
+      service.deleteChannel(trackId);
+      service.createSignals(trackId, 100);
+      service.getSignals(trackId)!.mute.value = true;
+      service.recreateChannel(trackId);
+
+      const recreatedTone = vi.mocked(Tone.Channel).mock.results[2].value;
+      expect(service.retrieveChannel(trackId)!.mute).toBe(false);
+      expect(lastRampDb(recreatedTone)).toBeCloseTo(EDIT_FOCUS_DIM_DB, 5);
     });
   });
 

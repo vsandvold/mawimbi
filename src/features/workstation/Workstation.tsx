@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePlaybackService } from '../playback/usePlaybackService';
 import { useRecordingService } from '../recording/useRecordingService';
+import { useTrackService } from '../tracks/useTrackService';
 import { useWorkstation } from './useWorkstation';
 import { type Track, type TrackColor } from '../tracks/types';
 import CountIn from './CountIn';
@@ -45,6 +46,7 @@ type WorkstationProps = {
 const Workstation = (props: WorkstationProps) => {
   const playback = usePlaybackService();
   const recording = useRecordingService();
+  const trackService = useTrackService();
   const editMode = useEditMode();
   const { pixelsPerSecond } = useWorkstation();
   const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
@@ -160,6 +162,20 @@ const Workstation = (props: WorkstationProps) => {
     // track-list mutation; editMode is a stable object from the bridge hook.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSheet]);
+
+  // Mirrors edit mode into the audio engine: while a track is being
+  // edited, muting/solo are temporarily bypassed and the other tracks are
+  // sonically dimmed, so the edited track is always audible over a quieter
+  // mix; exiting restores the user's mute/solo state exactly. Keyed on the
+  // active track id so enter, cycle, exit, and unmount all pass through
+  // this one effect (same rationale as the activeSheet effect above).
+  const activeEditTrackId = editMode.activeEditTrackId;
+  useEffect(() => {
+    trackService.setEditFocus(activeEditTrackId);
+    return () => trackService.setEditFocus(null);
+    // trackService delegates to a stable service singleton
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeEditTrackId]);
 
   const handleRewind = useCallback(() => {
     playback.rewind();
