@@ -32,6 +32,7 @@ export const SHORT_AUDIO = path.join(FIXTURES_DIR, 'test-tone-short.wav');
 export const LONG_AUDIO = path.join(FIXTURES_DIR, 'test-tone-long.wav');
 export const LONG_AUDIO_10S = path.join(FIXTURES_DIR, 'test-tone-10s.wav');
 export const CHIRP_AUDIO_10S = path.join(FIXTURES_DIR, 'test-chirp-10s.wav');
+export const BURST_TAIL_AUDIO = path.join(FIXTURES_DIR, 'test-burst-tail.wav');
 
 /**
  * Uploads an audio file via the hidden file input inside the Ant Design Upload component.

@@ -3,6 +3,7 @@
  *
  * - test-tone-short.wav: 0.5 second 440 Hz sine wave (mono, 16-bit, 44100 Hz)
  * - test-tone-long.wav:  2.0 second 440 Hz sine wave (mono, 16-bit, 44100 Hz)
+ * - test-burst-tail.wav: 0.15s decaying noise burst + 1.85s true silence
  *
  * Run: node e2e/fixtures/generate-wav.mjs
  */
@@ -80,6 +81,34 @@ function generateChirpWav(durationSeconds, startFreq, endFreq, sampleRate = 4410
   return buffer;
 }
 
+/**
+ * Generates a percussive fixture: a short exponentially-decaying white-noise
+ * burst followed by true digital silence. Broadband noise (rather than a
+ * tone) mimics a percussive hit's energy spread across the spectrogram's
+ * frequency bins; the trailing silence gives reverb-tail assertions a known
+ * near-black dry region to compare against (spec 004, #489).
+ */
+function generateBurstTailWav(burstSeconds, silenceSeconds, sampleRate = 44100) {
+  const numSamples = Math.floor(sampleRate * (burstSeconds + silenceSeconds));
+  const burstSamples = Math.floor(sampleRate * burstSeconds);
+  const headerSize = 44;
+  const bytesPerSample = 2;
+  const buffer = Buffer.alloc(headerSize + numSamples * bytesPerSample);
+
+  writeWavHeader(buffer, { numSamples, numChannels: 1, sampleRate, bitsPerSample: 16 });
+
+  const amplitude = 0.8 * 32767;
+  for (let i = 0; i < burstSamples; i++) {
+    const t = i / sampleRate;
+    const envelope = Math.exp(-t / (burstSeconds / 5));
+    const sample = Math.round(amplitude * envelope * (Math.random() * 2 - 1));
+    buffer.writeInt16LE(sample, headerSize + i * bytesPerSample);
+  }
+  // Remaining samples stay zeroed by Buffer.alloc — true silence.
+
+  return buffer;
+}
+
 // Generate short fixture (0.5s)
 const shortWav = generateWav(0.5, 440);
 writeFileSync(join(__dirname, 'test-tone-short.wav'), shortWav);
@@ -95,3 +124,8 @@ console.log(`Created test-tone-long.wav (${longWav.length} bytes)`);
 const chirpWav = generateChirpWav(10.0, 200, 4000);
 writeFileSync(join(__dirname, 'test-chirp-10s.wav'), chirpWav);
 console.log(`Created test-chirp-10s.wav (${chirpWav.length} bytes)`);
+
+// Generate percussive burst-tail fixture (0.15s decaying noise + 1.85s silence)
+const burstTailWav = generateBurstTailWav(0.15, 1.85);
+writeFileSync(join(__dirname, 'test-burst-tail.wav'), burstTailWav);
+console.log(`Created test-burst-tail.wav (${burstTailWav.length} bytes)`);
