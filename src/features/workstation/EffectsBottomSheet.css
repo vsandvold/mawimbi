@@ -1,9 +1,33 @@
 .effects-bottom-sheet {
   display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 8px 16px 16px;
+}
+
+.effects-bottom-sheet__header {
+  display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 16px;
+}
+
+.effects-bottom-sheet__sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.effects-bottom-sheet__effect {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  align-items: center;
+  gap: 12px;
+}
+
+.effects-bottom-sheet__effect-label {
+  font-size: 14px;
+  color: var(--muted-foreground);
 }
 
 .effects-bottom-sheet__identity {

@@ -13,6 +13,7 @@ import {
   type ReadonlySignal,
   type Signal,
 } from '@preact/signals-react';
+import { EFFECT_ORDER, MIN_EFFECT_AMOUNT, type EffectId } from './EffectsChain';
 import { LoudnessNormalizer } from './LoudnessNormalizer';
 import MixerService, { type AudioChannel } from './MixerService';
 import type WorkletAnalyser from '../spectrogram/WorkletAnalyser';
@@ -22,6 +23,7 @@ export type TrackSignals = {
   volume: Signal<number>;
   mute: Signal<boolean>;
   solo: Signal<boolean>;
+  effects: Record<EffectId, Signal<number>>;
 };
 
 export type TrackCreationResult = {
@@ -206,6 +208,11 @@ class TrackService {
       volume: signal(initialVolume ?? DEFAULT_VOLUME),
       mute: signal(false),
       solo: signal(false),
+      effects: {
+        space: signal(MIN_EFFECT_AMOUNT),
+        echo: signal(MIN_EFFECT_AMOUNT),
+        tone: signal(MIN_EFFECT_AMOUNT),
+      },
     };
     this.signalStore.set(trackId, signals);
     this.storeVersion.value++;
@@ -334,6 +341,14 @@ class TrackService {
         channel.solo = signals.solo.value;
       }),
     );
+
+    for (const effectId of EFFECT_ORDER) {
+      disposers.push(
+        effect(() => {
+          channel.setEffectAmount(effectId, signals.effects[effectId].value);
+        }),
+      );
+    }
 
     this.effectDisposers.set(trackId, disposers);
   }
