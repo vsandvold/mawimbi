@@ -172,7 +172,7 @@ Several `useEffect`/`useCallback` deps arrays intentionally omit stable refs (se
 The `transportTime` signal is written by the scrubber animation loop, which only runs while `playbackState === 'playing'` — it does not advance otherwise. At least four bugs came from trusting it outside playback (#130, #153, #211, #217). Code that needs the real position (recording elapsed time, workflows) must call `playback.getEngineTime()`; this is also why count-in always starts playback even with zero lead-in.
 
 ### React Compiler must stay disabled
-`babel-plugin-react-compiler` sits in devDependencies but is deliberately not wired into `vite.config.ts`: its auto-memoization caches signal reads and silently breaks `@preact/signals-react` reactivity (engine responds, UI frozen — the PR #114 regression class). Signal reactivity comes from `useSignals()` in bridge hooks instead. Rationale: `kb/decisions.md` (2026-02-22).
+`babel-plugin-react-compiler` sits in devDependencies but is deliberately not wired into `vite.config.ts` — enabling it breaks `@preact/signals-react` reactivity (why: `kb/decisions.md`, 2026-02-22). Signal reactivity comes from `useSignals()` in bridge hooks instead; don't wire it in as a "modernization".
 
 ### Workers loading TF.js need the window polyfill first
 `src/shared/workerWindowPolyfill.ts` aliases `globalThis.window = self` and must stay the **first** import in any worker that loads `@spotify/basic-pitch` (see `spectrogram.worker.ts`) — TensorFlow.js references `window` in its setTimeout mechanism and throws `window is not defined` in worker scope otherwise (PR #394).
