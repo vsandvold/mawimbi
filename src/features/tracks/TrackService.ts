@@ -231,11 +231,7 @@ class TrackService {
   }
 
   disposeSignals(trackId: TrackId): void {
-    const disposers = this.effectDisposers.get(trackId);
-    if (disposers) {
-      for (const dispose of disposers) dispose();
-      this.effectDisposers.delete(trackId);
-    }
+    this.disposeSyncEffects(trackId);
     this.signalStore.delete(trackId);
     this.storeVersion.value++;
   }
@@ -298,6 +294,7 @@ class TrackService {
       source.normalizationGainDb,
       source.startTime,
     );
+    this.resyncSignals(trackId);
     return true;
   }
 
@@ -316,6 +313,28 @@ class TrackService {
   }
 
   // --- Signal-to-channel sync ---
+
+  // Re-binds signal sync after a channel is rebuilt. The undo flow
+  // (projectPageEffects' useTrackSideEffects) recreates signals before the
+  // channel exists, so createSignals cannot wire the sync there — and a
+  // fresh channel starts at dry defaults regardless. Re-running the sync
+  // effects pushes every current signal value (volume, mute, solo, effect
+  // amounts) into the new channel immediately (the #212 regression class).
+  private resyncSignals(trackId: TrackId): void {
+    const signals = this.signalStore.get(trackId);
+    const channel = this.mixer.retrieveChannel(trackId);
+    if (!signals || !channel) return;
+    this.disposeSyncEffects(trackId);
+    this.setupChannelSync(trackId, signals, channel);
+  }
+
+  private disposeSyncEffects(trackId: TrackId): void {
+    const disposers = this.effectDisposers.get(trackId);
+    if (disposers) {
+      for (const dispose of disposers) dispose();
+      this.effectDisposers.delete(trackId);
+    }
+  }
 
   private setupChannelSync(
     trackId: TrackId,

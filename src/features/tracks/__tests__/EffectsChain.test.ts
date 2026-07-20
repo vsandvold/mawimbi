@@ -8,12 +8,6 @@ import EffectsChain, {
   MIN_EFFECT_AMOUNT,
 } from '../EffectsChain';
 import MixerService from '../MixerService';
-import TrackService from '../TrackService';
-
-// jsdom doesn't implement URL.createObjectURL
-if (typeof URL.createObjectURL === 'undefined') {
-  URL.createObjectURL = vi.fn().mockReturnValue('blob:mock-url');
-}
 
 type MockNode = {
   connect: Mock;
@@ -170,7 +164,15 @@ describe('macro parameter application', () => {
     );
   });
 
-  it('ramps reverb wet to the mapped value when space amount changes', () => {
+  it('sets reverb wet instantly when space is first activated', () => {
+    chain.setAmount('space', 50);
+
+    expect(reverbInstance().wet.value).toBe(mapSpaceAmount(50).wet);
+    expect(reverbInstance().wet.rampTo).not.toHaveBeenCalled();
+  });
+
+  it('ramps reverb wet on live changes while space is active', () => {
+    chain.setAmount('space', 30);
     chain.setAmount('space', 50);
 
     expect(reverbInstance().wet.rampTo).toHaveBeenCalledWith(
@@ -179,7 +181,8 @@ describe('macro parameter application', () => {
     );
   });
 
-  it('ramps delay wet and feedback to the mapped values when echo amount changes', () => {
+  it('ramps delay wet and feedback on live changes while echo is active', () => {
+    chain.setAmount('echo', 30);
     chain.setAmount('echo', 70);
 
     const { wet, feedback } = mapEchoAmount(70);
@@ -193,13 +196,25 @@ describe('macro parameter application', () => {
     );
   });
 
-  it('ramps filter cutoff to the mapped value when tone amount changes', () => {
+  it('ramps filter cutoff on live changes while tone is active', () => {
+    chain.setAmount('tone', 30);
     chain.setAmount('tone', 60);
 
     expect(filterInstance().frequency.rampTo).toHaveBeenCalledWith(
       mapToneAmount(60).cutoffHz,
       expect.any(Number),
     );
+  });
+
+  it('snaps params on re-activation after bypass so stale values do not replay', () => {
+    chain.setAmount('echo', 100);
+    chain.setAmount('echo', 0);
+    chain.setAmount('echo', 5);
+
+    const { wet, feedback } = mapEchoAmount(5);
+    expect(delayInstance().wet.value).toBe(wet);
+    expect(delayInstance().feedback.value).toBe(feedback);
+    expect(delayInstance().wet.rampTo).not.toHaveBeenCalled();
   });
 });
 
@@ -303,76 +318,6 @@ describe('per-track isolation', () => {
   });
 });
 
-describe('effect signal → mixer sync', () => {
-  function mockAudioBuffer(): AudioBuffer {
-    const channelData = new Float32Array(100).fill(0.2);
-    return {
-      numberOfChannels: 1,
-      length: 100,
-      sampleRate: 44100,
-      duration: 100 / 44100,
-      getChannelData: vi.fn().mockReturnValue(channelData),
-    } as unknown as AudioBuffer;
-  }
-
-  let service: TrackService;
-
-  beforeEach(() => {
-    vi.mocked(Tone.context.decodeAudioData).mockResolvedValue(
-      mockAudioBuffer(),
-    );
-    service = new TrackService(Tone.context);
-  });
-
-  it('creates effect signals defaulting to bypass', async () => {
-    const { trackId } = await service.createTrack(new ArrayBuffer(8));
-
-    const signals = service.getSignals(trackId)!;
-    expect(signals.effects.space.value).toBe(MIN_EFFECT_AMOUNT);
-    expect(signals.effects.echo.value).toBe(MIN_EFFECT_AMOUNT);
-    expect(signals.effects.tone.value).toBe(MIN_EFFECT_AMOUNT);
-  });
-
-  it('syncs effect signal writes to the mixer channel', async () => {
-    const { trackId } = await service.createTrack(new ArrayBuffer(8));
-
-    service.getSignals(trackId)!.effects.space.value = 42;
-
-    expect(service.retrieveChannel(trackId)!.getEffectAmount('space')).toBe(42);
-  });
-
-  it('syncs each effect independently', async () => {
-    const { trackId } = await service.createTrack(new ArrayBuffer(8));
-    const channel = service.retrieveChannel(trackId)!;
-
-    service.getSignals(trackId)!.effects.echo.value = 30;
-    service.getSignals(trackId)!.effects.tone.value = 70;
-
-    expect(channel.getEffectAmount('space')).toBe(MIN_EFFECT_AMOUNT);
-    expect(channel.getEffectAmount('echo')).toBe(30);
-    expect(channel.getEffectAmount('tone')).toBe(70);
-  });
-
-  it('affects only the written track when several tracks exist', async () => {
-    const first = await service.createTrack(new ArrayBuffer(8));
-    const second = await service.createTrack(new ArrayBuffer(8));
-
-    service.getSignals(first.trackId)!.effects.space.value = 55;
-
-    expect(
-      service.retrieveChannel(second.trackId)!.getEffectAmount('space'),
-    ).toBe(MIN_EFFECT_AMOUNT);
-  });
-
-  it('stops syncing after signals are disposed', async () => {
-    const { trackId } = await service.createTrack(new ArrayBuffer(8));
-    const signals = service.getSignals(trackId)!;
-
-    service.disposeSignals(trackId);
-    signals.effects.space.value = 42;
-
-    expect(service.retrieveChannel(trackId)!.getEffectAmount('space')).toBe(
-      MIN_EFFECT_AMOUNT,
-    );
-  });
-});
+// The signal → mixer sync suite lives in TrackService.test.ts, alongside
+// the harness (mockAudioBuffer, createObjectURL shim) it shares with the
+// other TrackService behavior tests.

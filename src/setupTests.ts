@@ -50,7 +50,7 @@ vi.mock('tone', () => {
       dispose: vi.fn(),
       mute: false,
       solo: false,
-      volume: { rampTo: vi.fn() },
+      volume: makeRampableParam(0),
       state: 'stopped',
       getValue: vi.fn().mockReturnValue(0),
       open: vi.fn().mockResolvedValue(undefined),

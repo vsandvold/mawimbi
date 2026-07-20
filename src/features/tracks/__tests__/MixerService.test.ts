@@ -1,6 +1,20 @@
 import { vi } from 'vitest';
 import * as Tone from 'tone';
+import EffectsChain from '../EffectsChain';
 import MixerService, { AudioChannel } from '../MixerService';
+
+function makeChainEndpoint(): Tone.ToneAudioNode {
+  return {
+    connect: vi.fn().mockReturnThis(),
+    disconnect: vi.fn().mockReturnThis(),
+    chain: vi.fn().mockReturnThis(),
+    dispose: vi.fn(),
+  } as unknown as Tone.ToneAudioNode;
+}
+
+function makeEffectsChain(): EffectsChain {
+  return new EffectsChain(makeChainEndpoint(), makeChainEndpoint());
+}
 
 let mixer: MixerService;
 
@@ -158,7 +172,7 @@ describe('AudioChannel', () => {
       volume: { rampTo: vi.fn() },
       dispose: vi.fn(),
     } as unknown as Tone.Channel;
-    audioChannel = new AudioChannel('ch-1', toneChannel);
+    audioChannel = new AudioChannel('ch-1', toneChannel, makeEffectsChain());
   });
 
   it('exposes the channel id', () => {
@@ -221,7 +235,12 @@ describe('AudioChannel', () => {
   describe('normalization gain', () => {
     it('adds normalization gain to slider dB at full volume', () => {
       const normGainDb = 6;
-      const normalized = new AudioChannel('ch-norm', toneChannel, normGainDb);
+      const normalized = new AudioChannel(
+        'ch-norm',
+        toneChannel,
+        makeEffectsChain(),
+        normGainDb,
+      );
 
       normalized.volume = 100;
 
@@ -231,7 +250,12 @@ describe('AudioChannel', () => {
 
     it('adds normalization gain to slider dB at mid volume', () => {
       const normGainDb = 12;
-      const normalized = new AudioChannel('ch-norm', toneChannel, normGainDb);
+      const normalized = new AudioChannel(
+        'ch-norm',
+        toneChannel,
+        makeEffectsChain(),
+        normGainDb,
+      );
 
       normalized.volume = 50;
 
@@ -243,7 +267,11 @@ describe('AudioChannel', () => {
     });
 
     it('defaults normalization gain to 0 when not provided', () => {
-      const channel = new AudioChannel('ch-default', toneChannel);
+      const channel = new AudioChannel(
+        'ch-default',
+        toneChannel,
+        makeEffectsChain(),
+      );
 
       channel.volume = 100;
 

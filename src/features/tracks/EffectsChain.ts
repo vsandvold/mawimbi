@@ -40,6 +40,12 @@ type EffectNodes = {
   tone?: Tone.Filter;
 };
 
+// Common surface of Tone.Signal/Tone.Param the macros drive.
+type RampableParam = {
+  value: number;
+  rampTo: (value: number, rampTime: number) => unknown;
+};
+
 class EffectsChain {
   private source: Tone.ToneAudioNode;
   private destination: Tone.ToneAudioNode;
@@ -59,7 +65,15 @@ class EffectsChain {
 
     if (clamped > MIN_EFFECT_AMOUNT) {
       this.ensureNode(effectId);
-      this.applyAmount(effectId, clamped);
+      // A node reconnecting from bypass still holds its pre-bypass params;
+      // ramping from those would replay the old intensity for the ramp
+      // duration. Snap on (re)activation — the node was silent, so there
+      // is no zipper risk — and ramp only on live changes.
+      if (wasActive) {
+        this.rampAmount(effectId, clamped);
+      } else {
+        this.snapAmount(effectId, clamped);
+      }
     }
     if (wasActive !== this.isActive(effectId)) {
       this.rewire();
@@ -120,23 +134,39 @@ class EffectsChain {
     }
   }
 
-  private applyAmount(effectId: EffectId, amount: number): void {
+  private rampAmount(effectId: EffectId, amount: number): void {
+    for (const [param, target] of this.paramTargets(effectId, amount)) {
+      param.rampTo(target, PARAM_RAMP_SECONDS);
+    }
+  }
+
+  private snapAmount(effectId: EffectId, amount: number): void {
+    for (const [param, target] of this.paramTargets(effectId, amount)) {
+      param.value = target;
+    }
+  }
+
+  private paramTargets(
+    effectId: EffectId,
+    amount: number,
+  ): Array<[RampableParam, number]> {
     switch (effectId) {
       case 'space': {
-        const { wet } = mapSpaceAmount(amount);
-        this.nodes.space!.wet.rampTo(wet, PARAM_RAMP_SECONDS);
-        break;
+        return [[this.nodes.space!.wet, mapSpaceAmount(amount).wet]];
       }
       case 'echo': {
         const { wet, feedback } = mapEchoAmount(amount);
-        this.nodes.echo!.wet.rampTo(wet, PARAM_RAMP_SECONDS);
-        this.nodes.echo!.feedback.rampTo(feedback, PARAM_RAMP_SECONDS);
-        break;
+        return [
+          [this.nodes.echo!.wet, wet],
+          [this.nodes.echo!.feedback, feedback],
+        ];
       }
       case 'tone': {
-        const { cutoffHz } = mapToneAmount(amount);
-        this.nodes.tone!.frequency.rampTo(cutoffHz, PARAM_RAMP_SECONDS);
-        break;
+        // Filter's frequency Signal is typed in Frequency units (string |
+        // number); the macro only ever writes plain Hz numbers.
+        const frequency = this.nodes.tone!
+          .frequency as unknown as RampableParam;
+        return [[frequency, mapToneAmount(amount).cutoffHz]];
       }
     }
   }

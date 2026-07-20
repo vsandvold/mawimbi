@@ -1,5 +1,5 @@
 import * as Tone from 'tone';
-import EffectsChain, { MIN_EFFECT_AMOUNT, type EffectId } from './EffectsChain';
+import EffectsChain, { type EffectId } from './EffectsChain';
 import type WorkletAnalyser from '../spectrogram/WorkletAnalyser';
 
 const SMOOTHING = 0.8;
@@ -50,7 +50,7 @@ class MixerService {
     // nodes into it as their amounts activate.
     const effectsChain = new EffectsChain(player, channel);
     this.audioChannelRepository.add(
-      new AudioChannel(trackId, channel, normalizationGainDb, effectsChain),
+      new AudioChannel(trackId, channel, effectsChain, normalizationGainDb),
     );
   }
 
@@ -90,32 +90,32 @@ class MixerService {
 export class AudioChannel {
   id: string;
   private channel: Tone.Channel;
+  private effectsChain: EffectsChain;
   private normalizationGainDb: number;
-  private effectsChain: EffectsChain | null;
 
   constructor(
     id: string,
     channel: Tone.Channel,
+    effectsChain: EffectsChain,
     normalizationGainDb = 0,
-    effectsChain: EffectsChain | null = null,
   ) {
     this.id = id;
     this.channel = channel;
-    this.normalizationGainDb = normalizationGainDb;
     this.effectsChain = effectsChain;
+    this.normalizationGainDb = normalizationGainDb;
   }
 
   dispose(): void {
-    this.effectsChain?.dispose();
+    this.effectsChain.dispose();
     this.channel.dispose();
   }
 
   setEffectAmount(effectId: EffectId, amount: number): void {
-    this.effectsChain?.setAmount(effectId, amount);
+    this.effectsChain.setAmount(effectId, amount);
   }
 
   getEffectAmount(effectId: EffectId): number {
-    return this.effectsChain?.getAmount(effectId) ?? MIN_EFFECT_AMOUNT;
+    return this.effectsChain.getAmount(effectId);
   }
 
   get mute(): boolean {

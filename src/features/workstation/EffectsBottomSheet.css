@@ -1,8 +1,10 @@
+/* Compact enough for the small-viewport 160px sheet snap: header plus
+   three slider rows must fit without scrolling. */
 .effects-bottom-sheet {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 8px 16px 16px;
+  gap: 12px;
+  padding: 8px 16px 12px;
 }
 
 .effects-bottom-sheet__header {
@@ -15,7 +17,7 @@
 .effects-bottom-sheet__sliders {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .effects-bottom-sheet__effect {
