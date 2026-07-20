@@ -2,6 +2,12 @@
 
 Architectural decisions with rationale and provenance, newest first. Entry format: date, decision, why, source. When a decision is reversed, mark the old entry **Superseded** with a pointer — don't delete it; the rationale trail is the point.
 
+## 2026-07-20 — `window.__mawimbi` dev-only e2e verification bridge
+
+**Decision:** `AudioService`'s constructor sets `window.__mawimbi = { spectrogramCache }` when `import.meta.env.DEV`; the shape is declared in `src/global.d.ts`. e2e tests read worker-produced state (e.g. transcribed melody notes) directly through it instead of reverse-engineering a DOM/pixel proxy for a data claim.
+**Why:** Milestone 1 of spec 003 (#480) needed to prove "a known note exists at a known time" after real Basic Pitch transcription. The candidates were screenshot-decoding the piano-roll overlay's paint (fragile: the overlay draws on the same canvas as the already-colorful spectrogram content, under a 3D tilt transform, so isolating "melody-note pixels" from "spectrogram pixels" would require reimplementing the renderer's coordinate math in the test) or a direct read. `kb/verification.md`'s own hierarchy prefers a direct state read for a data claim — the bridge is that, just reachable through `page.evaluate` instead of a plain getter. Scoped minimally (only `spectrogramCache`, not the whole `AudioService`) and DEV-only, so it never exists on deployed builds — e2e always runs against `npm start` per `playwright.config.ts`, so DEV-gating alone (no `?query` escape hatch, unlike `?tune`) is sufficient.
+**Source:** Issue #480 (spec 003 milestone 1).
+
 ## 2026-07-20 — PlaybackService command epoch bumps only on real transitions, not guarded no-ops
 
 **Decision:** `PlaybackService.commandEpoch` (issue #475: lets the scrub controller cancel an armed auto-resume if an explicit command intervenes during the debounce window) is bumped inside `play()`/`pause()`/`stop()` only on the branch where a real state transition happens, after their early-return guards — not unconditionally at the top of the method. `rewind()`/`seekTo()` have no such guard and keep bumping unconditionally, since every call to them is a real command regardless of prior state.

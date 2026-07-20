@@ -253,7 +253,9 @@ npx playwright test e2e/your-spec.spec.ts --reporter=list
 
 ## Pull Requests
 
-After all tasks are done — code changes committed and pushed — run the `/code-review` skill and address confirmed findings, then create a pull request with `gh pr create --repo vsandvold/mawimbi` targeting `master`. Include a summary of what changed and a test plan in the PR body.
+After all tasks are done — code changes committed and pushed — run the `/code-review` skill and address confirmed findings, then create a pull request with `gh pr create --repo vsandvold/mawimbi` targeting `master`. Include a summary of what changed and a test plan in the PR body. When the PR resolves a tracked GitHub issue, include `Closes #<issue-number>` in the body so merging the PR automatically closes the issue — don't wait for a follow-up step to close it.
+
+PR creation is pre-authorized: this is standing permission (per the Executing Actions guidance on durable instructions) to open the PR once work is committed and pushed, without pausing to ask first.
 
 ## Issue Updates
 
@@ -261,3 +263,5 @@ When working on a GitHub issue, comment on the issue after completing work (`gh 
 
 1. **What was done** — summarize the changes made (files modified, new APIs, patterns followed)
 2. **Recommended next steps** — concrete follow-up tasks that remain, numbered in suggested order
+
+Closing the issue itself is handled by the PR's `Closes #<issue-number>` reference (see Pull Requests), not by this comment — only close it manually if the PR doesn't fully resolve it.

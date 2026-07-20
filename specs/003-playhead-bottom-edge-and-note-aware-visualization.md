@@ -1,6 +1,6 @@
 # 003 — Playhead: bottom-edge alignment and note-aware visualization
 
-**Status:** Issues filed
+**Status:** In progress
 **Date:** 2026-07-19
 **Issues:** #479 (tracking); milestones #480 (verification harness), #481 (bottom-edge alignment), #482 (12-TET bars), #483 (fundamental emphasis), #484 (sparkles), #485 (onset pulse + QA handoff)
 
@@ -97,6 +97,6 @@ Each milestone is independently landable; 3–6 are pure additions behind the sa
 ## Open questions
 
 - **0.25H / 3:1 the right size?** Resolved by Milestone 2's human QA on a real phone (tuning is a constants edit; no geometry change).
-- **Real transcription in e2e: fast and deterministic enough?** Resolved empirically in Milestone 1; the fallback seam is specified above.
+- **Real transcription in e2e: fast and deterministic enough?** Resolved empirically in Milestone 1 (#480, 2026-07-20): yes — ~6-11s per upload, identical output across repeat runs on the same fixture. Real transcription is used directly; the injection-seam fallback was not needed. Details: `kb/verification.md`.
 - **Do γ-expansion plus the mild band curve read as "fundamental emphasis" on real multi-track material?** γ and the smoothing time constants are feel-tuning; resolved by the Milestone 6 QA checklist. The escalation path (per-frame peak normalization + loudness envelope scaling, harmonic-support boost) is recorded in Q3's dissent.
 - **Sparkle look ("welding iron")** — particle count, spread, color (track color vs white-hot?) are renderer constants; the sim API is designed so tuning them never touches tested logic. Color choice interacts with the pinned-`Math.random` track-color e2e pattern (#21/#36) if track-colored.
