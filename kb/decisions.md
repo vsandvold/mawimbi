@@ -2,6 +2,12 @@
 
 Architectural decisions with rationale and provenance, newest first. Entry format: date, decision, why, source. When a decision is reversed, mark the old entry **Superseded** with a pointer — don't delete it; the rationale trail is the point.
 
+## 2026-07-20 — PlaybackService command epoch bumps only on real transitions, not guarded no-ops
+
+**Decision:** `PlaybackService.commandEpoch` (issue #475: lets the scrub controller cancel an armed auto-resume if an explicit command intervenes during the debounce window) is bumped inside `play()`/`pause()`/`stop()` only on the branch where a real state transition happens, after their early-return guards — not unconditionally at the top of the method. `rewind()`/`seekTo()` have no such guard and keep bumping unconditionally, since every call to them is a real command regardless of prior state.
+**Why:** `play()`/`pause()` are also invoked as incidental cleanup by `RecordingService`/`workstationEffects.ts` (count-in cancellation, overdub start/stop) while playback may already be in the target state. `isActivelyRecording()` is false during count-in ('armed' state) — only true once actually 'recording' — so scrubbing isn't gated off during count-in, making it reachable for a scrub's armed resume to overlap with one of these incidental calls. Bumping the epoch on a guarded no-op there would spuriously cancel a resume that had nothing to do with the intervening call. Caught by three independent code-review angles (removed-behavior, cross-file trace, altitude) converging on the same bug before it shipped, in the same session that introduced the epoch.
+**Source:** Issue #475.
+
 ## 2026-07-20 — Gesture entry requires exactly one active pointer; end-of-timeline compares raw numbers, never toFixed(1) strings
 
 **Decision:** `useScrubberScroll.ts`'s gesture-entry threshold check (issue #474) only fires with exactly one pointer down; a second pointer joining clears the tracked origin. `PlaybackService.isAtEndOfTimeline()` compares `transportTime >= totalTime` directly, never `toFixed(1)` string equality.
