@@ -1,10 +1,14 @@
 import { forwardRef, useImperativeHandle, useRef } from 'react';
+import { BarSmoother } from './barTransfer';
 import {
   renderLoudnessMeterFrame,
   renderLoudnessMeterIdle,
 } from './loudnessMeterRenderer';
 
 export type LoudnessMeterPlayheadHandle = {
+  // `loudness` (RMS, 0-1) is accepted but not yet read here — reserved for
+  // the envelope-scaling follow-up (spec 003 Q3 dissent): bar shape stays
+  // the relative spectrum, this would scale the overall envelope.
   render: (frequencyData: Uint8Array | null, loudness: number) => void;
   renderIdle: () => void;
   resize: (width: number, height: number) => void;
@@ -24,6 +28,7 @@ const LoudnessMeterPlayhead = forwardRef<
   LoudnessMeterPlayheadProps
 >(({ width, height, meterWidthFraction }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const barSmootherRef = useRef(new BarSmoother());
 
   useImperativeHandle(ref, () => ({
     render(frequencyData: Uint8Array | null) {
@@ -38,6 +43,7 @@ const LoudnessMeterPlayhead = forwardRef<
         canvas.width,
         canvas.height,
         meterWidthFraction,
+        barSmootherRef.current,
       );
     },
 
@@ -52,6 +58,7 @@ const LoudnessMeterPlayhead = forwardRef<
         canvas.width,
         canvas.height,
         meterWidthFraction,
+        barSmootherRef.current,
       );
     },
 

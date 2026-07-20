@@ -1,3 +1,4 @@
+import { type BarSmoother, computeTargetBarValues } from './barTransfer';
 import { poolSemitoneBars } from './semitoneBars';
 
 // --- Loudness meter rectangle ---
@@ -60,14 +61,16 @@ function drawMeterBackground(
  * (12-TET, mawimbi#482), growing upward from the bottom of the rectangle.
  * Bar n's x-center matches `midiNoteToBin(midiNote) / 2`
  * (`PianoRollRenderer.ts`), so a later sparkle pass can reuse the same
- * positions.
+ * positions. `barValues` are already gamma-transferred, band-weighted, and
+ * ballistics-smoothed (`barTransfer.ts`, mawimbi#483) — this function only
+ * maps them to pixels.
  */
 function drawFrequencyBars(
   ctx: CanvasRenderingContext2D,
   rect: MeterRect,
-  semitoneBars: Uint8Array,
+  barValues: Float32Array,
 ): void {
-  const barCount = semitoneBars.length;
+  const barCount = barValues.length;
   if (barCount === 0) return;
 
   const innerPadding = BORDER_WIDTH + 1;
@@ -87,7 +90,7 @@ function drawFrequencyBars(
   ctx.fillStyle = BAR_COLOR;
 
   for (let i = 0; i < barCount; i++) {
-    const intensity = semitoneBars[i] / 255;
+    const intensity = barValues[i] / 255;
     const barHeight = Math.round(intensity * innerHeight);
     if (barHeight <= 0) continue;
 
@@ -106,6 +109,7 @@ export function renderLoudnessMeterFrame(
   canvasWidth: number,
   canvasHeight: number,
   widthFraction: number,
+  barSmoother: BarSmoother,
 ): void {
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
@@ -113,7 +117,8 @@ export function renderLoudnessMeterFrame(
   drawMeterBackground(ctx, rect);
 
   if (frequencyData) {
-    drawFrequencyBars(ctx, rect, poolSemitoneBars(frequencyData));
+    const targets = computeTargetBarValues(poolSemitoneBars(frequencyData));
+    drawFrequencyBars(ctx, rect, barSmoother.update(targets));
   }
 }
 
@@ -122,7 +127,15 @@ export function renderLoudnessMeterIdle(
   canvasWidth: number,
   canvasHeight: number,
   widthFraction: number,
+  barSmoother: BarSmoother,
 ): void {
+  // The idle frame is drawn on every playback discontinuity (pause, stop,
+  // seek — see Playhead.tsx/useScrubberScroll.ts's renderIdle() call
+  // sites), so it doubles as the smoother's reset signal: without it,
+  // resuming decays the stale pre-pause bars instead of reflecting the
+  // new position immediately.
+  barSmoother.reset();
+
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
   const rect = computeMeterRect(canvasWidth, canvasHeight, widthFraction);
