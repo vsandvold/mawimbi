@@ -181,10 +181,13 @@ class PlaybackService {
     this.transport.pause();
   }
 
+  // Raw numeric comparison, not toFixed(1) string equality: a frame that
+  // steps over the 0.1s rounding bucket (e.g. transportTime 10.06 vs
+  // totalTime 10.0 — "10.1" !== "10.0") could miss the end entirely.
   private isAtEndOfTimeline(): boolean {
     return (
-      this._transportTime.value.toFixed(1) ===
-        this._totalTime.value.toFixed(1) && this._totalTime.value > 0
+      this._totalTime.value > 0 &&
+      this._transportTime.value >= this._totalTime.value
     );
   }
 }

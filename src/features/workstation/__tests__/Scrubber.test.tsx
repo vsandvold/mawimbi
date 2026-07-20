@@ -67,7 +67,23 @@ function parseOriginY(origin: string): number {
   return parseFloat(origin.split(' ')[1]);
 }
 
-it('pauses playback when phantom scroller is scrolled while playing', () => {
+it('pauses playback on a real wheel scrub while playing', () => {
+  playbackService.play();
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+
+  const phantom = container.querySelector('.scrubber__phantom')!;
+  fireEvent.wheel(phantom, { deltaY: 100 });
+
+  expect(playbackService.isPlaying).toBe(false);
+});
+
+// A bare `scroll` event with no preceding wheel/pointer-drag input is
+// exactly what the animation loop's own scrollTop writes generate — the
+// gesture model (scrubGesture.ts) must never infer a scrub from it alone,
+// or playback would misread its own writes as a user scrub (mawimbi#472's
+// stutter loop).
+it('does not pause playback on a bare scroll event with no preceding gesture input', () => {
   playbackService.play();
 
   const { container } = render(<Scrubber {...defaultProps} />);
@@ -75,7 +91,7 @@ it('pauses playback when phantom scroller is scrolled while playing', () => {
   const phantom = container.querySelector('.scrubber__phantom')!;
   fireEvent.scroll(phantom);
 
-  expect(playbackService.isPlaying).toBe(false);
+  expect(playbackService.isPlaying).toBe(true);
 });
 
 it('does not pause playback when phantom scroller is scrolled while paused', () => {
@@ -459,18 +475,58 @@ it('pauses playback when pointer-dragging the phantom scroller during playback a
     configurable: true,
   });
 
-  // The animation loop sets isProgrammaticScrollRef = true when updating
-  // scroll position. Without pointer-down tracking, a subsequent user drag
-  // scroll event would be mistaken for a programmatic scroll and ignored.
+  // The animation loop writes scrollTop every frame; the gesture model must
+  // not mistake that write's own `scroll` event for the user's drag.
   act(() => {
     rafCallback(0);
   });
 
-  // Simulate a pointer drag: pointerdown → scroll
-  fireEvent.pointerDown(phantom);
+  // Simulate a pointer drag: pointerdown → movement past the gesture
+  // threshold → scroll. A resting pointerdown with no movement (G4) must
+  // not enter a gesture — see the companion "resting finger" test below.
+  fireEvent.pointerDown(phantom, { clientY: 0 });
+  fireEvent.pointerMove(phantom, { clientY: 20 });
   fireEvent.scroll(phantom);
 
   expect(playbackService.isPlaying).toBe(false);
+});
+
+it('does not pause playback for a resting pointerdown with no movement (G4)', () => {
+  vi.spyOn(playbackService, 'getEngineTime').mockReturnValue(1.0);
+  vi.spyOn(trackService, 'getLoudness').mockReturnValue(0);
+
+  let rafCallback: FrameRequestCallback = () => {};
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+    rafCallback = cb;
+    return 1;
+  });
+
+  playbackService.play();
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+
+  const phantom = container.querySelector('.scrubber__phantom')!;
+
+  Object.defineProperty(phantom, 'scrollHeight', {
+    value: 2000,
+    configurable: true,
+  });
+  Object.defineProperty(phantom, 'clientHeight', {
+    value: 500,
+    configurable: true,
+  });
+
+  act(() => {
+    rafCallback(0);
+  });
+
+  // A tap holds the pointer down for a frame or two with no movement — the
+  // animation loop's own scroll writes during that window must not be
+  // misread as a scrub (this was the tap-misfire's root cause, mawimbi#472).
+  fireEvent.pointerDown(phantom, { clientY: 0 });
+  fireEvent.scroll(phantom);
+
+  expect(playbackService.isPlaying).toBe(true);
 });
 
 it('does not pause playback when phantom scroller is scrolled during recording', () => {
@@ -624,10 +680,12 @@ it('does not resync scroll to a stale transport time while a user scrub is in fl
     configurable: true,
   });
 
-  // A user drags the timeline: the scroll lands at a new position while
-  // the debounced seek (and thus transportTime) has not yet committed.
+  // A user drags the timeline: pointerdown, movement past the gesture
+  // threshold, then the scroll lands at a new position while the debounced
+  // seek (and thus transportTime) has not yet committed.
   phantom.scrollTop = 700;
-  fireEvent.pointerDown(phantom);
+  fireEvent.pointerDown(phantom, { clientY: 0 });
+  fireEvent.pointerMove(phantom, { clientY: 20 });
   fireEvent.scroll(phantom);
 
   // Mid-drag, the geometry changes (e.g. the drag collapses the mobile

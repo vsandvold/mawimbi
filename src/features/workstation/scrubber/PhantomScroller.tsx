@@ -4,8 +4,9 @@ type PhantomScrollerProps = PropsWithChildren<{
   spacerHeight: number;
   style?: CSSProperties;
   onClick: () => void;
-  onPointerDown: () => void;
-  onPointerUp: () => void;
+  onPointerDown: (e: React.PointerEvent) => void;
+  onPointerMove: (e: React.PointerEvent) => void;
+  onPointerEnd: () => void;
   onScroll: () => void;
   onWheel: (e: React.WheelEvent) => void;
 }>;
@@ -29,7 +30,8 @@ const PhantomScroller = forwardRef<HTMLDivElement, PhantomScrollerProps>(
       style,
       onClick,
       onPointerDown,
-      onPointerUp,
+      onPointerMove,
+      onPointerEnd,
       onScroll,
       onWheel,
     },
@@ -42,7 +44,10 @@ const PhantomScroller = forwardRef<HTMLDivElement, PhantomScrollerProps>(
         style={style}
         onClick={onClick}
         onPointerDown={onPointerDown}
-        onPointerUp={onPointerUp}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerEnd}
+        onPointerCancel={onPointerEnd}
+        onLostPointerCapture={onPointerEnd}
         onScroll={onScroll}
         onWheel={onWheel}
       >

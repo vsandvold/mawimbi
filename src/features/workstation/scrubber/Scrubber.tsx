@@ -68,7 +68,8 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
 
   const {
     handlePointerDown,
-    handlePointerUp,
+    handlePointerMove,
+    handlePointerEnd,
     handleWheel,
     handleScroll,
     isUserScrubbing,
@@ -146,7 +147,8 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
         style={phantomStyle}
         onClick={handleTimelineClick}
         onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
+        onPointerMove={handlePointerMove}
+        onPointerEnd={handlePointerEnd}
         onScroll={handleScroll}
         onWheel={handleWheel}
       />
