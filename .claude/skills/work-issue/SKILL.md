@@ -6,7 +6,7 @@ argument-hint: <issue number>
 
 # Work an Issue
 
-The delivery loop for one issue. The ordering is the point: **verification exists before implementation**, **code review runs before the KB gets paid back**, and **the KB gets paid back before the session ends**.
+The delivery loop for one issue. The ordering is the point: **verification exists before implementation**, **code review runs before the KB gets paid back**, and **the KB gets paid back before the session ends**. Each stage lands its own commit — feature code, then review fixes, then the KB update — so the PR history shows what review actually changed instead of folding it into the original diff.
 
 ## 1. Ground
 
@@ -26,15 +26,19 @@ Per CLAUDE.md's Working Defaults, on the session's designated branch. For a genu
 
 Run the issue's verification commands, then verify per CLAUDE.md's Working Defaults (`npm run lint` plus the tests relevant to the change; e2e with `--reporter=list` in headless sessions). Only claim what this session has evidence for. Check acceptance-criteria boxes only when their check actually ran green.
 
-## 5. Review
+## 5. Commit
 
-Run `/code-review` on the diff and address confirmed findings (CLAUDE.md, Working Defaults). Do this before `/kb write` — review often surfaces the mistakes and tradeoffs that are actually worth capturing.
+Commit the feature code now, before code review runs. Committing first means review's fixes land as their own commit instead of being silently folded into the implementation.
 
-## 6. Pay back
+## 6. Review
 
-- `/kb write` — capture durable learnings from this session, **before shipping**, so the update lands in this PR rather than a follow-up one. Include anything code review surfaced that's durable and non-derivable, not just narration of the review itself.
+Run `/code-review` on the diff and address confirmed findings (CLAUDE.md, Working Defaults). Commit any fixes **separately** from the feature commit. Do this before `/kb write` — review often surfaces the mistakes and tradeoffs that are actually worth capturing.
+
+## 7. Pay back
+
+- `/kb write` — capture durable learnings from this session, **before shipping**, so the update lands in this PR rather than a follow-up one. Include anything code review surfaced that's durable and non-derivable, not just narration of the review itself. Commit the KB update **separately** (`kb/*.md`, `CLAUDE.md`, `specs/*.md` changes in their own commit).
 - If this was the spec's last milestone: spec Status → `Delivered`.
 
-## 7. Ship
+## 8. Ship
 
-Follow CLAUDE.md's Pull Requests section: commit the feature code (including any review fixes), then commit the KB update **separately** (`kb/*.md`, `CLAUDE.md`, `specs/*.md` changes in their own commit) — same branch and PR, distinct commit — and push both. Open the PR with a summary, a test plan listing the commands actually run, and `Closes #<issue-number>` in the body so merging auto-closes the issue. Comment on the issue per CLAUDE.md's Issue Updates format (what was done, recommended next steps). Subscribe to the PR's activity and babysit CI to green. If this was the spec's last milestone, close the parent tracking issue with a summary once the PR merges.
+Push the feature, review-fix, and KB commits — same branch and PR. Open the PR with a summary, a test plan listing the commands actually run, and `Closes #<issue-number>` in the body so merging auto-closes the issue. Comment on the issue per CLAUDE.md's Issue Updates format (what was done, recommended next steps). Subscribe to the PR's activity and babysit CI to green. If this was the spec's last milestone, close the parent tracking issue with a summary once the PR merges.
