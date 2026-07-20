@@ -43,14 +43,13 @@ async function getContentBoundaryY(
     .evaluate((el) => el.getBoundingClientRect().bottom);
 }
 
-/** The on-screen Y of the playhead line — the vertical center of the playhead overlay. */
+/** The on-screen Y of the playhead line — the bottom edge of the playhead overlay. */
 async function getPlayheadLineY(
   page: import('@playwright/test').Page,
 ): Promise<number> {
-  return page.locator('.scrubber__playhead').evaluate((el) => {
-    const rect = el.getBoundingClientRect();
-    return rect.top + rect.height / 2;
-  });
+  return page
+    .locator('.scrubber__playhead')
+    .evaluate((el) => el.getBoundingClientRect().bottom);
 }
 
 /**

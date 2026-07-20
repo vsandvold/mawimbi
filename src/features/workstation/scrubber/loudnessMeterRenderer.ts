@@ -13,13 +13,14 @@ export type MeterRect = {
   height: number;
 };
 
-const METER_ASPECT_RATIO = 2; // width:height = 2:1
+const METER_ASPECT_RATIO = 3; // width:height = 3:1
 
 /**
- * Compute the meter rectangle, centered within the canvas. Width is the
+ * Compute the meter rectangle, bottom-aligned within the canvas so its
+ * bottom edge sits on the playhead line (mawimbi#481). Width is the
  * runway's rendered width at the playhead line (`widthFraction`, derived
  * from the solved geometry — mawimbi#461) so the meter's edges align with
- * the runway rails. Height follows the 2:1 aspect ratio, clamped to the
+ * the runway rails. Height follows the 3:1 aspect ratio, clamped to the
  * canvas height so wide viewports don't silently clip the rectangle.
  */
 export function computeMeterRect(
@@ -33,7 +34,7 @@ export function computeMeterRect(
     Math.round(canvasHeight),
   );
   const x = Math.round((canvasWidth - width) / 2);
-  const y = Math.round((canvasHeight - height) / 2);
+  const y = Math.round(canvasHeight - height);
   return { x, y, width, height };
 }
 
