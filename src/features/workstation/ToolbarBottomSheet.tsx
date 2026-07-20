@@ -1,4 +1,11 @@
-import { Ellipsis, PenLine, Redo, Undo, Upload } from 'lucide-react';
+import {
+  Ellipsis,
+  PenLine,
+  Redo,
+  SlidersHorizontal,
+  Undo,
+  Upload,
+} from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import classNames from 'classnames';
 import { Button } from '../../shared/ui/button';
@@ -26,9 +33,12 @@ const TWO_ROW_HEIGHT = 96;
 type ToolbarBottomSheetProps = {
   isMixerOpen: boolean;
   isLyricsOpen: boolean;
+  isEffectsOpen: boolean;
+  isEffectsDisabled: boolean;
   isEmpty: boolean;
   onToggleMixer: () => void;
   onToggleLyrics: () => void;
+  onToggleEffects: () => void;
   uploadFile: (file: File) => void;
   isFullscreen: boolean;
   toggleFullscreen: (state?: boolean) => void;
@@ -48,9 +58,12 @@ const ToolbarBottomSheet = (props: ToolbarBottomSheetProps) => {
   const {
     isMixerOpen,
     isLyricsOpen,
+    isEffectsOpen,
+    isEffectsDisabled,
     isEmpty,
     onToggleMixer,
     onToggleLyrics,
+    onToggleEffects,
     uploadFile,
     isFullscreen,
     toggleFullscreen,
@@ -87,6 +100,7 @@ const ToolbarBottomSheet = (props: ToolbarBottomSheetProps) => {
   const mixerIconClass = classNames('custom-icon', {
     'show-mixer': isMixerOpen,
   });
+  const effectsIconClass = classNames({ 'show-effects': isEffectsOpen });
 
   return (
     <div
@@ -147,6 +161,16 @@ const ToolbarBottomSheet = (props: ToolbarBottomSheetProps) => {
               <span className={mixerIconClass}>
                 <ControlSvg />
               </span>
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-lg"
+              className="button"
+              title={isEffectsOpen ? 'Hide effects' : 'Show effects'}
+              onClick={onToggleEffects}
+              disabled={isEmpty || isEffectsDisabled}
+            >
+              <SlidersHorizontal className={effectsIconClass} />
             </Button>
           </div>
           <div className="toolbar-sheet__row">
