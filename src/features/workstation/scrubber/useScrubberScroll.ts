@@ -13,8 +13,15 @@ import { useTrackService } from '../../tracks/useTrackService';
 import useDebounced from '../../../shared/hooks/useDebounced';
 import FrequencyVisualizer from '../../spectrogram/FrequencyVisualizer';
 import { type PlayheadHandle } from './Playhead';
+import {
+  isGestureInProgress,
+  nextScrubState,
+  type ScrubState,
+} from './scrubGesture';
 
 const SCROLL_DEBOUNCE_MS = 200;
+
+type PointerPosition = { x: number; y: number };
 
 type UseScrubberScrollOptions = {
   phantomRef: RefObject<HTMLDivElement | null>;
@@ -53,10 +60,10 @@ export function useScrubberScroll({
   const playing = playback.isPlaying;
   const playbackState = playback.playbackState;
 
-  const isProgrammaticScrollRef = useRef(false);
+  const scrubStateRef = useRef<ScrubState>('idle');
   const shouldResumeRef = useRef(false);
-  const isPointerDownRef = useRef(false);
-  const isUserScrubbingRef = useRef(false);
+  const pointerDownPosRef = useRef<PointerPosition | null>(null);
+  const activePointerCountRef = useRef(0);
 
   /**
    * Ensure the phantom scroller's spacer height matches the offset stage's
@@ -95,7 +102,6 @@ export function useScrubberScroll({
         const scrollPosition =
           maxScrollTop - Math.trunc(time * pixelsPerSecond);
         if (phantom.scrollTop !== scrollPosition) {
-          isProgrammaticScrollRef.current = true;
           phantom.scrollTop = scrollPosition;
         }
         syncOffset();
@@ -150,11 +156,31 @@ export function useScrubberScroll({
         // can momentarily equal clientHeight before new content is laid out.
         // Stopping playback here would freeze transportTime updates and halt
         // the live spectrogram scroll.
-        // In inverted scroll, end of track is at scrollTop=0 (top of scroll area)
-        if (phantomRef.current && !recording.isActivelyRecording) {
+        // In inverted scroll, end of track is at scrollTop=0 (top of scroll area).
+        // This is a safety net for the primary end-of-timeline detection
+        // above (setTransportTime's isAtEndOfTimeline check): if that
+        // already stopped playback this frame, isPlaying is false here and
+        // this block is skipped. If it hasn't (a rare rounding disagreement
+        // between the scroll-position and transport-time math), route
+        // through the same setTransportTime path so both mechanisms agree
+        // on "stop at end, preserving position" — not rewind()'s
+        // reset-to-0, which would contradict it (spec 002, Open questions).
+        if (
+          phantomRef.current &&
+          !recording.isActivelyRecording &&
+          playback.isPlaying
+        ) {
           const isEndOfScroll = phantomRef.current.scrollTop <= 0;
           if (isEndOfScroll) {
-            playback.rewind();
+            playback.setTransportTime(playback.totalTime);
+            if (playback.isPlaying) {
+              // isAtEndOfTimeline requires totalTime > 0 (PlaybackService),
+              // so the call above is a no-op when totalTime just dropped to
+              // 0 (e.g. the last track was removed mid-playback). Stop
+              // directly so this loop doesn't die mid-"playing" — the old
+              // rewind()-based fallback stopped unconditionally here.
+              playback.pause();
+            }
             return;
           }
         }
@@ -181,16 +207,27 @@ export function useScrubberScroll({
     // Hook objects reference stable service singletons via getters
   }, [playbackState, setScrollPosition]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Always clears the gesture state and the armed-resume flag, even if the
+  // seek/resume below is skipped — otherwise a debounce that commits while
+  // actively recording (C9: scroll-to-seek is disabled during active
+  // recording) would leave scrubStateRef/shouldResumeRef stuck armed with
+  // no further scroll event ever scheduled to retry them.
   const setTransportTimeFromScroll = () => {
-    isUserScrubbingRef.current = false;
+    scrubStateRef.current = nextScrubState(scrubStateRef.current, {
+      type: 'seekCommitted',
+    });
+    const shouldResume = shouldResumeRef.current;
+    shouldResumeRef.current = false;
+
+    if (recording.isActivelyRecording) return;
+
     const el = phantomRef.current;
     if (el) {
       const maxScrollTop = el.scrollHeight - el.clientHeight;
       const time = (maxScrollTop - el.scrollTop) / pixelsPerSecond;
       playback.seekTo(time);
     }
-    if (shouldResumeRef.current) {
-      shouldResumeRef.current = false;
+    if (shouldResume) {
       playback.play();
     }
   };
@@ -206,57 +243,96 @@ export function useScrubberScroll({
     }
   };
 
-  // Pointer-down indicates a touch/mouse drag is starting. While the
-  // pointer is down, all scroll events are user-initiated — the
-  // programmatic flag from the animation loop must be ignored.
-  const handlePointerDown = () => {
-    isPointerDownRef.current = true;
+  // A gesture is entered only from real input events (below), never
+  // inferred from `scroll` events — see scrubGesture.ts. Pointer position is
+  // tracked so a subsequent pointermove can measure cumulative movement
+  // against it (G4: a resting finger never scrubs). A second pointer
+  // joining (e.g. a pinch's first two touches) clears the origin: pinch is
+  // multi-touch, never a single-finger scrub, so it must never reach the
+  // movement-threshold check below (G5 groundwork — full pinch integration
+  // is #476, but a two-finger touch was never meant to read as a drag).
+  const handlePointerDown = (e: React.PointerEvent) => {
+    activePointerCountRef.current += 1;
+    pointerDownPosRef.current =
+      activePointerCountRef.current === 1
+        ? { x: e.clientX, y: e.clientY }
+        : null;
   };
 
-  const handlePointerUp = () => {
-    isPointerDownRef.current = false;
+  const handlePointerMove = (e: React.PointerEvent) => {
+    // Once a gesture is active, further movement no longer changes the
+    // outcome (see scrubGesture.ts's pointerMove case) — skip the distance
+    // calculation for the remainder of the drag, not just its result.
+    if (scrubStateRef.current !== 'idle') return;
+    if (activePointerCountRef.current !== 1) return;
+    const origin = pointerDownPosRef.current;
+    if (!origin || recording.isActivelyRecording) return;
+
+    const distancePx = Math.hypot(e.clientX - origin.x, e.clientY - origin.y);
+    scrubStateRef.current = nextScrubState(scrubStateRef.current, {
+      type: 'pointerMove',
+      distancePx,
+    });
+    if (scrubStateRef.current !== 'idle') {
+      pauseForUserScroll();
+    }
   };
 
-  // Wheel events always indicate user interaction — clear the programmatic
-  // flag so the subsequent onscroll handler treats it as a user scroll.
-  // Without this, the animation loop's programmatic flag could race with
-  // a user wheel event and swallow it.
+  // Pointer released, cancelled, or lost capture — every route a native
+  // touch scroll can end through (mawimbi#472's stutter loop traced to
+  // PhantomScroller only handling pointerup, leaving a stuck pointer-down
+  // flag when the browser took over the gesture and fired pointercancel
+  // instead). The gesture may still be settling (momentum scroll events
+  // extending the debounce), so this only ends the *pointer*, not the
+  // gesture — pendingSeek is exited by the debounced seek committing.
+  //
+  // A real gesture always schedules that commit itself, rather than
+  // depending on a `scroll` event to schedule it: on a fast flick the
+  // pointer can release before the browser has dispatched even one native
+  // scroll event, and recording can start mid-gesture and make handleScroll
+  // stop scheduling (see setTransportTimeFromScroll) — either way, with
+  // nothing scheduled, scrubStateRef would stay stuck at 'pendingSeek'
+  // forever, permanently blocking the geometry-resync guard.
+  const handlePointerEnd = () => {
+    activePointerCountRef.current = Math.max(
+      0,
+      activePointerCountRef.current - 1,
+    );
+    pointerDownPosRef.current = null;
+    const wasActive = scrubStateRef.current === 'gestureActive';
+    scrubStateRef.current = nextScrubState(scrubStateRef.current, {
+      type: 'pointerEnd',
+    });
+    if (wasActive) {
+      debouncedSetTransportTime();
+    }
+  };
+
   const handleWheel = (e: React.WheelEvent) => {
     // Ctrl/Meta+wheel is zoom, not scroll
     if (e.ctrlKey || e.metaKey) return;
     if (recording.isActivelyRecording) return;
-    isProgrammaticScrollRef.current = false;
-    isUserScrubbingRef.current = true;
+    scrubStateRef.current = nextScrubState(scrubStateRef.current, {
+      type: 'wheel',
+    });
     pauseForUserScroll();
     debouncedSetTransportTime();
   };
 
+  // `scroll` events never drive a gesture transition themselves (that's the
+  // fix: the loop's own scrollTop writes reach this handler too, and
+  // inferring intent from them is exactly what misclassified them as user
+  // scrubs). They only sync visuals, and — while a gesture is already
+  // active or settling — extend the seek debounce, which is what keeps
+  // touch momentum seeking working after the finger lifts. Recording is not
+  // checked here: setTransportTimeFromScroll already skips the seek/resume
+  // side effects while actively recording, and gating scheduling here too
+  // risks a debounce that never gets re-armed once recording ends.
   const handleScroll = () => {
     syncSpacerHeight();
     syncOffset();
 
-    // When a pointer is down, the user is dragging — override the
-    // programmatic flag so the scroll is treated as user-initiated. Only a
-    // genuine drag (or wheel, above) raises the scrubbing flag: scroll
-    // events the browser generates itself (e.g. scrollTop clamping after a
-    // layout change) reach this handler too, and marking those as scrubs
-    // would wrongly suppress the geometry-change resync.
-    if (isPointerDownRef.current) {
-      isProgrammaticScrollRef.current = false;
-      // Not during active recording: the early return below would skip the
-      // debounced seek that clears the flag, leaving it stuck.
-      if (!recording.isActivelyRecording) {
-        isUserScrubbingRef.current = true;
-      }
-    }
-
-    if (isProgrammaticScrollRef.current) {
-      isProgrammaticScrollRef.current = false;
-      return;
-    }
-
-    if (recording.isActivelyRecording) return;
-    pauseForUserScroll();
+    if (!isGestureInProgress(scrubStateRef.current)) return;
     debouncedSetTransportTime();
   };
 
@@ -268,18 +344,23 @@ export function useScrubberScroll({
     [setScrollPosition, playheadRef],
   );
 
-  // True from a user-initiated scroll until its debounced seek commits.
-  // Geometry-change resyncs must not fire in this window: they would snap
-  // scrollTop back to the stale pre-scrub transport time, yanking the
-  // timeline out from under an active drag (e.g. when the drag itself
-  // collapses the mobile address bar and resizes the viewport). Skipping
-  // is safe — the pending seek re-derives the time from the final scroll
-  // position against the then-current mapping.
-  const isUserScrubbing = useCallback(() => isUserScrubbingRef.current, []);
+  // True from a user-initiated gesture until its debounced seek commits
+  // (gestureActive or pendingSeek — see scrubGesture.ts). Geometry-change
+  // resyncs must not fire in this window: they would snap scrollTop back to
+  // the stale pre-scrub transport time, yanking the timeline out from under
+  // an active drag (e.g. when the drag itself collapses the mobile address
+  // bar and resizes the viewport). Skipping is safe — the pending seek
+  // re-derives the time from the final scroll position against the
+  // then-current mapping.
+  const isUserScrubbing = useCallback(
+    () => isGestureInProgress(scrubStateRef.current),
+    [],
+  );
 
   return {
     handlePointerDown,
-    handlePointerUp,
+    handlePointerMove,
+    handlePointerEnd,
     handleWheel,
     handleScroll,
     isUserScrubbing,

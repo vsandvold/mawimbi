@@ -14,9 +14,11 @@ import {
  * Reproductions for the playback/scrub bugs identified in spec 002 (issue
  * #472): a timeline tap during playback restarts playback instead of
  * staying paused (G1), and pressing play after a paused touch-swipe enters
- * a play/pause stutter loop (G2). Both are annotated `test.fail()` per
- * CLAUDE.md's bug-fix rule — they must fail against current behavior before
- * milestone 2's gesture-model fix flips them green.
+ * a play/pause stutter loop (G2). Fixed in milestone 2 (issue #474) by
+ * replacing the scrubber's heuristic scroll-source attribution with the
+ * input-driven gesture state machine in `scrubGesture.ts` — these were
+ * committed `test.fail()`-annotated in milestone 1 (issue #473) per
+ * CLAUDE.md's bug-fix rule and flipped green here.
  *
  * Assertions count play/pause button *transitions* via the flap tracer
  * rather than polling visibility at one instant. A visibility poll can
@@ -52,7 +54,7 @@ test.describe('Playback toggle stability', () => {
   });
 
   for (const holdMs of TAP_HOLD_DURATIONS_MS) {
-    test.fail(
+    test(
       `tapping the timeline during playback pauses and stays paused (${holdMs}ms hold)`,
       async ({ page }) => {
         await page.getByTitle('Play').click();
@@ -68,7 +70,7 @@ test.describe('Playback toggle stability', () => {
     );
   }
 
-  test.fail(
+  test(
     'pressing play after a paused touch-swipe yields stable playback',
     async ({ page }) => {
       await expect(page.getByTitle('Play')).toBeVisible();

@@ -67,7 +67,23 @@ function parseOriginY(origin: string): number {
   return parseFloat(origin.split(' ')[1]);
 }
 
-it('pauses playback when phantom scroller is scrolled while playing', () => {
+it('pauses playback on a real wheel scrub while playing', () => {
+  playbackService.play();
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+
+  const phantom = container.querySelector('.scrubber__phantom')!;
+  fireEvent.wheel(phantom, { deltaY: 100 });
+
+  expect(playbackService.isPlaying).toBe(false);
+});
+
+// A bare `scroll` event with no preceding wheel/pointer-drag input is
+// exactly what the animation loop's own scrollTop writes generate — the
+// gesture model (scrubGesture.ts) must never infer a scrub from it alone,
+// or playback would misread its own writes as a user scrub (mawimbi#472's
+// stutter loop).
+it('does not pause playback on a bare scroll event with no preceding gesture input', () => {
   playbackService.play();
 
   const { container } = render(<Scrubber {...defaultProps} />);
@@ -75,7 +91,7 @@ it('pauses playback when phantom scroller is scrolled while playing', () => {
   const phantom = container.querySelector('.scrubber__phantom')!;
   fireEvent.scroll(phantom);
 
-  expect(playbackService.isPlaying).toBe(false);
+  expect(playbackService.isPlaying).toBe(true);
 });
 
 it('does not pause playback when phantom scroller is scrolled while paused', () => {
@@ -398,6 +414,34 @@ it('does not stop playback at end of scroll during recording', () => {
   expect(playbackService.transportTime).toBe(1.5);
 });
 
+it('stops playback via the end-of-scroll fallback when totalTime is 0 mid-playback', () => {
+  vi.spyOn(playbackService, 'getEngineTime').mockReturnValue(2.0);
+  vi.spyOn(trackService, 'getLoudness').mockReturnValue(0);
+
+  let rafCallback: FrameRequestCallback = () => {};
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+    rafCallback = cb;
+    return 1;
+  });
+
+  playbackService.play();
+  // totalTime is left at its default 0 (e.g. the last track was removed
+  // mid-playback) — isAtEndOfTimeline's `totalTime > 0` guard means the
+  // primary end-of-timeline mechanism inside setTransportTime can never
+  // fire, so the end-of-scroll fallback must stop playback on its own
+  // rather than leaving the loop reporting "playing" forever.
+
+  render(<Scrubber {...defaultProps} />);
+
+  // jsdom's scrollHeight === clientHeight (no overflow), so the end-of-scroll
+  // fallback's `scrollTop <= 0` condition is trivially satisfied.
+  act(() => {
+    rafCallback(0);
+  });
+
+  expect(playbackService.isPlaying).toBe(false);
+});
+
 it('stops recording when phantom scroller is clicked during recording', () => {
   playbackService.play();
   recordingService.arm();
@@ -459,16 +503,218 @@ it('pauses playback when pointer-dragging the phantom scroller during playback a
     configurable: true,
   });
 
-  // The animation loop sets isProgrammaticScrollRef = true when updating
-  // scroll position. Without pointer-down tracking, a subsequent user drag
-  // scroll event would be mistaken for a programmatic scroll and ignored.
+  // The animation loop writes scrollTop every frame; the gesture model must
+  // not mistake that write's own `scroll` event for the user's drag.
   act(() => {
     rafCallback(0);
   });
 
-  // Simulate a pointer drag: pointerdown → scroll
-  fireEvent.pointerDown(phantom);
+  // Simulate a pointer drag: pointerdown → movement past the gesture
+  // threshold → scroll. A resting pointerdown with no movement (G4) must
+  // not enter a gesture — see the companion "resting finger" test below.
+  fireEvent.pointerDown(phantom, { clientY: 0 });
+  fireEvent.pointerMove(phantom, { clientY: 20 });
   fireEvent.scroll(phantom);
+
+  expect(playbackService.isPlaying).toBe(false);
+});
+
+it('does not pause playback for a resting pointerdown with no movement (G4)', () => {
+  vi.spyOn(playbackService, 'getEngineTime').mockReturnValue(1.0);
+  vi.spyOn(trackService, 'getLoudness').mockReturnValue(0);
+
+  let rafCallback: FrameRequestCallback = () => {};
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+    rafCallback = cb;
+    return 1;
+  });
+
+  playbackService.play();
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+
+  const phantom = container.querySelector('.scrubber__phantom')!;
+
+  Object.defineProperty(phantom, 'scrollHeight', {
+    value: 2000,
+    configurable: true,
+  });
+  Object.defineProperty(phantom, 'clientHeight', {
+    value: 500,
+    configurable: true,
+  });
+
+  act(() => {
+    rafCallback(0);
+  });
+
+  // A tap holds the pointer down for a frame or two with no movement — the
+  // animation loop's own scroll writes during that window must not be
+  // misread as a scrub (this was the tap-misfire's root cause, mawimbi#472).
+  fireEvent.pointerDown(phantom, { clientY: 0 });
+  fireEvent.scroll(phantom);
+
+  expect(playbackService.isPlaying).toBe(true);
+});
+
+it('does not pause playback during a two-finger touch (pinch groundwork, G5)', () => {
+  vi.spyOn(playbackService, 'getEngineTime').mockReturnValue(1.0);
+  vi.spyOn(trackService, 'getLoudness').mockReturnValue(0);
+
+  let rafCallback: FrameRequestCallback = () => {};
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+    rafCallback = cb;
+    return 1;
+  });
+
+  playbackService.play();
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+
+  const phantom = container.querySelector('.scrubber__phantom')!;
+
+  Object.defineProperty(phantom, 'scrollHeight', {
+    value: 2000,
+    configurable: true,
+  });
+  Object.defineProperty(phantom, 'clientHeight', {
+    value: 500,
+    configurable: true,
+  });
+
+  act(() => {
+    rafCallback(0);
+  });
+
+  // A pinch's two touches each generate their own pointer events on the
+  // phantom (useTimelineZoom.ts's touchmove preventDefault() suppresses the
+  // native scroll, but not the parallel pointermove events) — a second
+  // pointer joining must suppress gesture entry entirely, or pinching would
+  // spuriously pause playback.
+  fireEvent.pointerDown(phantom, { clientY: 0, pointerId: 1 });
+  fireEvent.pointerDown(phantom, { clientY: 0, pointerId: 2 });
+  fireEvent.pointerMove(phantom, { clientY: 30, pointerId: 1 });
+  fireEvent.scroll(phantom);
+
+  expect(playbackService.isPlaying).toBe(true);
+});
+
+it('recognizes a single-finger drag again once a two-finger touch fully lifts', () => {
+  vi.spyOn(playbackService, 'getEngineTime').mockReturnValue(1.0);
+  vi.spyOn(trackService, 'getLoudness').mockReturnValue(0);
+
+  let rafCallback: FrameRequestCallback = () => {};
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+    rafCallback = cb;
+    return 1;
+  });
+
+  playbackService.play();
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+
+  const phantom = container.querySelector('.scrubber__phantom')!;
+
+  Object.defineProperty(phantom, 'scrollHeight', {
+    value: 2000,
+    configurable: true,
+  });
+  Object.defineProperty(phantom, 'clientHeight', {
+    value: 500,
+    configurable: true,
+  });
+
+  act(() => {
+    rafCallback(0);
+  });
+
+  // Both touches lift (pinch ends) — the pointer count must not stay
+  // wedged above zero, or every future single-finger drag would be
+  // silently ignored as "still multi-touch".
+  fireEvent.pointerDown(phantom, { clientY: 0, pointerId: 1 });
+  fireEvent.pointerDown(phantom, { clientY: 0, pointerId: 2 });
+  fireEvent.pointerUp(phantom, { pointerId: 2 });
+  fireEvent.pointerUp(phantom, { pointerId: 1 });
+
+  fireEvent.pointerDown(phantom, { clientY: 0, pointerId: 3 });
+  fireEvent.pointerMove(phantom, { clientY: 30, pointerId: 3 });
+  fireEvent.scroll(phantom);
+
+  expect(playbackService.isPlaying).toBe(false);
+});
+
+it('does not toggle playback via click after a tap that crossed the scrub threshold', () => {
+  playbackService.play();
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+  const phantom = container.querySelector('.scrubber__phantom')!;
+  Object.defineProperty(phantom, 'scrollHeight', {
+    value: 2000,
+    configurable: true,
+  });
+  Object.defineProperty(phantom, 'clientHeight', {
+    value: 500,
+    configurable: true,
+  });
+
+  // A "tap" with a few pixels of incidental finger movement crosses the
+  // scrub threshold and pauses playback — a real gesture, not misattributed
+  // scroll. The browser's own click-vs-drag tolerance doesn't match
+  // SCRUB_MOVEMENT_THRESHOLD_PX, so a native click can still follow; it
+  // must not also toggle playback (that would restart it, reproducing the
+  // G1 tap-misfire class via an 8+px tap instead of a misread scroll event).
+  fireEvent.pointerDown(phantom, { clientY: 0 });
+  fireEvent.pointerMove(phantom, { clientY: 20 });
+  fireEvent.pointerUp(phantom);
+  expect(playbackService.isPlaying).toBe(false);
+
+  fireEvent.click(phantom);
+
+  expect(playbackService.isPlaying).toBe(false);
+});
+
+it('does not permanently stick the gesture state if recording starts before a scroll event schedules the debounce', () => {
+  vi.useFakeTimers();
+  playbackService.play();
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+  const phantom = container.querySelector('.scrubber__phantom')!;
+  Object.defineProperty(phantom, 'scrollHeight', {
+    value: 2000,
+    configurable: true,
+  });
+  Object.defineProperty(phantom, 'clientHeight', {
+    value: 500,
+    configurable: true,
+  });
+
+  // A drag enters the gesture and pauses playback...
+  fireEvent.pointerDown(phantom, { clientY: 0 });
+  fireEvent.pointerMove(phantom, { clientY: 20 });
+  expect(playbackService.isPlaying).toBe(false);
+
+  // ...then recording starts and the finger lifts before any `scroll` event
+  // has fired for this gesture (a fast flick can outrun the browser's own
+  // scroll dispatch, and handleScroll would refuse to commit while actively
+  // recording anyway). Without handlePointerEnd scheduling its own commit,
+  // nothing would ever fire 'seekCommitted', leaving scrubStateRef stuck at
+  // 'pendingSeek' forever.
+  recordingService.arm();
+  recordingService.startRecording();
+  fireEvent.pointerUp(phantom);
+  recordingService.stopRecording();
+
+  act(() => {
+    vi.advanceTimersByTime(250);
+  });
+  vi.useRealTimers();
+
+  // A stuck gesture state would silently swallow this fresh drag — the
+  // idle-only guard in handlePointerMove never lets it re-enter, so
+  // playback would never pause here if the earlier gesture never unstuck.
+  playbackService.play();
+  fireEvent.pointerDown(phantom, { clientY: 100 });
+  fireEvent.pointerMove(phantom, { clientY: 130 });
 
   expect(playbackService.isPlaying).toBe(false);
 });
@@ -624,10 +870,12 @@ it('does not resync scroll to a stale transport time while a user scrub is in fl
     configurable: true,
   });
 
-  // A user drags the timeline: the scroll lands at a new position while
-  // the debounced seek (and thus transportTime) has not yet committed.
+  // A user drags the timeline: pointerdown, movement past the gesture
+  // threshold, then the scroll lands at a new position while the debounced
+  // seek (and thus transportTime) has not yet committed.
   phantom.scrollTop = 700;
-  fireEvent.pointerDown(phantom);
+  fireEvent.pointerDown(phantom, { clientY: 0 });
+  fireEvent.pointerMove(phantom, { clientY: 20 });
   fireEvent.scroll(phantom);
 
   // Mid-drag, the geometry changes (e.g. the drag collapses the mobile

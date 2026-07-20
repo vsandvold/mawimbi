@@ -199,6 +199,22 @@ describe('PlaybackService', () => {
       expect(service.playbackState).toBe('stopped');
       expect(service.transportTime).toBe(10.04);
     });
+
+    // A toFixed(1)-string comparison can miss the end when a frame steps
+    // over the rounding bucket (10.06 rounds to "10.1", never equal to
+    // "10.0"). Sweeping small overshoots past a non-round totalTime confirms
+    // the raw numeric comparison catches all of them.
+    it.each([0.01, 0.02, 0.04, 0.06, 0.09])(
+      'stops for a %s s frame-step overshoot past a non-round totalTime',
+      (overshoot) => {
+        service.setTotalTime(10.03);
+        service.play();
+
+        service.setTransportTime(10.03 + overshoot);
+
+        expect(service.playbackState).toBe('stopped');
+      },
+    );
   });
 
   describe('stop', () => {
