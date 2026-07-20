@@ -29,6 +29,7 @@ type UseScrubberScrollOptions = {
   playheadRef: RefObject<PlayheadHandle | null>;
   pixelsPerSecond: number;
   isPinchingRef: RefObject<boolean>;
+  isTrackCyclingRef: RefObject<boolean>;
 };
 
 /**
@@ -54,6 +55,7 @@ export function useScrubberScroll({
   playheadRef,
   pixelsPerSecond,
   isPinchingRef,
+  isTrackCyclingRef,
 }: UseScrubberScrollOptions) {
   const playback = usePlaybackService();
   const recording = useRecordingService();
@@ -314,6 +316,11 @@ export function useScrubberScroll({
       cancelGestureForPinch();
       return;
     }
+    // A horizontal track-cycle gesture (spec 004, milestone 3) has already
+    // claimed this pointer sequence — stand down entirely rather than also
+    // entering a vertical scrub for the same movement (useTrackCycleGesture
+    // locks axis on the same threshold this hook uses).
+    if (isTrackCyclingRef.current) return;
     // Once a gesture is active, further movement no longer changes the
     // outcome (see scrubGesture.ts's pointerMove case) — skip the distance
     // calculation for the remainder of the drag, not just its result.
@@ -406,6 +413,17 @@ export function useScrubberScroll({
   // bar and resizes the viewport). Skipping is safe — the pending seek
   // re-derives the time from the final scroll position against the
   // then-current mapping.
+  //
+  // Deliberately does NOT also check isTrackCyclingRef: that ref stays true
+  // from a horizontal cycle gesture's release until the *next* pointerdown
+  // (so the trailing synthetic click is still suppressed — see
+  // useTrackCycleGesture.ts), an unbounded window with no relationship to
+  // "is a geometry resync unsafe right now". Folding it in here used to
+  // starve this effect's resync for as long as that window lasted — e.g. a
+  // drawer opened via a toolbar button (not a phantom touch) after a
+  // completed swipe would resolve new geometry but never re-sync scroll to
+  // it. Click suppression is a Scrubber.tsx-only concern; it checks
+  // isTrackCyclingRef directly there instead.
   const isUserScrubbing = useCallback(
     () => isGestureInProgress(scrubStateRef.current),
     [],
