@@ -2,6 +2,14 @@
 
 Architectural decisions with rationale and provenance, newest first. Entry format: date, decision, why, source. When a decision is reversed, mark the old entry **Superseded** with a pointer — don't delete it; the rationale trail is the point.
 
+**Hygiene note:** this file is past the KB's ~150-line guideline (`kb/INDEX.md`) — due a split (e.g. by year, or into `decisions.md` + `decisions-archive.md`) in a future `/harness-audit` or dedicated session, not blocking here.
+
+## 2026-07-20 — A React-state-derived signal module's enter/exit lives in one `useEffect`, not scattered across every setter of that state
+
+**Decision:** `editModeSignals`' `activeEditTrackId` (spec 004 milestone 2, #490) is entered/exited from a single `useEffect` in `Workstation.tsx` keyed on `activeSheet`, not from each individual handler that can change `activeSheet` (`toggleMixer`, `toggleLyrics`, `toggleEffects`, `toggleRecording`, the drawer's own close button).
+**Why:** an earlier version called `enterEditMode`/`exitEditMode` only from the effects-drawer's own open/close handler. Switching sheets via a *different* toggle (e.g. clicking "Show mixer" while the effects drawer was open) changed `activeSheet` without going through that handler, leaving `activeEditTrackId` stale — `Timeline` kept rendering every track as `--edit-background` with no drawer open and no active track. The same gap meant the signal was never cleared on unmount either (project navigation remounts `Workstation`, resetting its `useState` but not the module-level signal), leaking a stale, now-nonexistent track ID into the next project. A `useEffect(() => { if (open) enter(); return () => exit(); }, [activeSheet])` fixes both: its cleanup fires on every `activeSheet` transition *and* on unmount, so no call site needs to remember to call `exitEditMode()` itself. Caught by three independent code-review angles (removed-behavior, altitude, cross-file tracer) converging on the same bug before it shipped.
+**Source:** Issue #490 (spec 004 milestone 2).
+
 ## 2026-07-20 — `window.__mawimbi` dev-only e2e verification bridge
 
 **Decision:** `AudioService`'s constructor sets `window.__mawimbi = { spectrogramCache }` when `import.meta.env.DEV`; the shape is declared in `src/global.d.ts`. e2e tests read worker-produced state (e.g. transcribed melody notes) directly through it instead of reverse-engineering a DOM/pixel proxy for a data claim.
