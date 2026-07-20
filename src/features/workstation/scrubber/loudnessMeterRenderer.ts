@@ -1,3 +1,5 @@
+import { poolSemitoneBars } from './semitoneBars';
+
 // --- Loudness meter rectangle ---
 
 const BACKGROUND_COLOR = 'rgba(255, 255, 255, 0.15)';
@@ -54,15 +56,18 @@ function drawMeterBackground(
 }
 
 /**
- * Draw frequency bars inside the meter rectangle. One bar per CQT bin,
- * growing upward from the bottom of the rectangle.
+ * Draw frequency bars inside the meter rectangle. One bar per semitone
+ * (12-TET, mawimbi#482), growing upward from the bottom of the rectangle.
+ * Bar n's x-center matches `midiNoteToBin(midiNote) / 2`
+ * (`PianoRollRenderer.ts`), so a later sparkle pass can reuse the same
+ * positions.
  */
 function drawFrequencyBars(
   ctx: CanvasRenderingContext2D,
   rect: MeterRect,
-  frequencyData: Uint8Array,
+  semitoneBars: Uint8Array,
 ): void {
-  const bins = frequencyData.length;
+  const bins = semitoneBars.length;
   if (bins === 0) return;
 
   const innerPadding = BORDER_WIDTH + 1;
@@ -82,7 +87,7 @@ function drawFrequencyBars(
   ctx.fillStyle = BAR_COLOR;
 
   for (let i = 0; i < bins; i++) {
-    const intensity = frequencyData[i] / 255;
+    const intensity = semitoneBars[i] / 255;
     const barHeight = Math.round(intensity * innerHeight);
     if (barHeight <= 0) continue;
 
@@ -108,7 +113,7 @@ export function renderLoudnessMeterFrame(
   drawMeterBackground(ctx, rect);
 
   if (frequencyData) {
-    drawFrequencyBars(ctx, rect, frequencyData);
+    drawFrequencyBars(ctx, rect, poolSemitoneBars(frequencyData));
   }
 }
 
