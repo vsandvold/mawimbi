@@ -31,6 +31,7 @@ export function useTrackService() {
 
     focusTrack,
     unfocusTrack,
+    setEditFocus: (trackId: TrackId | null) => service.setEditFocus(trackId),
 
     // --- Track creation ---
 

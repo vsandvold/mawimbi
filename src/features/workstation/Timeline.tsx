@@ -68,20 +68,20 @@ function getTimelineTrackClass(
   focusedTracks: TrackId[],
   activeEditTrackId: TrackId | null,
 ) {
-  const isMuted = mutedTracks.includes(track.trackId);
-
-  // Edit-mode classes take precedence over focus classes (spec 004, Goal
-  // 1) — the active track renders at full emphasis even if muted, since
-  // mute governs audio, not editability.
+  // Edit-mode classes replace focus and mute classes entirely (spec 004,
+  // Goal 1) — every track stays visible while cycling the active layer.
+  // Muting is temporarily bypassed sonically as well (TrackService's edit
+  // focus), so a muted track renders dimmed like any other background
+  // track rather than hidden.
   if (activeEditTrackId !== null) {
     const isEditActive = track.trackId === activeEditTrackId;
     return classNames('timeline__track', {
       'timeline__track--edit-active': isEditActive,
       'timeline__track--edit-background': !isEditActive,
-      'timeline__track--muted': isMuted && !isEditActive,
     });
   }
 
+  const isMuted = mutedTracks.includes(track.trackId);
   const isForeground = focusedTracks.includes(track.trackId);
   const isBackground = focusedTracks.length > 0 && !isForeground;
   return classNames('timeline__track', {

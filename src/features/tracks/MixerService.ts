@@ -4,6 +4,7 @@ import type WorkletAnalyser from '../spectrogram/WorkletAnalyser';
 
 const SMOOTHING = 0.8;
 const POWER_CURVE_EXPONENT = 0.6;
+const VOLUME_RAMP_SECONDS = 0.1;
 
 class MixerService {
   private audioChannelRepository: AudioChannelRepository;
@@ -92,6 +93,8 @@ export class AudioChannel {
   private channel: Tone.Channel;
   private effectsChain: EffectsChain;
   private normalizationGainDb: number;
+  private dimGainDb = 0;
+  private sliderVolume: number | null = null;
 
   constructor(
     id: string,
@@ -135,8 +138,34 @@ export class AudioChannel {
   }
 
   set volume(volume: number) {
-    const sliderDb = this.convertToDecibel(volume);
-    this.channel.volume.rampTo(sliderDb + this.normalizationGainDb, 0.1);
+    this.sliderVolume = volume;
+    this.rampToVolume(volume);
+  }
+
+  // Temporary dB offset layered under the slider/normalization gain —
+  // edit mode's background dim. 0 clears it. Kept out of the slider value
+  // so the user's volume setting survives the dim untouched.
+  setDimGainDb(dimGainDb: number): void {
+    if (dimGainDb === this.dimGainDb) return;
+    this.dimGainDb = dimGainDb;
+    if (this.sliderVolume !== null) {
+      this.rampToVolume(this.sliderVolume);
+    }
+  }
+
+  private rampToVolume(sliderVolume: number): void {
+    const sliderDb = this.convertToDecibel(sliderVolume);
+    const targetDb = sliderDb + this.normalizationGainDb + this.dimGainDb;
+    // A muted channel is silent, so there is no zipper risk — snap instead
+    // of ramping (same rationale as EffectsChain's param snap on
+    // reactivation, #492). This lets edit mode's dim land fully before the
+    // mute bypass releases, so the track can never pop above its dimmed
+    // level for the ramp duration.
+    if (this.channel.mute) {
+      this.channel.volume.value = targetDb;
+      return;
+    }
+    this.channel.volume.rampTo(targetDb, VOLUME_RAMP_SECONDS);
   }
 
   private convertToDecibel(value: number): number {

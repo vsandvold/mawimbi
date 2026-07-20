@@ -280,6 +280,57 @@ describe('AudioChannel', () => {
     });
   });
 
+  describe('dim gain', () => {
+    it('applies the dim offset to the current volume', () => {
+      audioChannel.volume = 100;
+      audioChannel.setDimGainDb(-12);
+
+      expect(toneChannel.volume.rampTo).toHaveBeenLastCalledWith(-12, 0.1);
+    });
+
+    it('restores the undimmed volume when cleared', () => {
+      audioChannel.volume = 100;
+      audioChannel.setDimGainDb(-12);
+      audioChannel.setDimGainDb(0);
+
+      expect(toneChannel.volume.rampTo).toHaveBeenLastCalledWith(0, 0.1);
+    });
+
+    it('includes the dim in later volume writes', () => {
+      audioChannel.setDimGainDb(-12);
+      audioChannel.volume = 100;
+
+      expect(toneChannel.volume.rampTo).toHaveBeenLastCalledWith(-12, 0.1);
+    });
+
+    it('snaps volume writes without ramping while the channel is muted', () => {
+      toneChannel.mute = true;
+
+      audioChannel.volume = 100;
+      audioChannel.setDimGainDb(-12);
+
+      // A muted channel is silent — the write must land instantly so the
+      // dim is fully in place before any mute bypass releases.
+      expect(toneChannel.volume.rampTo).not.toHaveBeenCalled();
+      expect(toneChannel.volume.value).toBe(-12);
+    });
+
+    it('composes with normalization gain', () => {
+      const normalized = new AudioChannel(
+        'ch-norm',
+        toneChannel,
+        makeEffectsChain(),
+        6,
+      );
+
+      normalized.volume = 100;
+      normalized.setDimGainDb(-12);
+
+      // slider 0 dB + 6 dB normalization − 12 dB dim
+      expect(toneChannel.volume.rampTo).toHaveBeenLastCalledWith(-6, 0.1);
+    });
+  });
+
   describe('dispose', () => {
     it('disposes the underlying Tone.Channel', () => {
       audioChannel.dispose();

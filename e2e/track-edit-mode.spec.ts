@@ -37,6 +37,9 @@ const BACKGROUND_ONLY_WINDOW_END_SEC = 1.9;
 const SWIPE_DELTA_PX = 60;
 const TOUCH_TAP_HOLD_MS = 50;
 const GESTURE_SETTLE_WAIT_MS = 100;
+// Well below --edit-background's dim (0.35) yet above 0, so the assertion
+// tolerates a mid-transition read while still failing on a hidden track.
+const MIN_VISIBLE_OPACITY = 0.1;
 
 /**
  * Uploads the longer tone first (becomes the background track once edit
@@ -100,14 +103,32 @@ test.describe('Track edit mode entry/exit', () => {
     expect(parseFloat(activeOpacity)).toBeCloseTo(1, 1);
     expect(parseFloat(backgroundOpacity)).toBeLessThan(0.5);
 
-    const backgroundFilter = await backgroundTrack.evaluate(
-      (el) => getComputedStyle(el).filter,
+    // Separation uses the same cheap mechanism as the mixer-driven focus
+    // effect — an opacity dim plus a z-index lift. No per-track filter,
+    // transform, or shadow: each track's canvas covers the full runway
+    // window, so those forced huge per-track composited layers and
+    // duplicated the runway rails' glow on every track box.
+    const backgroundStyles = await backgroundTrack.evaluate((el) => {
+      const styles = getComputedStyle(el);
+      return {
+        filter: styles.filter,
+        transform: styles.transform,
+        boxShadow: styles.boxShadow,
+      };
+    });
+    expect(backgroundStyles.filter).toBe('none');
+    expect(backgroundStyles.transform).toBe('none');
+    expect(backgroundStyles.boxShadow).toBe('none');
+
+    const activeZIndex = await activeTrack.evaluate(
+      (el) => getComputedStyle(el).zIndex,
     );
-    const backgroundTransform = await backgroundTrack.evaluate(
-      (el) => getComputedStyle(el).transform,
+    const backgroundZIndex = await backgroundTrack.evaluate(
+      (el) => getComputedStyle(el).zIndex,
     );
-    expect(backgroundFilter).not.toBe('none');
-    expect(backgroundTransform).not.toBe('none');
+    expect(parseInt(activeZIndex, 10)).toBeGreaterThan(
+      parseInt(backgroundZIndex, 10),
+    );
 
     await closeEffectsDrawer(page);
 
@@ -145,6 +166,89 @@ test.describe('Track edit mode cycling', () => {
     await expect(nextButton).toBeEnabled();
   });
 });
+
+test.describe('Track edit mode keeps every track visible', () => {
+  test.beforeEach(async ({ page }) => {
+    await setUpTwoTracks(page);
+  });
+
+  test('a muted background track stays visible while cycling', async ({
+    page,
+  }) => {
+    const tracks = page.locator('.timeline__track');
+    const mutedTrack = tracks.first();
+
+    // Mute the older track from the mixer (its bottom row — the mixer
+    // displays tracks in reverse order). The state button cycles
+    // on → solo → mute; each step syncs on the resulting button title so
+    // a click can't race the previous one.
+    await page.getByTitle('Show mixer').click();
+    await expect(page.locator('.bottom-sheet')).toBeVisible();
+    const olderChannel = page.locator('.mixer__channel').last();
+    await olderChannel.getByTitle('On').click();
+    await expect(olderChannel.getByTitle('Solo')).toBeVisible();
+    await olderChannel.getByTitle('Solo').click();
+    await expect(olderChannel.getByTitle('Muted')).toBeVisible();
+    await expect(mutedTrack).toHaveClass(/timeline__track--muted/);
+    await page.getByTitle('Close').click();
+    await expect(page.locator('.bottom-sheet')).toHaveCount(0);
+
+    await openEffectsDrawer(page);
+
+    // In edit mode every track stays visible — mute governs audio, not
+    // visibility; a muted track renders dimmed like any background track.
+    await expect(mutedTrack).toHaveClass(/timeline__track--edit-background/);
+    await expectTrackVisible(mutedTrack);
+
+    // Cycling onto and off the muted track never hides it.
+    await page.getByTitle('Previous track').click();
+    await expect(mutedTrack).toHaveClass(/timeline__track--edit-active/);
+    await expectTrackVisible(mutedTrack);
+
+    await page.getByTitle('Next track').click();
+    await expect(mutedTrack).toHaveClass(/timeline__track--edit-background/);
+    await expectTrackVisible(mutedTrack);
+  });
+});
+
+test.describe('Track edit mode survives losing the edited track', () => {
+  test.beforeEach(async ({ page }) => {
+    await setUpTwoTracks(page);
+    await openEffectsDrawer(page);
+  });
+
+  test('undoing the edited track re-anchors edit mode to the remaining track', async ({
+    page,
+  }) => {
+    const tracks = page.locator('.timeline__track');
+    await expect(tracks.last()).toHaveClass(/timeline__track--edit-active/);
+
+    // The toolbar behind the drawer is pointer-events: none but its
+    // buttons stay focusable, so keyboard activation (Enter on a focused
+    // button fires a click) reaches Undo while the drawer is open —
+    // dispatch the click directly to model that path.
+    await page
+      .getByTitle('Undo')
+      .evaluate((el) => (el as HTMLElement).click());
+
+    // Without re-anchoring, the stale focus id dims every remaining track
+    // (all --edit-background, none active) with muting bypassed, and the
+    // cycle buttons vanish — no way out but closing the drawer.
+    await expect(tracks).toHaveCount(1);
+    await expect(tracks.first()).toHaveClass(/timeline__track--edit-active/);
+  });
+});
+
+async function expectTrackVisible(
+  track: import('@playwright/test').Locator,
+) {
+  await expect(async () => {
+    const opacity = await track.evaluate((el) =>
+      parseFloat(getComputedStyle(el).opacity),
+    );
+    expect(opacity).toBeGreaterThan(MIN_VISIBLE_OPACITY);
+  }).toPass();
+}
 
 test.describe('Track edit mode geometry invariant', () => {
   // Phase 1 must not touch geometry (spec 004): the solved custom
