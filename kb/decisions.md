@@ -4,6 +4,12 @@ Architectural decisions with rationale and provenance, newest first. Entry forma
 
 **Hygiene note:** this file is past the KB's ~150-line guideline (`kb/INDEX.md`) — due a split (e.g. by year, or into `decisions.md` + `decisions-archive.md`) in a future `/harness-audit` or dedicated session, not blocking here.
 
+## 2026-07-20 — Per-frame ballistics smoothing state resets wherever the idle frame already renders, not on a data-shape check alone
+
+**Decision:** `BarSmoother` (spec 003 milestone 4, #483 — attack/decay smoothing on the playhead meter's semitone bars) gained an explicit `reset()`, wired into `renderLoudnessMeterIdle` rather than only auto-resetting when its target array's length changes.
+**Why:** The only reset condition originally implemented — "the incoming array length differs from the stored one" — never actually recurs at runtime: CQT bar count is fixed by `AudioContext.sampleRate` for the component's whole lifetime, so that branch fires once (mount) and never again. Every real discontinuity (pause, stop, seek) instead left the smoother's state untouched, so resuming after a loud passage visibly decayed the stale pre-pause bar heights (~300ms at `DECAY_COEFF=0.15`) instead of reflecting the new position immediately. The fix didn't need a new call site: `renderLoudnessMeterIdle` already fires on every one of those transitions (`useScrubberScroll.ts`'s `!playing` effect and its scroll/seek sync), so resetting there covers all of them for free. General shape: a per-frame stateful smoother's "state looks initialized" check (array length, non-null, etc.) is not the same as "state is still valid for this playback session" — the latter needs an explicit signal tied to the domain's actual discontinuity points. Caught by three independent code-review angles (line-by-line, removed-behavior, altitude) converging on the same bug before it shipped.
+**Source:** Issue #483 (spec 003 milestone 4).
+
 ## 2026-07-20 — `work-issue` commits feature code, review fixes, and the KB update as three separate commits
 
 **Decision:** `work-issue`'s old combined "Ship" step (commit feature code including any review fixes, then commit the KB update separately) is split into three steps — Commit (feature code, before review runs), Review (`/code-review`, its fixes committed separately), Pay back (`/kb write`, committed separately) — landing three distinct commits per PR instead of two.
