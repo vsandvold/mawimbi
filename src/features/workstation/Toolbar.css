@@ -1,4 +1,5 @@
-.show-lyrics {
+.show-lyrics,
+.show-effects {
   color: var(--primary);
 }
 

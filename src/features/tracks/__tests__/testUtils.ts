@@ -1,5 +1,6 @@
 import AudioService from '../../audio/AudioService';
 import { resetFocusSignals } from '../focusSignals';
+import { resetEditModeSignals } from '../../workstation/editModeSignals';
 import { resetWorkstationSignals } from '../../workstation/workstationSignals';
 import { resetTuningSignals } from '../../workstation/scrubber/tuningSignals';
 
@@ -10,6 +11,7 @@ export function resetAllSignals(): void {
   audioService.trackService.reset();
   audioService.classificationService.reset();
   resetFocusSignals();
+  resetEditModeSignals();
   resetWorkstationSignals();
   resetTuningSignals();
 }

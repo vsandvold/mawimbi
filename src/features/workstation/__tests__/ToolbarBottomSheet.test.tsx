@@ -10,9 +10,12 @@ import ToolbarBottomSheet from '../ToolbarBottomSheet';
 const defaultProps = {
   isMixerOpen: false,
   isLyricsOpen: false,
+  isEffectsOpen: false,
+  isEffectsDisabled: false,
   isEmpty: false,
   onToggleMixer: vi.fn(),
   onToggleLyrics: vi.fn(),
+  onToggleEffects: vi.fn(),
   uploadFile: vi.fn(),
   isFullscreen: false,
   toggleFullscreen: vi.fn(),

@@ -180,6 +180,9 @@ The `transportTime` signal is written by the scrubber animation loop, which only
 ### CSS Grid items get z-index stacking contexts; absolutely-positioned pseudo-elements don't
 A grid item's `z-index` — even `0`, even with no `position` set — creates a stacking context per the CSS Grid spec; an absolutely-positioned `::before`/`::after` sibling with `z-index: auto` does **not**, and paints in plain DOM order instead of sharing the items' level. So any absolutely-positioned overlay inside a `z-index`-using grid/flex container needs an explicit `z-index` above the items'. In this repo: `Timeline.css`'s `.timeline::before`/`::after` rail pseudo-elements over the `.timeline__track` grid items — an asymmetric rails-under-tracks bug shipped once already (fixed in PR #456).
 
+### Two single-class modifiers on the same element don't "compose" — the later-declared one wins
+When JS applies two modifier classes of equal specificity to one element (e.g. `.timeline__track--muted` and `.timeline__track--edit-background`, both setting `opacity`), CSS doesn't merge or prioritize by "logical" intent — whichever rule is declared later in the stylesheet wins outright for that property, regardless of which class name reads as more specific in the component. A combined selector (`.a.b { ... }`) has strictly higher specificity than either alone and wins independent of declaration order — use it whenever two modifier classes can legitimately land on the same element and one must dominate. Caught in code review before shipping (spec 004 milestone 2, #490); `Timeline.css`'s edit-mode/mute combination is the concrete example.
+
 ## Code Conventions
 
 - Functional components only, with `React.memo` for performance-sensitive components

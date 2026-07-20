@@ -3,6 +3,7 @@ import { useRecordingService } from '../recording/useRecordingService';
 import { useTrackService } from '../tracks/useTrackService';
 import { type Track, type TrackColor, type TrackId } from '../tracks/types';
 import Spectrogram from '../spectrogram/Spectrogram';
+import { useEditMode } from './useEditMode';
 import './Timeline.css';
 
 const RECORDING_TRACK_ID = '__recording__';
@@ -20,6 +21,7 @@ const Timeline = ({
 }: TimelineProps) => {
   const { isRecording } = useRecordingService();
   const { mutedTracks, focusedTracks } = useTrackService();
+  const { activeEditTrackId } = useEditMode();
 
   const recordingTrack: Track = {
     trackId: RECORDING_TRACK_ID,
@@ -35,6 +37,7 @@ const Timeline = ({
           track,
           mutedTracks,
           focusedTracks,
+          activeEditTrackId,
         );
         return (
           <div
@@ -63,8 +66,22 @@ function getTimelineTrackClass(
   track: Track,
   mutedTracks: TrackId[],
   focusedTracks: TrackId[],
+  activeEditTrackId: TrackId | null,
 ) {
   const isMuted = mutedTracks.includes(track.trackId);
+
+  // Edit-mode classes take precedence over focus classes (spec 004, Goal
+  // 1) — the active track renders at full emphasis even if muted, since
+  // mute governs audio, not editability.
+  if (activeEditTrackId !== null) {
+    const isEditActive = track.trackId === activeEditTrackId;
+    return classNames('timeline__track', {
+      'timeline__track--edit-active': isEditActive,
+      'timeline__track--edit-background': !isEditActive,
+      'timeline__track--muted': isMuted && !isEditActive,
+    });
+  }
+
   const isForeground = focusedTracks.includes(track.trackId);
   const isBackground = focusedTracks.length > 0 && !isForeground;
   return classNames('timeline__track', {
