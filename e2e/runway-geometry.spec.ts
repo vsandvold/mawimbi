@@ -1,5 +1,6 @@
 import { activeRunwayConfig } from '../src/features/workstation/scrubber/runwayConfig';
 import { expect, test, uploadAudioFile, SHORT_AUDIO } from './fixtures';
+import { hasSaturatedPixel } from './helpers/pixelDecode';
 
 /**
  * Runway geometry invariants — assertions that the tilted timeline's
@@ -149,29 +150,9 @@ async function expectContentVisibleAtPlayhead(
     width: 400,
     height: 12,
   };
-  const screenshot = await page.screenshot({ clip });
-
-  const hasSaturatedPixel = await page.evaluate(async (b64) => {
-    const img = new Image();
-    img.src = `data:image/png;base64,${b64}`;
-    await img.decode();
-    const canvas = document.createElement('canvas');
-    canvas.width = img.width;
-    canvas.height = img.height;
-    const ctx = canvas.getContext('2d')!;
-    ctx.drawImage(img, 0, 0);
-    const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const SATURATION_THRESHOLD = 40;
-    for (let i = 0; i < data.length; i += 4) {
-      const max = Math.max(data[i], data[i + 1], data[i + 2]);
-      const min = Math.min(data[i], data[i + 1], data[i + 2]);
-      if (max - min > SATURATION_THRESHOLD) return true;
-    }
-    return false;
-  }, screenshot.toString('base64'));
 
   expect(
-    hasSaturatedPixel,
+    await hasSaturatedPixel(page, clip),
     'no colored (track content) pixel found in the band around the playhead line',
   ).toBe(true);
 }

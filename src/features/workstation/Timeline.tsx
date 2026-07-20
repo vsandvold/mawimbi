@@ -37,7 +37,11 @@ const Timeline = ({
           focusedTracks,
         );
         return (
-          <div key={track.trackId} className={timelineTrackClass}>
+          <div
+            key={track.trackId}
+            className={timelineTrackClass}
+            data-track-id={track.trackId}
+          >
             <Spectrogram pixelsPerSecond={pixelsPerSecond} track={track} />
           </div>
         );

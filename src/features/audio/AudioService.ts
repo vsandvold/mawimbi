@@ -65,6 +65,11 @@ class AudioService {
     // Replaces Tone.Meter on the destination for lower-latency metering.
     // Falls back to Tone.Meter silently if AudioWorklet is unavailable.
     this.initializeWorkletAnalyser();
+
+    // e2e verification bridge (mawimbi#480) — see global.d.ts for scope.
+    if (import.meta.env.DEV) {
+      window.__mawimbi = { spectrogramCache: this.spectrogramCache };
+    }
   }
 
   private async initializeWorkletAnalyser(): Promise<void> {
