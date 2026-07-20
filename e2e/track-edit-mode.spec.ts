@@ -37,6 +37,9 @@ const BACKGROUND_ONLY_WINDOW_END_SEC = 1.9;
 const SWIPE_DELTA_PX = 60;
 const TOUCH_TAP_HOLD_MS = 50;
 const GESTURE_SETTLE_WAIT_MS = 100;
+// Well below --edit-background's dim (0.35) yet above 0, so the assertion
+// tolerates a mid-transition read while still failing on a hidden track.
+const MIN_VISIBLE_OPACITY = 0.1;
 
 /**
  * Uploads the longer tone first (becomes the background track once edit
@@ -189,7 +192,6 @@ test.describe('Track edit mode keeps every track visible', () => {
     await expect(mutedTrack).toHaveClass(/timeline__track--muted/);
     await page.getByTitle('Close').click();
     await expect(page.locator('.bottom-sheet')).toHaveCount(0);
-    await page.waitForTimeout(DRAWER_ANIMATION_MS);
 
     await openEffectsDrawer(page);
 
@@ -209,6 +211,34 @@ test.describe('Track edit mode keeps every track visible', () => {
   });
 });
 
+test.describe('Track edit mode survives losing the edited track', () => {
+  test.beforeEach(async ({ page }) => {
+    await setUpTwoTracks(page);
+    await openEffectsDrawer(page);
+  });
+
+  test('undoing the edited track re-anchors edit mode to the remaining track', async ({
+    page,
+  }) => {
+    const tracks = page.locator('.timeline__track');
+    await expect(tracks.last()).toHaveClass(/timeline__track--edit-active/);
+
+    // The toolbar behind the drawer is pointer-events: none but its
+    // buttons stay focusable, so keyboard activation (Enter on a focused
+    // button fires a click) reaches Undo while the drawer is open —
+    // dispatch the click directly to model that path.
+    await page
+      .getByTitle('Undo')
+      .evaluate((el) => (el as HTMLElement).click());
+
+    // Without re-anchoring, the stale focus id dims every remaining track
+    // (all --edit-background, none active) with muting bypassed, and the
+    // cycle buttons vanish — no way out but closing the drawer.
+    await expect(tracks).toHaveCount(1);
+    await expect(tracks.first()).toHaveClass(/timeline__track--edit-active/);
+  });
+});
+
 async function expectTrackVisible(
   track: import('@playwright/test').Locator,
 ) {
@@ -216,7 +246,7 @@ async function expectTrackVisible(
     const opacity = await track.evaluate((el) =>
       parseFloat(getComputedStyle(el).opacity),
     );
-    expect(opacity).toBeGreaterThan(0.1);
+    expect(opacity).toBeGreaterThan(MIN_VISIBLE_OPACITY);
   }).toPass();
 }
 

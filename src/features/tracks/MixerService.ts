@@ -155,10 +155,17 @@ export class AudioChannel {
 
   private rampToVolume(sliderVolume: number): void {
     const sliderDb = this.convertToDecibel(sliderVolume);
-    this.channel.volume.rampTo(
-      sliderDb + this.normalizationGainDb + this.dimGainDb,
-      VOLUME_RAMP_SECONDS,
-    );
+    const targetDb = sliderDb + this.normalizationGainDb + this.dimGainDb;
+    // A muted channel is silent, so there is no zipper risk — snap instead
+    // of ramping (same rationale as EffectsChain's param snap on
+    // reactivation, #492). This lets edit mode's dim land fully before the
+    // mute bypass releases, so the track can never pop above its dimmed
+    // level for the ramp duration.
+    if (this.channel.mute) {
+      this.channel.volume.value = targetDb;
+      return;
+    }
+    this.channel.volume.rampTo(targetDb, VOLUME_RAMP_SECONDS);
   }
 
   private convertToDecibel(value: number): number {

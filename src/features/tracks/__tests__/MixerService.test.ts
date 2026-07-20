@@ -303,6 +303,18 @@ describe('AudioChannel', () => {
       expect(toneChannel.volume.rampTo).toHaveBeenLastCalledWith(-12, 0.1);
     });
 
+    it('snaps volume writes without ramping while the channel is muted', () => {
+      toneChannel.mute = true;
+
+      audioChannel.volume = 100;
+      audioChannel.setDimGainDb(-12);
+
+      // A muted channel is silent — the write must land instantly so the
+      // dim is fully in place before any mute bypass releases.
+      expect(toneChannel.volume.rampTo).not.toHaveBeenCalled();
+      expect(toneChannel.volume.value).toBe(-12);
+    });
+
     it('composes with normalization gain', () => {
       const normalized = new AudioChannel(
         'ch-norm',

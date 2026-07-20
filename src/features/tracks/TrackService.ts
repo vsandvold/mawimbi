@@ -109,10 +109,6 @@ class TrackService {
     return this._mutedTracks.value;
   }
 
-  get editFocusTrackId(): TrackId | null {
-    return this._editFocusTrackId.value;
-  }
-
   // --- Edit-mode audio focus ---
 
   // While a track is focused for editing, muting and solo are bypassed at
@@ -370,32 +366,26 @@ class TrackService {
   ): void {
     const disposers: Array<() => void> = [];
 
+    // Registered first so the channel has a slider volume before the edit
+    // effect below can apply a dim (setDimGainDb is a no-op until then).
     disposers.push(
       effect(() => {
         channel.volume = signals.volume.value;
       }),
     );
 
+    // One effect for dim + mute/solo bypass so their order is fixed: the
+    // dim lands (as a snap, while the channel is still muted) before the
+    // mute bypass releases — split effects would leave that ordering to
+    // the signal library. The bypass acts at the channel level only; the
+    // user's signals stay untouched, so exiting edit mode restores them.
     disposers.push(
       effect(() => {
         const editFocus = this._editFocusTrackId.value;
-        const isDimmed = editFocus !== null && editFocus !== trackId;
+        const isEditFocusActive = editFocus !== null;
+        const isDimmed = isEditFocusActive && editFocus !== trackId;
         channel.setDimGainDb(isDimmed ? EDIT_FOCUS_DIM_DB : 0);
-      }),
-    );
-
-    disposers.push(
-      effect(() => {
-        // Edit focus bypasses muting at the channel level only — the
-        // user's signal stays untouched, so exiting edit mode restores it.
-        const isEditFocusActive = this._editFocusTrackId.value !== null;
         channel.mute = isEditFocusActive ? false : signals.mute.value;
-      }),
-    );
-
-    disposers.push(
-      effect(() => {
-        const isEditFocusActive = this._editFocusTrackId.value !== null;
         channel.solo = isEditFocusActive ? false : signals.solo.value;
       }),
     );

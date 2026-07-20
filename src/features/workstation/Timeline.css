@@ -106,8 +106,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  /* Disables the crossfade but keeps the separation itself. */
-  .timeline__track--edit-active,
+  /* Disables the crossfade but keeps the separation itself. Only
+     --edit-background declares its own transition; --edit-active rides
+     the base rule like every other track. */
   .timeline__track--edit-background {
     transition: none;
   }

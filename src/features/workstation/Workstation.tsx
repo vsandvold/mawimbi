@@ -167,15 +167,42 @@ const Workstation = (props: WorkstationProps) => {
   // edited, muting/solo are temporarily bypassed and the other tracks are
   // sonically dimmed, so the edited track is always audible over a quieter
   // mix; exiting restores the user's mute/solo state exactly. Keyed on the
-  // active track id so enter, cycle, exit, and unmount all pass through
-  // this one effect (same rationale as the activeSheet effect above).
+  // active track id so enter, cycle, and exit all pass through this one
+  // effect (same rationale as the activeSheet effect above). No cleanup
+  // here: cycling A→B must not pass through a transient null focus, which
+  // would un-dim and re-mute every channel between the two tracks.
   const activeEditTrackId = editMode.activeEditTrackId;
   useEffect(() => {
     trackService.setEditFocus(activeEditTrackId);
-    return () => trackService.setEditFocus(null);
     // trackService delegates to a stable service singleton
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeEditTrackId]);
+
+  // Unmount-only: project navigation must not leak an active edit focus
+  // into the next project's audio engine.
+  useEffect(() => {
+    return () => trackService.setEditFocus(null);
+    // trackService delegates to a stable service singleton
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // If the edited track disappears (undo of an upload/recording — the
+  // toolbar's Undo stays keyboard-reachable behind the drawer), re-anchor
+  // edit mode to the newest remaining track. A stale id would otherwise
+  // dim every channel with muting bypassed and no foreground track, and
+  // the cycle buttons vanish with it — no way out but closing the drawer.
+  useEffect(() => {
+    if (activeEditTrackId === null) return;
+    if (tracks.some((track) => track.trackId === activeEditTrackId)) return;
+    const newestTrack = tracks[tracks.length - 1];
+    if (newestTrack) {
+      editMode.enterEditMode(newestTrack.trackId);
+    } else {
+      editMode.exitEditMode();
+    }
+    // editMode is a stable object from the bridge hook
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tracks, activeEditTrackId]);
 
   const handleRewind = useCallback(() => {
     playback.rewind();

@@ -303,6 +303,21 @@ describe('TrackService', () => {
       expect(lastRampDb(firstTone)).toBeCloseTo(0, 5);
     });
 
+    it('lands the dim before the mute bypass releases a muted channel (no pop)', async () => {
+      const first = await service.createTrack(new ArrayBuffer(8));
+      const second = await service.createTrack(new ArrayBuffer(8));
+      const firstTone = vi.mocked(Tone.Channel).mock.results[0].value;
+      service.getSignals(first.trackId)!.mute.value = true;
+
+      service.setEditFocus(second.trackId);
+
+      // The dim must be applied as an instant snap while the channel is
+      // still muted — a ramp would let the freshly un-muted channel play
+      // up to 12 dB above its dimmed level for the ramp duration.
+      expect(firstTone.mute).toBe(false);
+      expect(firstTone.volume.value).toBeCloseTo(EDIT_FOCUS_DIM_DB, 5);
+    });
+
     it('applies the bypass and dim to a channel recreated mid-edit', async () => {
       const { trackId } = await service.createTrack(new ArrayBuffer(8));
       const second = await service.createTrack(new ArrayBuffer(8));
