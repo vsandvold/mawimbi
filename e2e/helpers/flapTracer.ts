@@ -13,11 +13,10 @@ const PLAY_BUTTON_SELECTOR = '.floating-toolbar__button--play';
 
 export type PlaybackTraceEntry = { t: number; title: string };
 
-type TraceWindow = Window &
-  typeof globalThis & {
-    __playbackTrace?: PlaybackTraceEntry[];
-    __playbackTraceRafId?: number;
-  };
+type TraceWindow = Window & {
+  __playbackTrace?: PlaybackTraceEntry[];
+  __playbackTraceRafId?: number;
+};
 
 /**
  * Starts an rAF sampler that records each `{t, title}` transition of the
@@ -53,7 +52,11 @@ export async function tracePlaybackState(page: Page): Promise<void> {
   );
 }
 
-/** Stops the rAF sampler and returns the recorded transitions. */
+/**
+ * Stops the rAF sampler. Must be called even on an early failure — an
+ * uncancelled loop keeps sampling for the rest of the test run, which can
+ * pollute a later `tracePlaybackState` call's `__playbackTrace` array.
+ */
 export async function stopPlaybackTrace(
   page: Page,
 ): Promise<PlaybackTraceEntry[]> {

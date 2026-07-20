@@ -4,6 +4,7 @@ import {
   uploadAudioFile,
   LONG_AUDIO_10S,
   swipeTimeline,
+  dismissFullscreenOverlay,
 } from './fixtures';
 
 test.describe('Swipe to scrub timeline during playback', () => {
@@ -13,13 +14,7 @@ test.describe('Swipe to scrub timeline during playback', () => {
     await page.goto('/project/test-id');
     await uploadAudioFile(page, LONG_AUDIO_10S);
     await expect(page.locator('.timeline__track')).toBeVisible();
-
-    // Dismiss the fullscreen overlay that appears on touch-capable devices
-    const dismissButton = page.getByText('Dismiss');
-    if (await dismissButton.isVisible()) {
-      await dismissButton.click();
-    }
-    await expect(page.locator('.fullscreen__overlay')).not.toBeVisible();
+    await dismissFullscreenOverlay(page);
   });
 
   test('swiping while paused does not auto-resume', async ({ page }) => {

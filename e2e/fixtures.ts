@@ -43,6 +43,19 @@ export async function uploadAudioFile(page: Page, filePath: string) {
   await fileInput.setInputFiles(filePath);
 }
 
+/**
+ * Dismisses the fullscreen overlay shown on touch-capable devices, if
+ * present. Shared by every touch-gesture spec since the overlay would
+ * otherwise intercept pointer/touch events meant for the timeline.
+ */
+export async function dismissFullscreenOverlay(page: Page) {
+  const dismissButton = page.getByText('Dismiss');
+  if (await dismissButton.isVisible()) {
+    await dismissButton.click();
+  }
+  await expect(page.locator('.fullscreen__overlay')).not.toBeVisible();
+}
+
 export const test = base.extend<{ blockModelRequests: void }>({
   // eslint-disable-next-line no-empty-pattern
   blockModelRequests: [async ({ page }, use) => {

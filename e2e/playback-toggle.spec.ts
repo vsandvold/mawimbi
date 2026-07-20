@@ -7,6 +7,7 @@ import {
   swipeTimeline,
   tracePlaybackState,
   stopPlaybackTrace,
+  dismissFullscreenOverlay,
 } from './fixtures';
 
 /**
@@ -18,16 +19,27 @@ import {
  * milestone 2's gesture-model fix flips them green.
  *
  * Assertions count play/pause button *transitions* via the flap tracer
- * rather than polling visibility at one instant — a visibility poll can
- * land inside a brief "playing" window and false-pass (kb/verification.md,
- * "State-flap bugs need transition traces").
+ * rather than polling visibility at one instant. A visibility poll can
+ * land inside a brief "playing" window and false-pass — or, during the
+ * live bug, miss every ~15-40ms visibility window for an entire test
+ * timeout and false-fail for the wrong reason, which is why these tests
+ * don't poll for the button's title mid-gesture (kb/verification.md,
+ * "State-flap bugs need transition traces"). Each test's own triggering
+ * click causes exactly one expected transition; MAX_INITIATED_TRANSITIONS
+ * allows for it and no more.
+ *
+ * The `waitForTimeout` calls below are fixed observation windows, not blind
+ * waits for a condition: each proves an *absence* of further transitions
+ * over a bounded duration, which `expect(...).toPass()`-style polling
+ * cannot express (there is no condition to poll for — the claim is that
+ * nothing changes).
  */
 
 const TAP_HOLD_DURATIONS_MS = [60, 250];
 const POST_TAP_OBSERVATION_MS = 1000;
 const POST_SWIPE_SETTLE_MS = 400;
 const POST_PLAY_OBSERVATION_MS = 2000;
-const MAX_TAP_TRANSITIONS = 1;
+const MAX_INITIATED_TRANSITIONS = 1;
 
 test.describe('Playback toggle stability', () => {
   test.use({ hasTouch: true });
@@ -36,13 +48,7 @@ test.describe('Playback toggle stability', () => {
     await page.goto('/project/test-id');
     await uploadAudioFile(page, LONG_AUDIO_10S);
     await expect(page.locator('.timeline__track')).toBeVisible();
-
-    // Dismiss the fullscreen overlay that appears on touch-capable devices
-    const dismissButton = page.getByText('Dismiss');
-    if (await dismissButton.isVisible()) {
-      await dismissButton.click();
-    }
-    await expect(page.locator('.fullscreen__overlay')).not.toBeVisible();
+    await dismissFullscreenOverlay(page);
   });
 
   for (const holdMs of TAP_HOLD_DURATIONS_MS) {
@@ -57,8 +63,7 @@ test.describe('Playback toggle stability', () => {
         await page.waitForTimeout(POST_TAP_OBSERVATION_MS);
         const trace = await stopPlaybackTrace(page);
 
-        await expect(page.getByTitle('Play')).toBeVisible();
-        expect(trace.length).toBeLessThanOrEqual(MAX_TAP_TRANSITIONS);
+        expect(trace.length).toBeLessThanOrEqual(MAX_INITIATED_TRANSITIONS);
       },
     );
   }
@@ -72,14 +77,17 @@ test.describe('Playback toggle stability', () => {
       await page.waitForTimeout(POST_SWIPE_SETTLE_MS);
       await expect(page.getByTitle('Play')).toBeVisible();
 
+      // Tracing starts before the triggering click (seeded from "Play") so
+      // its own Play→Pause switch is captured as the one allowed initiated
+      // transition, rather than polling for "Pause" to become visible
+      // first — which the live bug's brief visibility windows can miss for
+      // the wrong reason (see module comment above).
       await tracePlaybackState(page);
       await page.getByTitle('Play').click();
       await page.waitForTimeout(POST_PLAY_OBSERVATION_MS);
       const trace = await stopPlaybackTrace(page);
 
-      // The click above is user-initiated and happens before tracing starts,
-      // so a stable timeline records zero further transitions.
-      expect(trace.length).toBe(0);
+      expect(trace.length).toBeLessThanOrEqual(MAX_INITIATED_TRANSITIONS);
     },
   );
 });
