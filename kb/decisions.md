@@ -2,6 +2,12 @@
 
 Architectural decisions with rationale and provenance, newest first. Entry format: date, decision, why, source. When a decision is reversed, mark the old entry **Superseded** with a pointer — don't delete it; the rationale trail is the point.
 
+## 2026-07-20 — `work-issue` commits feature code, review fixes, and the KB update as three separate commits
+
+**Decision:** `work-issue`'s old combined "Ship" step (commit feature code including any review fixes, then commit the KB update separately) is split into three steps — Commit (feature code, before review runs), Review (`/code-review`, its fixes committed separately), Pay back (`/kb write`, committed separately) — landing three distinct commits per PR instead of two.
+**Why:** Committing the feature code only at Ship time meant `/code-review` ran against an uncommitted diff and its fixes were silently folded into the same commit as the original implementation — the PR history couldn't show what review actually changed. Committing before review makes the fix commit a visible, separate diff.
+**Source:** `.claude/skills/work-issue/SKILL.md`, `.claude/skills/kb/SKILL.md`.
+
 ## 2026-07-20 — `window.__mawimbi` dev-only e2e verification bridge
 
 **Decision:** `AudioService`'s constructor sets `window.__mawimbi = { spectrogramCache }` when `import.meta.env.DEV`; the shape is declared in `src/global.d.ts`. e2e tests read worker-produced state (e.g. transcribed melody notes) directly through it instead of reverse-engineering a DOM/pixel proxy for a data claim.
