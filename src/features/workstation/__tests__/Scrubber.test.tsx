@@ -672,6 +672,113 @@ it('recognizes a single-finger drag again once a two-finger touch fully lifts', 
   expect(playbackService.isPlaying).toBe(false);
 });
 
+it('recovers single-finger scrubbing after a pinch ends via touchcancel, not just touchend', () => {
+  vi.spyOn(playbackService, 'getEngineTime').mockReturnValue(1.0);
+  vi.spyOn(trackService, 'getLoudness').mockReturnValue(0);
+
+  let rafCallback: FrameRequestCallback = () => {};
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+    rafCallback = cb;
+    return 1;
+  });
+
+  playbackService.play();
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+  const phantom = container.querySelector('.scrubber__phantom')!;
+
+  Object.defineProperty(phantom, 'scrollHeight', {
+    value: 2000,
+    configurable: true,
+  });
+  Object.defineProperty(phantom, 'clientHeight', {
+    value: 500,
+    configurable: true,
+  });
+
+  act(() => {
+    rafCallback(0);
+  });
+
+  // useTimelineZoom is the real (unmocked) hook here. A pinch that ends via
+  // touchcancel (OS gesture takeover, incoming call, permission prompt) has
+  // no matching touchend — without a touchcancel listener of its own,
+  // isPinchingRef would stick true forever (mawimbi#476), and the scrub
+  // controller's isPinchingRef check would then silently swallow every
+  // later single-finger drag: it would look identical to "no gesture
+  // happened" (isPlaying staying true) rather than an assertion failure,
+  // which is why this checks the drag actually still pauses.
+  fireEvent.touchStart(phantom, {
+    touches: [
+      { clientX: 0, clientY: 0 },
+      { clientX: 0, clientY: 40 },
+    ],
+  });
+  fireEvent.touchCancel(phantom, { touches: [] });
+
+  fireEvent.pointerDown(phantom, { clientY: 0 });
+  fireEvent.pointerMove(phantom, { clientY: 30 });
+
+  expect(playbackService.isPlaying).toBe(false);
+});
+
+it('aborts an armed scrub and resumes without seeking when a pinch starts mid-drag (G5)', () => {
+  vi.spyOn(playbackService, 'getEngineTime').mockReturnValue(1.0);
+  vi.spyOn(trackService, 'getLoudness').mockReturnValue(0);
+
+  let rafCallback: FrameRequestCallback = () => {};
+  vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+    rafCallback = cb;
+    return 1;
+  });
+
+  playbackService.play();
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+  const phantom = container.querySelector('.scrubber__phantom')!;
+
+  Object.defineProperty(phantom, 'scrollHeight', {
+    value: 2000,
+    configurable: true,
+  });
+  Object.defineProperty(phantom, 'clientHeight', {
+    value: 500,
+    configurable: true,
+  });
+
+  act(() => {
+    rafCallback(0);
+  });
+
+  const seekSpy = vi.spyOn(playbackService, 'seekTo');
+
+  // A single finger drags past the threshold before any second finger is
+  // down — the controller can't yet tell this apart from a real scrub
+  // (that's what the "resting finger" and pinch-groundwork tests above
+  // cover), so it pauses exactly as C6 requires for a lone finger.
+  fireEvent.pointerDown(phantom, { clientY: 0 });
+  fireEvent.pointerMove(phantom, { clientY: 30 });
+  expect(playbackService.isPlaying).toBe(false);
+
+  // A second finger lands without the first lifting. useTimelineZoom is the
+  // real (unmocked) hook here, so its own native touchstart listener flips
+  // isPinchingRef — the pointer-count gate alone doesn't catch this case,
+  // since the gesture was already armed by the first finger before the
+  // second one ever registered as a pointer event (issue #476).
+  fireEvent.touchStart(phantom, {
+    touches: [
+      { clientX: 0, clientY: 30 },
+      { clientX: 0, clientY: 70 },
+    ],
+  });
+  fireEvent.pointerMove(phantom, { clientY: 35 });
+
+  // Resumed immediately (no debounce wait needed) and never seeked — a
+  // pinch must not commit the scroll-derived seek an ordinary scrub would.
+  expect(playbackService.isPlaying).toBe(true);
+  expect(seekSpy).not.toHaveBeenCalled();
+});
+
 it('does not toggle playback via click after a tap that crossed the scrub threshold', () => {
   playbackService.play();
 

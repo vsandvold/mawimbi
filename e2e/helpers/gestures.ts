@@ -140,3 +140,4 @@ export async function pinchTimeline(page: Page, scale: number): Promise<void> {
     });
   });
 }
+

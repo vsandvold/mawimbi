@@ -32,7 +32,16 @@ export type ScrubEvent =
   /** Pointer released, cancelled, or lost capture (up/cancel/lostpointercapture). */
   | { type: 'pointerEnd' }
   /** The debounced seek fired and (if armed) playback resumed. */
-  | { type: 'seekCommitted' };
+  | { type: 'seekCommitted' }
+  /**
+   * A second finger joined mid-drag, turning an in-progress single-finger
+   * gesture into a pinch (G5 — pinch never scrubs). The pointer-count gate
+   * in useScrubberScroll.ts already keeps a pinch from *entering* a gesture
+   * when both fingers land together, but a gesture already active from the
+   * first finger's own movement isn't touched by that gate — this event
+   * aborts it instead of letting it ride to a seek/resume.
+   */
+  | { type: 'pinchStarted' };
 
 export const SCRUB_MOVEMENT_THRESHOLD_PX = 8;
 
@@ -50,6 +59,8 @@ export function nextScrubState(
     case 'pointerEnd':
       return state === 'gestureActive' ? 'pendingSeek' : state;
     case 'seekCommitted':
+      return 'idle';
+    case 'pinchStarted':
       return 'idle';
   }
 }

@@ -26,6 +26,22 @@ export async function getFirstTrackId(page: Page): Promise<string> {
 }
 
 /**
+ * Reads the real `Tone.Transport` position (issue #476) — a pinch-zoom test
+ * would otherwise have to re-derive it from `scrollTop`/`pixelsPerSecond`,
+ * exactly the fragile pixel-math proxy this bridge exists to avoid, and
+ * pixelsPerSecond changing mid-gesture is the whole point of that test.
+ */
+export async function getEngineTime(page: Page): Promise<number> {
+  const time = await page.evaluate(() =>
+    window.__mawimbi?.playback.getEngineTime(),
+  );
+  if (time === undefined) {
+    throw new Error('window.__mawimbi.playback is unavailable');
+  }
+  return time;
+}
+
+/**
  * Polls until melody extraction has produced at least one note for
  * `trackId`, then returns it. Captures the melody from inside the poll
  * callback itself rather than re-reading it afterwards, so there is no

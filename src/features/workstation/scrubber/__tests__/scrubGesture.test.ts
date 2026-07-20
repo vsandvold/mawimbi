@@ -74,6 +74,17 @@ describe('nextScrubState', () => {
   });
 });
 
+describe('pinchStarted', () => {
+  const states: ScrubState[] = ['idle', 'gestureActive', 'pendingSeek'];
+
+  it.each(states)(
+    'resolves %s to idle (a second finger joining aborts any in-progress gesture, G5)',
+    (state) => {
+      expect(nextScrubState(state, { type: 'pinchStarted' })).toBe('idle');
+    },
+  );
+});
+
 describe('isGestureInProgress', () => {
   it('is false when idle', () => {
     expect(isGestureInProgress('idle')).toBe(false);
