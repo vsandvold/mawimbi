@@ -67,8 +67,8 @@ function drawFrequencyBars(
   rect: MeterRect,
   semitoneBars: Uint8Array,
 ): void {
-  const bins = semitoneBars.length;
-  if (bins === 0) return;
+  const barCount = semitoneBars.length;
+  if (barCount === 0) return;
 
   const innerPadding = BORDER_WIDTH + 1;
   const innerX = rect.x + innerPadding;
@@ -76,17 +76,17 @@ function drawFrequencyBars(
   const innerHeight = rect.height - innerPadding * 2;
   const innerBottom = rect.y + rect.height - innerPadding;
 
-  // Calculate bar width: distribute bins across inner width with gaps
-  const totalGapWidth = (bins - 1) * BAR_GAP;
-  const barWidth = (innerWidth - totalGapWidth) / bins;
+  // Calculate bar width: distribute bars across inner width with gaps
+  const totalGapWidth = (barCount - 1) * BAR_GAP;
+  const barWidth = (innerWidth - totalGapWidth) / barCount;
 
   // If bars would be too thin, skip gaps
-  const effectiveBarWidth = barWidth < 1 ? innerWidth / bins : barWidth;
+  const effectiveBarWidth = barWidth < 1 ? innerWidth / barCount : barWidth;
   const effectiveGap = barWidth < 1 ? 0 : BAR_GAP;
 
   ctx.fillStyle = BAR_COLOR;
 
-  for (let i = 0; i < bins; i++) {
+  for (let i = 0; i < barCount; i++) {
     const intensity = semitoneBars[i] / 255;
     const barHeight = Math.round(intensity * innerHeight);
     if (barHeight <= 0) continue;

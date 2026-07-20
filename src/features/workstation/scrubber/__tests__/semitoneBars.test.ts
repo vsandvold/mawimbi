@@ -18,7 +18,12 @@ describe('poolSemitoneBars', () => {
 
   it('keeps semitone spacing uniform across the register', () => {
     const notes = [24, 36, 48, 60, 72, 84]; // C1..C7, one octave apart
-    const bars = notes.map((midi) => Math.round(midiNoteToBin(midi) / 2));
+    const bars = notes.map((midi) => {
+      const rawBin = Math.round(midiNoteToBin(midi));
+      const bins = new Uint8Array(200);
+      bins[rawBin] = 255;
+      return poolSemitoneBars(bins).indexOf(255);
+    });
 
     const diffs = bars.slice(1).map((bar, i) => bar - bars[i]);
     const mean = diffs.reduce((sum, d) => sum + d, 0) / diffs.length;
