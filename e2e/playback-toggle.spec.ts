@@ -93,16 +93,25 @@ test.describe('Playback toggle stability', () => {
     },
   );
 
-  // Issue #475: a scrub during playback pauses immediately and arms a
-  // resume for when its ~200ms debounced seek commits (spec 002, C4-C7). If
-  // the user explicitly toggles play then pause again inside that window,
-  // their last explicit command must win — the stale armed resume must not
-  // flip it back to playing once the debounce fires. PlaybackService's
+  // Issue #475: a scrub during playback pauses immediately and arms a resume
+  // for when its ~200ms debounced seek commits (spec 002, C4-C7). If an
+  // explicit command intervenes inside that window, it must win — the stale
+  // armed resume must not fire once the debounce fires. PlaybackService's
   // command epoch (bumped by every explicit play/pause/stop/rewind/seekTo
   // call) is what lets the scrub controller detect the intervening command
   // and cancel its own resume.
+  //
+  // Rewind is the intervening command here rather than the Play/Pause
+  // toggle: a toggle's effect depends on which state it *reads* right before
+  // clicking, so if the stale resume happens to fire in the same instant the
+  // toggle click is processed, the two can race and the toggle's outcome
+  // becomes ambiguous — a hazard of any toggle control racing a concurrent
+  // async transition, unrelated to whether the epoch fix itself works.
+  // Rewind has no such ambiguity: it unconditionally forces stopped+0
+  // regardless of current state, so it deterministically proves the stale
+  // resume never fires, however the timing lands.
   test(
-    'an explicit re-pause during the scrub debounce window stays paused',
+    'an explicit rewind during the scrub debounce window cancels the auto-resume',
     async ({ page }) => {
       await page.getByTitle('Play').click();
       await expect(page.getByTitle('Pause')).toBeVisible();
@@ -110,11 +119,7 @@ test.describe('Playback toggle stability', () => {
       await swipeTimeline(page, 300);
       await expect(page.getByTitle('Play')).toBeVisible();
 
-      // Toggle to playing and back to paused again before the debounced
-      // seek/resume commits.
-      await page.getByTitle('Play').click();
-      await page.getByTitle('Pause').click();
-      await expect(page.getByTitle('Play')).toBeVisible();
+      await page.getByTitle('Rewind').click();
 
       await page.waitForTimeout(POST_PLAY_OBSERVATION_MS);
       await expect(page.getByTitle('Play')).toBeVisible();

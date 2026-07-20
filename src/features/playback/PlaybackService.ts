@@ -27,13 +27,20 @@ class PlaybackService {
   private readonly _loudness = signal(0);
   private readonly _isPlaying: ReadonlySignal<boolean>;
 
-  // Monotonic counter bumped by every explicit command (play/pause/stop/
-  // rewind/seekTo — see bumpCommandEpoch()), never by engine-driven updates
-  // (setTransportTime, the internal stopAtEndOfTimeline). Lets a caller that
-  // armed a delayed follow-up action (the scrubber's auto-resume after a
-  // debounced seek, issue #475) detect whether an explicit command intervened
-  // before that follow-up fires, by comparing epoch snapshots. Nothing
-  // renders from it, so a plain field is enough — no signal.
+  // Monotonic counter bumped by every explicit state *transition* — play(),
+  // pause(), and stop() bump it only when they actually change state, not on
+  // a guarded no-op (e.g. pause() while already paused); rewind() and
+  // seekTo() have no such guard and always bump, since every call is a real
+  // command. Never bumped by engine-driven updates (setTransportTime, the
+  // internal stopAtEndOfTimeline). The "no-op doesn't bump" rule matters
+  // because play()/pause() are also called as incidental cleanup elsewhere
+  // (e.g. cancelling a count-in, RecordingService's overdub lifecycle) where
+  // playback may already be in the target state — bumping there too would
+  // spuriously cancel an unrelated armed follow-up. Lets a caller that armed
+  // a delayed follow-up action (the scrubber's auto-resume after a debounced
+  // seek, issue #475) detect whether an explicit command intervened before
+  // that follow-up fires, by comparing epoch snapshots. Nothing renders from
+  // it, so a plain field is enough — no signal.
   private _commandEpoch = 0;
 
   // --- Narrow channel for reactive consumers (hooks) ---
@@ -106,9 +113,9 @@ class PlaybackService {
   // --- State machine transitions (with integrated transport control) ---
 
   play(): void {
-    this.bumpCommandEpoch();
     const state = this._playbackState.value;
     if (state === 'playing') return;
+    this.bumpCommandEpoch();
 
     if (state === 'stopped' && this.isAtEndOfTimeline()) {
       this._transportTime.value = 0;
@@ -127,15 +134,15 @@ class PlaybackService {
   }
 
   pause(): void {
-    this.bumpCommandEpoch();
     if (this._playbackState.value !== 'playing') return;
+    this.bumpCommandEpoch();
     this._playbackState.value = 'paused';
     this.transport.pause();
   }
 
   stop(): void {
-    this.bumpCommandEpoch();
     if (this._playbackState.value === 'stopped') return;
+    this.bumpCommandEpoch();
     this._playbackState.value = 'stopped';
     this.transport.stop();
   }

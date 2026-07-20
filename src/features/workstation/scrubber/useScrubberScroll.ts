@@ -61,8 +61,12 @@ export function useScrubberScroll({
   const playbackState = playback.playbackState;
 
   const scrubStateRef = useRef<ScrubState>('idle');
-  const shouldResumeRef = useRef(false);
-  const armedCommandEpochRef = useRef<number | null>(null);
+  // Non-null while a scrub-triggered auto-resume is armed, holding the
+  // PlaybackService command epoch at arm time (issue #475) — null doubles as
+  // "not armed" and "the epoch to compare against when the debounced seek
+  // commits", so the two states can't drift apart the way two separate refs
+  // could.
+  const armedResumeEpochRef = useRef<number | null>(null);
   const pointerDownPosRef = useRef<PointerPosition | null>(null);
   const activePointerCountRef = useRef(0);
 
@@ -134,7 +138,7 @@ export function useScrubberScroll({
     let rafId = 0;
 
     const animate = () => {
-      if (!shouldResumeRef.current) {
+      if (armedResumeEpochRef.current === null) {
         const time = playback.getEngineTime();
 
         // During count-in the transport plays lead-in audio but the
@@ -208,14 +212,14 @@ export function useScrubberScroll({
     // Hook objects reference stable service singletons via getters
   }, [playbackState, setScrollPosition]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Always clears the gesture state and the armed-resume flag, even if the
+  // Always clears the gesture state and the armed-resume epoch, even if the
   // seek/resume below is skipped — otherwise a debounce that commits while
   // actively recording (C9: scroll-to-seek is disabled during active
-  // recording) would leave scrubStateRef/shouldResumeRef stuck armed with
-  // no further scroll event ever scheduled to retry them.
+  // recording) would leave scrubStateRef/armedResumeEpochRef stuck armed
+  // with no further scroll event ever scheduled to retry them.
   //
-  // The resume-cancellation check (armedCommandEpochRef) is read here,
-  // before this function's own seekTo() call below bumps the epoch again —
+  // The resume-cancellation check (armedResumeEpochRef) is read here, before
+  // this function's own seekTo() call below bumps the epoch again —
   // comparing against a post-seek epoch would need a "+1" to account for
   // that self-inflicted bump, and would misfire if seekTo is skipped
   // (el null). Reading pre-seek instead means "no explicit command fired
@@ -227,15 +231,13 @@ export function useScrubberScroll({
     scrubStateRef.current = nextScrubState(scrubStateRef.current, {
       type: 'seekCommitted',
     });
-    const shouldResume = shouldResumeRef.current;
-    const armedCommandEpoch = armedCommandEpochRef.current;
-    shouldResumeRef.current = false;
-    armedCommandEpochRef.current = null;
+    const armedResumeEpoch = armedResumeEpochRef.current;
+    armedResumeEpochRef.current = null;
 
     if (recording.isActivelyRecording) return;
 
     const noInterveningCommand =
-      armedCommandEpoch !== null && playback.commandEpoch === armedCommandEpoch;
+      armedResumeEpoch !== null && playback.commandEpoch === armedResumeEpoch;
 
     const el = phantomRef.current;
     if (el) {
@@ -243,7 +245,7 @@ export function useScrubberScroll({
       const time = (maxScrollTop - el.scrollTop) / pixelsPerSecond;
       playback.seekTo(time);
     }
-    if (shouldResume && noInterveningCommand) {
+    if (noInterveningCommand) {
       playback.play();
     }
   };
@@ -253,12 +255,11 @@ export function useScrubberScroll({
   });
 
   const pauseForUserScroll = () => {
-    if (playing && !shouldResumeRef.current) {
-      shouldResumeRef.current = true;
+    if (playing && armedResumeEpochRef.current === null) {
       playback.pause();
       // Snapshot after pause() so its own epoch bump (the arming action, not
       // an "intervening" command) doesn't itself cancel the resume.
-      armedCommandEpochRef.current = playback.commandEpoch;
+      armedResumeEpochRef.current = playback.commandEpoch;
     }
   };
 

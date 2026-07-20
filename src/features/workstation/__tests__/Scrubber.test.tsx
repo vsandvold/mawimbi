@@ -23,6 +23,10 @@ const defaultProps = {
   pixelsPerSecond: 200,
 };
 
+// Margin above useScrubberScroll's SCROLL_DEBOUNCE_MS (200ms) so fake-timer
+// advances reliably clear the debounce without depending on its exact value.
+const PAST_SCROLL_DEBOUNCE_MS = 250;
+
 afterEach(() => {
   playbackService.reset();
   recordingService.reset();
@@ -65,6 +69,31 @@ function mockOffsetHeight(height: number): () => void {
 /** Extracts the trailing `<number>px` token from a `center <y>px` origin string. */
 function parseOriginY(origin: string): number {
   return parseFloat(origin.split(' ')[1]);
+}
+
+/**
+ * Renders the Scrubber with a scrollable phantom (mocked scrollHeight/
+ * clientHeight, since jsdom always reports 0), then drives a drag gesture
+ * that crosses the scrub movement threshold and releases — pausing
+ * playback and arming its debounced auto-resume.
+ */
+function renderAndArmScrubResume(): HTMLElement {
+  const { container } = render(<Scrubber {...defaultProps} />);
+  const phantom = container.querySelector('.scrubber__phantom')!;
+  Object.defineProperty(phantom, 'scrollHeight', {
+    value: 2000,
+    configurable: true,
+  });
+  Object.defineProperty(phantom, 'clientHeight', {
+    value: 500,
+    configurable: true,
+  });
+
+  fireEvent.pointerDown(phantom, { clientY: 0 });
+  fireEvent.pointerMove(phantom, { clientY: 20 });
+  fireEvent.pointerUp(phantom);
+
+  return phantom as HTMLElement;
 }
 
 it('pauses playback on a real wheel scrub while playing', () => {
@@ -705,7 +734,7 @@ it('does not permanently stick the gesture state if recording starts before a sc
   recordingService.stopRecording();
 
   act(() => {
-    vi.advanceTimersByTime(250);
+    vi.advanceTimersByTime(PAST_SCROLL_DEBOUNCE_MS);
   });
   vi.useRealTimers();
 
@@ -723,24 +752,11 @@ it('resumes playback after the debounced seek when nothing intervenes', () => {
   vi.useFakeTimers();
   playbackService.play();
 
-  const { container } = render(<Scrubber {...defaultProps} />);
-  const phantom = container.querySelector('.scrubber__phantom')!;
-  Object.defineProperty(phantom, 'scrollHeight', {
-    value: 2000,
-    configurable: true,
-  });
-  Object.defineProperty(phantom, 'clientHeight', {
-    value: 500,
-    configurable: true,
-  });
-
-  fireEvent.pointerDown(phantom, { clientY: 0 });
-  fireEvent.pointerMove(phantom, { clientY: 20 });
-  fireEvent.pointerUp(phantom);
+  renderAndArmScrubResume();
   expect(playbackService.isPlaying).toBe(false);
 
   act(() => {
-    vi.advanceTimersByTime(250);
+    vi.advanceTimersByTime(PAST_SCROLL_DEBOUNCE_MS);
   });
 
   expect(playbackService.isPlaying).toBe(true);
@@ -758,20 +774,7 @@ it('cancels the armed auto-resume if an explicit command intervenes before the d
   vi.useFakeTimers();
   playbackService.play();
 
-  const { container } = render(<Scrubber {...defaultProps} />);
-  const phantom = container.querySelector('.scrubber__phantom')!;
-  Object.defineProperty(phantom, 'scrollHeight', {
-    value: 2000,
-    configurable: true,
-  });
-  Object.defineProperty(phantom, 'clientHeight', {
-    value: 500,
-    configurable: true,
-  });
-
-  fireEvent.pointerDown(phantom, { clientY: 0 });
-  fireEvent.pointerMove(phantom, { clientY: 20 });
-  fireEvent.pointerUp(phantom);
+  renderAndArmScrubResume();
   expect(playbackService.isPlaying).toBe(false);
 
   // The user explicitly toggles play then pause again before the ~200ms
@@ -783,7 +786,7 @@ it('cancels the armed auto-resume if an explicit command intervenes before the d
   expect(playbackService.isPlaying).toBe(false);
 
   act(() => {
-    vi.advanceTimersByTime(250);
+    vi.advanceTimersByTime(PAST_SCROLL_DEBOUNCE_MS);
   });
 
   // Without the epoch check, the stale armed resume would call play() here
@@ -962,7 +965,7 @@ it('does not resync scroll to a stale transport time while a user scrub is in fl
 
   // Once the debounced seek commits, resyncs may run again.
   act(() => {
-    vi.advanceTimersByTime(250);
+    vi.advanceTimersByTime(PAST_SCROLL_DEBOUNCE_MS);
   });
   expect(playbackService.transportTime).toBeCloseTo((1500 - 700) / 200, 6);
 

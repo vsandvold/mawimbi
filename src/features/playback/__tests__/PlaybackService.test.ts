@@ -339,12 +339,22 @@ describe('PlaybackService', () => {
 
     it.each([
       ['play', () => service.play()],
-      ['pause', () => service.pause()],
-      ['stop', () => service.stop()],
       ['togglePlayback', () => service.togglePlayback()],
       ['rewind', () => service.rewind()],
       ['seekTo', () => service.seekTo(5.0)],
-    ])('bumps the epoch exactly once on %s', (_name, command) => {
+    ])('bumps the epoch exactly once on %s from stopped', (_name, command) => {
+      const before = service.commandEpoch;
+
+      command();
+
+      expect(service.commandEpoch).toBe(before + 1);
+    });
+
+    it.each([
+      ['pause', () => service.pause()],
+      ['stop', () => service.stop()],
+    ])('bumps the epoch exactly once on %s from playing', (_name, command) => {
+      service.play();
       const before = service.commandEpoch;
 
       command();
@@ -371,13 +381,29 @@ describe('PlaybackService', () => {
       expect(service.commandEpoch).toBe(before);
     });
 
-    it('bumps once for a no-op call (e.g. pause while already stopped)', () => {
-      const before = service.commandEpoch;
+    // play()/pause()/stop() are also called as incidental cleanup by other
+    // services (e.g. RecordingService's count-in cancellation, overdub
+    // lifecycle) where playback may already be in the target state — bumping
+    // on those no-ops would spuriously cancel an unrelated armed follow-up
+    // (issue #475 review).
+    it.each([
+      [
+        'play while already playing',
+        () => service.play(),
+        () => service.play(),
+      ],
+      ['pause while already stopped', () => {}, () => service.pause()],
+      ['stop while already stopped', () => {}, () => service.stop()],
+    ])(
+      'does not bump the epoch for a no-op call: %s',
+      (_name, setup, command) => {
+        setup();
+        const before = service.commandEpoch;
 
-      service.pause();
+        command();
 
-      expect(service.playbackState).toBe('stopped');
-      expect(service.commandEpoch).toBe(before + 1);
-    });
+        expect(service.commandEpoch).toBe(before);
+      },
+    );
   });
 });
