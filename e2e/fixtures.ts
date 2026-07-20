@@ -10,6 +10,10 @@
  *   uploads audio from downloading ~50 MB of ONNX classification models from
  *   essentia.upf.edu, which would otherwise happen because AudioService
  *   fires classification on every track creation.
+ *
+ * Also re-exports the shared touch-gesture helpers and the playback flap
+ * tracer (`./helpers/gestures`, `./helpers/flapTracer`) so specs only need
+ * one import source.
  */
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -17,6 +21,8 @@ import { test as base, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
 export { expect };
+export * from './helpers/gestures';
+export * from './helpers/flapTracer';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,6 +41,19 @@ export async function uploadAudioFile(page: Page, filePath: string) {
   const fileInput = page.locator('.toolbar-sheet input[type="file"]');
   await fileInput.waitFor({ state: 'attached' });
   await fileInput.setInputFiles(filePath);
+}
+
+/**
+ * Dismisses the fullscreen overlay shown on touch-capable devices, if
+ * present. Shared by every touch-gesture spec since the overlay would
+ * otherwise intercept pointer/touch events meant for the timeline.
+ */
+export async function dismissFullscreenOverlay(page: Page) {
+  const dismissButton = page.getByText('Dismiss');
+  if (await dismissButton.isVisible()) {
+    await dismissButton.click();
+  }
+  await expect(page.locator('.fullscreen__overlay')).not.toBeVisible();
 }
 
 export const test = base.extend<{ blockModelRequests: void }>({
