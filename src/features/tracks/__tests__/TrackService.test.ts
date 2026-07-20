@@ -435,4 +435,96 @@ describe('TrackService', () => {
       expect(callback).toHaveBeenCalledWith('restored-id', expect.any(Object));
     });
   });
+
+  describe('effect signal → mixer sync', () => {
+    it('creates effect signals defaulting to bypass', async () => {
+      const { trackId } = await service.createTrack(new ArrayBuffer(8));
+
+      const signals = service.getSignals(trackId)!;
+      expect(signals.effects.space.value).toBe(0);
+      expect(signals.effects.echo.value).toBe(0);
+      expect(signals.effects.tone.value).toBe(0);
+    });
+
+    it('syncs effect signal writes to the mixer channel', async () => {
+      const { trackId } = await service.createTrack(new ArrayBuffer(8));
+
+      service.getSignals(trackId)!.effects.space.value = 42;
+
+      expect(service.retrieveChannel(trackId)!.getEffectAmount('space')).toBe(
+        42,
+      );
+    });
+
+    it('syncs each effect independently', async () => {
+      const { trackId } = await service.createTrack(new ArrayBuffer(8));
+      const channel = service.retrieveChannel(trackId)!;
+
+      service.getSignals(trackId)!.effects.echo.value = 30;
+      service.getSignals(trackId)!.effects.tone.value = 70;
+
+      expect(channel.getEffectAmount('space')).toBe(0);
+      expect(channel.getEffectAmount('echo')).toBe(30);
+      expect(channel.getEffectAmount('tone')).toBe(70);
+    });
+
+    it('affects only the written track when several tracks exist', async () => {
+      const first = await service.createTrack(new ArrayBuffer(8));
+      const second = await service.createTrack(new ArrayBuffer(8));
+
+      service.getSignals(first.trackId)!.effects.space.value = 55;
+
+      expect(
+        service.retrieveChannel(second.trackId)!.getEffectAmount('space'),
+      ).toBe(0);
+    });
+
+    it('stops syncing after signals are disposed', async () => {
+      const { trackId } = await service.createTrack(new ArrayBuffer(8));
+      const signals = service.getSignals(trackId)!;
+
+      service.disposeSignals(trackId);
+      signals.effects.space.value = 42;
+
+      expect(service.retrieveChannel(trackId)!.getEffectAmount('space')).toBe(
+        0,
+      );
+    });
+
+    // Regression test for the #212 class: the undo flow (projectPageEffects'
+    // useTrackSideEffects) recreates signals BEFORE the mixer channel, so
+    // createSignals cannot wire the sync — recreateChannel must re-bind it,
+    // or every control on an undo-restored track is silently dead.
+    it('re-binds signal sync when the channel is recreated after undo', async () => {
+      const { trackId } = await service.createTrack(new ArrayBuffer(8));
+
+      // Delete-track flow
+      service.disposeSignals(trackId);
+      service.deleteChannel(trackId);
+
+      // Undo flow: signals first, then the channel
+      service.createSignals(trackId, 80);
+      service.recreateChannel(trackId);
+
+      service.getSignals(trackId)!.effects.space.value = 42;
+
+      expect(service.retrieveChannel(trackId)!.getEffectAmount('space')).toBe(
+        42,
+      );
+    });
+
+    it('applies current signal values to the recreated channel immediately', async () => {
+      const { trackId } = await service.createTrack(new ArrayBuffer(8));
+
+      service.disposeSignals(trackId);
+      service.deleteChannel(trackId);
+      service.createSignals(trackId, 80);
+      const signals = service.getSignals(trackId)!;
+      signals.mute.value = true;
+
+      service.recreateChannel(trackId);
+
+      expect(service.retrieveChannel(trackId)!.mute).toBe(true);
+    });
+  });
 });

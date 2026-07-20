@@ -1,4 +1,5 @@
 import * as Tone from 'tone';
+import EffectsChain, { type EffectId } from './EffectsChain';
 import type WorkletAnalyser from '../spectrogram/WorkletAnalyser';
 
 const SMOOTHING = 0.8;
@@ -44,9 +45,12 @@ class MixerService {
       .sync()
       .start(startTime, audioOffset);
     const channel = new Tone.Channel();
-    player.chain(channel, Tone.getDestination());
+    channel.connect(Tone.getDestination());
+    // The chain owns the player → channel segment and splices effect
+    // nodes into it as their amounts activate.
+    const effectsChain = new EffectsChain(player, channel);
     this.audioChannelRepository.add(
-      new AudioChannel(trackId, channel, normalizationGainDb),
+      new AudioChannel(trackId, channel, effectsChain, normalizationGainDb),
     );
   }
 
@@ -86,16 +90,32 @@ class MixerService {
 export class AudioChannel {
   id: string;
   private channel: Tone.Channel;
+  private effectsChain: EffectsChain;
   private normalizationGainDb: number;
 
-  constructor(id: string, channel: Tone.Channel, normalizationGainDb = 0) {
+  constructor(
+    id: string,
+    channel: Tone.Channel,
+    effectsChain: EffectsChain,
+    normalizationGainDb = 0,
+  ) {
     this.id = id;
     this.channel = channel;
+    this.effectsChain = effectsChain;
     this.normalizationGainDb = normalizationGainDb;
   }
 
   dispose(): void {
+    this.effectsChain.dispose();
     this.channel.dispose();
+  }
+
+  setEffectAmount(effectId: EffectId, amount: number): void {
+    this.effectsChain.setAmount(effectId, amount);
+  }
+
+  getEffectAmount(effectId: EffectId): number {
+    return this.effectsChain.getAmount(effectId);
   }
 
   get mute(): boolean {

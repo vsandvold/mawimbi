@@ -4,6 +4,12 @@ Architectural decisions with rationale and provenance, newest first. Entry forma
 
 **Hygiene note:** this file is past the KB's ~150-line guideline (`kb/INDEX.md`) — due a split (e.g. by year, or into `decisions.md` + `decisions-archive.md`) in a future `/harness-audit` or dedicated session, not blocking here.
 
+## 2026-07-20 — Signal→channel sync re-binds at channel recreation; effect macros map mix params only
+
+**Decision:** `TrackService.recreateChannel` (#492) ends by calling a private `resyncSignals` — dispose any existing sync effects, re-run `setupChannelSync` against the fresh channel — instead of relying on `createSignals` having wired the sync. Separately, `EffectsChain`'s one-knob macros (Space/Echo/Tone) map the mix parameters only (wet, feedback, cutoff); the character parameters (reverb decay, delay time) are fixed named constants.
+**Why:** The undo flow (`useTrackSideEffects` in `projectPageEffects.ts`) recreates signals *before* the channel exists, so `createSignals`' "wire sync only if the channel already exists" guard silently skipped it — every control on an undo-restored track (volume/mute/solo, and the new effect sliders) was dead: UI updated, audio unchanged, no error. Re-binding at recreation is the right altitude because the sync effects run immediately on creation, pushing every current signal value into the fresh channel — which is also what closes the #212 "recreateChannel silently loses a non-persisted param" class for effect amounts ahead of M5's persistence. Found by four independent code-review angles converging; fixed red-then-green. Macros: `Tone.Reverb` regenerates its IR asynchronously on every decay set (silent until `ready`, #489) and delay-time ramps pitch-warp the echoes — neither survives a live slider drag, so the knob maps the mix and the character stays constant. Ear-tuning of the curve constants is deferred to the on-device QA pass (spec 004 open question 2).
+**Source:** Issue #492 (spec 004 milestone 4).
+
 ## 2026-07-20 — Per-frame ballistics smoothing state resets wherever the idle frame already renders, not on a data-shape check alone
 
 **Decision:** `BarSmoother` (spec 003 milestone 4, #483 — attack/decay smoothing on the playhead meter's semitone bars) gained an explicit `reset()`, wired into `renderLoudnessMeterIdle` rather than only auto-resetting when its target array's length changes.

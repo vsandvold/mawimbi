@@ -13,6 +13,7 @@ import {
   type ReadonlySignal,
   type Signal,
 } from '@preact/signals-react';
+import { EFFECT_ORDER, MIN_EFFECT_AMOUNT, type EffectId } from './EffectsChain';
 import { LoudnessNormalizer } from './LoudnessNormalizer';
 import MixerService, { type AudioChannel } from './MixerService';
 import type WorkletAnalyser from '../spectrogram/WorkletAnalyser';
@@ -22,6 +23,7 @@ export type TrackSignals = {
   volume: Signal<number>;
   mute: Signal<boolean>;
   solo: Signal<boolean>;
+  effects: Record<EffectId, Signal<number>>;
 };
 
 export type TrackCreationResult = {
@@ -206,6 +208,11 @@ class TrackService {
       volume: signal(initialVolume ?? DEFAULT_VOLUME),
       mute: signal(false),
       solo: signal(false),
+      effects: {
+        space: signal(MIN_EFFECT_AMOUNT),
+        echo: signal(MIN_EFFECT_AMOUNT),
+        tone: signal(MIN_EFFECT_AMOUNT),
+      },
     };
     this.signalStore.set(trackId, signals);
     this.storeVersion.value++;
@@ -224,11 +231,7 @@ class TrackService {
   }
 
   disposeSignals(trackId: TrackId): void {
-    const disposers = this.effectDisposers.get(trackId);
-    if (disposers) {
-      for (const dispose of disposers) dispose();
-      this.effectDisposers.delete(trackId);
-    }
+    this.disposeSyncEffects(trackId);
     this.signalStore.delete(trackId);
     this.storeVersion.value++;
   }
@@ -291,6 +294,7 @@ class TrackService {
       source.normalizationGainDb,
       source.startTime,
     );
+    this.resyncSignals(trackId);
     return true;
   }
 
@@ -309,6 +313,28 @@ class TrackService {
   }
 
   // --- Signal-to-channel sync ---
+
+  // Re-binds signal sync after a channel is rebuilt. The undo flow
+  // (projectPageEffects' useTrackSideEffects) recreates signals before the
+  // channel exists, so createSignals cannot wire the sync there — and a
+  // fresh channel starts at dry defaults regardless. Re-running the sync
+  // effects pushes every current signal value (volume, mute, solo, effect
+  // amounts) into the new channel immediately (the #212 regression class).
+  private resyncSignals(trackId: TrackId): void {
+    const signals = this.signalStore.get(trackId);
+    const channel = this.mixer.retrieveChannel(trackId);
+    if (!signals || !channel) return;
+    this.disposeSyncEffects(trackId);
+    this.setupChannelSync(trackId, signals, channel);
+  }
+
+  private disposeSyncEffects(trackId: TrackId): void {
+    const disposers = this.effectDisposers.get(trackId);
+    if (disposers) {
+      for (const dispose of disposers) dispose();
+      this.effectDisposers.delete(trackId);
+    }
+  }
 
   private setupChannelSync(
     trackId: TrackId,
@@ -334,6 +360,14 @@ class TrackService {
         channel.solo = signals.solo.value;
       }),
     );
+
+    for (const effectId of EFFECT_ORDER) {
+      disposers.push(
+        effect(() => {
+          channel.setEffectAmount(effectId, signals.effects[effectId].value);
+        }),
+      );
+    }
 
     this.effectDisposers.set(trackId, disposers);
   }

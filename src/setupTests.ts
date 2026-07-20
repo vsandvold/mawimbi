@@ -50,7 +50,7 @@ vi.mock('tone', () => {
       dispose: vi.fn(),
       mute: false,
       solo: false,
-      volume: { rampTo: vi.fn() },
+      volume: makeRampableParam(0),
       state: 'stopped',
       getValue: vi.fn().mockReturnValue(0),
       open: vi.fn().mockResolvedValue(undefined),
@@ -60,6 +60,39 @@ vi.mock('tone', () => {
   }
   function makeRecorderNode() {
     return { ...makeNode(), state: 'stopped' };
+  }
+  function makeRampableParam(initial: number) {
+    return { value: initial, rampTo: vi.fn() };
+  }
+  // Effect node shapes validated against the real Tone 15.1.22 build in a
+  // browser (#489): Reverb/FeedbackDelay are Effect subclasses with a `wet`
+  // signal; Reverb's IR generates asynchronously (`ready` resolves when
+  // audible); Filter is a plain ToneAudioNode — frequency/Q signals, no `wet`.
+  function makeReverbNode() {
+    return {
+      ...makeNode(),
+      wet: makeRampableParam(1),
+      decay: 1.5,
+      preDelay: 0.01,
+      ready: Promise.resolve(),
+      generate: vi.fn().mockResolvedValue(undefined),
+    };
+  }
+  function makeFeedbackDelayNode() {
+    return {
+      ...makeNode(),
+      wet: makeRampableParam(1),
+      feedback: makeRampableParam(0.125),
+      delayTime: makeRampableParam(0.25),
+    };
+  }
+  function makeFilterNode() {
+    return {
+      ...makeNode(),
+      frequency: makeRampableParam(350),
+      Q: makeRampableParam(1),
+      type: 'lowpass',
+    };
   }
   const transportMock = {
     start: vi.fn(),
@@ -132,6 +165,9 @@ vi.mock('tone', () => {
     Player: vi.fn().mockImplementation(makeNode),
     Channel: vi.fn().mockImplementation(makeNode),
     Recorder: vi.fn().mockImplementation(makeRecorderNode),
+    Reverb: vi.fn().mockImplementation(makeReverbNode),
+    FeedbackDelay: vi.fn().mockImplementation(makeFeedbackDelayNode),
+    Filter: vi.fn().mockImplementation(makeFilterNode),
     Transport: transportMock,
     getTransport: vi.fn().mockReturnValue(transportMock),
     start: vi.fn().mockImplementation(() => {
