@@ -62,6 +62,7 @@ export function useScrubberScroll({
 
   const scrubStateRef = useRef<ScrubState>('idle');
   const shouldResumeRef = useRef(false);
+  const armedCommandEpochRef = useRef<number | null>(null);
   const pointerDownPosRef = useRef<PointerPosition | null>(null);
   const activePointerCountRef = useRef(0);
 
@@ -212,14 +213,29 @@ export function useScrubberScroll({
   // actively recording (C9: scroll-to-seek is disabled during active
   // recording) would leave scrubStateRef/shouldResumeRef stuck armed with
   // no further scroll event ever scheduled to retry them.
+  //
+  // The resume-cancellation check (armedCommandEpochRef) is read here,
+  // before this function's own seekTo() call below bumps the epoch again —
+  // comparing against a post-seek epoch would need a "+1" to account for
+  // that self-inflicted bump, and would misfire if seekTo is skipped
+  // (el null). Reading pre-seek instead means "no explicit command fired
+  // between arming and now" is a plain equality check either way (issue
+  // #475: PlaybackService's command epoch cancels an armed auto-resume if
+  // an explicit command — e.g. spacebar pause during the debounce window —
+  // intervenes before it fires).
   const setTransportTimeFromScroll = () => {
     scrubStateRef.current = nextScrubState(scrubStateRef.current, {
       type: 'seekCommitted',
     });
     const shouldResume = shouldResumeRef.current;
+    const armedCommandEpoch = armedCommandEpochRef.current;
     shouldResumeRef.current = false;
+    armedCommandEpochRef.current = null;
 
     if (recording.isActivelyRecording) return;
+
+    const noInterveningCommand =
+      armedCommandEpoch !== null && playback.commandEpoch === armedCommandEpoch;
 
     const el = phantomRef.current;
     if (el) {
@@ -227,7 +243,7 @@ export function useScrubberScroll({
       const time = (maxScrollTop - el.scrollTop) / pixelsPerSecond;
       playback.seekTo(time);
     }
-    if (shouldResume) {
+    if (shouldResume && noInterveningCommand) {
       playback.play();
     }
   };
@@ -240,6 +256,9 @@ export function useScrubberScroll({
     if (playing && !shouldResumeRef.current) {
       shouldResumeRef.current = true;
       playback.pause();
+      // Snapshot after pause() so its own epoch bump (the arming action, not
+      // an "intervening" command) doesn't itself cancel the resume.
+      armedCommandEpochRef.current = playback.commandEpoch;
     }
   };
 

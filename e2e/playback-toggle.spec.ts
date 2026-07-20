@@ -92,4 +92,32 @@ test.describe('Playback toggle stability', () => {
       expect(trace.length).toBeLessThanOrEqual(MAX_INITIATED_TRANSITIONS);
     },
   );
+
+  // Issue #475: a scrub during playback pauses immediately and arms a
+  // resume for when its ~200ms debounced seek commits (spec 002, C4-C7). If
+  // the user explicitly toggles play then pause again inside that window,
+  // their last explicit command must win — the stale armed resume must not
+  // flip it back to playing once the debounce fires. PlaybackService's
+  // command epoch (bumped by every explicit play/pause/stop/rewind/seekTo
+  // call) is what lets the scrub controller detect the intervening command
+  // and cancel its own resume.
+  test(
+    'an explicit re-pause during the scrub debounce window stays paused',
+    async ({ page }) => {
+      await page.getByTitle('Play').click();
+      await expect(page.getByTitle('Pause')).toBeVisible();
+
+      await swipeTimeline(page, 300);
+      await expect(page.getByTitle('Play')).toBeVisible();
+
+      // Toggle to playing and back to paused again before the debounced
+      // seek/resume commits.
+      await page.getByTitle('Play').click();
+      await page.getByTitle('Pause').click();
+      await expect(page.getByTitle('Play')).toBeVisible();
+
+      await page.waitForTimeout(POST_PLAY_OBSERVATION_MS);
+      await expect(page.getByTitle('Play')).toBeVisible();
+    },
+  );
 });

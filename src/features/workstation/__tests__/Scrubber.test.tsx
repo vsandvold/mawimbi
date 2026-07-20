@@ -719,6 +719,79 @@ it('does not permanently stick the gesture state if recording starts before a sc
   expect(playbackService.isPlaying).toBe(false);
 });
 
+it('resumes playback after the debounced seek when nothing intervenes', () => {
+  vi.useFakeTimers();
+  playbackService.play();
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+  const phantom = container.querySelector('.scrubber__phantom')!;
+  Object.defineProperty(phantom, 'scrollHeight', {
+    value: 2000,
+    configurable: true,
+  });
+  Object.defineProperty(phantom, 'clientHeight', {
+    value: 500,
+    configurable: true,
+  });
+
+  fireEvent.pointerDown(phantom, { clientY: 0 });
+  fireEvent.pointerMove(phantom, { clientY: 20 });
+  fireEvent.pointerUp(phantom);
+  expect(playbackService.isPlaying).toBe(false);
+
+  act(() => {
+    vi.advanceTimersByTime(250);
+  });
+
+  expect(playbackService.isPlaying).toBe(true);
+  vi.useRealTimers();
+});
+
+// Issue #475: an armed scrub auto-resume used to survive any explicit
+// command that landed inside the debounce window, so a user who pressed
+// play then pause again (or any other explicit toggle) right after a scrub
+// would still get resumed a moment later by the stale armed resume.
+// PlaybackService's command epoch (bumped by every explicit play/pause/
+// stop/rewind/seekTo call) lets the scrub controller detect that and skip
+// its own resume.
+it('cancels the armed auto-resume if an explicit command intervenes before the debounce commits', () => {
+  vi.useFakeTimers();
+  playbackService.play();
+
+  const { container } = render(<Scrubber {...defaultProps} />);
+  const phantom = container.querySelector('.scrubber__phantom')!;
+  Object.defineProperty(phantom, 'scrollHeight', {
+    value: 2000,
+    configurable: true,
+  });
+  Object.defineProperty(phantom, 'clientHeight', {
+    value: 500,
+    configurable: true,
+  });
+
+  fireEvent.pointerDown(phantom, { clientY: 0 });
+  fireEvent.pointerMove(phantom, { clientY: 20 });
+  fireEvent.pointerUp(phantom);
+  expect(playbackService.isPlaying).toBe(false);
+
+  // The user explicitly toggles play then pause again before the ~200ms
+  // debounced seek/resume commits.
+  act(() => {
+    playbackService.play();
+    playbackService.pause();
+  });
+  expect(playbackService.isPlaying).toBe(false);
+
+  act(() => {
+    vi.advanceTimersByTime(250);
+  });
+
+  // Without the epoch check, the stale armed resume would call play() here
+  // and override the user's explicit pause.
+  expect(playbackService.isPlaying).toBe(false);
+  vi.useRealTimers();
+});
+
 it('does not pause playback when phantom scroller is scrolled during recording', () => {
   playbackService.play();
   recordingService.arm();

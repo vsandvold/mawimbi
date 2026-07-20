@@ -328,6 +328,56 @@ describe('PlaybackService', () => {
       expect(service.transportTime).toBe(0);
       expect(service.totalTime).toBe(0);
       expect(service.loudness).toBe(0);
+      expect(service.commandEpoch).toBe(0);
+    });
+  });
+
+  describe('commandEpoch', () => {
+    it('starts at 0', () => {
+      expect(service.commandEpoch).toBe(0);
+    });
+
+    it.each([
+      ['play', () => service.play()],
+      ['pause', () => service.pause()],
+      ['stop', () => service.stop()],
+      ['togglePlayback', () => service.togglePlayback()],
+      ['rewind', () => service.rewind()],
+      ['seekTo', () => service.seekTo(5.0)],
+    ])('bumps the epoch exactly once on %s', (_name, command) => {
+      const before = service.commandEpoch;
+
+      command();
+
+      expect(service.commandEpoch).toBe(before + 1);
+    });
+
+    it('does not bump the epoch on setTransportTime', () => {
+      const before = service.commandEpoch;
+
+      service.setTransportTime(1.0);
+
+      expect(service.commandEpoch).toBe(before);
+    });
+
+    it('does not bump the epoch when auto-stopping at end of timeline', () => {
+      service.setTotalTime(10.0);
+      service.play();
+      const before = service.commandEpoch;
+
+      service.setTransportTime(10.0);
+
+      expect(service.playbackState).toBe('stopped');
+      expect(service.commandEpoch).toBe(before);
+    });
+
+    it('bumps once for a no-op call (e.g. pause while already stopped)', () => {
+      const before = service.commandEpoch;
+
+      service.pause();
+
+      expect(service.playbackState).toBe('stopped');
+      expect(service.commandEpoch).toBe(before + 1);
     });
   });
 });
