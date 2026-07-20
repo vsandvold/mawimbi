@@ -68,7 +68,10 @@ class AudioService {
 
     // e2e verification bridge (mawimbi#480) — see global.d.ts for scope.
     if (import.meta.env.DEV) {
-      window.__mawimbi = { spectrogramCache: this.spectrogramCache };
+      window.__mawimbi = {
+        spectrogramCache: this.spectrogramCache,
+        playback: this.playbackService,
+      };
     }
   }
 

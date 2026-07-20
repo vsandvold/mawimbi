@@ -66,6 +66,8 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     setValue: setTuningValue,
   } = useTuningOverlay();
 
+  const { isPinchingRef } = useTimelineZoom(phantomRef);
+
   const {
     handlePointerDown,
     handlePointerMove,
@@ -79,9 +81,8 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     offsetRef,
     playheadRef,
     pixelsPerSecond,
+    isPinchingRef,
   });
-
-  useTimelineZoom(phantomRef);
 
   const spacerHeight = useSpacerHeight(offsetRef);
 

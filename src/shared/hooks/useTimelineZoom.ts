@@ -41,6 +41,15 @@ export function useTimelineZoom(ref: RefObject<HTMLDivElement | null>): {
       isPinchingRef.current = false;
     };
 
+    // touchcancel (OS gesture takeover, incoming call, permission prompt)
+    // ends a touch without a matching touchend — without this, isPinchingRef
+    // would stick true forever, which (mawimbi#476) permanently blocks
+    // single-finger scrubbing once the scrub controller starts reading it.
+    // Same class of bug as the missing pointercancel handling fixed for
+    // PhantomScroller in mawimbi#472/#474, applied to this separate native
+    // touch-listener path.
+    const handleTouchCancel = handleTouchEnd;
+
     const handleWheel = (e: WheelEvent) => {
       if ((e.ctrlKey || e.metaKey) && !recording.isRecording) {
         e.preventDefault();
@@ -53,12 +62,14 @@ export function useTimelineZoom(ref: RefObject<HTMLDivElement | null>): {
     element.addEventListener('touchstart', handleTouchStart, { passive: true });
     element.addEventListener('touchmove', handleTouchMove, { passive: false });
     element.addEventListener('touchend', handleTouchEnd);
+    element.addEventListener('touchcancel', handleTouchCancel);
     element.addEventListener('wheel', handleWheel, { passive: false });
 
     return () => {
       element.removeEventListener('touchstart', handleTouchStart);
       element.removeEventListener('touchmove', handleTouchMove);
       element.removeEventListener('touchend', handleTouchEnd);
+      element.removeEventListener('touchcancel', handleTouchCancel);
       element.removeEventListener('wheel', handleWheel);
     };
     // Hook objects reference stable service singletons via getters

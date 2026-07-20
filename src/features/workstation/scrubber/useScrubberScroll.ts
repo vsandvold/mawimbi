@@ -28,6 +28,7 @@ type UseScrubberScrollOptions = {
   offsetRef: RefObject<HTMLDivElement | null>;
   playheadRef: RefObject<PlayheadHandle | null>;
   pixelsPerSecond: number;
+  isPinchingRef: RefObject<boolean>;
 };
 
 /**
@@ -52,6 +53,7 @@ export function useScrubberScroll({
   offsetRef,
   playheadRef,
   pixelsPerSecond,
+  isPinchingRef,
 }: UseScrubberScrollOptions) {
   const playback = usePlaybackService();
   const recording = useRecordingService();
@@ -263,14 +265,37 @@ export function useScrubberScroll({
     }
   };
 
+  // A second finger joining mid-drag (rather than both fingers landing
+  // together, the case the pointer-count gate below already excludes) can
+  // turn an already-armed single-finger gesture into a pinch. Undoes
+  // whatever that gesture had already done — cancels the scheduled debounced
+  // seek and, if it had paused playback via pauseForUserScroll, resumes it —
+  // rather than letting a pinch ride to an unwanted seek/resume (G5: pinch
+  // never scrubs, spec 002 "Bug analysis" mechanism 5). A no-op if the
+  // gesture was still idle (the common case: both fingers land together and
+  // never individually cross the movement threshold).
+  const cancelGestureForPinch = () => {
+    const wasActive = scrubStateRef.current !== 'idle';
+    scrubStateRef.current = nextScrubState(scrubStateRef.current, {
+      type: 'pinchStarted',
+    });
+    if (!wasActive) return;
+
+    debouncedSetTransportTime.cancel();
+    const armedResumeEpoch = armedResumeEpochRef.current;
+    armedResumeEpochRef.current = null;
+    if (armedResumeEpoch !== null) {
+      playback.play();
+    }
+  };
+
   // A gesture is entered only from real input events (below), never
   // inferred from `scroll` events — see scrubGesture.ts. Pointer position is
   // tracked so a subsequent pointermove can measure cumulative movement
   // against it (G4: a resting finger never scrubs). A second pointer
   // joining (e.g. a pinch's first two touches) clears the origin: pinch is
   // multi-touch, never a single-finger scrub, so it must never reach the
-  // movement-threshold check below (G5 groundwork — full pinch integration
-  // is #476, but a two-finger touch was never meant to read as a drag).
+  // movement-threshold check below (G5).
   const handlePointerDown = (e: React.PointerEvent) => {
     activePointerCountRef.current += 1;
     pointerDownPosRef.current =
@@ -280,6 +305,15 @@ export function useScrubberScroll({
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
+    // Checked first, ahead of the scrubStateRef/pointer-count gates below:
+    // a pinch can start mid-drag (a resting single finger already dragged
+    // past the threshold before a second finger joins), in which case the
+    // gesture is already active and those gates would otherwise never see
+    // it again — cancelGestureForPinch aborts it instead (G5).
+    if (isPinchingRef.current) {
+      cancelGestureForPinch();
+      return;
+    }
     // Once a gesture is active, further movement no longer changes the
     // outcome (see scrubGesture.ts's pointerMove case) — skip the distance
     // calculation for the remainder of the drag, not just its result.
