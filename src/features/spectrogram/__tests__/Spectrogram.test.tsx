@@ -214,6 +214,7 @@ it('triggers spectrogramCache.analyse when audio buffer exists and not cached', 
       TRACK_ID,
       audioBuffer,
       defaultProps.track.color,
+      '0:0:0',
     );
   });
 });
