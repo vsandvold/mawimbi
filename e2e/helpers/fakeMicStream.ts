@@ -48,6 +48,24 @@ export async function installFakeMicStream(
       oscillator.connect(destination);
       oscillator.start();
       oscillators.add(oscillator);
+
+      // MicrophoneService.close() (via Tone.UserMedia.close()) stops the
+      // stream's audio track but has no way to know about — and so never
+      // tears down — this context/oscillator pair. Without this, a test
+      // that opens the mic more than once (e.g. re-arming for a second
+      // take) leaks a running AudioContext per open. A programmatic
+      // track.stop() does not fire the track's 'ended' event (verified:
+      // that only fires for external termination), so the cleanup hooks
+      // the track's own stop() method instead of onended.
+      const [track] = destination.stream.getAudioTracks();
+      const originalStop = track.stop.bind(track);
+      track.stop = () => {
+        originalStop();
+        oscillators.delete(oscillator);
+        oscillator.stop();
+        context.close();
+      };
+
       return destination.stream;
     };
   }, frequencyHz);
