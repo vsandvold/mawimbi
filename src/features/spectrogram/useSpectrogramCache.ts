@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAudioService } from '../audio/useAudioService';
 import { type MelodyData } from '../transcription/MelodyExtractor';
 import { type SpectrogramData } from './OfflineAnalyser';
@@ -12,6 +12,15 @@ import {
 } from '../project/ProjectStorageService';
 import { type TrackSpectrogramEntry } from './SpectrogramCache';
 import { type TrackColor } from '../tracks/types';
+import {
+  DEFAULT_EFFECT_AMOUNTS,
+  hashEffectAmounts,
+  type EffectAmounts,
+} from '../tracks/EffectsChain';
+import renderTrackOffline from '../tracks/renderTrackOffline';
+import { EffectsRefreshScheduler } from '../workstation/effectsRefresh';
+
+const DRY_EFFECTS_HASH = hashEffectAmounts(DEFAULT_EFFECT_AMOUNTS);
 
 export function toSpectrogramStoreData(
   trackId: string,
@@ -65,16 +74,55 @@ export function useSpectrogramCache(
   trackId: string,
   audioBuffer: AudioBuffer | undefined,
   color: TrackColor,
+  effects: EffectAmounts = DEFAULT_EFFECT_AMOUNTS,
 ) {
   const audioService = useAudioService();
   const [entry, setEntry] = useState<TrackSpectrogramEntry | undefined>();
+  const schedulerRef = useRef<EffectsRefreshScheduler | null>(null);
+  const effectsHash = hashEffectAmounts(effects);
+
+  // The scheduler is per-hook-instance (one per rendered track), so its
+  // debounce naturally scopes per track with no cross-track bookkeeping.
+  useEffect(() => {
+    return () => {
+      schedulerRef.current?.dispose();
+      schedulerRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     if (!audioBuffer) return;
 
     const cached = audioService.spectrogramCache.getEntry(trackId);
     if (cached) {
-      setEntry(cached);
+      const cachedHash = cached.effectsParamsHash ?? DRY_EFFECTS_HASH;
+      if (cachedHash === effectsHash) {
+        setEntry(cached);
+        return;
+      }
+
+      // Already analysed this session but for different effect amounts —
+      // a committed effect change (spec 004 M6, #494). Debounce+supersede
+      // through the scheduler instead of re-analysing inline, so rapid
+      // commits coalesce into one analysis and a stale in-flight render
+      // never clobbers a newer one.
+      if (!schedulerRef.current) {
+        schedulerRef.current = new EffectsRefreshScheduler({
+          renderOffline: renderTrackOffline,
+          analyseToResult: (buffer, col) =>
+            audioService.spectrogramCache.analyseToResult(buffer, col),
+          setEntry: (id, result, hash) =>
+            audioService.spectrogramCache.setEntry(
+              id,
+              result.data,
+              result.tiles,
+              hash,
+            ),
+          onRefreshed: (id) =>
+            setEntry(audioService.spectrogramCache.getEntry(id)),
+        });
+      }
+      schedulerRef.current.schedule(trackId, audioBuffer, color, effects);
       return;
     }
 
@@ -90,8 +138,38 @@ export function useSpectrogramCache(
       if (cancelled) return;
 
       if (storedSpectrogram) {
-        const data = fromSpectrogramStoreData(storedSpectrogram);
-        audioService.spectrogramCache.restore(trackId, data, color);
+        const storedHash =
+          storedSpectrogram.effectsParamsHash ?? DRY_EFFECTS_HASH;
+
+        if (storedHash === effectsHash) {
+          const data = fromSpectrogramStoreData(storedSpectrogram);
+          audioService.spectrogramCache.restore(
+            trackId,
+            data,
+            color,
+            storedHash,
+          );
+        } else {
+          // The persisted spectrogram is stale against the track's current
+          // committed effects (e.g. the page reloaded mid-debounce) —
+          // render and re-analyse once, immediately; no debounce needed
+          // for a single mount-time correction.
+          const rendered = await renderTrackOffline(audioBuffer, effects);
+          if (cancelled) return;
+          await audioService.spectrogramCache.analyse(
+            trackId,
+            rendered,
+            color,
+            effectsHash,
+          );
+          if (cancelled) return;
+          const refreshed = audioService.spectrogramCache.getEntry(trackId);
+          if (refreshed) {
+            const storeData = toSpectrogramStoreData(trackId, refreshed.data);
+            storeData.effectsParamsHash = effectsHash;
+            saveSpectrogramData(storeData);
+          }
+        }
 
         if (storedMelody) {
           const melody = fromMelodyStoreData(storedMelody);
@@ -116,8 +194,16 @@ export function useSpectrogramCache(
         return;
       }
 
-      // No cached data — run full spectrogram analysis
-      await audioService.spectrogramCache.analyse(trackId, audioBuffer, color);
+      // No cached data anywhere — full dry analysis. New tracks always
+      // start at DEFAULT_EFFECT_AMOUNTS, so this path is always the dry
+      // render; effect-driven refreshes happen later via the scheduler
+      // above, once the user commits a change.
+      await audioService.spectrogramCache.analyse(
+        trackId,
+        audioBuffer,
+        color,
+        effectsHash,
+      );
 
       if (cancelled) return;
 
@@ -127,6 +213,7 @@ export function useSpectrogramCache(
       // Persist spectrogram for future loads
       if (analysedEntry) {
         const storeData = toSpectrogramStoreData(trackId, analysedEntry.data);
+        storeData.effectsParamsHash = effectsHash;
         saveSpectrogramData(storeData);
       }
 
@@ -145,7 +232,11 @@ export function useSpectrogramCache(
     return () => {
       cancelled = true;
     };
-  }, [trackId, audioBuffer, color, audioService]);
+    // effectsHash is the canonical identity of `effects` — depending on it
+    // instead of the object avoids re-running for referentially-new but
+    // value-equal amounts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackId, audioBuffer, color, effectsHash, audioService]);
 
   return entry;
 }

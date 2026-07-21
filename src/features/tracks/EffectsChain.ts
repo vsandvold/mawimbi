@@ -35,9 +35,11 @@ export function hashEffectAmounts(amounts: EffectAmounts): string {
 // decay change (silent until ready, #489) and delay-time ramps pitch-warp
 // the echoes — neither survives a live slider drag. Values are first-pass
 // defaults; ear-tuning on device is flagged for the spec's human-QA pass.
-const SPACE_DECAY_SECONDS = 4;
+// Exported so renderTrackOffline (spec 004 M6, #494) can rebuild the same
+// character parameters when re-rendering a track post-effect offline.
+export const SPACE_DECAY_SECONDS = 4;
 const SPACE_MAX_WET = 0.8;
-const ECHO_DELAY_SECONDS = 0.25;
+export const ECHO_DELAY_SECONDS = 0.25;
 const ECHO_MAX_WET = 0.5;
 const ECHO_MIN_FEEDBACK = 0.1;
 const ECHO_MAX_FEEDBACK = 0.6;

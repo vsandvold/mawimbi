@@ -15,6 +15,7 @@ import {
 } from '../../project/ProjectStorageService';
 import type { TrackSpectrogramEntry } from '../SpectrogramCache';
 import { type TrackColor } from '../../tracks/types';
+import { type EffectAmounts } from '../../tracks/EffectsChain';
 import {
   fromMelodyStoreData,
   fromSpectrogramStoreData,
@@ -24,6 +25,8 @@ import {
 } from '../useSpectrogramCache';
 
 const COLOR: TrackColor = { r: 77, g: 238, b: 234 };
+const DRY_HASH = '0:0:0';
+const SPACE_50: EffectAmounts = { space: 50, echo: 0, tone: 0 };
 
 const MOCK_DATA: SpectrogramData = {
   frequencyFrames: [new Uint8Array([10, 20]), new Uint8Array([30, 40])],
@@ -55,6 +58,8 @@ const mockRestore = vi.fn();
 const mockGetMelody = vi.fn();
 const mockSetMelody = vi.fn();
 const mockExtractMelodyInWorker = vi.fn();
+const mockAnalyseToResult = vi.fn();
+const mockSetEntry = vi.fn();
 
 vi.mock('../../audio/useAudioService', () => ({
   useAudioService: () => ({
@@ -65,8 +70,15 @@ vi.mock('../../audio/useAudioService', () => ({
       getMelody: mockGetMelody,
       setMelody: mockSetMelody,
       extractMelodyInWorker: mockExtractMelodyInWorker,
+      analyseToResult: mockAnalyseToResult,
+      setEntry: mockSetEntry,
     },
   }),
+}));
+
+const mockRenderTrackOffline = vi.fn();
+vi.mock('../../tracks/renderTrackOffline', () => ({
+  default: (...args: unknown[]) => mockRenderTrackOffline(...args),
 }));
 
 function mockAudioBuffer(): AudioBuffer {
@@ -242,6 +254,7 @@ describe('useSpectrogramCache', () => {
         duration: 0.05,
       }),
       COLOR,
+      '0:0:0',
     );
     expect(mockAnalyse).not.toHaveBeenCalled();
   });
@@ -263,7 +276,7 @@ describe('useSpectrogramCache', () => {
       expect(result.current).toBe(MOCK_ENTRY);
     });
 
-    expect(mockAnalyse).toHaveBeenCalledWith('track-1', buffer, COLOR);
+    expect(mockAnalyse).toHaveBeenCalledWith('track-1', buffer, COLOR, '0:0:0');
 
     // Verify spectrogram data was saved to IndexedDB
     const stored = await loadSpectrogramData('track-1');
@@ -373,5 +386,144 @@ describe('useSpectrogramCache', () => {
 
     // Melody extraction failed but spectrogram still works
     expect(mockSetMelody).not.toHaveBeenCalled();
+  });
+
+  describe('effects params hash (spec 004 M6)', () => {
+    it('restores from IndexedDB without re-analysis when the stored hash matches the current effects', async () => {
+      mockGetEntry.mockReturnValueOnce(undefined).mockReturnValue(MOCK_ENTRY);
+
+      const storeData = toSpectrogramStoreData('track-1', MOCK_DATA);
+      storeData.effectsParamsHash = '50:0:0';
+      await saveSpectrogramData(storeData);
+      mockExtractMelodyInWorker.mockResolvedValue(MOCK_MELODY);
+
+      // A stable buffer reference matters here, not just style: the real
+      // Spectrogram.tsx passes the same cached AudioBuffer across
+      // re-renders, and the hook's effect deps rely on that stability —
+      // a fresh object per render would re-fire the effect and, since the
+      // in-memory cache now returns a hash-less entry, incorrectly take
+      // the live-refresh branch on the second pass.
+      const buffer = mockAudioBuffer();
+      const { result } = renderHook(() =>
+        useSpectrogramCache('track-1', buffer, COLOR, SPACE_50),
+      );
+
+      await waitFor(() => {
+        expect(result.current).toEqual(MOCK_ENTRY);
+      });
+
+      expect(mockRestore).toHaveBeenCalledWith(
+        'track-1',
+        expect.objectContaining({ frequencyBinCount: 2 }),
+        COLOR,
+        '50:0:0',
+      );
+      expect(mockRenderTrackOffline).not.toHaveBeenCalled();
+      expect(mockAnalyse).not.toHaveBeenCalled();
+    });
+
+    it('renders and re-analyses once on load when the stored hash is stale against the current effects', async () => {
+      mockGetEntry.mockReturnValueOnce(undefined).mockReturnValue(MOCK_ENTRY);
+
+      // Persisted spectrogram was rendered dry; the track's committed
+      // effects have since changed (e.g. reload happened mid-debounce).
+      const storeData = toSpectrogramStoreData('track-1', MOCK_DATA);
+      await saveSpectrogramData(storeData);
+
+      const renderedBuffer = mockAudioBuffer();
+      mockRenderTrackOffline.mockResolvedValue(renderedBuffer);
+      mockAnalyse.mockResolvedValue(undefined);
+      mockExtractMelodyInWorker.mockResolvedValue(MOCK_MELODY);
+
+      const dryBuffer = mockAudioBuffer();
+      const { result } = renderHook(() =>
+        useSpectrogramCache('track-1', dryBuffer, COLOR, SPACE_50),
+      );
+
+      await waitFor(() => {
+        expect(result.current).toEqual(MOCK_ENTRY);
+      });
+
+      expect(mockRenderTrackOffline).toHaveBeenCalledWith(dryBuffer, SPACE_50);
+      expect(mockAnalyse).toHaveBeenCalledWith(
+        'track-1',
+        renderedBuffer,
+        COLOR,
+        '50:0:0',
+      );
+      expect(mockRestore).not.toHaveBeenCalled();
+
+      const stored = await loadSpectrogramData('track-1');
+      expect(stored!.effectsParamsHash).toBe('50:0:0');
+    });
+
+    it('treats a missing stored hash as dry, matching default (all-bypass) effects', async () => {
+      mockGetEntry.mockReturnValueOnce(undefined).mockReturnValue(MOCK_ENTRY);
+
+      // Legacy entry, saved before spec 004 M6 shipped — no hash at all.
+      const storeData = toSpectrogramStoreData('track-1', MOCK_DATA);
+      await saveSpectrogramData(storeData);
+      mockExtractMelodyInWorker.mockResolvedValue(MOCK_MELODY);
+
+      const buffer = mockAudioBuffer();
+      const { result } = renderHook(() =>
+        useSpectrogramCache('track-1', buffer, COLOR),
+      );
+
+      await waitFor(() => {
+        expect(result.current).toEqual(MOCK_ENTRY);
+      });
+
+      expect(mockRestore).toHaveBeenCalledWith(
+        'track-1',
+        expect.objectContaining({ frequencyBinCount: 2 }),
+        COLOR,
+        DRY_HASH,
+      );
+      expect(mockRenderTrackOffline).not.toHaveBeenCalled();
+    });
+
+    it('schedules a debounced refresh when an in-memory cached entry has a different effects hash than the current commit', async () => {
+      mockGetEntry.mockReturnValue({
+        ...MOCK_ENTRY,
+        effectsParamsHash: DRY_HASH,
+      });
+      mockRenderTrackOffline.mockResolvedValue(mockAudioBuffer());
+      mockAnalyseToResult.mockResolvedValue({
+        data: MOCK_DATA,
+        tiles: [],
+      });
+
+      const buffer = mockAudioBuffer();
+      renderHook(() => useSpectrogramCache('track-1', buffer, COLOR, SPACE_50));
+
+      await waitFor(
+        () => {
+          expect(mockRenderTrackOffline).toHaveBeenCalledWith(buffer, SPACE_50);
+        },
+        { timeout: 2000 },
+      );
+      await waitFor(() => {
+        expect(mockSetEntry).toHaveBeenCalledWith(
+          'track-1',
+          MOCK_DATA,
+          [],
+          '50:0:0',
+        );
+      });
+    });
+
+    it('does not schedule a refresh when the in-memory cached entry already matches the current commit', () => {
+      mockGetEntry.mockReturnValue({
+        ...MOCK_ENTRY,
+        effectsParamsHash: '50:0:0',
+      });
+
+      renderHook(() =>
+        useSpectrogramCache('track-1', mockAudioBuffer(), COLOR, SPACE_50),
+      );
+
+      expect(mockRenderTrackOffline).not.toHaveBeenCalled();
+    });
   });
 });
