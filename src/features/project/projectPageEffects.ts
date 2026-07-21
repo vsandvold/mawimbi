@@ -16,8 +16,8 @@ import {
   useFullScreenHandle,
 } from '../../shared/fullscreen/Fullscreen';
 import useMessage from '../../shared/message';
-import { EFFECT_ORDER } from '../tracks/EffectsChain';
-import { type Track } from '../tracks/types';
+import { EFFECT_ORDER, type EffectAmounts } from '../tracks/EffectsChain';
+import { type Track, type TrackId } from '../tracks/types';
 import {
   ADD_TRACK,
   type ProjectAction,
@@ -103,19 +103,30 @@ export const useTrackSideEffects = (tracks: Track[]) => {
 // reverts the persisted project state while the audio and drawer slider
 // keep showing the pre-undo amount (the #212 regression class, extended to
 // effect settings).
+//
+// Diffs by the `effects` object's *identity*, not by comparing against the
+// live signal value: the reducer's other actions (DELETE_TRACK/MOVE_TRACK
+// reindexing, SET_INSTRUMENT from background classification) all rebuild
+// track objects but pass the existing `effects` object through unchanged,
+// while SET_TRACK_EFFECT is the only action that ever constructs a new one.
+// Comparing against the signal instead would have re-applied the
+// last-committed amount on every unrelated tracks-array change — including
+// while a slider drag was still live — clobbering the in-progress drag.
 export const useTrackEffectsSync = (tracks: Track[]) => {
   const trackHook = useTrackService();
+  const lastSyncedRef = useRef(new Map<TrackId, EffectAmounts | undefined>());
 
   useEffect(() => {
     for (const track of tracks) {
       const amounts = track.effects;
+      if (lastSyncedRef.current.get(track.trackId) === amounts) continue;
+      lastSyncedRef.current.set(track.trackId, amounts);
       if (!amounts) continue;
+
       const signals = trackHook.getSignals(track.trackId);
       if (!signals) continue;
       for (const effectId of EFFECT_ORDER) {
-        if (signals.effects[effectId].value !== amounts[effectId]) {
-          signals.effects[effectId].value = amounts[effectId];
-        }
+        signals.effects[effectId].value = amounts[effectId];
       }
     }
     // Hook callbacks reference stable service singletons

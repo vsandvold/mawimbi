@@ -52,6 +52,31 @@ describe('useTrackEffectsSync', () => {
     expect(trackService.getSignals('track-1')!.effects.space.value).toBe(40);
   });
 
+  it('does not clobber a live uncommitted drag when an unrelated tracks-array change occurs', () => {
+    // Reproduces the race the ref-identity diff guards against: a reducer
+    // action unrelated to this track (e.g. DELETE_TRACK reindexing, or
+    // SET_INSTRUMENT from background classification) rebuilds every track
+    // object but passes the same `effects` object through unchanged.
+    const effects = { space: 40, echo: 0, tone: 0 };
+    trackService.createSignals('track-1', 100, effects);
+    const initialTracks = [createTrack({ effects })];
+
+    const { rerender } = renderHook(
+      ({ tracks }) => useTrackEffectsSync(tracks),
+      { initialProps: { tracks: initialTracks } },
+    );
+
+    // A live slider drag writes the signal directly, ahead of any commit.
+    trackService.getSignals('track-1')!.effects.space.value = 77;
+
+    // New outer Track object (as reindexing/other-field updates produce),
+    // but the same `effects` reference — no genuine effect change.
+    const unrelatedChangeTracks = [{ ...initialTracks[0], index: 5 }];
+    rerender({ tracks: unrelatedChangeTracks });
+
+    expect(trackService.getSignals('track-1')!.effects.space.value).toBe(77);
+  });
+
   it('does nothing for a track with no live signals yet', () => {
     const tracks = [
       createTrack({

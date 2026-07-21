@@ -61,4 +61,73 @@ describe('useEffectControls', () => {
       ]);
     });
   });
+
+  describe('uncommitted-drag safety net', () => {
+    // A drag that never reaches the slider's own release handler (drawer
+    // force-closed mid-drag, e.g. arming for recording per #490) must not
+    // silently lose the live change — see CLAUDE.md's Radix onValueCommit
+    // gotcha.
+    it('commits a live but uncommitted amount on unmount', () => {
+      const dispatch = vi.fn();
+      const wrapper = ({ children }: { children: React.ReactNode }) =>
+        React.createElement(
+          ProjectDispatch.Provider,
+          { value: dispatch },
+          children,
+        );
+
+      const { result, unmount } = renderHook(
+        () => useEffectControls('track-1'),
+        { wrapper },
+      );
+
+      result.current.updateAmount('tone', 33);
+      unmount();
+
+      expect(dispatch).toHaveBeenCalledWith([
+        SET_TRACK_EFFECT,
+        { trackId: 'track-1', effectId: 'tone', amount: 33 },
+      ]);
+    });
+
+    it('does not re-dispatch on unmount once the amount was already committed', () => {
+      const dispatch = vi.fn();
+      const wrapper = ({ children }: { children: React.ReactNode }) =>
+        React.createElement(
+          ProjectDispatch.Provider,
+          { value: dispatch },
+          children,
+        );
+
+      const { result, unmount } = renderHook(
+        () => useEffectControls('track-1'),
+        { wrapper },
+      );
+
+      result.current.updateAmount('tone', 33);
+      result.current.commitAmount('tone', 33);
+      dispatch.mockClear();
+      unmount();
+
+      expect(dispatch).not.toHaveBeenCalled();
+    });
+
+    it('does not dispatch on unmount when no amount was ever touched', () => {
+      const dispatch = vi.fn();
+      const wrapper = ({ children }: { children: React.ReactNode }) =>
+        React.createElement(
+          ProjectDispatch.Provider,
+          { value: dispatch },
+          children,
+        );
+
+      const { unmount } = renderHook(() => useEffectControls('track-1'), {
+        wrapper,
+      });
+
+      unmount();
+
+      expect(dispatch).not.toHaveBeenCalled();
+    });
+  });
 });
