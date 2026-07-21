@@ -12,6 +12,8 @@ const mockToggleRecording = vi.fn();
 
 const defaultProps = {
   isEmpty: false,
+  isRecordingOpen: false,
+  isRecordingLocked: false,
   onRewind: mockRewind,
   onToggleRecording: mockToggleRecording,
 };
@@ -26,7 +28,15 @@ it('renders rewind, play, and record buttons', () => {
 
   expect(getByTitle('Rewind')).toBeInTheDocument();
   expect(getByTitle('Play')).toBeInTheDocument();
-  expect(getByTitle('Record')).toBeInTheDocument();
+  expect(getByTitle('Show recording')).toBeInTheDocument();
+});
+
+it('shows "Hide recording" when the drawer is open', () => {
+  const { getByTitle } = render(
+    <FloatingToolbar {...defaultProps} isRecordingOpen={true} />,
+  );
+
+  expect(getByTitle('Hide recording')).toBeInTheDocument();
 });
 
 it('renders pause icon when playing', () => {
@@ -63,22 +73,26 @@ it('disables play/pause button during count-in', () => {
   expect(getByTitle('Play')).toBeDisabled();
 });
 
-it('keeps record button enabled during count-in for cancellation', () => {
-  recordingService.startCountIn();
+it('disables the recording drawer toggle while counting in or recording — cancellation happens in the drawer', () => {
+  const { getByTitle } = render(
+    <FloatingToolbar
+      {...defaultProps}
+      isRecordingOpen={true}
+      isRecordingLocked={true}
+    />,
+  );
 
-  const { getByTitle } = render(<FloatingToolbar {...defaultProps} />);
-
-  expect(getByTitle('Record')).toBeEnabled();
+  expect(getByTitle('Hide recording')).toBeDisabled();
 });
 
-it('disables transport buttons when tracks are empty', () => {
+it('keeps the recording drawer toggle enabled when idle, even with empty tracks', () => {
   const { getByTitle } = render(
     <FloatingToolbar {...{ ...defaultProps, isEmpty: true }} />,
   );
 
   expect(getByTitle('Play')).toBeDisabled();
   expect(getByTitle('Rewind')).toBeDisabled();
-  expect(getByTitle('Record')).not.toBeDisabled();
+  expect(getByTitle('Show recording')).not.toBeDisabled();
 });
 
 it('calls onRewind when rewind button is clicked', () => {

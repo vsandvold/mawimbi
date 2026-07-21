@@ -11,6 +11,7 @@ import EmptyTimeline from './EmptyTimeline';
 import EffectsBottomSheet from './EffectsBottomSheet';
 import MixerBottomSheet from './MixerBottomSheet';
 import LyricsBottomSheet from './LyricsBottomSheet';
+import RecordingBottomSheet from './RecordingBottomSheet';
 import Scrubber, { type ScrubberHandle } from './scrubber/Scrubber';
 import Timeline from './Timeline';
 import ToolbarBottomSheet from './ToolbarBottomSheet';
@@ -24,7 +25,7 @@ import {
   useTotalTime,
 } from './workstationEffects';
 
-type ActiveSheet = 'mixer' | 'lyrics' | 'effects' | null;
+type ActiveSheet = 'mixer' | 'lyrics' | 'effects' | 'recording' | null;
 
 // Toolbar dock default height: compact header (20px) + one row (48px)
 const TOOLBAR_DOCK_HEIGHT = 68;
@@ -75,6 +76,7 @@ const Workstation = (props: WorkstationProps) => {
   const isMixerOpen = activeSheet === 'mixer';
   const isLyricsOpen = activeSheet === 'lyrics';
   const isEffectsOpen = activeSheet === 'effects';
+  const isRecordingOpen = activeSheet === 'recording';
 
   const { isDragActive, isDragAccept, isDragReject, rootProps, inputProps } =
     useFileDropzone(uploadFile);
@@ -97,18 +99,24 @@ const Workstation = (props: WorkstationProps) => {
     setActiveSheet((prev) => (prev === 'mixer' ? null : 'mixer'));
   const toggleEffects = () =>
     setActiveSheet((prev) => (prev === 'effects' ? null : 'effects'));
-  const toggleRecording = () => {
+  // The toolbar mic button only opens/closes the recording drawer (spec 005
+  // Decision 5) — arming lives inside the drawer's own control
+  // (handleToggleRecord below). Disabled by FloatingToolbar while the
+  // transport is locked, so this never fires mid-recording.
+  const toggleRecordingSheet = () =>
+    setActiveSheet((prev) => (prev === 'recording' ? null : 'recording'));
+
+  const handleToggleRecord = () => {
     if (isCountingIn) {
       setIsCountingIn(false);
     } else if (isRecording) {
       setIsRecording(false);
     } else {
-      // The edit mode and armed-recording states never overlap (spec 004) —
-      // close the drawer before arming.
-      if (isEffectsOpen) {
-        setActiveSheet(null);
-      }
-      // Arm the recording service, then start count-in
+      // activeSheet is a single union value, so the recording drawer and
+      // the effects sheet can never both be open — no separate guard
+      // needed to close effects before arming (spec 005 Decision 5
+      // structuralizes spec 004's "edit mode and armed-recording never
+      // overlap" invariant).
       recording.arm();
       setIsCountingIn(true);
     }
@@ -139,6 +147,10 @@ const Workstation = (props: WorkstationProps) => {
 
   const handleEffectsOpenChange = useCallback((open: boolean) => {
     setActiveSheet(open ? 'effects' : null);
+  }, []);
+
+  const handleRecordingOpenChange = useCallback((open: boolean) => {
+    setActiveSheet(open ? 'recording' : null);
   }, []);
 
   // Centralizes edit-mode enter/exit so every path that leaves the effects
@@ -226,9 +238,10 @@ const Workstation = (props: WorkstationProps) => {
   // timeline stays visible during the async stop-recording transition
   // until the new track is added.
   const isRecordingActive = recording.recordingState !== 'idle';
-  // Edit mode is unavailable while recording or counting in (spec 004) —
-  // the two modal states never overlap.
-  const isEffectsDisabled = isRecordingActive || isCountingIn;
+  // Edit mode (spec 004) and the other sheets (spec 005) are unavailable
+  // while recording or counting in — every sheet toggle stays inert so the
+  // recording drawer is the only reachable one during capture.
+  const isRecordingLocked = isRecordingActive || isCountingIn;
   const showTimeline =
     hasTracks ||
     isRecording ||
@@ -275,7 +288,8 @@ const Workstation = (props: WorkstationProps) => {
         isMixerOpen={isMixerOpen}
         isLyricsOpen={isLyricsOpen}
         isEffectsOpen={isEffectsOpen}
-        isEffectsDisabled={isEffectsDisabled}
+        isRecordingOpen={isRecordingOpen}
+        isRecordingLocked={isRecordingLocked}
         isEmpty={!hasTracks}
         onToggleMixer={toggleMixer}
         onToggleLyrics={toggleLyrics}
@@ -290,7 +304,7 @@ const Workstation = (props: WorkstationProps) => {
         canUndo={canUndo}
         canRedo={canRedo}
         onRewind={handleRewind}
-        onToggleRecording={toggleRecording}
+        onToggleRecording={toggleRecordingSheet}
         sheetOffset={bottomSheetHeight}
       />
       <MixerBottomSheet
@@ -311,6 +325,14 @@ const Workstation = (props: WorkstationProps) => {
         onHeightChange={handleContentSheetHeightChange}
         onSeekTo={handleLyricsSeekTo}
         tracks={tracks}
+      />
+      <RecordingBottomSheet
+        isOpen={isRecordingOpen}
+        onOpenChange={handleRecordingOpenChange}
+        onHeightChange={handleContentSheetHeightChange}
+        isCountingIn={isCountingIn}
+        isRecording={isRecording}
+        onToggleRecord={handleToggleRecord}
       />
       {countInBeat !== null && <CountIn beat={countInBeat} />}
     </div>

@@ -63,9 +63,14 @@ export async function ensureAudioContextRunning(page: Page): Promise<void> {
 }
 
 /**
- * Records audio for the given duration by clicking the Record button
- * to start, waiting for the count-in to finish, recording for the
- * specified duration, then clicking again to stop.
+ * Records audio for the given duration by opening the recording drawer
+ * (spec 005 milestone 2), clicking its Record control to start, waiting
+ * for the count-in to finish, recording for the specified duration, then
+ * clicking the drawer's Stop control to stop.
+ *
+ * The toolbar mic button only opens/closes the drawer now — arming lives
+ * inside it (RecordingBottomSheet) — so this is a two-step interaction
+ * where a single click used to both open and arm.
  */
 export async function recordAudio(
   page: Page,
@@ -74,9 +79,13 @@ export async function recordAudio(
     expectedTrackCount = 1,
   }: { durationMs?: number; expectedTrackCount?: number } = {},
 ): Promise<void> {
-  const recordButton = page.getByTitle('Record');
+  await page.getByTitle('Show recording').click();
 
-  await recordButton.click();
+  // exact: true — 'Record' is otherwise a substring match of the toolbar
+  // toggle's 'Hide recording' title.
+  const recordControl = page.getByTitle('Record', { exact: true });
+  await expect(recordControl).toBeVisible();
+  await recordControl.click();
 
   // Wait for the count-in overlay to appear, then disappear.
   // The count-in runs ~2 s (mic preparation + 4 beats × 500 ms).
@@ -85,7 +94,7 @@ export async function recordAudio(
   await expect(countIn).not.toBeVisible({ timeout: 5000 });
 
   await page.waitForTimeout(durationMs);
-  await recordButton.click();
+  await page.getByTitle('Stop').click();
 
   // Wait for async track creation (decode + channel setup) by polling
   // for the expected number of tracks in the DOM.

@@ -11,7 +11,8 @@ const defaultProps = {
   isMixerOpen: false,
   isLyricsOpen: false,
   isEffectsOpen: false,
-  isEffectsDisabled: false,
+  isRecordingOpen: false,
+  isRecordingLocked: false,
   isEmpty: false,
   onToggleMixer: vi.fn(),
   onToggleLyrics: vi.fn(),
@@ -71,6 +72,14 @@ it('toggles the runway tuning overlay when the menu item is clicked', async () =
 
   await openOverflowMenu();
   expect(await screen.findByText('Hide Runway Tuning')).toBeInTheDocument();
+});
+
+it('disables the lyrics, mixer, and effects toggles while the recording lifecycle is locked', () => {
+  render(<ToolbarBottomSheet {...defaultProps} isRecordingLocked={true} />);
+
+  expect(screen.getByTitle('Show lyrics')).toBeDisabled();
+  expect(screen.getByTitle('Show mixer')).toBeDisabled();
+  expect(screen.getByTitle('Show effects')).toBeDisabled();
 });
 
 it('disables the runway tuning option on an empty project', async () => {

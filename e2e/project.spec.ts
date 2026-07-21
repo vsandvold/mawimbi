@@ -34,7 +34,7 @@ test.describe('Project page', () => {
     ).toBeVisible();
     await expect(page.getByTitle('Play')).toBeDisabled();
     await expect(page.getByTitle('Show mixer')).toBeDisabled();
-    await expect(page.getByTitle('Record')).toBeEnabled();
+    await expect(page.getByTitle('Show recording')).toBeEnabled();
   });
 
   test('overflow menu shows fullscreen option', async ({ page }) => {
