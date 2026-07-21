@@ -71,6 +71,7 @@ class AudioService {
       window.__mawimbi = {
         spectrogramCache: this.spectrogramCache,
         playback: this.playbackService,
+        sampleRate: context.sampleRate,
       };
     }
   }

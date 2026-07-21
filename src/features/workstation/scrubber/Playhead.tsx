@@ -6,9 +6,15 @@ import {
   useRef,
 } from 'react';
 import LoudnessMeterPlayhead from './LoudnessMeterPlayhead';
+import { type ActiveNote } from './sparkleSimulation';
 
 export type PlayheadHandle = {
-  render: (frequencyData: Uint8Array | null, loudness: number) => void;
+  render: (
+    frequencyData: Uint8Array | null,
+    loudness: number,
+    activeNotes: ActiveNote[],
+    engineTime: number,
+  ) => void;
   renderIdle: () => void;
 };
 
@@ -67,8 +73,18 @@ const Playhead = forwardRef<PlayheadHandle, PlayheadProps>(
     }, []);
 
     useImperativeHandle(ref, () => ({
-      render(frequencyData: Uint8Array | null, loudness: number) {
-        meterRef.current?.render(frequencyData, loudness);
+      render(
+        frequencyData: Uint8Array | null,
+        loudness: number,
+        activeNotes: ActiveNote[],
+        engineTime: number,
+      ) {
+        meterRef.current?.render(
+          frequencyData,
+          loudness,
+          activeNotes,
+          engineTime,
+        );
       },
       renderIdle() {
         meterRef.current?.renderIdle();

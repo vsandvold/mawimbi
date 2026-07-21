@@ -10,6 +10,7 @@ import { useAudioService } from '../../audio/useAudioService';
 import { usePlaybackService } from '../../playback/usePlaybackService';
 import { useRecordingService } from '../../recording/useRecordingService';
 import { useTrackService } from '../../tracks/useTrackService';
+import { type Track } from '../../tracks/types';
 import useDebounced from '../../../shared/hooks/useDebounced';
 import FrequencyVisualizer from '../../spectrogram/FrequencyVisualizer';
 import { type PlayheadHandle } from './Playhead';
@@ -18,6 +19,7 @@ import {
   nextScrubState,
   type ScrubState,
 } from './scrubGesture';
+import { selectActiveNotes } from './sparkleSimulation';
 
 const SCROLL_DEBOUNCE_MS = 200;
 
@@ -30,6 +32,7 @@ type UseScrubberScrollOptions = {
   pixelsPerSecond: number;
   isPinchingRef: RefObject<boolean>;
   isTrackCyclingRef: RefObject<boolean>;
+  tracks: Track[];
 };
 
 /**
@@ -56,6 +59,7 @@ export function useScrubberScroll({
   pixelsPerSecond,
   isPinchingRef,
   isTrackCyclingRef,
+  tracks,
 }: UseScrubberScrollOptions) {
   const playback = usePlaybackService();
   const recording = useRecordingService();
@@ -158,7 +162,26 @@ export function useScrubberScroll({
 
         const frequencyData =
           visualizerRef.current?.getVisualizationData() ?? null;
-        playheadRef.current?.render(frequencyData, currentLoudness);
+        // `tracks` is captured from the render that (re)started this effect,
+        // not read live like the signal-backed getters below — a track
+        // added mid-playback won't sparkle until the next play/pause cycle.
+        // Not worth restarting the rAF loop over (see the deps comment
+        // below); mute state and melody data are still read live per frame.
+        const activeNotes = selectActiveNotes(
+          tracks.map((track) => ({
+            trackId: track.trackId,
+            muted: trackHook.mutedTracks.includes(track.trackId),
+            notes: audioService.spectrogramCache.getMelody(track.trackId)
+              ?.notes,
+          })),
+          time,
+        );
+        playheadRef.current?.render(
+          frequencyData,
+          currentLoudness,
+          activeNotes,
+          time,
+        );
 
         // Skip end-of-scroll detection while recording — the recording
         // spectrogram grows its container height progressively, so scrollHeight

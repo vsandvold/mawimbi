@@ -12,6 +12,7 @@
 import type { Page } from '@playwright/test';
 
 export type PixelClip = { x: number; y: number; width: number; height: number };
+export type DecodedPixels = { data: number[]; width: number; height: number };
 
 const SATURATION_THRESHOLD = 40;
 // Rec. 601 luma weights (ITU-R BT.601 §2.5.1): the standard-definition
@@ -60,14 +61,71 @@ export async function meanLuminance(page: Page, clip: PixelClip): Promise<number
 }
 
 /**
+ * Screenshots `clip` and checks whether any pixel's red channel dominates
+ * both green and blue by at least `minChannelGap` — a hue check for a
+ * specific warm/red-orange accent color, distinct from a generic saturation
+ * check (`hasSaturatedPixel`). Needed when the region can also show a
+ * *different* saturated color from elsewhere in the UI that a plain
+ * saturation check can't tell apart from the accent color — e.g. a track's
+ * own spectrogram color bleeding through the loudness meter's translucent
+ * background, which would otherwise register as a false positive for the
+ * meter's sparkle-burst color (mawimbi#484). Channel *differences* stay
+ * roughly proportional under alpha blending against a neutral background,
+ * so this still works when the accent color renders at partial opacity.
+ */
+export async function hasWarmAccentPixel(
+  page: Page,
+  clip: PixelClip,
+  minChannelGap = 40,
+): Promise<boolean> {
+  return hasWarmAccentPixelInColumns(
+    await decodeClip(page, clip),
+    0,
+    clip.width,
+    minChannelGap,
+  );
+}
+
+/**
+ * Same hue check as `hasWarmAccentPixel`, but scans only columns `[xStart,
+ * xEnd)` of an already-decoded image. Lets a caller decode one screenshot
+ * covering multiple regions of interest and compare them against each other
+ * at a single instant — comparing two *separately*-screenshotted regions
+ * risks each capturing a different real-world moment (e.g. either side of a
+ * short-lived effect's decay window), which can't happen when both
+ * predicates run over the same decode (mawimbi#484).
+ */
+export function hasWarmAccentPixelInColumns(
+  decoded: DecodedPixels,
+  xStart: number,
+  xEnd: number,
+  minChannelGap = 40,
+): boolean {
+  const { data, width, height } = decoded;
+  const columnStart = Math.max(0, Math.floor(xStart));
+  const columnEnd = Math.min(width, Math.ceil(xEnd));
+
+  for (let y = 0; y < height; y++) {
+    for (let x = columnStart; x < columnEnd; x++) {
+      const i = (y * width + x) * 4;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      if (r - b > minChannelGap && r - g > minChannelGap) return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Screenshots `clip` and decodes it to raw RGBA pixel data in the page
  * context, returned as a plain number array (typed arrays don't survive
  * the `page.evaluate` round trip).
  */
-async function decodeClip(
+export async function decodeClip(
   page: Page,
   clip: PixelClip,
-): Promise<{ data: number[]; width: number; height: number }> {
+): Promise<DecodedPixels> {
   const screenshot = await page.screenshot({ clip });
 
   return page.evaluate(async (b64) => {
