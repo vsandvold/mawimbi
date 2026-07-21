@@ -189,6 +189,9 @@ It only fires when the interaction changed the value — press the thumb and rel
 ### `pointer-events: none` hides from pointers only
 A control behind an "hidden" overlay class that only sets `pointer-events: none` (e.g. the toolbar's `toolbar-sheet--hidden` while a content sheet is open) is still focusable and keyboard-activatable — Enter/Space on the focused button fires its `onClick`. Don't treat "behind an open sheet" as unreachable; state that must survive such activation needs its own guard (the stale-edit-focus bug fixed in the #488 tuning session). In e2e, `locator.evaluate((el) => el.click())` models this keyboard path through a pointer-blocked element.
 
+### `Spectrogram.tsx`'s tile-redraw dirty check compares tiles by reference, not count
+`drawTilesFrame`'s rAF loop only repaints when `lastDrawnRef`'s tracked state changed; it used to track `tiles.length`, which a same-duration refresh (spec 004 M6's post-effect re-render, #494) never changes — the canvas silently kept showing stale tiles forever, with every non-visual check (analysis ran, cache updated, IndexedDB persisted) green. Fixed by tracking the `tiles` array *reference* instead (`SpectrogramCache.setEntry`/`analyse`/`restore` always construct a fresh array, so identity alone distinguishes "genuinely new tiles" from "same entry, unrelated re-render"). Any future refresh path that replaces a track's spectrogram tiles must go through one of those cache methods (not a hand-rolled cache write) to get a fresh array reference — don't mutate an existing tiles array in place.
+
 ## Code Conventions
 
 - Functional components only, with `React.memo` for performance-sensitive components
