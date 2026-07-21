@@ -1,3 +1,4 @@
+import { DEFAULT_EFFECT_AMOUNTS, type EffectId } from '../tracks/EffectsChain';
 import { type Track, type TrackColor, type TrackId } from '../tracks/types';
 
 export type { Track, TrackColor, TrackId };
@@ -31,6 +32,12 @@ type SetInstrumentPayload = {
   instrument: string;
 };
 
+type SetTrackEffectPayload = {
+  trackId: TrackId;
+  effectId: EffectId;
+  amount: number;
+};
+
 type RenameProjectPayload = {
   title: string;
 };
@@ -40,6 +47,7 @@ export type ProjectAction =
   | [typeof DELETE_TRACK, DeleteTrackPayload]
   | [typeof MOVE_TRACK, MoveTrackPayload]
   | [typeof SET_INSTRUMENT, SetInstrumentPayload]
+  | [typeof SET_TRACK_EFFECT, SetTrackEffectPayload]
   | [typeof RENAME_PROJECT, RenameProjectPayload];
 
 export const COLOR_PALETTE: TrackColor[] = [
@@ -54,6 +62,7 @@ export const ADD_TRACK = 'ADD_TRACK';
 export const DELETE_TRACK = 'DELETE_TRACK';
 export const MOVE_TRACK = 'MOVE_TRACK';
 export const SET_INSTRUMENT = 'SET_INSTRUMENT';
+export const SET_TRACK_EFFECT = 'SET_TRACK_EFFECT';
 export const RENAME_PROJECT = 'RENAME_PROJECT';
 
 export function projectReducer(
@@ -69,6 +78,8 @@ export function projectReducer(
       return { ...state, tracks: moveTrack(state.tracks, action[1]) };
     case SET_INSTRUMENT:
       return setInstrument(state, action[1]);
+    case SET_TRACK_EFFECT:
+      return setTrackEffect(state, action[1]);
     case RENAME_PROJECT:
       return { ...state, title: action[1].title };
     default:
@@ -93,6 +104,15 @@ export function reverseProjectAction(
         MOVE_TRACK,
         { fromIndex: action[1].toIndex, toIndex: action[1].fromIndex },
       ];
+    case SET_TRACK_EFFECT: {
+      const { trackId, effectId } = action[1];
+      const track = state.tracks.find((t) => t.trackId === trackId);
+      if (!track) return null;
+      const previousAmount = (track.effects ?? DEFAULT_EFFECT_AMOUNTS)[
+        effectId
+      ];
+      return [SET_TRACK_EFFECT, { trackId, effectId, amount: previousAmount }];
+    }
     case RENAME_PROJECT:
       return null;
     default:
@@ -152,6 +172,26 @@ function setInstrument(
     ...state,
     tracks: state.tracks.map((track) =>
       track.trackId === trackId ? { ...track, instrument } : track,
+    ),
+  };
+}
+
+function setTrackEffect(
+  state: ProjectState,
+  { trackId, effectId, amount }: SetTrackEffectPayload,
+): ProjectState {
+  return {
+    ...state,
+    tracks: state.tracks.map((track) =>
+      track.trackId === trackId
+        ? {
+            ...track,
+            effects: {
+              ...(track.effects ?? DEFAULT_EFFECT_AMOUNTS),
+              [effectId]: amount,
+            },
+          }
+        : track,
     ),
   };
 }

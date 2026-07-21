@@ -118,7 +118,7 @@ type EffectSlidersProps = {
 };
 
 const EffectSliders = ({ trackId }: EffectSlidersProps) => {
-  const { amounts, updateAmount } = useEffectControls(trackId);
+  const { amounts, updateAmount, commitAmount } = useEffectControls(trackId);
 
   return (
     <div className="effects-bottom-sheet__sliders">
@@ -133,6 +133,7 @@ const EffectSliders = ({ trackId }: EffectSlidersProps) => {
             min={MIN_EFFECT_AMOUNT}
             max={MAX_EFFECT_AMOUNT}
             onValueChange={(values) => updateAmount(effectId, values[0])}
+            onValueCommit={(values) => commitAmount(effectId, values[0])}
           />
         </label>
       ))}

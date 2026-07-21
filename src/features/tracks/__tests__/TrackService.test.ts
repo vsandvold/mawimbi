@@ -52,6 +52,26 @@ describe('TrackService', () => {
       expect(retrieved).toBeDefined();
       expect(retrieved!.volume.value).toBe(100);
     });
+
+    it('defaults effect amounts to bypass', () => {
+      const signals = service.createSignals('track-1');
+
+      expect(signals.effects.space.value).toBe(0);
+      expect(signals.effects.echo.value).toBe(0);
+      expect(signals.effects.tone.value).toBe(0);
+    });
+
+    it('seeds effect amounts from persisted params (spec 004 M5)', () => {
+      const signals = service.createSignals('track-1', 80, {
+        space: 25,
+        echo: 50,
+        tone: 75,
+      });
+
+      expect(signals.effects.space.value).toBe(25);
+      expect(signals.effects.echo.value).toBe(50);
+      expect(signals.effects.tone.value).toBe(75);
+    });
   });
 
   describe('getSignals', () => {
@@ -550,6 +570,22 @@ describe('TrackService', () => {
       expect(service.getTotalTime()).toBe(7.0);
     });
 
+    it('restores persisted effect amounts into the new signals (spec 004 M5)', async () => {
+      await service.restoreTrack('restored-id', new ArrayBuffer(16), 0, {
+        space: 40,
+        echo: 0,
+        tone: 60,
+      });
+
+      const signals = service.getSignals('restored-id')!;
+      expect(signals.effects.space.value).toBe(40);
+      expect(signals.effects.echo.value).toBe(0);
+      expect(signals.effects.tone.value).toBe(60);
+      expect(
+        service.retrieveChannel('restored-id')!.getEffectAmount('space'),
+      ).toBe(40);
+    });
+
     it('fires the onTrackCreated callback', async () => {
       const callback = vi.fn();
       service.setOnTrackCreated(callback);
@@ -649,6 +685,30 @@ describe('TrackService', () => {
       service.recreateChannel(trackId);
 
       expect(service.retrieveChannel(trackId)!.mute).toBe(true);
+    });
+
+    // Regression test for the #212 class, extended to effect settings
+    // (spec 004 M5, #493): projectPageEffects' useTrackSideEffects passes
+    // the project's persisted Track.effects into createSignals on
+    // undo-restore. Without that, the recreated signals silently reset to
+    // dry defaults even though #492 already re-binds the signal→channel
+    // sync correctly.
+    it('recreated channel carries persisted effect params through undo-delete (#212 class)', async () => {
+      const { trackId } = await service.createTrack(new ArrayBuffer(8));
+      service.getSignals(trackId)!.effects.space.value = 55;
+
+      // Delete-track flow
+      service.disposeSignals(trackId);
+      service.deleteChannel(trackId);
+
+      // Undo flow: projectPageEffects passes the restored Track.effects
+      // through to createSignals before recreating the channel.
+      service.createSignals(trackId, 80, { space: 55, echo: 0, tone: 0 });
+      service.recreateChannel(trackId);
+
+      expect(service.retrieveChannel(trackId)!.getEffectAmount('space')).toBe(
+        55,
+      );
     });
   });
 });

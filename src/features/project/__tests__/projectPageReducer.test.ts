@@ -6,6 +6,7 @@ import {
   MOVE_TRACK,
   RENAME_PROJECT,
   SET_INSTRUMENT,
+  SET_TRACK_EFFECT,
   ProjectAction,
   projectReducer,
   ProjectState,
@@ -170,6 +171,74 @@ describe('reverseProjectAction', () => {
 
     expect(reverse).toBeNull();
   });
+
+  it('reverses SET_TRACK_EFFECT to the previous amount', () => {
+    const trackWithEffects: Track = {
+      ...track1,
+      effects: { space: 10, echo: 0, tone: 0 },
+    };
+    const state = createState([trackWithEffects]);
+    const action: ProjectAction = [
+      SET_TRACK_EFFECT,
+      { trackId: 'track-1', effectId: 'space', amount: 90 },
+    ];
+
+    const reverse = reverseProjectAction(state, action);
+
+    expect(reverse).toEqual([
+      SET_TRACK_EFFECT,
+      { trackId: 'track-1', effectId: 'space', amount: 10 },
+    ]);
+  });
+
+  it('reverses SET_TRACK_EFFECT to bypass when the track had no prior amount', () => {
+    const state = createState([track1]);
+    const action: ProjectAction = [
+      SET_TRACK_EFFECT,
+      { trackId: 'track-1', effectId: 'echo', amount: 50 },
+    ];
+
+    const reverse = reverseProjectAction(state, action);
+
+    expect(reverse).toEqual([
+      SET_TRACK_EFFECT,
+      { trackId: 'track-1', effectId: 'echo', amount: 0 },
+    ]);
+  });
+
+  it('returns null for SET_TRACK_EFFECT when track not found', () => {
+    const state = createState([track1]);
+    const action: ProjectAction = [
+      SET_TRACK_EFFECT,
+      { trackId: 'nonexistent', effectId: 'space', amount: 50 },
+    ];
+
+    const reverse = reverseProjectAction(state, action);
+
+    expect(reverse).toBeNull();
+  });
+
+  it('undo → redo round-trips through the undo reducer', () => {
+    const trackWithEffects: Track = {
+      ...track1,
+      effects: { space: 10, echo: 0, tone: 0 },
+    };
+    const state = createState([trackWithEffects]);
+    const action: ProjectAction = [
+      SET_TRACK_EFFECT,
+      { trackId: 'track-1', effectId: 'space', amount: 90 },
+    ];
+
+    const forward = projectReducer(state, action);
+    expect(forward.tracks[0].effects!.space).toBe(90);
+
+    const reverse = reverseProjectAction(state, action)!;
+    const undone = projectReducer(forward, reverse);
+    expect(undone.tracks[0].effects!.space).toBe(10);
+
+    const redone = projectReducer(undone, action);
+    expect(redone.tracks[0].effects!.space).toBe(90);
+  });
 });
 
 describe('SET_INSTRUMENT', () => {
@@ -194,6 +263,51 @@ describe('SET_INSTRUMENT', () => {
     ]);
 
     expect(result.tracks[1].instrument).toBe('drums');
+    expect(result.tracks[0]).toEqual(track1);
+    expect(result.tracks[2]).toEqual(track3);
+  });
+});
+
+describe('SET_TRACK_EFFECT', () => {
+  it('sets the effect amount on the matching track', () => {
+    const state = createState([track1, track2]);
+
+    const result = projectReducer(state, [
+      SET_TRACK_EFFECT,
+      { trackId: 'track-1', effectId: 'space', amount: 40 },
+    ]);
+
+    expect(result.tracks[0].effects).toEqual({ space: 40, echo: 0, tone: 0 });
+    expect(result.tracks[1].effects).toBeUndefined();
+  });
+
+  it('preserves other effect amounts on the same track', () => {
+    const trackWithEffects: Track = {
+      ...track1,
+      effects: { space: 10, echo: 20, tone: 30 },
+    };
+    const state = createState([trackWithEffects]);
+
+    const result = projectReducer(state, [
+      SET_TRACK_EFFECT,
+      { trackId: 'track-1', effectId: 'echo', amount: 99 },
+    ]);
+
+    expect(result.tracks[0].effects).toEqual({
+      space: 10,
+      echo: 99,
+      tone: 30,
+    });
+  });
+
+  it('does not mutate other tracks', () => {
+    const state = createState([track1, track2, track3]);
+
+    const result = projectReducer(state, [
+      SET_TRACK_EFFECT,
+      { trackId: 'track-2', effectId: 'tone', amount: 50 },
+    ]);
+
     expect(result.tracks[0]).toEqual(track1);
     expect(result.tracks[2]).toEqual(track3);
   });

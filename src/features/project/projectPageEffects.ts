@@ -16,6 +16,7 @@ import {
   useFullScreenHandle,
 } from '../../shared/fullscreen/Fullscreen';
 import useMessage from '../../shared/message';
+import { EFFECT_ORDER } from '../tracks/EffectsChain';
 import { type Track } from '../tracks/types';
 import {
   ADD_TRACK,
@@ -75,7 +76,7 @@ export const useTrackSideEffects = (tracks: Track[]) => {
       if (!prevIds.has(track.trackId)) {
         if (!trackHook.getSignals(track.trackId)) {
           const initialVolume = trackHook.retrieveInitialVolume(track.trackId);
-          trackHook.createSignals(track.trackId, initialVolume);
+          trackHook.createSignals(track.trackId, initialVolume, track.effects);
         }
         if (!trackHook.retrieveChannel(track.trackId)) {
           trackHook.recreateChannel(track.trackId);
@@ -92,6 +93,31 @@ export const useTrackSideEffects = (tracks: Track[]) => {
     }
 
     previousTracksRef.current = tracks;
+    // Hook callbacks reference stable service singletons
+  }, [tracks]); // eslint-disable-line react-hooks/exhaustive-deps
+};
+
+// Reflects effect-amount changes that arrive via undo/redo (not a live
+// slider drag, which already writes the signal directly) into the live
+// per-track signals — otherwise an undo after committing an effect change
+// reverts the persisted project state while the audio and drawer slider
+// keep showing the pre-undo amount (the #212 regression class, extended to
+// effect settings).
+export const useTrackEffectsSync = (tracks: Track[]) => {
+  const trackHook = useTrackService();
+
+  useEffect(() => {
+    for (const track of tracks) {
+      const amounts = track.effects;
+      if (!amounts) continue;
+      const signals = trackHook.getSignals(track.trackId);
+      if (!signals) continue;
+      for (const effectId of EFFECT_ORDER) {
+        if (signals.effects[effectId].value !== amounts[effectId]) {
+          signals.effects[effectId].value = amounts[effectId];
+        }
+      }
+    }
     // Hook callbacks reference stable service singletons
   }, [tracks]); // eslint-disable-line react-hooks/exhaustive-deps
 };
@@ -209,6 +235,7 @@ export const useRestoreAudio = (tracks: Track[]) => {
             track.trackId,
             audioData,
             track.startTime ?? 0,
+            track.effects,
           );
         } catch {
           // Audio data corrupted or decode failed — skip this track

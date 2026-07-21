@@ -1,6 +1,8 @@
 import { vi, type Mock } from 'vitest';
 import * as Tone from 'tone';
 import EffectsChain, {
+  DEFAULT_EFFECT_AMOUNTS,
+  hashEffectAmounts,
   mapEchoAmount,
   mapSpaceAmount,
   mapToneAmount,
@@ -321,3 +323,26 @@ describe('per-track isolation', () => {
 // The signal → mixer sync suite lives in TrackService.test.ts, alongside
 // the harness (mockAudioBuffer, createObjectURL shim) it shares with the
 // other TrackService behavior tests.
+
+describe('hashEffectAmounts', () => {
+  it('is deterministic for the same amounts', () => {
+    const a = hashEffectAmounts({ space: 10, echo: 20, tone: 30 });
+    const b = hashEffectAmounts({ space: 10, echo: 20, tone: 30 });
+
+    expect(a).toBe(b);
+  });
+
+  it('differs when any amount differs', () => {
+    const base = hashEffectAmounts({ space: 10, echo: 20, tone: 30 });
+
+    expect(hashEffectAmounts({ space: 11, echo: 20, tone: 30 })).not.toBe(base);
+    expect(hashEffectAmounts({ space: 10, echo: 21, tone: 30 })).not.toBe(base);
+    expect(hashEffectAmounts({ space: 10, echo: 20, tone: 31 })).not.toBe(base);
+  });
+
+  it('matches DEFAULT_EFFECT_AMOUNTS for an all-bypass chain', () => {
+    expect(hashEffectAmounts(DEFAULT_EFFECT_AMOUNTS)).toBe(
+      hashEffectAmounts({ space: 0, echo: 0, tone: 0 }),
+    );
+  });
+});

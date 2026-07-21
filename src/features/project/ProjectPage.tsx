@@ -11,6 +11,7 @@ import {
   useFullscreen,
   useLoadProject,
   useRestoreAudio,
+  useTrackEffectsSync,
   useTrackSideEffects,
   useUploadFile,
 } from './projectPageEffects';
@@ -42,6 +43,7 @@ const ProjectPageContent = ({ initialState }: ProjectPageContentProps) => {
   const [fullScreenHandle, toggleFullscreen] = useFullscreen();
   const isRestoringAudio = useRestoreAudio(initialState.tracks);
   useTrackSideEffects(state.tracks);
+  useTrackEffectsSync(state.tracks);
   useDeleteTrackAudio(state.tracks);
   useAutoSave(state);
 
