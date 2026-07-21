@@ -6,14 +6,17 @@ import './FloatingToolbar.css';
 
 type FloatingToolbarProps = {
   isEmpty: boolean;
+  isRecordingOpen: boolean;
   onRewind: () => void;
+  /** Opens/closes the recording drawer (spec 005 Decision 5) — arming
+   *  itself happens from the drawer's own control, not here. */
   onToggleRecording: () => void;
 };
 
 const FloatingToolbar = (props: FloatingToolbarProps) => {
   const { isPlaying, togglePlayback } = usePlaybackService();
   const { isTransportLocked, recordingState } = useRecordingService();
-  const { isEmpty, onRewind, onToggleRecording } = props;
+  const { isEmpty, isRecordingOpen, onRewind, onToggleRecording } = props;
   const isRecordActive = recordingState !== 'idle';
 
   return (
@@ -42,8 +45,9 @@ const FloatingToolbar = (props: FloatingToolbarProps) => {
         variant="ghost"
         size="icon"
         className="button"
-        title="Record"
+        title={isRecordingOpen ? 'Hide recording' : 'Show recording'}
         onClick={onToggleRecording}
+        disabled={isTransportLocked}
       >
         {isRecordActive ? <Mic className="text-red-500" /> : <Mic />}
       </Button>

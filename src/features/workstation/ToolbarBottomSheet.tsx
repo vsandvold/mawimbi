@@ -34,7 +34,10 @@ type ToolbarBottomSheetProps = {
   isMixerOpen: boolean;
   isLyricsOpen: boolean;
   isEffectsOpen: boolean;
-  isEffectsDisabled: boolean;
+  isRecordingOpen: boolean;
+  /** True while counting in or actively recording — every sheet toggle
+   *  stays inert so the recording drawer is the only reachable sheet. */
+  isRecordingLocked: boolean;
   isEmpty: boolean;
   onToggleMixer: () => void;
   onToggleLyrics: () => void;
@@ -59,7 +62,8 @@ const ToolbarBottomSheet = (props: ToolbarBottomSheetProps) => {
     isMixerOpen,
     isLyricsOpen,
     isEffectsOpen,
-    isEffectsDisabled,
+    isRecordingOpen,
+    isRecordingLocked,
     isEmpty,
     onToggleMixer,
     onToggleLyrics,
@@ -114,6 +118,7 @@ const ToolbarBottomSheet = (props: ToolbarBottomSheetProps) => {
     >
       <FloatingToolbar
         isEmpty={isEmpty}
+        isRecordingOpen={isRecordingOpen}
         onRewind={onRewind}
         onToggleRecording={onToggleRecording}
       />
@@ -146,7 +151,7 @@ const ToolbarBottomSheet = (props: ToolbarBottomSheetProps) => {
               className="button"
               title={isLyricsOpen ? 'Hide lyrics' : 'Show lyrics'}
               onClick={onToggleLyrics}
-              disabled={isEmpty}
+              disabled={isEmpty || isRecordingLocked}
             >
               <PenLine className={lyricsIconClass} />
             </Button>
@@ -156,7 +161,7 @@ const ToolbarBottomSheet = (props: ToolbarBottomSheetProps) => {
               className="button"
               title={isMixerOpen ? 'Hide mixer' : 'Show mixer'}
               onClick={onToggleMixer}
-              disabled={isEmpty}
+              disabled={isEmpty || isRecordingLocked}
             >
               <span className={mixerIconClass}>
                 <ControlSvg />
@@ -168,7 +173,7 @@ const ToolbarBottomSheet = (props: ToolbarBottomSheetProps) => {
               className="button"
               title={isEffectsOpen ? 'Hide effects' : 'Show effects'}
               onClick={onToggleEffects}
-              disabled={isEmpty || isEffectsDisabled}
+              disabled={isEmpty || isRecordingLocked}
             >
               <SlidersHorizontal className={effectsIconClass} />
             </Button>

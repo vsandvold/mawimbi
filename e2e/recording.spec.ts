@@ -29,6 +29,59 @@ test.describe('Recording', () => {
     await ensureAudioContextRunning(page);
   });
 
+  test('drawer opens from the mic button and closes via its own close control', async ({
+    page,
+  }) => {
+    await page.getByTitle('Show recording').click();
+
+    const drawer = page.getByText('Recording', { exact: true });
+    await expect(drawer).toBeVisible();
+
+    await page.getByTitle('Close').click();
+
+    await expect(drawer).not.toBeVisible();
+  });
+
+  test('other sheet toggles are inert while counting in and recording', async ({
+    page,
+  }) => {
+    // A backing track first, so Lyrics/Mixer/Effects are only disabled by
+    // the recording lock below — otherwise they'd already be disabled by
+    // the empty-project guard and the assertions would prove nothing.
+    await uploadAudioFile(page, SHORT_AUDIO);
+    await expect(page.locator('.timeline__track')).toBeVisible();
+
+    await page.getByTitle('Show recording').click();
+    await page.getByTitle('Record', { exact: true }).click();
+
+    // Counting in: every other sheet toggle is disabled, including the
+    // recording drawer's own toggle and close control (drawer stays open
+    // through count-in and recording — spec 005 Decision 5).
+    await expect(page.locator('.count-in')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTitle('Hide recording')).toBeDisabled();
+    await expect(page.getByTitle('Show lyrics')).toBeDisabled();
+    await expect(page.getByTitle('Close')).not.toBeVisible();
+
+    await expect(page.locator('.count-in')).not.toBeVisible({
+      timeout: 5000,
+    });
+
+    // Still locked once active recording starts.
+    await expect(page.getByTitle('Hide recording')).toBeDisabled();
+    await expect(page.getByTitle('Show lyrics')).toBeDisabled();
+    await expect(page.getByTitle('Close')).not.toBeVisible();
+
+    await page.getByTitle('Stop').click();
+    await expect(page.locator('.timeline__track')).toHaveCount(2, {
+      timeout: 5000,
+    });
+
+    // Idle again: toggles and the drawer's own close control are reachable.
+    await expect(page.getByTitle('Hide recording')).toBeEnabled();
+    await expect(page.getByTitle('Show lyrics')).toBeEnabled();
+    await expect(page.getByTitle('Close')).toBeVisible();
+  });
+
   test('recording creates track with spectrogram, rewinds, and plays back', async ({
     page,
   }) => {
