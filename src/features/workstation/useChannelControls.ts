@@ -2,8 +2,7 @@ import { useEffect, useRef } from 'react';
 import { useTrackService } from '../tracks/useTrackService';
 import { DEFAULT_VOLUME, type TrackId } from '../tracks/types';
 import {
-  SET_TRACK_MUTE,
-  SET_TRACK_SOLO,
+  SET_TRACK_MUTE_SOLO,
   SET_TRACK_VOLUME,
 } from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
@@ -80,24 +79,25 @@ export function useChannelControls(trackId: TrackId) {
 
   // Each transition is a discrete click (not a drag), so it commits
   // immediately — no separate live/commit split like volume or effects.
+  // One dispatch carrying both fields, even though only one changes for
+  // most transitions: the solo→mute leg changes both mute and solo in the
+  // same click, and two separate dispatches would push two undo-stack
+  // entries for one gesture — needing two undos to reverse it.
   const cycleState = () => {
     if (!trackSignals) return;
 
-    if (mute) {
-      // mute → on
-      trackSignals.mute.value = false;
-      dispatch([SET_TRACK_MUTE, { trackId, mute: false }]);
-    } else if (solo) {
-      // solo → mute
-      trackSignals.solo.value = false;
-      trackSignals.mute.value = true;
-      dispatch([SET_TRACK_SOLO, { trackId, solo: false }]);
-      dispatch([SET_TRACK_MUTE, { trackId, mute: true }]);
-    } else {
-      // on → solo
-      trackSignals.solo.value = true;
-      dispatch([SET_TRACK_SOLO, { trackId, solo: true }]);
-    }
+    const [nextMute, nextSolo] = mute
+      ? [false, false] // mute → on
+      : solo
+        ? [true, false] // solo → mute
+        : [false, true]; // on → solo
+
+    trackSignals.mute.value = nextMute;
+    trackSignals.solo.value = nextSolo;
+    dispatch([
+      SET_TRACK_MUTE_SOLO,
+      { trackId, mute: nextMute, solo: nextSolo },
+    ]);
   };
 
   return {

@@ -5,8 +5,7 @@ import { getFocusedTracks } from '../../tracks/focusSignals';
 import AudioService from '../../audio/AudioService';
 import { resetAllSignals } from '../../tracks/__tests__/testUtils';
 import {
-  SET_TRACK_MUTE,
-  SET_TRACK_SOLO,
+  SET_TRACK_MUTE_SOLO,
   SET_TRACK_VOLUME,
 } from '../../project/projectPageReducer';
 import { ProjectDispatch } from '../../project/useProjectDispatch';
@@ -147,7 +146,7 @@ describe('useChannelControls', () => {
   });
 
   describe('cycleState', () => {
-    it('dispatches SET_TRACK_SOLO when cycling from on to solo', () => {
+    it('dispatches a single SET_TRACK_MUTE_SOLO when cycling from on to solo', () => {
       const dispatch = vi.fn();
       const { result } = renderHook(() => useChannelControls('track-1'), {
         wrapper: withDispatch(dispatch),
@@ -155,13 +154,17 @@ describe('useChannelControls', () => {
 
       result.current.cycleState();
 
+      expect(dispatch).toHaveBeenCalledTimes(1);
       expect(dispatch).toHaveBeenCalledWith([
-        SET_TRACK_SOLO,
-        { trackId: 'track-1', solo: true },
+        SET_TRACK_MUTE_SOLO,
+        { trackId: 'track-1', mute: false, solo: true },
       ]);
     });
 
-    it('dispatches both SET_TRACK_SOLO(false) and SET_TRACK_MUTE(true) when cycling from solo to mute', () => {
+    // A single dispatch covering both fields — not two separate ones — so
+    // one click is one undo-stack entry (the bug code review caught: two
+    // dispatches meant two undos were needed to reverse one click).
+    it('dispatches a single SET_TRACK_MUTE_SOLO when cycling from solo to mute', () => {
       trackService.getSignals('track-1')!.solo.value = true;
       const dispatch = vi.fn();
       const { result } = renderHook(() => useChannelControls('track-1'), {
@@ -170,17 +173,14 @@ describe('useChannelControls', () => {
 
       result.current.cycleState();
 
+      expect(dispatch).toHaveBeenCalledTimes(1);
       expect(dispatch).toHaveBeenCalledWith([
-        SET_TRACK_SOLO,
-        { trackId: 'track-1', solo: false },
-      ]);
-      expect(dispatch).toHaveBeenCalledWith([
-        SET_TRACK_MUTE,
-        { trackId: 'track-1', mute: true },
+        SET_TRACK_MUTE_SOLO,
+        { trackId: 'track-1', mute: true, solo: false },
       ]);
     });
 
-    it('dispatches SET_TRACK_MUTE(false) when cycling from mute to on', () => {
+    it('dispatches a single SET_TRACK_MUTE_SOLO when cycling from mute to on', () => {
       trackService.getSignals('track-1')!.mute.value = true;
       const dispatch = vi.fn();
       const { result } = renderHook(() => useChannelControls('track-1'), {
@@ -189,9 +189,10 @@ describe('useChannelControls', () => {
 
       result.current.cycleState();
 
+      expect(dispatch).toHaveBeenCalledTimes(1);
       expect(dispatch).toHaveBeenCalledWith([
-        SET_TRACK_MUTE,
-        { trackId: 'track-1', mute: false },
+        SET_TRACK_MUTE_SOLO,
+        { trackId: 'track-1', mute: false, solo: false },
       ]);
     });
   });

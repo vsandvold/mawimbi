@@ -8,8 +8,7 @@ import {
   SET_INSTRUMENT,
   SET_TRACK_EFFECT,
   SET_TRACK_VOLUME,
-  SET_TRACK_MUTE,
-  SET_TRACK_SOLO,
+  SET_TRACK_MUTE_SOLO,
   ProjectAction,
   projectReducer,
   ProjectState,
@@ -283,76 +282,51 @@ describe('reverseProjectAction', () => {
     expect(reverseProjectAction(state, action)).toBeNull();
   });
 
-  it('reverses SET_TRACK_MUTE to the previous value', () => {
-    const state = createState([{ ...track1, mute: true }]);
+  it('reverses SET_TRACK_MUTE_SOLO to the previous values', () => {
+    const state = createState([{ ...track1, mute: false, solo: true }]);
     const action: ProjectAction = [
-      SET_TRACK_MUTE,
-      { trackId: 'track-1', mute: false },
+      SET_TRACK_MUTE_SOLO,
+      { trackId: 'track-1', mute: true, solo: false },
     ];
 
     const reverse = reverseProjectAction(state, action);
 
     expect(reverse).toEqual([
-      SET_TRACK_MUTE,
-      { trackId: 'track-1', mute: true },
+      SET_TRACK_MUTE_SOLO,
+      { trackId: 'track-1', mute: false, solo: true },
     ]);
   });
 
-  it('reverses SET_TRACK_MUTE to false when the track had no prior mute state', () => {
+  it('reverses SET_TRACK_MUTE_SOLO to false/false when the track had no prior state', () => {
     const state = createState([track1]);
     const action: ProjectAction = [
-      SET_TRACK_MUTE,
-      { trackId: 'track-1', mute: true },
+      SET_TRACK_MUTE_SOLO,
+      { trackId: 'track-1', mute: true, solo: false },
     ];
 
     const reverse = reverseProjectAction(state, action);
 
     expect(reverse).toEqual([
-      SET_TRACK_MUTE,
-      { trackId: 'track-1', mute: false },
+      SET_TRACK_MUTE_SOLO,
+      { trackId: 'track-1', mute: false, solo: false },
     ]);
   });
 
-  it('returns null for SET_TRACK_MUTE when track not found', () => {
+  it('returns null for SET_TRACK_MUTE_SOLO when track not found', () => {
     const state = createState([track1]);
     const action: ProjectAction = [
-      SET_TRACK_MUTE,
-      { trackId: 'nonexistent', mute: true },
+      SET_TRACK_MUTE_SOLO,
+      { trackId: 'nonexistent', mute: true, solo: false },
     ];
 
     expect(reverseProjectAction(state, action)).toBeNull();
   });
 
-  it('reverses SET_TRACK_SOLO to the previous value', () => {
-    const state = createState([{ ...track1, solo: true }]);
+  it('undo → redo round-trips SET_TRACK_MUTE_SOLO through the undo reducer', () => {
+    const state = createState([{ ...track1, mute: false, solo: false }]);
     const action: ProjectAction = [
-      SET_TRACK_SOLO,
-      { trackId: 'track-1', solo: false },
-    ];
-
-    const reverse = reverseProjectAction(state, action);
-
-    expect(reverse).toEqual([
-      SET_TRACK_SOLO,
-      { trackId: 'track-1', solo: true },
-    ]);
-  });
-
-  it('returns null for SET_TRACK_SOLO when track not found', () => {
-    const state = createState([track1]);
-    const action: ProjectAction = [
-      SET_TRACK_SOLO,
-      { trackId: 'nonexistent', solo: true },
-    ];
-
-    expect(reverseProjectAction(state, action)).toBeNull();
-  });
-
-  it('undo → redo round-trips SET_TRACK_MUTE through the undo reducer', () => {
-    const state = createState([{ ...track1, mute: false }]);
-    const action: ProjectAction = [
-      SET_TRACK_MUTE,
-      { trackId: 'track-1', mute: true },
+      SET_TRACK_MUTE_SOLO,
+      { trackId: 'track-1', mute: true, solo: false },
     ];
 
     const forward = projectReducer(state, action);
@@ -361,9 +335,33 @@ describe('reverseProjectAction', () => {
     const reverse = reverseProjectAction(state, action)!;
     const undone = projectReducer(forward, reverse);
     expect(undone.tracks[0].mute).toBe(false);
+    expect(undone.tracks[0].solo).toBe(false);
 
     const redone = projectReducer(undone, action);
     expect(redone.tracks[0].mute).toBe(true);
+  });
+
+  // Regression test for the bug code review caught: cycling solo→mute
+  // used to dispatch SET_TRACK_SOLO and SET_TRACK_MUTE separately, pushing
+  // two undo-stack entries for one click — a single undo left the track at
+  // mute=false/solo=false ("on") instead of back at solo=true. The
+  // combined action makes one click's reverse land exactly on the
+  // pre-click state in a single undo.
+  it('a single undo fully reverses a solo→mute cycle click, landing back at solo (not an intermediate state)', () => {
+    const state = createState([{ ...track1, mute: false, solo: true }]);
+    // What useChannelControls.cycleState dispatches for the solo→mute leg.
+    const action: ProjectAction = [
+      SET_TRACK_MUTE_SOLO,
+      { trackId: 'track-1', mute: true, solo: false },
+    ];
+
+    const forward = projectReducer(state, action);
+    expect(forward.tracks[0]).toMatchObject({ mute: true, solo: false });
+
+    const reverse = reverseProjectAction(state, action)!;
+    const undone = projectReducer(forward, reverse);
+
+    expect(undone.tracks[0]).toMatchObject({ mute: false, solo: true });
   });
 });
 
@@ -465,31 +463,31 @@ describe('SET_TRACK_VOLUME', () => {
   });
 });
 
-describe('SET_TRACK_MUTE', () => {
-  it('sets mute on the matching track', () => {
+describe('SET_TRACK_MUTE_SOLO', () => {
+  it('sets both mute and solo on the matching track', () => {
     const state = createState([track1, track2]);
 
     const result = projectReducer(state, [
-      SET_TRACK_MUTE,
-      { trackId: 'track-1', mute: true },
+      SET_TRACK_MUTE_SOLO,
+      { trackId: 'track-1', mute: true, solo: false },
     ]);
 
     expect(result.tracks[0].mute).toBe(true);
+    expect(result.tracks[0].solo).toBe(false);
     expect(result.tracks[1].mute).toBeUndefined();
+    expect(result.tracks[1].solo).toBeUndefined();
   });
-});
 
-describe('SET_TRACK_SOLO', () => {
-  it('sets solo on the matching track', () => {
-    const state = createState([track1, track2]);
+  it('does not mutate other tracks', () => {
+    const state = createState([track1, track2, track3]);
 
     const result = projectReducer(state, [
-      SET_TRACK_SOLO,
-      { trackId: 'track-1', solo: true },
+      SET_TRACK_MUTE_SOLO,
+      { trackId: 'track-2', mute: false, solo: true },
     ]);
 
-    expect(result.tracks[0].solo).toBe(true);
-    expect(result.tracks[1].solo).toBeUndefined();
+    expect(result.tracks[0]).toEqual(track1);
+    expect(result.tracks[2]).toEqual(track3);
   });
 });
 
