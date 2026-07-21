@@ -72,6 +72,19 @@ describe('TrackService', () => {
       expect(signals.effects.echo.value).toBe(50);
       expect(signals.effects.tone.value).toBe(75);
     });
+
+    it('seeds mute/solo from persisted params', () => {
+      const signals = service.createSignals(
+        'track-1',
+        80,
+        undefined,
+        true,
+        false,
+      );
+
+      expect(signals.mute.value).toBe(true);
+      expect(signals.solo.value).toBe(false);
+    });
   });
 
   describe('getSignals', () => {
@@ -572,9 +585,7 @@ describe('TrackService', () => {
 
     it('restores persisted effect amounts into the new signals (spec 004 M5)', async () => {
       await service.restoreTrack('restored-id', new ArrayBuffer(16), 0, {
-        space: 40,
-        echo: 0,
-        tone: 60,
+        effects: { space: 40, echo: 0, tone: 60 },
       });
 
       const signals = service.getSignals('restored-id')!;
@@ -584,6 +595,35 @@ describe('TrackService', () => {
       expect(
         service.retrieveChannel('restored-id')!.getEffectAmount('space'),
       ).toBe(40);
+    });
+
+    it('restores persisted volume/mute/solo into the new signals', async () => {
+      await service.restoreTrack('restored-id', new ArrayBuffer(16), 0, {
+        volume: 42,
+        mute: true,
+        solo: false,
+      });
+
+      const signals = service.getSignals('restored-id')!;
+      expect(signals.volume.value).toBe(42);
+      expect(signals.mute.value).toBe(true);
+      expect(signals.solo.value).toBe(false);
+    });
+
+    it('falls back to the loudness-normalized volume when none was persisted', async () => {
+      vi.mocked(Tone.context.decodeAudioData).mockResolvedValueOnce(
+        mockAudioBuffer(),
+      );
+
+      const { initialVolume } = await service.restoreTrack(
+        'restored-id',
+        new ArrayBuffer(16),
+        0,
+      );
+
+      expect(service.getSignals('restored-id')!.volume.value).toBe(
+        initialVolume,
+      );
     });
 
     it('fires the onTrackCreated callback', async () => {
@@ -709,6 +749,25 @@ describe('TrackService', () => {
       expect(service.retrieveChannel(trackId)!.getEffectAmount('space')).toBe(
         55,
       );
+    });
+
+    // Same #212 class, extended to volume/mute/solo now that they persist
+    // and participate in undo/redo (follow-up to spec 004 M5).
+    it('recreated channel carries persisted volume/mute through undo-delete (#212 class)', async () => {
+      const { trackId } = await service.createTrack(new ArrayBuffer(8));
+      service.getSignals(trackId)!.volume.value = 33;
+      service.getSignals(trackId)!.mute.value = true;
+
+      // Delete-track flow
+      service.disposeSignals(trackId);
+      service.deleteChannel(trackId);
+
+      // Undo flow: projectPageEffects passes the restored Track's persisted
+      // volume/mute through to createSignals before recreating the channel.
+      service.createSignals(trackId, 33, undefined, true, false);
+      service.recreateChannel(trackId);
+
+      expect(service.retrieveChannel(trackId)!.mute).toBe(true);
     });
   });
 });
