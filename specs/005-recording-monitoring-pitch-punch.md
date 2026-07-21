@@ -1,8 +1,8 @@
 # 005 — Recording: input monitoring, live pitch, punch-in/out
 
-**Status:** Draft
+**Status:** Issues filed
 **Date:** 2026-07-21
-**Issues:** (filled by /spec-to-issues)
+**Issues:** #521 (tracking) → #522 (harness), #523 (drawer), #524 (monitoring), #525 (splice core), #526 (punch workflow), #527 (stretch: live pitch data path), #528 (stretch: live pitch overlay)
 
 ## Summary
 
