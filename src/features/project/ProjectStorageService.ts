@@ -23,6 +23,12 @@ export type SpectrogramStoreData = {
   frequencyBinCount: number;
   sampleRate: number;
   duration: number;
+  // Hash of the effect amounts this spectrogram was rendered from (spec 004
+  // M6 `hashEffectAmounts`). A mismatch against the track's current effects
+  // means the tiles are stale and need re-analysis. Absent on entries
+  // rendered before spec 004 (dry data — an empty-amounts hash is a safe
+  // stand-in, since M6 has not shipped a re-analysis workflow yet).
+  effectsParamsHash?: string;
 };
 
 export type MelodyStoreData = {

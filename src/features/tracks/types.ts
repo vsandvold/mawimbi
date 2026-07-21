@@ -1,3 +1,5 @@
+import { type EffectAmounts } from './EffectsChain';
+
 export type TrackId = string;
 
 export type TrackColor = {
@@ -13,4 +15,5 @@ export type Track = {
   index: number;
   instrument?: string;
   startTime?: number;
+  effects?: EffectAmounts;
 };

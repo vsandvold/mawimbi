@@ -16,6 +16,19 @@ export type EffectAmounts = Record<EffectId, number>;
 export const MIN_EFFECT_AMOUNT = 0;
 export const MAX_EFFECT_AMOUNT = 100;
 
+export const DEFAULT_EFFECT_AMOUNTS: EffectAmounts = {
+  space: MIN_EFFECT_AMOUNT,
+  echo: MIN_EFFECT_AMOUNT,
+  tone: MIN_EFFECT_AMOUNT,
+};
+
+// Stable string key for a set of amounts, not a cryptographic hash — spec
+// 004 M6 stores this alongside a track's persisted spectrogram to detect
+// whether a re-render is needed against the *current* effect settings.
+export function hashEffectAmounts(amounts: EffectAmounts): string {
+  return EFFECT_ORDER.map((effectId) => amounts[effectId]).join(':');
+}
+
 // Macro curves (spec 004 open question 2). Amount maps to wet/feedback/
 // cutoff only; the character parameters (decay, delay time) are fixed:
 // Tone.Reverb regenerates its impulse response asynchronously on every

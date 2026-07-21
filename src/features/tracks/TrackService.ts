@@ -13,7 +13,12 @@ import {
   type ReadonlySignal,
   type Signal,
 } from '@preact/signals-react';
-import { EFFECT_ORDER, MIN_EFFECT_AMOUNT, type EffectId } from './EffectsChain';
+import {
+  DEFAULT_EFFECT_AMOUNTS,
+  EFFECT_ORDER,
+  type EffectAmounts,
+  type EffectId,
+} from './EffectsChain';
 import { LoudnessNormalizer } from './LoudnessNormalizer';
 import MixerService, { type AudioChannel } from './MixerService';
 import type WorkletAnalyser from '../spectrogram/WorkletAnalyser';
@@ -189,11 +194,14 @@ class TrackService {
   }
 
   // Restores a track from persisted audio data using a known track ID.
-  // Unlike createTrack(), this does not generate a new ID.
+  // Unlike createTrack(), this does not generate a new ID. `effects` carries
+  // the project's persisted per-track amounts (if any) so the restored
+  // signals start at the user's settings instead of dry defaults.
   async restoreTrack(
     trackId: string,
     arrayBuffer: ArrayBuffer,
     startTime: number,
+    effects?: EffectAmounts,
   ): Promise<TrackCreationResult> {
     const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
     const blob = new Blob([arrayBuffer], { type: 'audio/*' });
@@ -218,7 +226,7 @@ class TrackService {
       startTime,
     });
 
-    this.createSignals(trackId, initialVolume);
+    this.createSignals(trackId, initialVolume, effects);
     this.onTrackCreated?.(trackId, audioBuffer);
 
     return { trackId, initialVolume };
@@ -226,15 +234,20 @@ class TrackService {
 
   // --- Track signal management ---
 
-  createSignals(trackId: TrackId, initialVolume?: number): TrackSignals {
+  createSignals(
+    trackId: TrackId,
+    initialVolume?: number,
+    effects?: EffectAmounts,
+  ): TrackSignals {
+    const initialEffects = effects ?? DEFAULT_EFFECT_AMOUNTS;
     const signals: TrackSignals = {
       volume: signal(initialVolume ?? DEFAULT_VOLUME),
       mute: signal(false),
       solo: signal(false),
       effects: {
-        space: signal(MIN_EFFECT_AMOUNT),
-        echo: signal(MIN_EFFECT_AMOUNT),
-        tone: signal(MIN_EFFECT_AMOUNT),
+        space: signal(initialEffects.space),
+        echo: signal(initialEffects.echo),
+        tone: signal(initialEffects.tone),
       },
     };
     this.signalStore.set(trackId, signals);

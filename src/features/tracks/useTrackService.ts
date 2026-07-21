@@ -11,6 +11,7 @@ import {
   focusTrack,
   unfocusTrack,
 } from './focusSignals';
+import { type EffectAmounts } from './EffectsChain';
 import { type TrackId } from './types';
 
 export function useTrackService() {
@@ -48,13 +49,17 @@ export function useTrackService() {
       trackId: string,
       arrayBuffer: ArrayBuffer,
       startTime: number,
-    ) => service.restoreTrack(trackId, arrayBuffer, startTime),
+      effects?: EffectAmounts,
+    ) => service.restoreTrack(trackId, arrayBuffer, startTime, effects),
 
     // --- Signal management ---
 
     getSignals: (trackId: TrackId) => service.getSignals(trackId),
-    createSignals: (trackId: TrackId, initialVolume?: number) =>
-      service.createSignals(trackId, initialVolume),
+    createSignals: (
+      trackId: TrackId,
+      initialVolume?: number,
+      effects?: EffectAmounts,
+    ) => service.createSignals(trackId, initialVolume, effects),
     disposeSignals: (trackId: TrackId) => service.disposeSignals(trackId),
 
     // --- Track data retrieval ---

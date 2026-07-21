@@ -252,11 +252,13 @@ describe('useRestoreAudio', () => {
       'track-1',
       expect.anything(),
       0,
+      undefined,
     );
     expect(mockRestoreTrack).toHaveBeenCalledWith(
       'track-2',
       expect.anything(),
       0,
+      undefined,
     );
   });
 
@@ -274,6 +276,26 @@ describe('useRestoreAudio', () => {
       'track-1',
       expect.anything(),
       3.5,
+      undefined,
+    );
+  });
+
+  it('passes persisted effect amounts from track metadata (spec 004 M5)', async () => {
+    const effects = { space: 40, echo: 0, tone: 60 };
+    const tracks = [createTrack({ trackId: 'track-1', effects })];
+    await saveAudioData('track-1', new ArrayBuffer(16));
+
+    const { result } = renderHook(() => useRestoreAudio(tracks));
+
+    await waitFor(() => {
+      expect(result.current).toBe(false);
+    });
+
+    expect(mockRestoreTrack).toHaveBeenCalledWith(
+      'track-1',
+      expect.anything(),
+      0,
+      effects,
     );
   });
 
