@@ -457,6 +457,41 @@ describe('useSpectrogramCache', () => {
       expect(stored!.effectsParamsHash).toBe('50:0:0');
     });
 
+    it('renders through the current effects for the very first analysis when no cached data exists at all and effects are already non-default', async () => {
+      // Regression: a commit can land while the mount-time dry analysis of
+      // a freshly-uploaded track is still in flight (a long track's CQT
+      // pass takes real time). The aborted-and-restarted effect then hits
+      // this "nothing cached anywhere" branch with non-default effects —
+      // it must not assume dry just because no prior entry exists.
+      mockGetEntry.mockReturnValueOnce(undefined).mockReturnValue(MOCK_ENTRY);
+
+      const renderedBuffer = mockAudioBuffer();
+      mockRenderTrackOffline.mockResolvedValue(renderedBuffer);
+      mockAnalyse.mockResolvedValue(undefined);
+      mockExtractMelodyInWorker.mockResolvedValue(MOCK_MELODY);
+
+      const dryBuffer = mockAudioBuffer();
+      renderHook(() =>
+        useSpectrogramCache('track-1', dryBuffer, COLOR, SPACE_50),
+      );
+
+      await waitFor(async () => {
+        const stored = await loadSpectrogramData('track-1');
+        expect(stored).not.toBeNull();
+      });
+
+      expect(mockRenderTrackOffline).toHaveBeenCalledWith(dryBuffer, SPACE_50);
+      expect(mockAnalyse).toHaveBeenCalledWith(
+        'track-1',
+        renderedBuffer,
+        COLOR,
+        '50:0:0',
+      );
+
+      const stored = await loadSpectrogramData('track-1');
+      expect(stored!.effectsParamsHash).toBe('50:0:0');
+    });
+
     it('treats a missing stored hash as dry, matching default (all-bypass) effects', async () => {
       mockGetEntry.mockReturnValueOnce(undefined).mockReturnValue(MOCK_ENTRY);
 

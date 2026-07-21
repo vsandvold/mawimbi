@@ -128,6 +128,14 @@ export function useSpectrogramCache(
 
     let cancelled = false;
 
+    // The dry buffer analyses directly; any non-default effects need a
+    // post-effect offline render first, whether this mount-time pass is
+    // restoring a stale entry or has no prior entry at all.
+    const renderForAnalysis = (): Promise<AudioBuffer> =>
+      effectsHash === DRY_EFFECTS_HASH
+        ? Promise.resolve(audioBuffer)
+        : renderTrackOffline(audioBuffer, effects);
+
     const loadOrAnalyse = async () => {
       // Check IndexedDB for previously stored spectrogram data
       const [storedSpectrogram, storedMelody] = await Promise.all([
@@ -154,7 +162,7 @@ export function useSpectrogramCache(
           // committed effects (e.g. the page reloaded mid-debounce) —
           // render and re-analyse once, immediately; no debounce needed
           // for a single mount-time correction.
-          const rendered = await renderTrackOffline(audioBuffer, effects);
+          const rendered = await renderForAnalysis();
           if (cancelled) return;
           await audioService.spectrogramCache.analyse(
             trackId,
@@ -194,13 +202,18 @@ export function useSpectrogramCache(
         return;
       }
 
-      // No cached data anywhere — full dry analysis. New tracks always
-      // start at DEFAULT_EFFECT_AMOUNTS, so this path is always the dry
-      // render; effect-driven refreshes happen later via the scheduler
-      // above, once the user commits a change.
+      // No cached data anywhere. New tracks always start at
+      // DEFAULT_EFFECT_AMOUNTS, so this is normally the dry render — but a
+      // commit can land while this very analysis is still in flight (a
+      // long track's CQT analysis takes real time; the effect above
+      // aborts via `cancelled` and re-enters here with the new
+      // `effectsHash`), so render through the current `effects` rather
+      // than assuming dry.
+      const rendered = await renderForAnalysis();
+      if (cancelled) return;
       await audioService.spectrogramCache.analyse(
         trackId,
-        audioBuffer,
+        rendered,
         color,
         effectsHash,
       );
