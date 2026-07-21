@@ -31,7 +31,11 @@ const Spectrogram = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const overlayRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const lastDrawnRef = useRef({ offset: -1, pps: -1, tileCount: -1 });
+  const lastDrawnRef = useRef<{
+    offset: number;
+    pps: number;
+    tiles: ImageBitmap[] | null;
+  }>({ offset: -1, pps: -1, tiles: null });
   const lastDrawnOverlayRef = useRef({
     offset: -1,
     pps: -1,
@@ -39,7 +43,7 @@ const Spectrogram = ({
   });
   const recordingBufferRef = useRef<RecordingBuffer | null>(null);
 
-  const { trackId, color } = track;
+  const { trackId, color, effects } = track;
 
   const playback = usePlaybackService();
   const recording = useRecordingService();
@@ -48,7 +52,7 @@ const Spectrogram = ({
     ? undefined
     : trackHook.retrieveAudioBuffer(trackId);
 
-  const entry = useSpectrogramCache(trackId, audioBuffer, color);
+  const entry = useSpectrogramCache(trackId, audioBuffer, color, effects);
 
   const startTime = isRecordingTrack
     ? 0
@@ -357,7 +361,7 @@ function drawTilesFrame(
   lastDrawnRef: React.MutableRefObject<{
     offset: number;
     pps: number;
-    tileCount: number;
+    tiles: ImageBitmap[] | null;
   }>,
 ): void {
   const contentLength = duration * pixelsPerSecond;
@@ -373,13 +377,13 @@ function drawTilesFrame(
     !needsResize &&
     trackBase === last.offset &&
     pixelsPerSecond === last.pps &&
-    tiles.length === last.tileCount
+    tiles === last.tiles
   ) {
     return;
   }
   last.offset = trackBase;
   last.pps = pixelsPerSecond;
-  last.tileCount = tiles.length;
+  last.tiles = tiles;
 
   if (needsResize) {
     canvas.width = win.width;

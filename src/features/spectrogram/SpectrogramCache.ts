@@ -8,9 +8,13 @@ export type TrackSpectrogramEntry = {
   data: SpectrogramData;
   tiles: ImageBitmap[];
   melody?: MelodyData;
+  // Hash of the effect amounts this entry was rendered from (spec 004 M6,
+  // hashEffectAmounts). Undefined means dry (pre-effects-refresh data, or
+  // never explicitly stamped) — callers treat that as the dry hash.
+  effectsParamsHash?: string;
 };
 
-type SpectrogramResult = { data: SpectrogramData; tiles: ImageBitmap[] };
+export type SpectrogramResult = { data: SpectrogramData; tiles: ImageBitmap[] };
 
 type PendingSpectrogramRequest = {
   kind: 'spectrogram';
@@ -37,25 +41,54 @@ class SpectrogramCache {
     trackId: string,
     audioBuffer: AudioBuffer,
     color: TrackColor,
+    effectsParamsHash?: string,
   ): Promise<void> {
-    let result: SpectrogramResult;
-    if (this.workerFailed) {
-      result = await this.analyseOnMainThread(audioBuffer, color);
-    } else {
-      try {
-        result = await this.analyseInWorker(audioBuffer, color);
-      } catch {
-        // Worker failed (e.g. OfflineAudioContext unavailable in worker scope)
-        this.workerFailed = true;
-        result = await this.analyseOnMainThread(audioBuffer, color);
-      }
-    }
-    this.entries.set(trackId, { data: result.data, tiles: result.tiles });
+    const result = await this.analyseToResult(audioBuffer, color);
+    this.setEntry(trackId, result.data, result.tiles, effectsParamsHash);
   }
 
-  restore(trackId: string, data: SpectrogramData, color: TrackColor): void {
+  // Runs the analysis (worker, falling back to main thread) without
+  // writing it to `entries` — the caller decides when/whether to commit
+  // the result. Used directly by the effects-refresh scheduler (spec 004
+  // M6, #494) so an in-flight analysis superseded by a newer commit can be
+  // discarded instead of clobbering a fresher result.
+  async analyseToResult(
+    audioBuffer: AudioBuffer,
+    color: TrackColor,
+  ): Promise<SpectrogramResult> {
+    if (this.workerFailed) {
+      return this.analyseOnMainThread(audioBuffer, color);
+    }
+    try {
+      return await this.analyseInWorker(audioBuffer, color);
+    } catch {
+      // Worker failed (e.g. OfflineAudioContext unavailable in worker scope)
+      this.workerFailed = true;
+      return this.analyseOnMainThread(audioBuffer, color);
+    }
+  }
+
+  // Writes an already-computed result into the cache, preserving any
+  // melody already extracted for this track (effects don't change the
+  // musical content, so a post-effect refresh must not drop it).
+  setEntry(
+    trackId: string,
+    data: SpectrogramData,
+    tiles: ImageBitmap[],
+    effectsParamsHash?: string,
+  ): void {
+    const melody = this.entries.get(trackId)?.melody;
+    this.entries.set(trackId, { data, tiles, melody, effectsParamsHash });
+  }
+
+  restore(
+    trackId: string,
+    data: SpectrogramData,
+    color: TrackColor,
+    effectsParamsHash?: string,
+  ): void {
     const tiles = renderTiles(data, color);
-    this.entries.set(trackId, { data, tiles });
+    this.setEntry(trackId, data, tiles, effectsParamsHash);
   }
 
   getEntry(trackId: string): TrackSpectrogramEntry | undefined {
