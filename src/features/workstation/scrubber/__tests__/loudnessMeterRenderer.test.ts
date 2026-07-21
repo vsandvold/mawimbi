@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeMeterRect } from '../loudnessMeterRenderer';
+import { computeBarCenterX, computeMeterRect } from '../loudnessMeterRenderer';
 
 describe('computeMeterRect', () => {
   it('uses the geometry-derived width fraction of the canvas width', () => {
@@ -51,5 +51,31 @@ describe('computeMeterRect', () => {
     const rect = computeMeterRect(2000, canvasHeight, 0.65);
 
     expect(rect.y + rect.height).toBe(canvasHeight);
+  });
+});
+
+describe('computeBarCenterX', () => {
+  it('centers bar 0 inside the rect, right of the border padding', () => {
+    const rect = computeMeterRect(1000, 400, 0.65);
+    const centerX = computeBarCenterX(rect, 100, 0);
+
+    expect(centerX).toBeGreaterThan(rect.x);
+    expect(centerX).toBeLessThan(rect.x + rect.width);
+  });
+
+  it('increases monotonically with bar index', () => {
+    const rect = computeMeterRect(1000, 400, 0.65);
+    const x0 = computeBarCenterX(rect, 100, 0);
+    const x50 = computeBarCenterX(rect, 100, 50);
+    const x99 = computeBarCenterX(rect, 100, 99);
+
+    expect(x50).toBeGreaterThan(x0);
+    expect(x99).toBeGreaterThan(x50);
+  });
+
+  it('returns the rect center for zero bars', () => {
+    const rect = computeMeterRect(1000, 400, 0.65);
+
+    expect(computeBarCenterX(rect, 0, 0)).toBe(rect.x + rect.width / 2);
   });
 });

@@ -94,6 +94,7 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
     pixelsPerSecond,
     isPinchingRef,
     isTrackCyclingRef,
+    tracks,
   });
 
   // The track-cycle gesture recognizer runs first so it can lock the axis

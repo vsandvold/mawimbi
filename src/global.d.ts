@@ -14,10 +14,16 @@ declare global {
      * pixel-math proxy this bridge exists to avoid, mawimbi#476). Never set
      * outside `import.meta.env.DEV`, so it does not exist on deployed
      * builds; e2e always runs against `npm start` (playwright.config.ts).
+     *
+     * `sampleRate` (mawimbi#484) lets the sparkle e2e reproduce the exact
+     * `computeNumberBins`/bar-count math the live CQT analyser uses to
+     * derive an expected sparkle x position, rather than assuming a sample
+     * rate the test environment may not actually use.
      */
     __mawimbi?: {
       spectrogramCache: Pick<SpectrogramCache, 'getMelody'>;
       playback: Pick<PlaybackService, 'getEngineTime'>;
+      sampleRate: number;
     };
   }
 }

@@ -4,12 +4,18 @@ import {
   renderLoudnessMeterFrame,
   renderLoudnessMeterIdle,
 } from './loudnessMeterRenderer';
+import { type ActiveNote } from './sparkleSimulation';
 
 export type LoudnessMeterPlayheadHandle = {
   // `loudness` (RMS, 0-1) is accepted but not yet read here — reserved for
   // the envelope-scaling follow-up (spec 003 Q3 dissent): bar shape stays
   // the relative spectrum, this would scale the overall envelope.
-  render: (frequencyData: Uint8Array | null, loudness: number) => void;
+  render: (
+    frequencyData: Uint8Array | null,
+    loudness: number,
+    activeNotes: ActiveNote[],
+    engineTime: number,
+  ) => void;
   renderIdle: () => void;
   resize: (width: number, height: number) => void;
 };
@@ -31,7 +37,12 @@ const LoudnessMeterPlayhead = forwardRef<
   const barSmootherRef = useRef(new BarSmoother());
 
   useImperativeHandle(ref, () => ({
-    render(frequencyData: Uint8Array | null) {
+    render(
+      frequencyData: Uint8Array | null,
+      _loudness: number,
+      activeNotes: ActiveNote[],
+      engineTime: number,
+    ) {
       const canvas = canvasRef.current;
       if (!canvas) return;
       const ctx = canvas.getContext('2d');
@@ -44,6 +55,8 @@ const LoudnessMeterPlayhead = forwardRef<
         canvas.height,
         meterWidthFraction,
         barSmootherRef.current,
+        activeNotes,
+        engineTime,
       );
     },
 
