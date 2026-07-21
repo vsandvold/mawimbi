@@ -20,7 +20,7 @@ const Timeline = ({
   tracks,
 }: TimelineProps) => {
   const { isRecording } = useRecordingService();
-  const { mutedTracks, focusedTracks } = useTrackService();
+  const { mutedTracks, focusedTracks, dragTargetTrackId } = useTrackService();
   const { activeEditTrackId } = useEditMode();
 
   const recordingTrack: Track = {
@@ -37,6 +37,7 @@ const Timeline = ({
           track,
           mutedTracks,
           focusedTracks,
+          dragTargetTrackId,
           activeEditTrackId,
         );
         return (
@@ -66,6 +67,7 @@ function getTimelineTrackClass(
   track: Track,
   mutedTracks: TrackId[],
   focusedTracks: TrackId[],
+  dragTargetTrackId: TrackId | null,
   activeEditTrackId: TrackId | null,
 ) {
   // Edit-mode classes replace focus and mute classes entirely (spec 004,
@@ -83,14 +85,21 @@ function getTimelineTrackClass(
 
   const isMuted = mutedTracks.includes(track.trackId);
   const isForeground = focusedTracks.includes(track.trackId);
-  const isBackground = focusedTracks.length > 0 && !isForeground;
-  // The lift wins over mute: touching a muted channel's fader or dragging
-  // it to reorder reveals its track for the interaction (same principle
-  // as edit mode) — otherwise every other track dims with nothing lifted
-  // to explain it.
+  // Reorder drag's live "over" target — an intermediate lift between
+  // foreground and background so the pending-swap preview reads as
+  // moving between tracks, not a single static highlight for the whole
+  // drag (the dragged track alone would fully occlude a same-tier swap).
+  const isDragTarget = !isForeground && track.trackId === dragTargetTrackId;
+  const isBackground =
+    focusedTracks.length > 0 && !isForeground && !isDragTarget;
+  // Lift wins over mute (foreground, then drag-target): touching or
+  // dragging a muted channel reveals its track for the interaction (same
+  // principle as edit mode) — otherwise the timeline dims with nothing
+  // lifted to explain it.
   return classNames('timeline__track', {
-    'timeline__track--muted': isMuted && !isForeground,
+    'timeline__track--muted': isMuted && !isForeground && !isDragTarget,
     'timeline__track--foreground': isForeground,
+    'timeline__track--drag-target': isDragTarget,
     'timeline__track--background': !isMuted && isBackground,
   });
 }

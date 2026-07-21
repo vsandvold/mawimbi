@@ -167,15 +167,32 @@ test.describe('Mixer-driven timeline focus', () => {
 
     // The dragged channel is the newest track = last timeline track.
     await expect(tracks.last()).toHaveClass(/timeline__track--foreground/);
+    // Not yet over the other channel's row — flat background dim, no live
+    // target highlight.
     await expect(tracks.first()).toHaveClass(/timeline__track--background/);
+    await expect(tracks.first()).not.toHaveClass(
+      /timeline__track--drag-target/,
+    );
 
     await pacedMouseMove(page, midDrag, {
       x: targetBox.x + targetBox.width / 2,
       y: targetBox.y + targetBox.height / 2,
     });
+
+    // Crossing into the other channel's row live-highlights its track —
+    // an intermediate tier between background and foreground, not the
+    // flat dim every other (non-crossed) track still gets.
+    await expect(tracks.first()).toHaveClass(/timeline__track--drag-target/);
+    await expect(tracks.first()).not.toHaveClass(
+      /timeline__track--background/,
+    );
+
     await page.mouse.up();
 
     await expectFocusCleared(page);
+    await expect(tracks.first()).not.toHaveClass(
+      /timeline__track--drag-target/,
+    );
   });
 
   test('drag-reordering a muted channel reveals and lifts its track', async ({

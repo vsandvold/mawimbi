@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   DndContext,
   DragEndEvent,
+  DragOverEvent,
   PointerSensor,
   useSensor,
   useSensors,
@@ -16,7 +17,11 @@ import { useTrackService } from '../tracks/useTrackService';
 // Command functions, not signals — module-scope import keeps the drag
 // effect's dependencies compile-time stable and avoids building the full
 // bridge-hook object on every row render during a drag.
-import { focusTrack, unfocusTrack } from '../tracks/focusSignals';
+import {
+  focusTrack,
+  setDragTargetTrackId,
+  unfocusTrack,
+} from '../tracks/focusSignals';
 import { type Track, type TrackId } from '../tracks/types';
 import { MOVE_TRACK } from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
@@ -48,7 +53,22 @@ const Mixer = ({ tracks }: MixerProps) => {
     [],
   );
 
+  // Live preview of the pending swap: as the dragged channel crosses over
+  // another channel's row (dnd-kit's onDragOver fires continuously, not
+  // just at drop), that other track gets an intermediate highlight in the
+  // timeline so the "who would this swap with" preview reads as live
+  // motion, not a single static lift for the whole gesture.
+  function handleDragOver(event: DragOverEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) {
+      setDragTargetTrackId(null);
+      return;
+    }
+    setDragTargetTrackId(over.id as TrackId);
+  }
+
   function handleDragEnd(event: DragEndEvent) {
+    setDragTargetTrackId(null);
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -60,8 +80,26 @@ const Mixer = ({ tracks }: MixerProps) => {
     projectDispatch([MOVE_TRACK, { fromIndex, toIndex }]);
   }
 
+  function handleDragCancel() {
+    setDragTargetTrackId(null);
+  }
+
+  // Belt-and-suspenders: if the whole mixer sheet unmounts mid-drag (e.g.
+  // closed via a keyboard-activated toggle behind it), no dnd-kit callback
+  // fires at all — clear the target directly so it can't outlive this
+  // component. SortableChannelItem's own effect covers the dragged
+  // track's focus the same way.
+  useEffect(() => {
+    return () => setDragTargetTrackId(null);
+  }, []);
+
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
+    >
       <SortableContext
         items={reversedIds}
         strategy={verticalListSortingStrategy}

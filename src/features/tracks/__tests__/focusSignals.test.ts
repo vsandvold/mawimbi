@@ -2,6 +2,8 @@ import {
   getFocusedTracks,
   focusTrack,
   unfocusTrack,
+  getDragTargetTrackId,
+  setDragTargetTrackId,
   resetFocusSignals,
 } from '../focusSignals';
 
@@ -57,6 +59,32 @@ describe('focusSignals', () => {
     });
   });
 
+  describe('dragTargetTrackId', () => {
+    it('starts null', () => {
+      expect(getDragTargetTrackId()).toBeNull();
+    });
+
+    it('sets the drag target', () => {
+      setDragTargetTrackId('track-1');
+
+      expect(getDragTargetTrackId()).toBe('track-1');
+    });
+
+    it('moves the target when set again', () => {
+      setDragTargetTrackId('track-1');
+      setDragTargetTrackId('track-2');
+
+      expect(getDragTargetTrackId()).toBe('track-2');
+    });
+
+    it('clears the target', () => {
+      setDragTargetTrackId('track-1');
+      setDragTargetTrackId(null);
+
+      expect(getDragTargetTrackId()).toBeNull();
+    });
+  });
+
   describe('resetFocusSignals', () => {
     it('clears all focused tracks', () => {
       focusTrack('track-1');
@@ -65,6 +93,14 @@ describe('focusSignals', () => {
       resetFocusSignals();
 
       expect(getFocusedTracks()).toEqual([]);
+    });
+
+    it('clears the drag target', () => {
+      setDragTargetTrackId('track-1');
+
+      resetFocusSignals();
+
+      expect(getDragTargetTrackId()).toBeNull();
     });
   });
 });

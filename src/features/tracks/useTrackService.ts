@@ -26,6 +26,9 @@ export function useTrackService() {
     get focusedTracks(): TrackId[] {
       return focusSignals.focusedTracks.value;
     },
+    get dragTargetTrackId(): TrackId | null {
+      return focusSignals.dragTargetTrackId.value;
+    },
 
     // --- Focus actions ---
 

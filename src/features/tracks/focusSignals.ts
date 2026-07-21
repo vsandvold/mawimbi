@@ -8,9 +8,18 @@ import { type TrackId } from './types';
 // state self-heals on the next release because unfocus is idempotent.
 const _focusedTracks = signal<TrackId[]>([]);
 
+// The reorder drag's live "over" target — which other track the dragged
+// channel currently sits above, updated continuously as the drag crosses
+// mixer rows. Distinct from focusedTracks (which stays pinned to the
+// literally-dragged track for the whole gesture): this is what makes the
+// preview feel live, since the dragged track alone would fully occlude
+// everything behind it if it stayed opaque throughout.
+const _dragTargetTrackId = signal<TrackId | null>(null);
+
 // Narrow channel for reactive consumers (hooks)
 export const signals = {
   focusedTracks: _focusedTracks as ReadonlySignal<TrackId[]>,
+  dragTargetTrackId: _dragTargetTrackId as ReadonlySignal<TrackId | null>,
 };
 
 // Plain getter for non-reactive consumers (tests, workflows)
@@ -28,6 +37,15 @@ export function unfocusTrack(trackId: TrackId): void {
   _focusedTracks.value = _focusedTracks.value.filter((id) => id !== trackId);
 }
 
+export function getDragTargetTrackId(): TrackId | null {
+  return _dragTargetTrackId.value;
+}
+
+export function setDragTargetTrackId(trackId: TrackId | null): void {
+  _dragTargetTrackId.value = trackId;
+}
+
 export function resetFocusSignals(): void {
   _focusedTracks.value = [];
+  _dragTargetTrackId.value = null;
 }
