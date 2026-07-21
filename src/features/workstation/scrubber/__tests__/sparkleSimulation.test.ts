@@ -10,7 +10,9 @@ describe('selectActiveNotes', () => {
   const note = { startTime: 1, endTime: 2, midiNote: 60, confidence: 1 };
 
   it('includes a note of an unmuted track active at the given time', () => {
-    const tracks = [{ trackId: 'a', muted: false, notes: [note] }];
+    const tracks = [
+      { trackId: 'a', muted: false, startTime: 0, notes: [note] },
+    ];
 
     expect(selectActiveNotes(tracks, 1.5)).toEqual([
       { trackId: 'a', midiNote: 60, startTime: 1 },
@@ -18,22 +20,41 @@ describe('selectActiveNotes', () => {
   });
 
   it('excludes notes of a muted track', () => {
-    const tracks = [{ trackId: 'a', muted: true, notes: [note] }];
+    const tracks = [{ trackId: 'a', muted: true, startTime: 0, notes: [note] }];
 
     expect(selectActiveNotes(tracks, 1.5)).toHaveLength(0);
   });
 
   it('excludes notes outside the active time window', () => {
-    const tracks = [{ trackId: 'a', muted: false, notes: [note] }];
+    const tracks = [
+      { trackId: 'a', muted: false, startTime: 0, notes: [note] },
+    ];
 
     expect(selectActiveNotes(tracks, 0.5)).toHaveLength(0);
     expect(selectActiveNotes(tracks, 2.5)).toHaveLength(0);
   });
 
   it('skips tracks with no melody yet', () => {
-    const tracks = [{ trackId: 'a', muted: false, notes: undefined }];
+    const tracks = [
+      { trackId: 'a', muted: false, startTime: 0, notes: undefined },
+    ];
 
     expect(selectActiveNotes(tracks, 1)).toHaveLength(0);
+  });
+
+  it('offsets note times by the track own timeline start (an overdub recorded partway through)', () => {
+    // Track starts at t=10 in the global timeline; its melody note is still
+    // 0-based within the track's own buffer (startTime 1, endTime 2) — the
+    // same correction Spectrogram.tsx's piano-roll overlay applies
+    // (`trackPlayheadTime = playheadTime - startTime`).
+    const tracks = [
+      { trackId: 'a', muted: false, startTime: 10, notes: [note] },
+    ];
+
+    expect(selectActiveNotes(tracks, 1.5)).toHaveLength(0);
+    expect(selectActiveNotes(tracks, 11.5)).toEqual([
+      { trackId: 'a', midiNote: 60, startTime: 11 },
+    ]);
   });
 });
 

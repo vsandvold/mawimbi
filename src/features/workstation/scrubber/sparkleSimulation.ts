@@ -25,6 +25,14 @@ export type SparkleParticle = {
 export type TrackMelodyInput = {
   trackId: string;
   muted: boolean;
+  /** The track's own offset within the global timeline (0 for an uploaded
+      track; nonzero for an overdub recorded partway through, `Track.startTime`
+      in `tracks/types.ts`). `MelodyNote.startTime`/`endTime` are always
+      0-based within the track's own buffer (`MelodyExtractor.ts`), so this
+      converts them to engine time before comparing — the same correction
+      the piano-roll melody overlay already applies
+      (`Spectrogram.tsx`'s `trackPlayheadTime = playheadTime - startTime`). */
+  startTime: number;
   notes: MelodyNote[] | undefined;
 };
 
@@ -53,11 +61,13 @@ export function selectActiveNotes(
   for (const track of tracks) {
     if (track.muted || !track.notes) continue;
     for (const note of track.notes) {
-      if (note.startTime <= engineTime && engineTime <= note.endTime) {
+      const noteStart = note.startTime + track.startTime;
+      const noteEnd = note.endTime + track.startTime;
+      if (noteStart <= engineTime && engineTime <= noteEnd) {
         active.push({
           trackId: track.trackId,
           midiNote: note.midiNote,
-          startTime: note.startTime,
+          startTime: noteStart,
         });
       }
     }

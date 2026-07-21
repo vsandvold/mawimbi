@@ -171,6 +171,7 @@ export function useScrubberScroll({
           tracks.map((track) => ({
             trackId: track.trackId,
             muted: trackHook.mutedTracks.includes(track.trackId),
+            startTime: track.startTime ?? 0,
             notes: audioService.spectrogramCache.getMelody(track.trackId)
               ?.notes,
           })),
