@@ -1,5 +1,10 @@
 import { DEFAULT_EFFECT_AMOUNTS, type EffectId } from '../tracks/EffectsChain';
-import { type Track, type TrackColor, type TrackId } from '../tracks/types';
+import {
+  DEFAULT_VOLUME,
+  type Track,
+  type TrackColor,
+  type TrackId,
+} from '../tracks/types';
 
 export type { Track, TrackColor, TrackId };
 
@@ -38,6 +43,21 @@ type SetTrackEffectPayload = {
   amount: number;
 };
 
+type SetTrackVolumePayload = {
+  trackId: TrackId;
+  volume: number;
+};
+
+type SetTrackMutePayload = {
+  trackId: TrackId;
+  mute: boolean;
+};
+
+type SetTrackSoloPayload = {
+  trackId: TrackId;
+  solo: boolean;
+};
+
 type RenameProjectPayload = {
   title: string;
 };
@@ -48,6 +68,9 @@ export type ProjectAction =
   | [typeof MOVE_TRACK, MoveTrackPayload]
   | [typeof SET_INSTRUMENT, SetInstrumentPayload]
   | [typeof SET_TRACK_EFFECT, SetTrackEffectPayload]
+  | [typeof SET_TRACK_VOLUME, SetTrackVolumePayload]
+  | [typeof SET_TRACK_MUTE, SetTrackMutePayload]
+  | [typeof SET_TRACK_SOLO, SetTrackSoloPayload]
   | [typeof RENAME_PROJECT, RenameProjectPayload];
 
 export const COLOR_PALETTE: TrackColor[] = [
@@ -63,6 +86,9 @@ export const DELETE_TRACK = 'DELETE_TRACK';
 export const MOVE_TRACK = 'MOVE_TRACK';
 export const SET_INSTRUMENT = 'SET_INSTRUMENT';
 export const SET_TRACK_EFFECT = 'SET_TRACK_EFFECT';
+export const SET_TRACK_VOLUME = 'SET_TRACK_VOLUME';
+export const SET_TRACK_MUTE = 'SET_TRACK_MUTE';
+export const SET_TRACK_SOLO = 'SET_TRACK_SOLO';
 export const RENAME_PROJECT = 'RENAME_PROJECT';
 
 export function projectReducer(
@@ -80,6 +106,17 @@ export function projectReducer(
       return setInstrument(state, action[1]);
     case SET_TRACK_EFFECT:
       return setTrackEffect(state, action[1]);
+    case SET_TRACK_VOLUME:
+      return setTrackField(
+        state,
+        action[1].trackId,
+        'volume',
+        action[1].volume,
+      );
+    case SET_TRACK_MUTE:
+      return setTrackField(state, action[1].trackId, 'mute', action[1].mute);
+    case SET_TRACK_SOLO:
+      return setTrackField(state, action[1].trackId, 'solo', action[1].solo);
     case RENAME_PROJECT:
       return { ...state, title: action[1].title };
     default:
@@ -112,6 +149,27 @@ export function reverseProjectAction(
         effectId
       ];
       return [SET_TRACK_EFFECT, { trackId, effectId, amount: previousAmount }];
+    }
+    case SET_TRACK_VOLUME: {
+      const { trackId } = action[1];
+      const track = state.tracks.find((t) => t.trackId === trackId);
+      if (!track) return null;
+      return [
+        SET_TRACK_VOLUME,
+        { trackId, volume: track.volume ?? DEFAULT_VOLUME },
+      ];
+    }
+    case SET_TRACK_MUTE: {
+      const { trackId } = action[1];
+      const track = state.tracks.find((t) => t.trackId === trackId);
+      if (!track) return null;
+      return [SET_TRACK_MUTE, { trackId, mute: track.mute ?? false }];
+    }
+    case SET_TRACK_SOLO: {
+      const { trackId } = action[1];
+      const track = state.tracks.find((t) => t.trackId === trackId);
+      if (!track) return null;
+      return [SET_TRACK_SOLO, { trackId, solo: track.solo ?? false }];
     }
     case RENAME_PROJECT:
       return null;
@@ -172,6 +230,20 @@ function setInstrument(
     ...state,
     tracks: state.tracks.map((track) =>
       track.trackId === trackId ? { ...track, instrument } : track,
+    ),
+  };
+}
+
+function setTrackField<K extends 'volume' | 'mute' | 'solo'>(
+  state: ProjectState,
+  trackId: TrackId,
+  field: K,
+  value: Track[K],
+): ProjectState {
+  return {
+    ...state,
+    tracks: state.tracks.map((track) =>
+      track.trackId === trackId ? { ...track, [field]: value } : track,
     ),
   };
 }

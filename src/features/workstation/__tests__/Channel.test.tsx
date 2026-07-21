@@ -97,6 +97,31 @@ it('cycles from mute to on on third click', () => {
   expect(signals.solo.value).toBe(false);
 });
 
+it('dispatches SET_TRACK_SOLO when cycling from on to solo', () => {
+  const { getByTitle } = render(<Channel {...defaultProps} />);
+
+  fireEvent.click(getByTitle('On'));
+
+  expect(mockProjectDispatch).toHaveBeenCalledWith([
+    'SET_TRACK_SOLO',
+    { trackId: 'track-1', solo: true },
+  ]);
+});
+
+it('dispatches SET_TRACK_MUTE when cycling from mute to on', () => {
+  const signals = trackService.getSignals('track-1')!;
+  signals.mute.value = true;
+
+  const { getByTitle } = render(<Channel {...defaultProps} />);
+
+  fireEvent.click(getByTitle('Muted'));
+
+  expect(mockProjectDispatch).toHaveBeenCalledWith([
+    'SET_TRACK_MUTE',
+    { trackId: 'track-1', mute: false },
+  ]);
+});
+
 it('shows Muted title when muted', () => {
   const signals = trackService.getSignals('track-1')!;
   signals.mute.value = true;

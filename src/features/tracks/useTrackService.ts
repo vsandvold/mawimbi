@@ -12,6 +12,7 @@ import {
   unfocusTrack,
 } from './focusSignals';
 import { type EffectAmounts } from './EffectsChain';
+import { type TrackPersistedControls } from './TrackService';
 import { type TrackId } from './types';
 
 export function useTrackService() {
@@ -49,8 +50,8 @@ export function useTrackService() {
       trackId: string,
       arrayBuffer: ArrayBuffer,
       startTime: number,
-      effects?: EffectAmounts,
-    ) => service.restoreTrack(trackId, arrayBuffer, startTime, effects),
+      persisted?: TrackPersistedControls,
+    ) => service.restoreTrack(trackId, arrayBuffer, startTime, persisted),
 
     // --- Signal management ---
 
@@ -59,7 +60,9 @@ export function useTrackService() {
       trackId: TrackId,
       initialVolume?: number,
       effects?: EffectAmounts,
-    ) => service.createSignals(trackId, initialVolume, effects),
+      mute?: boolean,
+      solo?: boolean,
+    ) => service.createSignals(trackId, initialVolume, effects, mute, solo),
     disposeSignals: (trackId: TrackId) => service.disposeSignals(trackId),
 
     // --- Track data retrieval ---

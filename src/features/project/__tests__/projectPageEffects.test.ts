@@ -247,18 +247,24 @@ describe('useRestoreAudio', () => {
       expect(result.current).toBe(false);
     });
 
+    const emptyPersisted = {
+      effects: undefined,
+      volume: undefined,
+      mute: undefined,
+      solo: undefined,
+    };
     expect(mockRestoreTrack).toHaveBeenCalledTimes(2);
     expect(mockRestoreTrack).toHaveBeenCalledWith(
       'track-1',
       expect.anything(),
       0,
-      undefined,
+      emptyPersisted,
     );
     expect(mockRestoreTrack).toHaveBeenCalledWith(
       'track-2',
       expect.anything(),
       0,
-      undefined,
+      emptyPersisted,
     );
   });
 
@@ -276,7 +282,7 @@ describe('useRestoreAudio', () => {
       'track-1',
       expect.anything(),
       3.5,
-      undefined,
+      expect.objectContaining({}),
     );
   });
 
@@ -295,7 +301,27 @@ describe('useRestoreAudio', () => {
       'track-1',
       expect.anything(),
       0,
-      effects,
+      expect.objectContaining({ effects }),
+    );
+  });
+
+  it('passes persisted volume/mute/solo from track metadata', async () => {
+    const tracks = [
+      createTrack({ trackId: 'track-1', volume: 42, mute: true, solo: false }),
+    ];
+    await saveAudioData('track-1', new ArrayBuffer(16));
+
+    const { result } = renderHook(() => useRestoreAudio(tracks));
+
+    await waitFor(() => {
+      expect(result.current).toBe(false);
+    });
+
+    expect(mockRestoreTrack).toHaveBeenCalledWith(
+      'track-1',
+      expect.anything(),
+      0,
+      expect.objectContaining({ volume: 42, mute: true, solo: false }),
     );
   });
 
