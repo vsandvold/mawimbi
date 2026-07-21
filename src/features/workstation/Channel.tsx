@@ -48,8 +48,16 @@ const Channel = ({
   const { trackId, color } = track;
   const dispatch = useProjectDispatch();
 
-  const { volume, mute, solo, startFocus, endFocus, updateVolume, cycleState } =
-    useChannelControls(trackId);
+  const {
+    volume,
+    mute,
+    solo,
+    startFocus,
+    endFocus,
+    updateVolume,
+    commitVolume,
+    cycleState,
+  } = useChannelControls(trackId);
 
   const { getClassification, getClassificationState, downloadProgress } =
     useClassificationService();
@@ -68,6 +76,10 @@ const Channel = ({
 
   const handleValueChange = (values: number[]) => {
     updateVolume(values[0]);
+  };
+
+  const handleValueCommit = (values: number[]) => {
+    commitVolume(values[0]);
   };
 
   const handleFocusPointerDown = (event: React.PointerEvent) => {
@@ -162,10 +174,11 @@ const Channel = ({
       >
         <Slider
           className="channel-slider"
-          defaultValue={[volume]}
+          value={[volume]}
           min={0}
           max={100}
           onValueChange={handleValueChange}
+          onValueCommit={handleValueCommit}
         />
       </div>
       <div className="channel__move" {...dragHandleProps}>

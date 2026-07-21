@@ -1,5 +1,10 @@
 import { DEFAULT_EFFECT_AMOUNTS, type EffectId } from '../tracks/EffectsChain';
-import { type Track, type TrackColor, type TrackId } from '../tracks/types';
+import {
+  DEFAULT_VOLUME,
+  type Track,
+  type TrackColor,
+  type TrackId,
+} from '../tracks/types';
 
 export type { Track, TrackColor, TrackId };
 
@@ -38,6 +43,20 @@ type SetTrackEffectPayload = {
   amount: number;
 };
 
+type SetTrackVolumePayload = {
+  trackId: TrackId;
+  volume: number;
+};
+
+// One action for both fields — the mute/solo cycle (on → solo → mute → on)
+// changes both in a single user gesture, and two separate dispatches would
+// push two undo-stack entries for one click, needing two undos to reverse.
+type SetTrackMuteSoloPayload = {
+  trackId: TrackId;
+  mute: boolean;
+  solo: boolean;
+};
+
 type RenameProjectPayload = {
   title: string;
 };
@@ -48,6 +67,8 @@ export type ProjectAction =
   | [typeof MOVE_TRACK, MoveTrackPayload]
   | [typeof SET_INSTRUMENT, SetInstrumentPayload]
   | [typeof SET_TRACK_EFFECT, SetTrackEffectPayload]
+  | [typeof SET_TRACK_VOLUME, SetTrackVolumePayload]
+  | [typeof SET_TRACK_MUTE_SOLO, SetTrackMuteSoloPayload]
   | [typeof RENAME_PROJECT, RenameProjectPayload];
 
 export const COLOR_PALETTE: TrackColor[] = [
@@ -63,6 +84,8 @@ export const DELETE_TRACK = 'DELETE_TRACK';
 export const MOVE_TRACK = 'MOVE_TRACK';
 export const SET_INSTRUMENT = 'SET_INSTRUMENT';
 export const SET_TRACK_EFFECT = 'SET_TRACK_EFFECT';
+export const SET_TRACK_VOLUME = 'SET_TRACK_VOLUME';
+export const SET_TRACK_MUTE_SOLO = 'SET_TRACK_MUTE_SOLO';
 export const RENAME_PROJECT = 'RENAME_PROJECT';
 
 export function projectReducer(
@@ -80,6 +103,10 @@ export function projectReducer(
       return setInstrument(state, action[1]);
     case SET_TRACK_EFFECT:
       return setTrackEffect(state, action[1]);
+    case SET_TRACK_VOLUME:
+      return setTrackVolume(state, action[1]);
+    case SET_TRACK_MUTE_SOLO:
+      return setTrackMuteSolo(state, action[1]);
     case RENAME_PROJECT:
       return { ...state, title: action[1].title };
     default:
@@ -112,6 +139,28 @@ export function reverseProjectAction(
         effectId
       ];
       return [SET_TRACK_EFFECT, { trackId, effectId, amount: previousAmount }];
+    }
+    case SET_TRACK_VOLUME: {
+      const { trackId } = action[1];
+      const track = state.tracks.find((t) => t.trackId === trackId);
+      if (!track) return null;
+      return [
+        SET_TRACK_VOLUME,
+        { trackId, volume: track.volume ?? DEFAULT_VOLUME },
+      ];
+    }
+    case SET_TRACK_MUTE_SOLO: {
+      const { trackId } = action[1];
+      const track = state.tracks.find((t) => t.trackId === trackId);
+      if (!track) return null;
+      return [
+        SET_TRACK_MUTE_SOLO,
+        {
+          trackId,
+          mute: track.mute ?? false,
+          solo: track.solo ?? false,
+        },
+      ];
     }
     case RENAME_PROJECT:
       return null;
@@ -172,6 +221,30 @@ function setInstrument(
     ...state,
     tracks: state.tracks.map((track) =>
       track.trackId === trackId ? { ...track, instrument } : track,
+    ),
+  };
+}
+
+function setTrackVolume(
+  state: ProjectState,
+  { trackId, volume }: SetTrackVolumePayload,
+): ProjectState {
+  return {
+    ...state,
+    tracks: state.tracks.map((track) =>
+      track.trackId === trackId ? { ...track, volume } : track,
+    ),
+  };
+}
+
+function setTrackMuteSolo(
+  state: ProjectState,
+  { trackId, mute, solo }: SetTrackMuteSoloPayload,
+): ProjectState {
+  return {
+    ...state,
+    tracks: state.tracks.map((track) =>
+      track.trackId === trackId ? { ...track, mute, solo } : track,
     ),
   };
 }

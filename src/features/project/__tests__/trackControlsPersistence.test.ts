@@ -108,3 +108,29 @@ describe('effect settings persistence (spec 004 M5)', () => {
     expect(loaded!.effectsParamsHash).not.toBe(currentHash);
   });
 });
+
+describe('volume/mute/solo persistence (follow-up to spec 004 M5)', () => {
+  it("round-trips a track's volume/mute/solo through project save/load", async () => {
+    const stored = createStoredProject({
+      tracks: [createTrack({ volume: 42, mute: true, solo: false })],
+    });
+
+    await saveProject(stored);
+    const loaded = await loadProject('project-1');
+
+    expect(loaded!.tracks[0].volume).toBe(42);
+    expect(loaded!.tracks[0].mute).toBe(true);
+    expect(loaded!.tracks[0].solo).toBe(false);
+  });
+
+  it('leaves tracks with no volume/mute/solo set as undefined (pre-existing data)', async () => {
+    const stored = createStoredProject({ tracks: [createTrack()] });
+
+    await saveProject(stored);
+    const loaded = await loadProject('project-1');
+
+    expect(loaded!.tracks[0].volume).toBeUndefined();
+    expect(loaded!.tracks[0].mute).toBeUndefined();
+    expect(loaded!.tracks[0].solo).toBeUndefined();
+  });
+});

@@ -22,7 +22,7 @@ import {
 import { LoudnessNormalizer } from './LoudnessNormalizer';
 import MixerService, { type AudioChannel } from './MixerService';
 import type WorkletAnalyser from '../spectrogram/WorkletAnalyser';
-import { type TrackId } from './types';
+import { DEFAULT_VOLUME, type TrackId } from './types';
 
 export type TrackSignals = {
   volume: Signal<number>;
@@ -51,7 +51,16 @@ type Context = {
 
 type TrackCreatedCallback = (trackId: string, audioBuffer: AudioBuffer) => void;
 
-const DEFAULT_VOLUME = 100;
+// The project's persisted per-track mixer/effects settings, if the user
+// ever changed them from defaults — read by restoreTrack to seed the live
+// signals with the user's settings instead of dry/loudness-normalized
+// defaults on page reload or undo-delete restore.
+export type TrackPersistedControls = {
+  effects?: EffectAmounts;
+  volume?: number;
+  mute?: boolean;
+  solo?: boolean;
+};
 
 // Sonic counterpart of edit mode's visual background dim (spec 004):
 // non-active tracks drop by this much so the edited track reads as the
@@ -194,14 +203,15 @@ class TrackService {
   }
 
   // Restores a track from persisted audio data using a known track ID.
-  // Unlike createTrack(), this does not generate a new ID. `effects` carries
-  // the project's persisted per-track amounts (if any) so the restored
-  // signals start at the user's settings instead of dry defaults.
+  // Unlike createTrack(), this does not generate a new ID. `persisted`
+  // carries the project's persisted per-track settings (if any) so the
+  // restored signals start at the user's settings instead of dry/
+  // loudness-normalized defaults.
   async restoreTrack(
     trackId: string,
     arrayBuffer: ArrayBuffer,
     startTime: number,
-    effects?: EffectAmounts,
+    persisted?: TrackPersistedControls,
   ): Promise<TrackCreationResult> {
     const audioBuffer = await this.context.decodeAudioData(arrayBuffer);
     const blob = new Blob([arrayBuffer], { type: 'audio/*' });
@@ -226,7 +236,13 @@ class TrackService {
       startTime,
     });
 
-    this.createSignals(trackId, initialVolume, effects);
+    this.createSignals(
+      trackId,
+      persisted?.volume ?? initialVolume,
+      persisted?.effects,
+      persisted?.mute,
+      persisted?.solo,
+    );
     this.onTrackCreated?.(trackId, audioBuffer);
 
     return { trackId, initialVolume };
@@ -238,12 +254,14 @@ class TrackService {
     trackId: TrackId,
     initialVolume?: number,
     effects?: EffectAmounts,
+    mute?: boolean,
+    solo?: boolean,
   ): TrackSignals {
     const initialEffects = effects ?? DEFAULT_EFFECT_AMOUNTS;
     const signals: TrackSignals = {
       volume: signal(initialVolume ?? DEFAULT_VOLUME),
-      mute: signal(false),
-      solo: signal(false),
+      mute: signal(mute ?? false),
+      solo: signal(solo ?? false),
       effects: {
         space: signal(initialEffects.space),
         echo: signal(initialEffects.echo),

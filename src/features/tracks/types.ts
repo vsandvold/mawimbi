@@ -8,6 +8,9 @@ export type TrackColor = {
   b: number;
 };
 
+// Slider default absent any persisted or loudness-normalized value.
+export const DEFAULT_VOLUME = 100;
+
 export type Track = {
   trackId: TrackId;
   color: TrackColor;
@@ -16,4 +19,7 @@ export type Track = {
   instrument?: string;
   startTime?: number;
   effects?: EffectAmounts;
+  volume?: number;
+  mute?: boolean;
+  solo?: boolean;
 };

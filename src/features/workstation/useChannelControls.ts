@@ -1,15 +1,20 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useTrackService } from '../tracks/useTrackService';
-import { type TrackId } from '../tracks/types';
-
-const DEFAULT_VOLUME = 100;
+import { DEFAULT_VOLUME, type TrackId } from '../tracks/types';
+import {
+  SET_TRACK_MUTE_SOLO,
+  SET_TRACK_VOLUME,
+} from '../project/projectPageReducer';
+import useProjectDispatch from '../project/useProjectDispatch';
 
 export function useChannelControls(trackId: TrackId) {
   const trackHook = useTrackService();
+  const dispatch = useProjectDispatch();
   const trackSignals = trackHook.getSignals(trackId);
   const volume = trackSignals?.volume.value ?? DEFAULT_VOLUME;
   const mute = trackSignals?.mute.value ?? false;
   const solo = trackSignals?.solo.value ?? false;
+  const volumeDirtyRef = useRef(false);
 
   // Focus is driven purely by the pointer lifecycle (down → up/cancel/
   // lost capture), never by slider value events: Radix's onValueCommit
@@ -39,26 +44,60 @@ export function useChannelControls(trackId: TrackId) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackId]);
 
+  // Live update for immediate audio feedback while dragging — not
+  // persisted, so a drag that's abandoned mid-gesture never dirties
+  // project state.
   const updateVolume = (value: number) => {
     if (trackSignals) {
       trackSignals.volume.value = value;
+      volumeDirtyRef.current = true;
     }
   };
 
+  // Persists once per gesture (fader release), like the effects sliders —
+  // not per tick, so a drag doesn't spam undo history or autosave.
+  const commitVolume = (value: number) => {
+    volumeDirtyRef.current = false;
+    dispatch([SET_TRACK_VOLUME, { trackId, volume: value }]);
+  };
+
+  // Safety net for a fader drag that ends without ever reaching the
+  // slider's own release handler (see useEffectControls.ts's identical
+  // pattern, #493) — without this, an audible, uncommitted volume change
+  // silently never reaches project state and disappears on reload.
+  useEffect(() => {
+    return () => {
+      if (!volumeDirtyRef.current) return;
+      volumeDirtyRef.current = false;
+      const signals = trackHook.getSignals(trackId);
+      if (!signals) return;
+      dispatch([SET_TRACK_VOLUME, { trackId, volume: signals.volume.value }]);
+    };
+    // trackHook/dispatch delegate to stable service/context singletons
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackId]);
+
+  // Each transition is a discrete click (not a drag), so it commits
+  // immediately — no separate live/commit split like volume or effects.
+  // One dispatch carrying both fields, even though only one changes for
+  // most transitions: the solo→mute leg changes both mute and solo in the
+  // same click, and two separate dispatches would push two undo-stack
+  // entries for one gesture — needing two undos to reverse it.
   const cycleState = () => {
     if (!trackSignals) return;
 
-    if (mute) {
-      // mute → on
-      trackSignals.mute.value = false;
-    } else if (solo) {
-      // solo → mute
-      trackSignals.solo.value = false;
-      trackSignals.mute.value = true;
-    } else {
-      // on → solo
-      trackSignals.solo.value = true;
-    }
+    const [nextMute, nextSolo] = mute
+      ? [false, false] // mute → on
+      : solo
+        ? [true, false] // solo → mute
+        : [false, true]; // on → solo
+
+    trackSignals.mute.value = nextMute;
+    trackSignals.solo.value = nextSolo;
+    dispatch([
+      SET_TRACK_MUTE_SOLO,
+      { trackId, mute: nextMute, solo: nextSolo },
+    ]);
   };
 
   return {
@@ -68,6 +107,7 @@ export function useChannelControls(trackId: TrackId) {
     startFocus,
     endFocus,
     updateVolume,
+    commitVolume,
     cycleState,
   };
 }

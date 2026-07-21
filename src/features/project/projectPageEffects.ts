@@ -75,8 +75,15 @@ export const useTrackSideEffects = (tracks: Track[]) => {
     for (const track of tracks) {
       if (!prevIds.has(track.trackId)) {
         if (!trackHook.getSignals(track.trackId)) {
-          const initialVolume = trackHook.retrieveInitialVolume(track.trackId);
-          trackHook.createSignals(track.trackId, initialVolume, track.effects);
+          const initialVolume =
+            track.volume ?? trackHook.retrieveInitialVolume(track.trackId);
+          trackHook.createSignals(
+            track.trackId,
+            initialVolume,
+            track.effects,
+            track.mute,
+            track.solo,
+          );
         }
         if (!trackHook.retrieveChannel(track.trackId)) {
           trackHook.recreateChannel(track.trackId);
@@ -97,36 +104,60 @@ export const useTrackSideEffects = (tracks: Track[]) => {
   }, [tracks]); // eslint-disable-line react-hooks/exhaustive-deps
 };
 
-// Reflects effect-amount changes that arrive via undo/redo (not a live
-// slider drag, which already writes the signal directly) into the live
-// per-track signals — otherwise an undo after committing an effect change
-// reverts the persisted project state while the audio and drawer slider
-// keep showing the pre-undo amount (the #212 regression class, extended to
-// effect settings).
+type SyncedControls = {
+  effects: EffectAmounts | undefined;
+  volume: number | undefined;
+  mute: boolean | undefined;
+  solo: boolean | undefined;
+};
+
+// Reflects volume/mute/solo/effect changes that arrive via undo/redo (not a
+// live slider drag or mute/solo click, which already write the signal
+// directly) into the live per-track signals — otherwise an undo after
+// committing a change reverts the persisted project state while the audio
+// and mixer/drawer controls keep showing the pre-undo value (the #212
+// regression class, extended to every persisted per-track control).
 //
-// Diffs by the `effects` object's *identity*, not by comparing against the
-// live signal value: the reducer's other actions (DELETE_TRACK/MOVE_TRACK
-// reindexing, SET_INSTRUMENT from background classification) all rebuild
-// track objects but pass the existing `effects` object through unchanged,
-// while SET_TRACK_EFFECT is the only action that ever constructs a new one.
-// Comparing against the signal instead would have re-applied the
-// last-committed amount on every unrelated tracks-array change — including
+// Diffs each field against the *last value this hook itself saw* for that
+// track, not against the live signal: the reducer's other actions
+// (DELETE_TRACK/MOVE_TRACK reindexing, SET_INSTRUMENT from background
+// classification) all rebuild track objects but pass unrelated fields
+// through unchanged (by value for volume/mute/solo, by reference for the
+// `effects` object — only SET_TRACK_EFFECT ever constructs a new one).
+// Comparing against the live signal instead would re-apply the
+// last-committed value on every unrelated tracks-array change — including
 // while a slider drag was still live — clobbering the in-progress drag.
-export const useTrackEffectsSync = (tracks: Track[]) => {
+export const useTrackControlsSync = (tracks: Track[]) => {
   const trackHook = useTrackService();
-  const lastSyncedRef = useRef(new Map<TrackId, EffectAmounts | undefined>());
+  const lastSyncedRef = useRef(new Map<TrackId, SyncedControls>());
 
   useEffect(() => {
     for (const track of tracks) {
-      const amounts = track.effects;
-      if (lastSyncedRef.current.get(track.trackId) === amounts) continue;
-      lastSyncedRef.current.set(track.trackId, amounts);
-      if (!amounts) continue;
+      const current: SyncedControls = {
+        effects: track.effects,
+        volume: track.volume,
+        mute: track.mute,
+        solo: track.solo,
+      };
+      const last = lastSyncedRef.current.get(track.trackId);
+      lastSyncedRef.current.set(track.trackId, current);
 
       const signals = trackHook.getSignals(track.trackId);
       if (!signals) continue;
-      for (const effectId of EFFECT_ORDER) {
-        signals.effects[effectId].value = amounts[effectId];
+
+      if (current.effects !== undefined && current.effects !== last?.effects) {
+        for (const effectId of EFFECT_ORDER) {
+          signals.effects[effectId].value = current.effects[effectId];
+        }
+      }
+      if (current.volume !== undefined && current.volume !== last?.volume) {
+        signals.volume.value = current.volume;
+      }
+      if (current.mute !== undefined && current.mute !== last?.mute) {
+        signals.mute.value = current.mute;
+      }
+      if (current.solo !== undefined && current.solo !== last?.solo) {
+        signals.solo.value = current.solo;
       }
     }
     // Hook callbacks reference stable service singletons
@@ -246,7 +277,12 @@ export const useRestoreAudio = (tracks: Track[]) => {
             track.trackId,
             audioData,
             track.startTime ?? 0,
-            track.effects,
+            {
+              effects: track.effects,
+              volume: track.volume,
+              mute: track.mute,
+              solo: track.solo,
+            },
           );
         } catch {
           // Audio data corrupted or decode failed — skip this track
