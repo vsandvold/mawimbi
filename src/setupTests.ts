@@ -94,6 +94,12 @@ vi.mock('tone', () => {
       type: 'lowpass',
     };
   }
+  function makeGainNode(initialGain = 1) {
+    return {
+      ...makeNode(),
+      gain: makeRampableParam(initialGain),
+    };
+  }
   const transportMock = {
     start: vi.fn(),
     stop: vi.fn(),
@@ -168,6 +174,8 @@ vi.mock('tone', () => {
     Reverb: vi.fn().mockImplementation(makeReverbNode),
     FeedbackDelay: vi.fn().mockImplementation(makeFeedbackDelayNode),
     Filter: vi.fn().mockImplementation(makeFilterNode),
+    Gain: vi.fn().mockImplementation(makeGainNode),
+    dbToGain: vi.fn().mockImplementation((db: number) => 10 ** (db / 20)),
     Transport: transportMock,
     getTransport: vi.fn().mockReturnValue(transportMock),
     start: vi.fn().mockImplementation(() => {

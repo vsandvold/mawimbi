@@ -27,6 +27,8 @@ vi.mock('../../recording/useRecordingService', () => ({
 }));
 
 const mockOnToggleRecord = vi.fn();
+const mockOnToggleMonitoring = vi.fn();
+const mockOnMonitorVolumeChange = vi.fn();
 
 const defaultProps = {
   isOpen: true,
@@ -35,10 +37,16 @@ const defaultProps = {
   isCountingIn: false,
   isRecording: false,
   onToggleRecord: mockOnToggleRecord,
+  isMonitoring: false,
+  monitorVolume: 50,
+  onToggleMonitoring: mockOnToggleMonitoring,
+  onMonitorVolumeChange: mockOnMonitorVolumeChange,
 };
 
 beforeEach(() => {
   mockOnToggleRecord.mockClear();
+  mockOnToggleMonitoring.mockClear();
+  mockOnMonitorVolumeChange.mockClear();
 });
 
 it('passes title "Recording" to BottomSheet', () => {
@@ -105,4 +113,34 @@ it('renders the mic level meter', () => {
   const { getByTestId } = render(<RecordingBottomSheet {...defaultProps} />);
 
   expect(getByTestId('mic-level-meter')).toBeInTheDocument();
+});
+
+it('shows "Enable monitoring" when monitoring is off', () => {
+  const { getByTitle } = render(<RecordingBottomSheet {...defaultProps} />);
+
+  expect(getByTitle('Enable monitoring')).toBeInTheDocument();
+});
+
+it('shows "Disable monitoring" when monitoring is on', () => {
+  const { getByTitle } = render(
+    <RecordingBottomSheet {...defaultProps} isMonitoring={true} />,
+  );
+
+  expect(getByTitle('Disable monitoring')).toBeInTheDocument();
+});
+
+it('calls onToggleMonitoring when the monitor toggle is clicked', () => {
+  const { getByTitle } = render(<RecordingBottomSheet {...defaultProps} />);
+
+  fireEvent.click(getByTitle('Enable monitoring'));
+
+  expect(mockOnToggleMonitoring).toHaveBeenCalledOnce();
+});
+
+it('renders the monitor volume slider with the current value', () => {
+  const { getByRole } = render(
+    <RecordingBottomSheet {...defaultProps} monitorVolume={75} />,
+  );
+
+  expect(getByRole('slider')).toHaveAttribute('aria-valuenow', '75');
 });

@@ -36,6 +36,12 @@ export function useRecordingService() {
     get isActivelyRecording(): boolean {
       return service.isActivelyRecording();
     },
+    get isMonitoring(): boolean {
+      return service.signals.isMonitoring.value;
+    },
+    get monitorVolume(): number {
+      return service.signals.monitorVolume.value;
+    },
 
     // --- State machine transitions ---
 
@@ -46,6 +52,10 @@ export function useRecordingService() {
     toggleArm: () => service.toggleArm(),
     startCountIn: () => service.startCountIn(),
     stopCountIn: () => service.stopCountIn(),
+    enableMonitoring: () => service.enableMonitoring(),
+    disableMonitoring: () => service.disableMonitoring(),
+    setMonitorVolume: (value: number) => service.setMonitorVolume(value),
+    shouldWarnMonitoringLatency: () => service.shouldWarnMonitoringLatency(),
 
     // --- Microphone management ---
 

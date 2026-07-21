@@ -22,6 +22,7 @@ import {
   useCountIn,
   useMicrophone,
   useSpacebarPlaybackToggle,
+  useToggleMonitoring,
   useTotalTime,
 } from './workstationEffects';
 
@@ -92,6 +93,7 @@ const Workstation = (props: WorkstationProps) => {
 
   const countInBeat = useCountIn(isCountingIn, handleCountInComplete);
   useMicrophone(isRecording);
+  const handleToggleMonitoring = useToggleMonitoring();
 
   const toggleLyrics = () =>
     setActiveSheet((prev) => (prev === 'lyrics' ? null : 'lyrics'));
@@ -333,6 +335,10 @@ const Workstation = (props: WorkstationProps) => {
         isCountingIn={isCountingIn}
         isRecording={isRecording}
         onToggleRecord={handleToggleRecord}
+        isMonitoring={recording.isMonitoring}
+        monitorVolume={recording.monitorVolume}
+        onToggleMonitoring={handleToggleMonitoring}
+        onMonitorVolumeChange={recording.setMonitorVolume}
       />
       {countInBeat !== null && <CountIn beat={countInBeat} />}
     </div>

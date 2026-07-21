@@ -13,7 +13,10 @@
 
 import * as Tone from 'tone';
 import { computed, signal, type ReadonlySignal } from '@preact/signals-react';
-import MicrophoneService from './MicrophoneService';
+import MicrophoneService, {
+  DEFAULT_MONITOR_VOLUME,
+  exceedsMonitorLatencyThreshold,
+} from './MicrophoneService';
 import LatencyCompensation from './LatencyCompensation';
 import WorkletRecorder from './WorkletRecorder';
 import type WorkletAnalyser from '../spectrogram/WorkletAnalyser';
@@ -47,6 +50,11 @@ class RecordingService {
   private readonly _recordingState = signal<RecordingState>('idle');
   private readonly _isCountingIn = signal(false);
   private readonly _isRecording: ReadonlySignal<boolean>;
+  // Input monitoring (spec 005 Decision 3): off by default each session
+  // (no persistence) — the initial signal value already satisfies that,
+  // since RecordingService is a singleton for the page's lifetime.
+  private readonly _isMonitoring = signal(false);
+  private readonly _monitorVolume = signal(DEFAULT_MONITOR_VOLUME);
 
   // --- Narrow channel for reactive consumers (hooks) ---
 
@@ -54,6 +62,8 @@ class RecordingService {
     readonly recordingState: ReadonlySignal<RecordingState>;
     readonly isCountingIn: ReadonlySignal<boolean>;
     readonly isRecording: ReadonlySignal<boolean>;
+    readonly isMonitoring: ReadonlySignal<boolean>;
+    readonly monitorVolume: ReadonlySignal<number>;
   };
 
   private readonly microphone: MicrophoneService;
@@ -92,6 +102,8 @@ class RecordingService {
       recordingState: this._recordingState,
       isCountingIn: this._isCountingIn,
       isRecording: this._isRecording,
+      isMonitoring: this._isMonitoring,
+      monitorVolume: this._monitorVolume,
     };
   }
 
@@ -107,6 +119,14 @@ class RecordingService {
 
   get isRecording(): boolean {
     return this._isRecording.value;
+  }
+
+  get isMonitoring(): boolean {
+    return this._isMonitoring.value;
+  }
+
+  get monitorVolume(): number {
+    return this._monitorVolume.value;
   }
 
   // --- State machine transitions ---
@@ -182,8 +202,39 @@ class RecordingService {
 
   closeMicrophone(): void {
     if (this.microphone.isOpen) {
-      this.microphone.close();
+      this.closeMicrophoneAndResetMonitoring();
     }
+  }
+
+  // MicrophoneService.close() tears down the monitor connection; mirror
+  // that here so the isMonitoring signal (which the drawer reads) never
+  // reports "on" for a routing that no longer exists.
+  private closeMicrophoneAndResetMonitoring(): void {
+    this.microphone.close();
+    this._isMonitoring.value = false;
+  }
+
+  // --- Input monitoring (spec 005 Decision 3) ---
+
+  enableMonitoring(): void {
+    this.microphone.enableMonitoring();
+    this._isMonitoring.value = true;
+  }
+
+  disableMonitoring(): void {
+    this.microphone.disableMonitoring();
+    this._isMonitoring.value = false;
+  }
+
+  setMonitorVolume(value: number): void {
+    this._monitorVolume.value = value;
+    this.microphone.setMonitorVolume(value);
+  }
+
+  // True when the measured round-trip latency is high enough that
+  // monitoring is likely to feel noticeably delayed (#171's threshold).
+  shouldWarnMonitoringLatency(): boolean {
+    return exceedsMonitorLatencyThreshold(this.estimateRoundTripLatency());
   }
 
   useWorkletAnalyser(analyser: WorkletAnalyser): void {
@@ -290,7 +341,7 @@ class RecordingService {
         this.nativeSourceNode.disconnect();
         this.nativeSourceNode = null;
       }
-      this.microphone.close();
+      this.closeMicrophoneAndResetMonitoring();
 
       // Trim leading latency samples so the recording aligns with the
       // transport timeline. Without this, the overdub is shifted forward
@@ -305,7 +356,7 @@ class RecordingService {
     }
 
     const blob = await this.recorder.stop();
-    this.microphone.close();
+    this.closeMicrophoneAndResetMonitoring();
 
     const rawArrayBuffer = await blob.arrayBuffer();
     const rawBuffer = await this.context.decodeAudioData(rawArrayBuffer);
