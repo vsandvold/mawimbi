@@ -13,6 +13,7 @@ const mockToggleRecording = vi.fn();
 const defaultProps = {
   isEmpty: false,
   isRecordingOpen: false,
+  isRecordingLocked: false,
   onRewind: mockRewind,
   onToggleRecording: mockToggleRecording,
 };
@@ -72,22 +73,13 @@ it('disables play/pause button during count-in', () => {
   expect(getByTitle('Play')).toBeDisabled();
 });
 
-it('disables the recording drawer toggle during count-in — cancellation happens in the drawer', () => {
-  recordingService.startCountIn();
-
+it('disables the recording drawer toggle while counting in or recording — cancellation happens in the drawer', () => {
   const { getByTitle } = render(
-    <FloatingToolbar {...defaultProps} isRecordingOpen={true} />,
-  );
-
-  expect(getByTitle('Hide recording')).toBeDisabled();
-});
-
-it('disables the recording drawer toggle while actively recording', () => {
-  recordingService.arm();
-  recordingService.startRecording();
-
-  const { getByTitle } = render(
-    <FloatingToolbar {...defaultProps} isRecordingOpen={true} />,
+    <FloatingToolbar
+      {...defaultProps}
+      isRecordingOpen={true}
+      isRecordingLocked={true}
+    />,
   );
 
   expect(getByTitle('Hide recording')).toBeDisabled();

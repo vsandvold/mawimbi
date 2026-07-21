@@ -7,6 +7,14 @@ import './FloatingToolbar.css';
 type FloatingToolbarProps = {
   isEmpty: boolean;
   isRecordingOpen: boolean;
+  /** True while counting in or actively recording. Workstation's own
+   *  isCountingIn/isRecording state, not the service's isTransportLocked —
+   *  that signal only flips after RecordingService.startCountIn() runs
+   *  inside useCountIn's async mic-permission effect, so it briefly lags
+   *  the local state the moment the drawer's Record control is pressed;
+   *  using it here would leave this button (and the drawer's close
+   *  control) clickable for that window. */
+  isRecordingLocked: boolean;
   onRewind: () => void;
   /** Opens/closes the recording drawer (spec 005 Decision 5) — arming
    *  itself happens from the drawer's own control, not here. */
@@ -16,7 +24,13 @@ type FloatingToolbarProps = {
 const FloatingToolbar = (props: FloatingToolbarProps) => {
   const { isPlaying, togglePlayback } = usePlaybackService();
   const { isTransportLocked, recordingState } = useRecordingService();
-  const { isEmpty, isRecordingOpen, onRewind, onToggleRecording } = props;
+  const {
+    isEmpty,
+    isRecordingOpen,
+    isRecordingLocked,
+    onRewind,
+    onToggleRecording,
+  } = props;
   const isRecordActive = recordingState !== 'idle';
 
   return (
@@ -47,7 +61,7 @@ const FloatingToolbar = (props: FloatingToolbarProps) => {
         className="button"
         title={isRecordingOpen ? 'Hide recording' : 'Show recording'}
         onClick={onToggleRecording}
-        disabled={isTransportLocked}
+        disabled={isRecordingLocked}
       >
         {isRecordActive ? <Mic className="text-red-500" /> : <Mic />}
       </Button>

@@ -1,6 +1,5 @@
 import { Mic, Square } from 'lucide-react';
 import { Button } from '../../shared/ui/button';
-import { useRecordingService } from '../recording/useRecordingService';
 import BottomSheet from './BottomSheet';
 import MicLevelMeter from './MicLevelMeter';
 import './RecordingBottomSheet.css';
@@ -22,11 +21,6 @@ const RecordingBottomSheet = ({
   isRecording,
   onToggleRecord,
 }: RecordingBottomSheetProps) => {
-  // Service-derived, not the local isCountingIn/isRecording props: the
-  // close control must stay hidden for the same window FloatingToolbar's
-  // mic toggle is disabled for (kb/decisions.md pattern — one authoritative
-  // lock signal, not two that could drift).
-  const { isTransportLocked } = useRecordingService();
   const isActive = isCountingIn || isRecording;
   const label = isRecording ? 'Stop' : isCountingIn ? 'Cancel' : 'Record';
   const status = isRecording
@@ -41,7 +35,7 @@ const RecordingBottomSheet = ({
       onOpenChange={onOpenChange}
       onHeightChange={onHeightChange}
       title="Recording"
-      showClose={!isTransportLocked}
+      showClose={!isActive}
     >
       <div className="recording-bottom-sheet">
         <MicLevelMeter active={isActive} />

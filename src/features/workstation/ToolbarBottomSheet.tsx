@@ -119,6 +119,7 @@ const ToolbarBottomSheet = (props: ToolbarBottomSheetProps) => {
       <FloatingToolbar
         isEmpty={isEmpty}
         isRecordingOpen={isRecordingOpen}
+        isRecordingLocked={isRecordingLocked}
         onRewind={onRewind}
         onToggleRecording={onToggleRecording}
       />

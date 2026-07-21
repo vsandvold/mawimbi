@@ -19,13 +19,9 @@ vi.mock('../BottomSheet', () => ({
   ),
 }));
 
-let mockIsTransportLocked = false;
-
+// MicLevelMeter (rendered as a child) calls this for the meter bar.
 vi.mock('../../recording/useRecordingService', () => ({
   useRecordingService: () => ({
-    get isTransportLocked() {
-      return mockIsTransportLocked;
-    },
     getLoudness: () => 0,
   }),
 }));
@@ -42,7 +38,6 @@ const defaultProps = {
 };
 
 beforeEach(() => {
-  mockIsTransportLocked = false;
   mockOnToggleRecord.mockClear();
 });
 
@@ -65,7 +60,6 @@ it('shows "Record" and "Ready to record" when idle', () => {
 });
 
 it('shows "Cancel" and "Counting in…" while counting in', () => {
-  mockIsTransportLocked = true;
   const { getByTitle, getByText } = render(
     <RecordingBottomSheet {...defaultProps} isCountingIn={true} />,
   );
@@ -75,7 +69,6 @@ it('shows "Cancel" and "Counting in…" while counting in', () => {
 });
 
 it('shows "Stop" and "Recording…" while recording', () => {
-  mockIsTransportLocked = true;
   const { getByTitle, getByText } = render(
     <RecordingBottomSheet {...defaultProps} isRecording={true} />,
   );
@@ -92,12 +85,13 @@ it('calls onToggleRecord when the record control is clicked', () => {
   expect(mockOnToggleRecord).toHaveBeenCalledOnce();
 });
 
-it('hides the close control while the transport is locked', () => {
-  mockIsTransportLocked = true;
-  const { queryByTitle } = render(
-    <RecordingBottomSheet {...defaultProps} isRecording={true} />,
+it('hides the close control while counting in or recording', () => {
+  const { queryByTitle, rerender } = render(
+    <RecordingBottomSheet {...defaultProps} isCountingIn={true} />,
   );
+  expect(queryByTitle('Close')).not.toBeInTheDocument();
 
+  rerender(<RecordingBottomSheet {...defaultProps} isRecording={true} />);
   expect(queryByTitle('Close')).not.toBeInTheDocument();
 });
 
