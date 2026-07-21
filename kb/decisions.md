@@ -4,6 +4,12 @@ Architectural decisions with rationale and provenance, newest first. Entry forma
 
 **Hygiene note:** this file is past the KB's ~150-line guideline (`kb/INDEX.md`) — due a split (e.g. by year, or into `decisions.md` + `decisions-archive.md`) in a future `/harness-audit` or dedicated session, not blocking here.
 
+## 2026-07-21 — Input monitoring resets to off on every mic close, not just page reload
+
+**Decision:** `MicrophoneService.close()` (spec 005 milestone 3, #524) always tears down monitoring (`disableMonitoring()`) as part of closing the mic, and `RecordingService` mirrors that into its `isMonitoring` signal at every one of its three `microphone.close()` call sites (`closeMicrophoneAndResetMonitoring()`). Practical effect: the user must re-enable monitoring after every recording take (stop or cancel), not just after a page reload.
+**Why:** The spec (Decision 3) only specifies "off by default each session (no persistence)" — ambiguous between "once per page load" and "once per mic-open cycle." Resetting on every close is the simpler reading (no need to track "was monitoring on before this arm" across the mic's open/close lifecycle) and the safer one (an audio routing that silently persists across an unrelated take is a stronger footgun than an extra tap). Recorded as an assumption in the PR, not a settled product decision — spec open question 4 already flags this exact ambiguity for on-device QA to resolve; if QA finds users re-enabling every take is annoying, the fix is to stop resetting on close (keep the flag, only clear the Tone-graph connection) rather than adding persistence.
+**Source:** Issue #524 (spec 005 milestone 3).
+
 ## 2026-07-21 — Recording moves into a bottom-sheet drawer; UI locks gate on the local trigger state, not the service signal it schedules
 
 **Decision:** `RecordingBottomSheet` (spec 005 milestone 2, #523) joins the mixer/lyrics/effects sheets — the toolbar mic button (`FloatingToolbar`) now only opens/closes it, and arming (the old direct arm→count-in toggle) moved to the drawer's own Record/Stop control. Every "is the recording lifecycle locked" check this milestone added — the mic toggle's `disabled`, the drawer's `showClose` — reads `Workstation`'s local `isCountingIn`/`isRecording` state (or a value derived from it), never `RecordingService.isTransportLocked()` directly.
