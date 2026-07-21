@@ -42,6 +42,11 @@ export function getDragTargetTrackId(): TrackId | null {
 }
 
 export function setDragTargetTrackId(trackId: TrackId | null): void {
+  // Explicit guard, not just relying on the signal's own equality check:
+  // onDragOver fires on every collision recompute while hovering the same
+  // row, and this makes the no-op self-evident rather than dependent on
+  // library internals.
+  if (trackId === _dragTargetTrackId.value) return;
   _dragTargetTrackId.value = trackId;
 }
 

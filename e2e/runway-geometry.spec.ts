@@ -210,8 +210,8 @@ test.describe('Runway visibility invariant', () => {
  * — they default to `z-index: auto` and paint per DOM order instead: the
  * `::before` rail (generated first) would paint *behind* every track, while
  * `::after` (generated last) would paint in front of untouched tracks but
- * behind a focused one (`.timeline__track--foreground`, `z-index: 1`). Both
- * rails must sit above every track's stacking level to render consistently.
+ * behind a focused one. Both rails must sit above every track's stacking
+ * level to render consistently.
  */
 test.describe('Runway edge rails', () => {
   test.beforeEach(async ({ page }) => {
@@ -232,8 +232,11 @@ test.describe('Runway edge rails', () => {
     });
 
     expect(beforeZIndex).toBe(afterZIndex);
-    // .timeline__track--foreground (the highest track stacking level) is 1.
-    expect(Number(beforeZIndex)).toBeGreaterThan(1);
+    // .timeline__track--foreground/--edit-active (the highest track
+    // stacking level) is 2 — keep this in sync with Timeline.css's tiers,
+    // not just "greater than the pre-drag-target ceiling", or a track
+    // tier creeping up to meet the rails' level would pass silently.
+    expect(Number(beforeZIndex)).toBeGreaterThan(2);
   });
 });
 

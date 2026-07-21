@@ -102,8 +102,14 @@
 
 .timeline__track--drag-target {
   z-index: 1;
+  /* Halfway between --background's 0.5 and full opacity — a fixed step,
+     not tuned to any particular value; any point clearly above the
+     background dim and below foreground would serve the same purpose. */
   opacity: 0.75;
-  transition: opacity 0.15s;
+  /* Matches --background's duration so a track crossfading in and out of
+     this tier in quick succession (crossing several mixer rows) doesn't
+     visibly change speed mid-transition. */
+  transition: opacity 0.3s;
 }
 
 .timeline__track--background,
