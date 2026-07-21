@@ -149,6 +149,35 @@ export const useCountIn = (
   return currentBeat;
 };
 
+// Enabling monitoring is a single known-trigger action (the drawer's
+// headphone toggle), not a reactive chain, so it calls the service directly
+// and shows its warnings inline (CLAUDE.md, "Workflows coordinate").
+export const useToggleMonitoring = () => {
+  const recording = useRecordingService();
+  const message = useMessage();
+
+  return () => {
+    if (recording.isMonitoring) {
+      recording.disableMonitoring();
+      return;
+    }
+
+    recording.enableMonitoring();
+    // Headphone detection on the web is unreliable, so warn unconditionally
+    // rather than gating on device heuristics (spec 005 Decision 3).
+    message('Monitoring enabled — watch for feedback', {
+      type: 'warning',
+      key: 'monitoring-feedback',
+    });
+    if (recording.shouldWarnMonitoringLatency()) {
+      message('Monitoring latency may be noticeable on this device', {
+        type: 'warning',
+        key: 'monitoring-latency',
+      });
+    }
+  };
+};
+
 export const useTotalTime = (tracks: Track[]) => {
   const playback = usePlaybackService();
   const trackHook = useTrackService();

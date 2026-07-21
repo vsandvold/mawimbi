@@ -113,5 +113,6 @@ function mockWorkstationEffects() {
     useSpacebarPlaybackToggle: vi.fn(),
     useTotalTime: vi.fn(),
     useMicrophone: vi.fn(),
+    useToggleMonitoring: vi.fn(() => vi.fn()),
   };
 }

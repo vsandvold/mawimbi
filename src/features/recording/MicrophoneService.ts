@@ -18,6 +18,22 @@ export const LOW_LATENCY_CONSTRAINTS: LowLatencyConstraints = {
   latency: 0,
 };
 
+// Monitor volume slider default (0-100 scale, same range as the mixer's
+// channel volume slider).
+export const DEFAULT_MONITOR_VOLUME = 50;
+
+// Feedback is fast and real with echo cancellation off (#219), so monitoring
+// always warns rather than gating on unreliable headphone-detection
+// heuristics (spec 005 Decision 3). A round-trip latency above this
+// threshold additionally warns about perceived delay.
+export const MONITOR_LATENCY_WARNING_THRESHOLD_SECONDS = 0.05;
+
+export function exceedsMonitorLatencyThreshold(
+  latencySeconds: number,
+): boolean {
+  return latencySeconds > MONITOR_LATENCY_WARNING_THRESHOLD_SECONDS;
+}
+
 // Tone.UserMedia private fields accessed for custom stream injection.
 // Tone.UserMedia doesn't support custom getUserMedia constraints, so we
 // bypass its open() and wire the stream into these fields directly.
@@ -32,10 +48,16 @@ class MicrophoneService {
   private meter: Tone.Meter;
   private workletAnalyser: WorkletAnalyser | null = null;
   private _stream: MediaStream | null = null;
+  // Input monitoring (spec 005 Decision 3): a Tone.Gain the mic connects
+  // through only while monitoring is enabled, entirely inside the Tone
+  // graph — independent of the native-context recording capture path.
+  private monitorGain: Tone.Gain;
+  private _isMonitoring = false;
 
   constructor() {
     this.meter = new Tone.Meter();
     this.microphone = new Tone.UserMedia().connect(this.meter);
+    this.monitorGain = new Tone.Gain(this.volumeToGain(DEFAULT_MONITOR_VOLUME));
   }
 
   get source(): Tone.ToneAudioNode {
@@ -68,12 +90,46 @@ class MicrophoneService {
   }
 
   close(): void {
+    this.disableMonitoring();
     this._stream = null;
     this.microphone.close();
   }
 
   connect(destination: Tone.ToneAudioNode | AudioNode): void {
     this.microphone.connect(destination as Tone.ToneAudioNode);
+  }
+
+  get isMonitoring(): boolean {
+    return this._isMonitoring;
+  }
+
+  enableMonitoring(): void {
+    if (this._isMonitoring) return;
+    this.microphone.connect(this.monitorGain);
+    this.monitorGain.toDestination();
+    this._isMonitoring = true;
+  }
+
+  disableMonitoring(): void {
+    if (!this._isMonitoring) return;
+    this.microphone.disconnect(this.monitorGain);
+    this.monitorGain.disconnect();
+    this._isMonitoring = false;
+  }
+
+  setMonitorVolume(value: number): void {
+    this.monitorGain.gain.value = this.volumeToGain(value);
+  }
+
+  // Volume slider (0-100) to linear gain, via the same dB conversion the
+  // mixer's channel volume slider uses (CLAUDE.md, "Volume slider uses dB
+  // conversion") — Tone.Gain's `gain` param is linear amplitude, not dB.
+  private volumeToGain(value: number): number {
+    return Tone.dbToGain(this.convertToDecibel(value));
+  }
+
+  private convertToDecibel(value: number): number {
+    return 20 * Math.log((value + 1) / 101);
   }
 
   // Replace Tone.Meter with a WorkletAnalyser for loudness metering.

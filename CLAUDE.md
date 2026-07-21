@@ -160,7 +160,7 @@ dispatch(['MOVE_TRACK', { fromIndex, toIndex }]);
 `Mixer.tsx` registers only `PointerSensor` (not `MouseSensor` or `TouchSensor`), intentionally, to unify pointer events across devices.
 
 ### Volume slider uses dB conversion
-Channel volume (slider 0–100) is converted to decibels inside `MixerService`: `20 * Math.log((value + 1) / 101)` — not in components.
+Channel volume (slider 0–100) is converted to decibels inside `MixerService`: `20 * Math.log((value + 1) / 101)` — not in components. `MicrophoneService`'s monitor volume slider (spec 005) reuses the same formula, then `Tone.dbToGain()` to get the linear value `Tone.Gain`'s `gain` param expects (unlike a channel's volume, which is already a dB-unit param).
 
 ### Intentional dependency omissions in hooks
 Several `useEffect`/`useCallback` deps arrays intentionally omit stable refs (services, `dispatch`) with `eslint-disable-next-line react-hooks/exhaustive-deps` comments. Don't "fix" these — adding the deps causes spurious re-runs.

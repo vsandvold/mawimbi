@@ -82,6 +82,49 @@ test.describe('Recording', () => {
     await expect(page.getByTitle('Close')).toBeVisible();
   });
 
+  test('monitoring: toggle + slider present, enabling warns, cancelling recording keeps monitoring inert without erroring', async ({
+    page,
+  }) => {
+    await page.getByTitle('Show recording').click();
+
+    const monitorToggle = page.getByTitle('Enable monitoring');
+    await expect(monitorToggle).toBeVisible();
+    await expect(
+      page.getByRole('slider', { name: 'Monitor volume' }),
+    ).toBeVisible();
+
+    await monitorToggle.click();
+
+    await expect(
+      page.getByText('Monitoring enabled — watch for feedback'),
+    ).toBeVisible();
+    await expect(page.getByTitle('Disable monitoring')).toBeVisible();
+
+    // Toggle + slider stay present through count-in/recording too (the
+    // drawer's own controls, per spec 005 Decision 3/5).
+    await page.getByTitle('Record', { exact: true }).click();
+    await expect(page.locator('.count-in')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTitle('Disable monitoring')).toBeVisible();
+    await expect(
+      page.getByRole('slider', { name: 'Monitor volume' }),
+    ).toBeVisible();
+    await page.getByTitle('Cancel').click();
+  });
+
+  test('monitoring defaults to off each session (no persistence)', async ({
+    page,
+  }) => {
+    await page.getByTitle('Show recording').click();
+    await page.getByTitle('Enable monitoring').click();
+    await expect(page.getByTitle('Disable monitoring')).toBeVisible();
+
+    await page.reload();
+    await ensureAudioContextRunning(page);
+
+    await page.getByTitle('Show recording').click();
+    await expect(page.getByTitle('Enable monitoring')).toBeVisible();
+  });
+
   test('recording creates track with spectrogram, rewinds, and plays back', async ({
     page,
   }) => {
