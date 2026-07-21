@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import {
   DndContext,
   DragEndEvent,
+  DragOverEvent,
   PointerSensor,
   useSensor,
   useSensors,
@@ -16,7 +17,11 @@ import { useTrackService } from '../tracks/useTrackService';
 // Command functions, not signals — module-scope import keeps the drag
 // effect's dependencies compile-time stable and avoids building the full
 // bridge-hook object on every row render during a drag.
-import { focusTrack, unfocusTrack } from '../tracks/focusSignals';
+import {
+  focusTrack,
+  setDragTargetTrackId,
+  unfocusTrack,
+} from '../tracks/focusSignals';
 import { type Track, type TrackId } from '../tracks/types';
 import { MOVE_TRACK } from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
@@ -48,7 +53,29 @@ const Mixer = ({ tracks }: MixerProps) => {
     [],
   );
 
+  // Every exit from a live-preview drag routes through this — a drop's
+  // last onDragOver reports a real (non-null) over target (that's what
+  // makes the drop valid), so nothing else nulls it between that and
+  // onDragEnd; onDragEnd's own call is load-bearing, not defensive
+  // duplication of onDragOver's early-return.
+  const clearDragTarget = () => setDragTargetTrackId(null);
+
+  // Live preview of the pending swap: as the dragged channel crosses over
+  // another channel's row (dnd-kit's onDragOver fires continuously, not
+  // just at drop), that other track gets an intermediate highlight in the
+  // timeline so the "who would this swap with" preview reads as live
+  // motion, not a single static lift for the whole gesture.
+  function handleDragOver(event: DragOverEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) {
+      clearDragTarget();
+      return;
+    }
+    setDragTargetTrackId(over.id as TrackId);
+  }
+
   function handleDragEnd(event: DragEndEvent) {
+    clearDragTarget();
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -60,8 +87,25 @@ const Mixer = ({ tracks }: MixerProps) => {
     projectDispatch([MOVE_TRACK, { fromIndex, toIndex }]);
   }
 
+  // Belt-and-suspenders: if the whole mixer sheet unmounts mid-drag (e.g.
+  // closed via a keyboard-activated toggle behind it), no dnd-kit callback
+  // fires at all — clear the target directly so it can't outlive this
+  // component. SortableChannelItem's own effect covers the dragged
+  // track's focus the same way. This is the only production path back to
+  // resetFocusSignals-equivalent cleanup outside a normal drag exit — it
+  // depends on the mixer sheet genuinely unmounting on close (BottomSheet
+  // returns null when closed), not merely hiding via CSS.
+  useEffect(() => {
+    return clearDragTarget;
+  }, []);
+
   return (
-    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+    <DndContext
+      sensors={sensors}
+      onDragOver={handleDragOver}
+      onDragEnd={handleDragEnd}
+      onDragCancel={clearDragTarget}
+    >
       <SortableContext
         items={reversedIds}
         strategy={verticalListSortingStrategy}

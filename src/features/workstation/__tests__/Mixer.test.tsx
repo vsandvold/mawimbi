@@ -3,6 +3,10 @@ import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import AudioService from '../../audio/AudioService';
 import { resetAllSignals } from '../../tracks/__tests__/testUtils';
+import {
+  getDragTargetTrackId,
+  setDragTargetTrackId,
+} from '../../tracks/focusSignals';
 import { mockTrack } from '../../../testUtils';
 import Mixer from '../Mixer';
 
@@ -74,6 +78,20 @@ it('closes other instrument dropdowns when one opens', async () => {
   await user.click(drumsTrigger);
   const menusAfter = screen.getAllByRole('menu');
   expect(menusAfter).toHaveLength(1);
+});
+
+it('clears a live drag target on unmount so it cannot outlive the mixer', () => {
+  // Models the sheet closing mid-drag (e.g. a keyboard-activated toggle
+  // behind it, CLAUDE.md's "pointer-events: none hides from pointers
+  // only") — no dnd-kit callback fires in that case, so the unmount
+  // effect itself must be what clears the signal.
+  const tracks = [mockTrack({ trackId: 'track-1', index: 0 })];
+  const { unmount } = render(<Mixer tracks={tracks} />);
+  setDragTargetTrackId('track-1');
+
+  unmount();
+
+  expect(getDragTargetTrackId()).toBeNull();
 });
 
 it('marks channel as muted via mute signal', () => {

@@ -167,15 +167,41 @@ test.describe('Mixer-driven timeline focus', () => {
 
     // The dragged channel is the newest track = last timeline track.
     await expect(tracks.last()).toHaveClass(/timeline__track--foreground/);
+    // Not yet over the other channel's row — flat background dim, no live
+    // target highlight.
     await expect(tracks.first()).toHaveClass(/timeline__track--background/);
+    await expect(tracks.first()).not.toHaveClass(
+      /timeline__track--drag-target/,
+    );
 
     await pacedMouseMove(page, midDrag, {
       x: targetBox.x + targetBox.width / 2,
       y: targetBox.y + targetBox.height / 2,
     });
+
+    // Crossing into the other channel's row live-highlights its track —
+    // an intermediate tier between background and foreground, not the
+    // flat dim every other (non-crossed) track still gets.
+    await expect(tracks.first()).toHaveClass(/timeline__track--drag-target/);
+    await expect(tracks.first()).not.toHaveClass(
+      /timeline__track--background/,
+    );
+
+    // Class names alone don't prove paint order — assert the actual
+    // computed z-index tiers the browser applies (a class-only check
+    // already shipped one silent stacking bug in this file, PR #456).
+    const [draggedZIndex, targetZIndex] = await Promise.all([
+      tracks.last().evaluate((el) => Number(getComputedStyle(el).zIndex)),
+      tracks.first().evaluate((el) => Number(getComputedStyle(el).zIndex)),
+    ]);
+    expect(draggedZIndex).toBeGreaterThan(targetZIndex);
+
     await page.mouse.up();
 
     await expectFocusCleared(page);
+    await expect(tracks.first()).not.toHaveClass(
+      /timeline__track--drag-target/,
+    );
   });
 
   test('drag-reordering a muted channel reveals and lifts its track', async ({
@@ -218,5 +244,46 @@ test.describe('Mixer-driven timeline focus', () => {
 
     await expect(mutedTrack).toHaveClass(/timeline__track--muted/);
     await expect(mutedTrack).not.toHaveClass(/timeline__track--foreground/);
+  });
+
+  test('a muted track stays hidden while merely crossed by someone else\'s drag', async ({
+    page,
+  }) => {
+    const tracks = page.locator('.timeline__track');
+    const mutedTrack = tracks.first();
+
+    // Mute the older track (bottom mixer row) — this one is only ever the
+    // drag target, never the dragged channel itself.
+    const olderChannel = page.locator('.mixer__channel').last();
+    await olderChannel.getByTitle('On').click();
+    await expect(olderChannel.getByTitle('Solo')).toBeVisible();
+    await olderChannel.getByTitle('Solo').click();
+    await expect(olderChannel.getByTitle('Muted')).toBeVisible();
+    await expect(mutedTrack).toHaveClass(/timeline__track--muted/);
+
+    const handles = page.locator('.channel__move');
+    const sourceBox = (await handles.first().boundingBox())!;
+    const targetBox = (await handles.last().boundingBox())!;
+    const startX = sourceBox.x + sourceBox.width / 2;
+    const startY = sourceBox.y + sourceBox.height / 2;
+
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX, startY + DND_ACTIVATION_NUDGE_PX);
+    await pacedMouseMove(
+      page,
+      { x: startX, y: startY },
+      {
+        x: targetBox.x + targetBox.width / 2,
+        y: targetBox.y + targetBox.height / 2,
+      },
+    );
+
+    // Crossed over, not manipulated — a muted track being interacted
+    // with (the tests above) reveals; one merely passed over doesn't.
+    await expect(mutedTrack).toHaveClass(/timeline__track--muted/);
+    await expect(mutedTrack).not.toHaveClass(/timeline__track--drag-target/);
+
+    await page.mouse.up();
   });
 });

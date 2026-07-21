@@ -34,9 +34,10 @@
  * theme, inverting the glow into a dark smudge) — matches the established
  * runway-accent color already used regardless of theme by the loudness
  * meter that sits on this same runway (loudnessMeterRenderer.ts's
- * BORDER_COLOR). z-index above `.timeline__track--foreground` (1) so both
- * rails paint consistently on top of every track, focused or not — without
- * it they'd default to z-index:auto and paint in DOM order interleaved with
+ * BORDER_COLOR). z-index above every track lift tier (highest is
+ * `.timeline__track--foreground`/`--edit-active` at 2) so both rails
+ * paint consistently on top of every track, focused or not — without it
+ * they'd default to z-index:auto and paint in DOM order interleaved with
  * the tracks' own z-index:0 grid-item stacking contexts, hiding the left
  * rail behind track content while the right rail floats above it.
  */
@@ -47,7 +48,7 @@
   top: 0;
   bottom: 0;
   width: 0;
-  z-index: 2;
+  z-index: 3;
   box-shadow: 0 0 12px 1px rgba(255, 255, 255, 0.8);
   pointer-events: none;
 }
@@ -83,10 +84,32 @@
  * track's canvas covers the full runway window, so filters forced huge
  * composited layers, and per-track glow duplicated the runway rails).
  * Edit mode's true 3D lift is phase 2 (milestone 7).
+ *
+ * Three tiers, not two, for the mixer drag: foreground (2) > drag-target
+ * (1) > background/base (0). Drag-target exists so the reorder preview
+ * reads as live motion — while the dragged track sits opaque on top,
+ * only the track it's currently "over" gets an intermediate opacity/
+ * z-index bump, visibly stepping between tracks as the drag crosses
+ * mixer rows. Without that middle tier, reordering z-index only among
+ * equally-dimmed background tracks would be invisible: an opaque top
+ * layer fully occludes whatever paints behind it regardless of their
+ * relative order.
  */
 .timeline__track--foreground,
 .timeline__track--edit-active {
+  z-index: 2;
+}
+
+.timeline__track--drag-target {
   z-index: 1;
+  /* Halfway between --background's 0.5 and full opacity — a fixed step,
+     not tuned to any particular value; any point clearly above the
+     background dim and below foreground would serve the same purpose. */
+  opacity: 0.75;
+  /* Matches --background's duration so a track crossfading in and out of
+     this tier in quick succession (crossing several mixer rows) doesn't
+     visibly change speed mid-transition. */
+  transition: opacity 0.3s;
 }
 
 .timeline__track--background,
@@ -103,7 +126,8 @@
 @media (prefers-reduced-motion: reduce) {
   /* Disables the dim crossfade but keeps the separation itself. */
   .timeline__track--background,
-  .timeline__track--edit-background {
+  .timeline__track--edit-background,
+  .timeline__track--drag-target {
     transition: none;
   }
 }
