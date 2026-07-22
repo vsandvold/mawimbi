@@ -30,6 +30,10 @@ export type EffectsRefreshDeps = {
     result: SpectrogramResult,
     effectsParamsHash: string,
   ) => void;
+  // Releases the refreshed entry's raw frames once persisted (spec 006 M3,
+  // mawimbi#540) — optional so existing callers/tests that don't care
+  // about the memory-bound accounting aren't forced to wire it up.
+  releaseFrames?: (trackId: TrackId) => void;
   onRefreshed?: (trackId: TrackId) => void;
 };
 
@@ -103,8 +107,27 @@ export class EffectsRefreshScheduler {
 
     const storeData = toSpectrogramStoreData(trackId, result.data);
     storeData.effectsParamsHash = effectsParamsHash;
-    await saveSpectrogramData(storeData);
+    try {
+      await saveSpectrogramData(storeData);
+    } catch (error) {
+      // Persistence failing shouldn't block releasing frames or notifying
+      // the hook — the in-memory entry `setEntry` already wrote is still
+      // correct and cheap to re-render from IndexedDB next load if this
+      // commit never persisted (kb/decisions.md 2026-02-22).
+      console.warn(
+        `[spectrogram] Failed to persist effects refresh for track ${trackId}:`,
+        error,
+      );
+    }
 
+    // A newer commit for the same track can complete in full (setEntry +
+    // persist + releaseFrames + onRefreshed) while this request's own
+    // `saveSpectrogramData` above is still pending — re-check supersession
+    // before touching the entry again, matching the guards on the two
+    // earlier async stages.
+    if (this.isSuperseded(trackId, requestId)) return;
+
+    this.deps.releaseFrames?.(trackId);
     this.deps.onRefreshed?.(trackId);
   }
 

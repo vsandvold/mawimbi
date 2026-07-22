@@ -7,6 +7,7 @@ const DATA: SpectrogramData = {
   frequencyBinCount: 4,
   sampleRate: 44100,
   duration: 0.075,
+  totalFrames: 3,
 };
 
 function mockTile(width: number, height: number): ImageBitmap {
@@ -166,6 +167,34 @@ describe('recordEntry', () => {
 
     expect(stats.getTrackStats('track-1')?.tileCount).toBe(1);
     expect(stats.getTrackStats('track-2')?.tileCount).toBe(2);
+  });
+});
+
+describe('releaseFrames', () => {
+  it('zeroes frameBytes while leaving tile/timing stats untouched', () => {
+    const nowSpy = vi
+      .spyOn(performance, 'now')
+      .mockImplementationOnce(() => 0)
+      .mockImplementationOnce(() => 100);
+
+    const token = stats.recordAnalysisStart('track-1');
+    stats.recordEntry('track-1', [mockTile(4, 3)], DATA, token);
+
+    stats.releaseFrames('track-1');
+
+    const trackStats = stats.getTrackStats('track-1');
+    expect(trackStats?.frameBytes).toBe(0);
+    expect(trackStats?.tileCount).toBe(1);
+    expect(trackStats?.tileBytes).toBe(4 * 3 * 4);
+    expect(trackStats?.analysisMs).toBe(100);
+    expect(trackStats?.firstTileMs).toBe(100);
+    expect(trackStats?.analysisComplete).toBe(true);
+    nowSpy.mockRestore();
+  });
+
+  it('does nothing when releasing an unknown track', () => {
+    expect(() => stats.releaseFrames('nonexistent')).not.toThrow();
+    expect(stats.getTrackStats('nonexistent')).toBeUndefined();
   });
 });
 

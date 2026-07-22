@@ -220,6 +220,33 @@ class SpectrogramCache {
     }
   }
 
+  // Releases a persisted entry's raw per-frame columns while keeping its
+  // tiles and metadata (bin count, time resolution, duration, totalFrames)
+  // intact. Called once a track's spectrogram has been written to
+  // IndexedDB (or, for `restore`, was already loaded from there) — the
+  // frames' only job was producing the tiles and the persisted bytes;
+  // retaining them for the rest of the session is the unbounded-growth
+  // path spec 006 M3 fixes (mawimbi#540). A no-op for an unknown track.
+  //
+  // Builds a fresh `data`/entry object rather than mutating
+  // `entry.data.frequencyFrames` in place: `setEntry`/`restore` store the
+  // caller's `data` object by reference, un-cloned, so mutating it here
+  // would silently empty a `SpectrogramData` object the caller (or a test
+  // fixture) might still hold and reuse elsewhere. The cost is that
+  // callers holding the old entry (`useSpectrogramCache`'s React state)
+  // must explicitly re-fetch via `getEntry` to observe the release — see
+  // `releaseFramesAndSync` there.
+  releaseFrames(trackId: string): void {
+    const entry = this.entries.get(trackId);
+    if (!entry) return;
+    const releasedData: SpectrogramData = {
+      ...entry.data,
+      frequencyFrames: [],
+    };
+    this.entries.set(trackId, { ...entry, data: releasedData });
+    if (import.meta.env.DEV) spectrogramStats.releaseFrames(trackId);
+  }
+
   invalidate(trackId: string): void {
     const entry = this.entries.get(trackId);
     if (entry) {
@@ -324,6 +351,7 @@ class SpectrogramCache {
             timeResolution: event.data.timeResolution,
             sampleRate: event.data.sampleRate,
             duration: event.data.duration,
+            totalFrames: pending.chunkFrames.length,
           };
           pending.resolve({ data, tiles: pending.chunkTiles });
         }
@@ -417,6 +445,7 @@ class SpectrogramCache {
       frequencyBinCount: chunk.frequencyBinCount,
       sampleRate: chunk.sampleRate,
       duration: frequencyFrames.length * chunk.timeResolution,
+      totalFrames: frequencyFrames.length,
     };
     const tiles = [...(existing?.tiles ?? []), chunk.tile];
     this.setEntry(

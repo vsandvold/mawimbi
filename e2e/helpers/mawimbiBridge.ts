@@ -100,6 +100,29 @@ export async function getSpectrogramCounters(
 }
 
 /**
+ * Reads `trackId`'s current spectrogram stats, or `undefined` if the cache
+ * has no entry for it (mawimbi#540, spec 006 M3) — used to confirm
+ * `invalidate`/`invalidateAll` actually cleared a track's accounting,
+ * unlike `waitForSpectrogramAnalysisComplete`, which polls for the
+ * opposite (a populated, complete entry).
+ */
+export async function getSpectrogramTrackStats(
+  page: Page,
+  trackId: string,
+): Promise<TrackSpectrogramStats | undefined> {
+  const bridgeAvailable = await page.evaluate(() =>
+    Boolean(window.__mawimbi?.spectrogramStats),
+  );
+  if (!bridgeAvailable) {
+    throw new Error('window.__mawimbi.spectrogramStats is unavailable');
+  }
+  return page.evaluate(
+    (id) => window.__mawimbi?.spectrogramStats.getTrackStats(id),
+    trackId,
+  );
+}
+
+/**
  * Polls until `trackId`'s spectrogram analysis fully completes (bridge's
  * `analysisComplete` flag), then returns its final per-track stats.
  * Analysis is chunked (spec 006 M2) so `tileCount` grows well before this

@@ -5,6 +5,7 @@ import {
   loadProject,
   listProjects,
   deleteProject,
+  deleteTrackData,
   saveAudioData,
   loadAudioData,
   deleteAudioData,
@@ -196,6 +197,44 @@ describe('ProjectStorageService', () => {
       expect(await loadMelodyData('track-2')).toBeNull();
       expect(await loadTranscription('track-1')).toBeNull();
       expect(await loadTranscription('track-2')).toBeNull();
+    });
+  });
+
+  // Code review finding (mawimbi#540 follow-up): `deleteTrackData` and
+  // `deleteProject`'s per-track loop now share the same `TRACK_DATA_STORES`
+  // list instead of each hand-maintaining its own — this is the single-
+  // track counterpart used by `useDeleteTrackAudio`.
+  describe('deleteTrackData', () => {
+    it('deletes audio, spectrogram, melody, and transcription data for one track', async () => {
+      await saveAudioData('track-1', new ArrayBuffer(100));
+      await saveSpectrogramData(createSpectrogramData('track-1'));
+      await saveMelodyData(createMelodyData('track-1'));
+      await saveTranscription(createTranscriptionData('track-1'));
+
+      await deleteTrackData('track-1');
+
+      expect(await loadAudioData('track-1')).toBeNull();
+      expect(await loadSpectrogramData('track-1')).toBeNull();
+      expect(await loadMelodyData('track-1')).toBeNull();
+      expect(await loadTranscription('track-1')).toBeNull();
+    });
+
+    it('does not affect other tracks', async () => {
+      await saveAudioData('track-1', new ArrayBuffer(100));
+      await saveAudioData('track-2', new ArrayBuffer(200));
+      await saveSpectrogramData(createSpectrogramData('track-1'));
+      await saveSpectrogramData(createSpectrogramData('track-2'));
+
+      await deleteTrackData('track-1');
+
+      expect(await loadAudioData('track-1')).toBeNull();
+      expect(await loadSpectrogramData('track-1')).toBeNull();
+      expect(await loadAudioData('track-2')).not.toBeNull();
+      expect(await loadSpectrogramData('track-2')).not.toBeNull();
+    });
+
+    it('deleting an unknown track does not throw', async () => {
+      await expect(deleteTrackData('does-not-exist')).resolves.toBeUndefined();
     });
   });
 

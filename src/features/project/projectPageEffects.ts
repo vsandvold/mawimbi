@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useAudioService } from '../audio/useAudioService';
 import { useTrackService } from '../tracks/useTrackService';
 import useDebounced from '../../shared/hooks/useDebounced';
 import {
-  deleteAudioData,
-  deleteSpectrogramData,
-  deleteTranscription,
+  deleteTrackData,
   loadAudioData,
   loadProject,
   saveAudioData,
@@ -310,6 +309,7 @@ export const useRestoreAudio = (tracks: Track[]) => {
 };
 
 export const useDeleteTrackAudio = (tracks: Track[]) => {
+  const audioService = useAudioService();
   const previousTracksRef = useRef<Track[]>(tracks);
 
   useEffect(() => {
@@ -318,14 +318,42 @@ export const useDeleteTrackAudio = (tracks: Track[]) => {
 
     for (const track of previousTracks) {
       if (!currIds.has(track.trackId)) {
-        deleteAudioData(track.trackId);
-        deleteSpectrogramData(track.trackId);
-        deleteTranscription(track.trackId);
+        // `deleteTrackData` sweeps every store a track owns (audioData/
+        // spectrograms/melodies/transcriptions) from the same shared list
+        // `deleteProject` uses — before mawimbi#540's IndexedDB orphan
+        // audit, this hook hand-maintained its own list and had drifted
+        // from `deleteProject`'s (missing `melodies`); every single-track
+        // deletion (most commonly undoing an upload) left that entry
+        // behind forever.
+        deleteTrackData(track.trackId);
+        // Cheaper to rebuild (re-analyse from the still-in-memory audio
+        // buffer, kb/decisions.md 2026-02-22) than to keep tiles/frames
+        // alive for a track that's gone from the project — undo restoring
+        // the track re-runs `useSpectrogramCache`'s normal mount path.
+        audioService.spectrogramCache.invalidate(track.trackId);
       }
     }
 
     previousTracksRef.current = tracks;
-  }, [tracks]);
+    // Hook callbacks reference stable service singletons
+  }, [tracks]); // eslint-disable-line react-hooks/exhaustive-deps
+};
+
+// Fires on project teardown (unmounting `ProjectPageContent`, keyed by
+// project id — leaving for Home or switching to a different project both
+// unmount it) so a previous project's tiles don't linger in GPU/JS memory
+// for the rest of the session (spec 006 Goal 2, mawimbi#540). The restore
+// path (`useSpectrogramCache`'s IndexedDB check) rebuilds the cache from
+// scratch on next mount regardless of what was evicted here.
+export const useTeardownSpectrogramCache = () => {
+  const audioService = useAudioService();
+
+  useEffect(() => {
+    return () => {
+      audioService.spectrogramCache.invalidateAll();
+    };
+    // Hook callbacks reference stable service singletons
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 };
 
 export const useFullscreen = () => {

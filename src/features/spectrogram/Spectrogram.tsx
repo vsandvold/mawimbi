@@ -65,7 +65,11 @@ const Spectrogram = ({
   const frameDisplayHeight = pixelsPerSecond * timeResolution;
   const tileDisplayHeight = TILE_FRAMES * frameDisplayHeight;
   const frequencyBinCount = entry?.data.frequencyBinCount ?? 0;
-  const totalFrames = entry?.data.frequencyFrames.length ?? 0;
+  // Read from stored metadata rather than `frequencyFrames.length` — the
+  // raw frames are released from memory once persisted
+  // (`SpectrogramCache.releaseFrames`, mawimbi#540), but `totalFrames` is
+  // retained as its own field precisely so callers don't need them.
+  const totalFrames = entry?.data.totalFrames ?? 0;
   const tiles = entry?.tiles ?? [];
   const melodyNotes = entry?.melody?.notes ?? [];
 

@@ -116,6 +116,19 @@ class SpectrogramStats {
     });
   }
 
+  // Zeroes a track's frameBytes when its raw frequencyFrames are released
+  // post-persist (`SpectrogramCache.releaseFrames`, mawimbi#540, spec 006
+  // M3) — tileCount/tileBytes/analysisMs/firstTileMs are untouched, since
+  // no new analysis or tiles are involved. A no-op `recordEntry` re-call
+  // would zero analysisMs too (it only reports elapsed time when a token
+  // is passed), destroying a real timing measurement moments after it was
+  // recorded — hence a dedicated method instead of reusing `recordEntry`.
+  releaseFrames(trackId: TrackId): void {
+    const existing = this.tracks.get(trackId);
+    if (!existing) return;
+    this.tracks.set(trackId, { ...existing, frameBytes: 0 });
+  }
+
   // Drops a track's stats when its cache entry is invalidated
   // (`SpectrogramCache.invalidate`), so this bridge's per-track accounting
   // doesn't grow unboundedly across track deletions in a long session.

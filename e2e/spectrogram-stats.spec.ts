@@ -45,7 +45,11 @@ test.describe('Spectrogram stats bridge', () => {
     expect(trackStats.analysisComplete).toBe(true);
     expect(trackStats.tileCount).toBeGreaterThan(0);
     expect(trackStats.tileBytes).toBeGreaterThan(0);
-    expect(trackStats.frameBytes).toBeGreaterThan(0);
+    // frameBytes is deliberately *not* asserted > 0 here: spec 006 M3
+    // (mawimbi#540) releases a track's raw frames shortly after its
+    // spectrogram persists, racing this poll's read of `analysisComplete`.
+    // `spectrogram-memory.spec.ts` covers the post-persist release
+    // invariant (frameBytes settling to 0) directly.
 
     const spectrogramCanvas = page.locator('.spectrogram__canvas');
     await expect(spectrogramCanvas).toBeVisible();

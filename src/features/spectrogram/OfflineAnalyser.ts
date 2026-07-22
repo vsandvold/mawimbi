@@ -6,6 +6,13 @@ export type SpectrogramData = {
   frequencyBinCount: number;
   sampleRate: number;
   duration: number;
+  // Frame count at analysis time (mawimbi#540, spec 006 M3) — retained as
+  // its own field rather than left derivable from `frequencyFrames.length`
+  // or re-derived from `duration`/`timeResolution`, so it survives
+  // `SpectrogramCache.releaseFrames` (which empties `frequencyFrames`) and
+  // stays correct even if a future analysis path's frame-count formula
+  // ever diverges from `duration / timeResolution`.
+  totalFrames: number;
 };
 
 class OfflineAnalyser {

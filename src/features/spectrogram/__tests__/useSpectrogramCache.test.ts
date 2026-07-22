@@ -34,6 +34,7 @@ const MOCK_DATA: SpectrogramData = {
   frequencyBinCount: 2,
   sampleRate: 44100,
   duration: 0.05,
+  totalFrames: 2,
 };
 
 const MOCK_MELODY: MelodyData = {
@@ -63,6 +64,7 @@ const mockExtractMelodyInWorker = vi.fn();
 const mockAnalyseToResult = vi.fn();
 const mockSetEntry = vi.fn();
 const mockSubscribeToEntry = vi.fn();
+const mockReleaseFrames = vi.fn();
 
 // A stable object identity, matching the real useAudioService() (a
 // singleton context value) — a fresh `{ spectrogramCache: {...} }` literal
@@ -81,6 +83,7 @@ const mockSpectrogramCache = {
   analyseToResult: mockAnalyseToResult,
   setEntry: mockSetEntry,
   subscribeToEntry: mockSubscribeToEntry,
+  releaseFrames: mockReleaseFrames,
 };
 const mockAudioServiceValue = { spectrogramCache: mockSpectrogramCache };
 
@@ -131,6 +134,7 @@ describe('toSpectrogramStoreData', () => {
     expect(result.frequencyBinCount).toBe(2);
     expect(result.sampleRate).toBe(44100);
     expect(result.duration).toBe(0.05);
+    expect(result.totalFrames).toBe(2);
   });
 
   it('creates independent copies of frame buffers', () => {
@@ -154,6 +158,7 @@ describe('fromSpectrogramStoreData', () => {
       frequencyBinCount: 2,
       sampleRate: 44100,
       duration: 0.05,
+      totalFrames: 2,
     };
 
     const result = fromSpectrogramStoreData(stored);
@@ -166,6 +171,30 @@ describe('fromSpectrogramStoreData', () => {
     expect(result.frequencyBinCount).toBe(2);
     expect(result.sampleRate).toBe(44100);
     expect(result.duration).toBe(0.05);
+    expect(result.totalFrames).toBe(2);
+  });
+
+  // mawimbi#540 follow-up (code review): rows persisted before this
+  // milestone have no `totalFrames` field — must derive it the same way
+  // the pre-milestone analysis path computed frame count, not just default
+  // to 0 or undefined.
+  it('derives totalFrames from duration/timeResolution for legacy rows missing the field', () => {
+    const stored: SpectrogramStoreData = {
+      trackId: 'track-1',
+      frequencyFrames: [
+        new Uint8Array([10, 20]).buffer.slice(0),
+        new Uint8Array([30, 40]).buffer.slice(0),
+      ],
+      timeResolution: 0.025,
+      frequencyBinCount: 2,
+      sampleRate: 44100,
+      duration: 0.05,
+      // totalFrames omitted — simulates a pre-mawimbi#540 persisted row.
+    };
+
+    const result = fromSpectrogramStoreData(stored);
+
+    expect(result.totalFrames).toBe(2);
   });
 
   it('round-trips through to/from without data loss', () => {
@@ -182,6 +211,7 @@ describe('fromSpectrogramStoreData', () => {
     expect(restored.frequencyBinCount).toBe(MOCK_DATA.frequencyBinCount);
     expect(restored.sampleRate).toBe(MOCK_DATA.sampleRate);
     expect(restored.duration).toBe(MOCK_DATA.duration);
+    expect(restored.totalFrames).toBe(MOCK_DATA.totalFrames);
   });
 });
 
@@ -318,6 +348,23 @@ describe('useSpectrogramCache', () => {
     expect(mockAnalyse).not.toHaveBeenCalled();
   });
 
+  // mawimbi#540 (spec 006 M3) — a restored entry was already persisted
+  // (that's where it was just loaded from), so its raw frames release
+  // immediately rather than waiting on a save that isn't going to happen.
+  it('releases raw frames immediately after restoring from IndexedDB', async () => {
+    mockGetEntry.mockReturnValueOnce(undefined).mockReturnValue(MOCK_ENTRY);
+
+    const storeData = toSpectrogramStoreData('track-1', MOCK_DATA);
+    await saveSpectrogramData(storeData);
+    mockExtractMelodyInWorker.mockResolvedValue(MOCK_MELODY);
+
+    renderHook(() => useSpectrogramCache('track-1', mockAudioBuffer(), COLOR));
+
+    await waitFor(() => {
+      expect(mockReleaseFrames).toHaveBeenCalledWith('track-1');
+    });
+  });
+
   it('runs analysis and saves to IndexedDB when no cached data exists', async () => {
     mockGetEntry
       .mockReturnValueOnce(undefined) // initial check
@@ -352,6 +399,40 @@ describe('useSpectrogramCache', () => {
     expect(stored).not.toBeNull();
     expect(stored!.trackId).toBe('track-1');
     expect(stored!.timeResolution).toBe(0.025);
+
+    // mawimbi#540 (spec 006 M3) — raw frames release once the fresh
+    // analysis is persisted.
+    await waitFor(() => {
+      expect(mockReleaseFrames).toHaveBeenCalledWith('track-1');
+    });
+  });
+
+  // Code review finding (mawimbi#540 follow-up): an IndexedDB write failure
+  // must not permanently strand a track's raw frames in memory — release
+  // still has to run, just logged instead of silently swallowed.
+  it('releases frames even when persisting to IndexedDB fails', async () => {
+    mockGetEntry.mockReturnValueOnce(undefined).mockReturnValue(MOCK_ENTRY);
+    mockAnalyse.mockResolvedValue(undefined);
+    mockExtractMelodyInWorker.mockResolvedValue(MOCK_MELODY);
+
+    const saveSpy = vi
+      .spyOn(
+        await import('../../project/ProjectStorageService'),
+        'saveSpectrogramData',
+      )
+      .mockRejectedValueOnce(new Error('quota exceeded'));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const buffer = mockAudioBuffer();
+    renderHook(() => useSpectrogramCache('track-1', buffer, COLOR));
+
+    await waitFor(() => {
+      expect(mockReleaseFrames).toHaveBeenCalledWith('track-1');
+    });
+    expect(warnSpy).toHaveBeenCalled();
+
+    saveSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 
   it('restores melody from IndexedDB alongside spectrogram', async () => {
@@ -405,6 +486,41 @@ describe('useSpectrogramCache', () => {
     expect(stored).not.toBeNull();
     expect(stored!.trackId).toBe('track-1');
     expect(stored!.timeResolution).toBe(0.0029);
+  });
+
+  // Code review finding (mawimbi#540 follow-up): a track deleted while
+  // melody extraction is still in flight must not get a fresh orphaned
+  // `melodies` row written after useDeleteTrackAudio's cleanup already ran.
+  // invalidate(trackId) removing the cache entry doubles as the "track is
+  // still part of the project" signal extractAndCacheMelody now checks.
+  it('does not save melody data for a track deleted mid-extraction', async () => {
+    mockGetEntry.mockReturnValueOnce(undefined).mockReturnValue(MOCK_ENTRY);
+    mockAnalyse.mockResolvedValue(undefined);
+
+    let resolveMelody!: (melody: MelodyData) => void;
+    mockExtractMelodyInWorker.mockReturnValue(
+      new Promise<MelodyData>((resolve) => {
+        resolveMelody = resolve;
+      }),
+    );
+
+    const buffer = mockAudioBuffer();
+    renderHook(() => useSpectrogramCache('track-1', buffer, COLOR));
+
+    await waitFor(() => {
+      expect(mockExtractMelodyInWorker).toHaveBeenCalledWith(buffer);
+    });
+
+    // Simulate the track being deleted (useDeleteTrackAudio's
+    // spectrogramCache.invalidate) while extraction is still pending.
+    mockGetEntry.mockReturnValue(undefined);
+    resolveMelody(MOCK_MELODY);
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(mockSetMelody).not.toHaveBeenCalled();
+    const stored = await loadMelodyData('track-1');
+    expect(stored).toBeNull();
   });
 
   it('runs melody extraction when spectrogram is in IndexedDB but melody is not', async () => {

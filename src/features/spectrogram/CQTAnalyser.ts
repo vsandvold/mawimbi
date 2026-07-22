@@ -266,6 +266,7 @@ export function analyseCQTChunked(
     frequencyBinCount: numberBins,
     sampleRate,
     duration,
+    totalFrames: frameCount,
   };
 }
 
