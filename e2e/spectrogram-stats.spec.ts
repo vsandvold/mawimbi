@@ -21,16 +21,19 @@ import {
 // Comfortably over the ≥180s floor; segmented so the fixture exercises tone,
 // silence, and burst content in one track (per makeWavFixture's segment
 // design) rather than a single uniform tone.
-const LONG_FIXTURE_SECONDS = 182;
+const TONE_SEGMENT_SECONDS = 90;
+const SILENCE_SEGMENT_SECONDS = 90;
+const BURST_SEGMENT_SECONDS = 2;
+const TONE_FREQUENCY_HZ = 440;
 
 test.describe('Spectrogram stats bridge', () => {
   test('reports non-zero per-track stats and advancing counters after upload + scroll', async ({
     page,
   }) => {
     const fixturePath = makeWavFixture([
-      { kind: 'tone', seconds: 90, frequencyHz: 440 },
-      { kind: 'silence', seconds: 90 },
-      { kind: 'burst', seconds: 2 },
+      { kind: 'tone', seconds: TONE_SEGMENT_SECONDS, frequencyHz: TONE_FREQUENCY_HZ },
+      { kind: 'silence', seconds: SILENCE_SEGMENT_SECONDS },
+      { kind: 'burst', seconds: BURST_SEGMENT_SECONDS },
     ]);
 
     await page.goto('/project/test-id');
