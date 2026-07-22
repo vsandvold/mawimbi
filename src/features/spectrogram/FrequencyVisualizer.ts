@@ -19,6 +19,7 @@
  */
 import * as Tone from 'tone';
 import LiveCQTAnalyser, { computeNumberBins } from './LiveCQTAnalyser';
+import { spectrogramStats } from './SpectrogramStats';
 import WorkletAnalyser from './WorkletAnalyser';
 
 type FrequencyVisualizerOptions = {
@@ -126,6 +127,9 @@ class FrequencyVisualizer {
     source.connect(this.nativeAnalyser as unknown as AudioNode);
 
     this.liveCQTAnalyser = new LiveCQTAnalyser(sampleRate);
+    if (import.meta.env.DEV) {
+      spectrogramStats.incrementMainThreadCqtConstructions();
+    }
     this.timeDomainBuffer = new Float32Array(fftSize);
   }
 

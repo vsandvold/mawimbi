@@ -28,6 +28,13 @@ const mockTileBitmap = {
   height: 2,
 } as unknown as ImageBitmap;
 
+// width/height matter now that setEntry's stats accounting (mawimbi#538)
+// reads tile.width/tile.height — an ad-hoc `{ close: vi.fn() }` mock would
+// silently compute NaN there.
+function makeMockTile(): ImageBitmap {
+  return { close: vi.fn(), width: 2, height: 2 } as unknown as ImageBitmap;
+}
+
 type MockWorker = {
   postMessage: ReturnType<typeof vi.fn>;
   onmessage: ((event: MessageEvent) => void) | null;
@@ -119,7 +126,7 @@ describe('analyse', () => {
       ...MOCK_SPECTROGRAM_DATA,
       duration: 1.0,
     };
-    const secondTile = { close: vi.fn() } as unknown as ImageBitmap;
+    const secondTile = makeMockTile();
     const promise2 = cache.analyse('track-1', mockAudioBuffer(), COLOR);
     simulateWorkerResult(secondData, [secondTile], 1);
     await promise2;
@@ -134,7 +141,7 @@ describe('analyse', () => {
     const { renderTiles: mockRenderTiles } =
       await import('../SpectrogramTileRenderer');
 
-    const fallbackTile = { close: vi.fn() } as unknown as ImageBitmap;
+    const fallbackTile = makeMockTile();
     const mockAnalyser = {
       analyseToFrames: vi.fn().mockResolvedValue(MOCK_SPECTROGRAM_DATA),
     };
@@ -164,7 +171,7 @@ describe('getEntry', () => {
       ...MOCK_SPECTROGRAM_DATA,
       duration: 2.0,
     };
-    const secondTile = { close: vi.fn() } as unknown as ImageBitmap;
+    const secondTile = makeMockTile();
 
     const promise1 = cache.analyse('track-1', mockAudioBuffer(), COLOR);
     simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap], 0);
@@ -184,7 +191,7 @@ describe('restore', () => {
     const { renderTiles: mockRenderTiles } = vi.mocked(
       await import('../SpectrogramTileRenderer'),
     );
-    const restoredTile = { close: vi.fn() } as unknown as ImageBitmap;
+    const restoredTile = makeMockTile();
     mockRenderTiles.mockReturnValue([restoredTile]);
 
     cache.restore('track-1', MOCK_SPECTROGRAM_DATA, COLOR);
@@ -237,7 +244,7 @@ describe('invalidate', () => {
     simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap], 0);
     await promise1;
 
-    const secondTile = { close: vi.fn() } as unknown as ImageBitmap;
+    const secondTile = makeMockTile();
     const promise2 = cache.analyse('track-2', mockAudioBuffer(), COLOR);
     simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [secondTile], 1);
     await promise2;
@@ -255,7 +262,7 @@ describe('invalidateAll', () => {
     simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap], 0);
     await promise1;
 
-    const secondTile = { close: vi.fn() } as unknown as ImageBitmap;
+    const secondTile = makeMockTile();
     const promise2 = cache.analyse('track-2', mockAudioBuffer(), COLOR);
     simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [secondTile], 1);
     await promise2;
@@ -267,8 +274,8 @@ describe('invalidateAll', () => {
   });
 
   it('closes all ImageBitmap tiles', async () => {
-    const tile1 = { close: vi.fn() } as unknown as ImageBitmap;
-    const tile2 = { close: vi.fn() } as unknown as ImageBitmap;
+    const tile1 = makeMockTile();
+    const tile2 = makeMockTile();
 
     const promise1 = cache.analyse('track-1', mockAudioBuffer(), COLOR);
     simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [tile1], 0);
@@ -348,7 +355,7 @@ describe('setMelody', () => {
     simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap], 0);
     await promise1;
 
-    const tile2 = { close: vi.fn() } as unknown as ImageBitmap;
+    const tile2 = makeMockTile();
     const promise2 = cache.analyse('track-2', mockAudioBuffer(), COLOR);
     simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [tile2], 1);
     await promise2;
