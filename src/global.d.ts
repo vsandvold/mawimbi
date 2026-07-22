@@ -1,4 +1,5 @@
 import type SpectrogramCache from './features/spectrogram/SpectrogramCache';
+import type SpectrogramStats from './features/spectrogram/SpectrogramStats';
 import type PlaybackService from './features/playback/PlaybackService';
 
 declare global {
@@ -19,9 +20,16 @@ declare global {
      * `computeNumberBins`/bar-count math the live CQT analyser uses to
      * derive an expected sparkle x position, rather than assuming a sample
      * rate the test environment may not actually use.
+     *
+     * `spectrogramStats` (mawimbi#538, spec 006 milestone 1) exposes the
+     * spectrogram subsystem's perf/memory accounting — per-track tile/frame
+     * byte counts and analysis timing, plus global draw/read counters — so
+     * later milestones' e2e suites can assert on measured numbers instead
+     * of guessing from pixels or wall-clock timing.
      */
     __mawimbi?: {
       spectrogramCache: Pick<SpectrogramCache, 'getMelody'>;
+      spectrogramStats: Pick<SpectrogramStats, 'getTrackStats' | 'getCounters'>;
       playback: Pick<PlaybackService, 'getEngineTime'>;
       sampleRate: number;
     };

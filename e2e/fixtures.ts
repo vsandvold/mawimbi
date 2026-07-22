@@ -23,6 +23,7 @@ import type { Page } from '@playwright/test';
 export { expect };
 export * from './helpers/gestures';
 export * from './helpers/flapTracer';
+export * from './helpers/makeWavFixture';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

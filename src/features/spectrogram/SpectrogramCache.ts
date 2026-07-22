@@ -2,6 +2,7 @@ import { type TrackColor } from '../tracks/types';
 import { type MelodyData } from '../transcription/MelodyExtractor';
 import OfflineAnalyser, { type SpectrogramData } from './OfflineAnalyser';
 import { renderTiles } from './SpectrogramTileRenderer';
+import { spectrogramStats } from './SpectrogramStats';
 import { type WorkerResponse } from './spectrogram.worker';
 
 export type TrackSpectrogramEntry = {
@@ -43,6 +44,7 @@ class SpectrogramCache {
     color: TrackColor,
     effectsParamsHash?: string,
   ): Promise<void> {
+    if (import.meta.env.DEV) spectrogramStats.recordAnalysisStart(trackId);
     const result = await this.analyseToResult(audioBuffer, color);
     this.setEntry(trackId, result.data, result.tiles, effectsParamsHash);
   }
@@ -79,6 +81,7 @@ class SpectrogramCache {
   ): void {
     const melody = this.entries.get(trackId)?.melody;
     this.entries.set(trackId, { data, tiles, melody, effectsParamsHash });
+    if (import.meta.env.DEV) spectrogramStats.recordEntry(trackId, tiles, data);
   }
 
   restore(

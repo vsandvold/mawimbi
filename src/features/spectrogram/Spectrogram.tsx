@@ -11,6 +11,7 @@ import { type Track } from '../tracks/types';
 import { drawPianoRoll, type PianoRollViewport } from './PianoRollRenderer';
 import RecordingBuffer from './RecordingBuffer';
 import './Spectrogram.css';
+import { spectrogramStats } from './SpectrogramStats';
 import { useSpectrogramCache } from './useSpectrogramCache';
 
 type SpectrogramProps = {
@@ -195,6 +196,8 @@ type CanvasWindow = {
 };
 
 function getCanvasWindow(container: HTMLDivElement): CanvasWindow {
+  if (import.meta.env.DEV) spectrogramStats.incrementWindowReads();
+
   const scrubber = container.closest(
     `.${SCRUBBER_CLASS}`,
   ) as HTMLElement | null;
@@ -384,6 +387,7 @@ function drawTilesFrame(
   last.offset = trackBase;
   last.pps = pixelsPerSecond;
   last.tiles = tiles;
+  if (import.meta.env.DEV) spectrogramStats.incrementDrawCalls();
 
   if (needsResize) {
     canvas.width = win.width;

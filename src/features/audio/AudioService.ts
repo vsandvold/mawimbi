@@ -12,6 +12,7 @@ import TrackService from '../tracks/TrackService';
 import InstrumentClassificationService from '../classification/InstrumentClassificationService';
 import TranscriptionService from '../transcription/TranscriptionService';
 import SpectrogramCache from '../spectrogram/SpectrogramCache';
+import { spectrogramStats } from '../spectrogram/SpectrogramStats';
 import WorkletAnalyser from '../spectrogram/WorkletAnalyser';
 
 // Reduce scheduling lookahead from the default 0.1s to 0.05s for lower
@@ -70,6 +71,7 @@ class AudioService {
     if (import.meta.env.DEV) {
       window.__mawimbi = {
         spectrogramCache: this.spectrogramCache,
+        spectrogramStats,
         playback: this.playbackService,
         sampleRate: context.sampleRate,
       };
