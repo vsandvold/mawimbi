@@ -74,6 +74,7 @@ vi.mock('../../audio/useAudioService', () => ({
       restore: vi.fn(),
       getMelody: vi.fn(),
       setMelody: vi.fn(),
+      subscribeToEntry: vi.fn().mockReturnValue(() => {}),
       extractMelodyInWorker: vi
         .fn()
         .mockResolvedValue({ notes: [], timeResolution: 0.0029 }),
@@ -215,6 +216,7 @@ it('triggers spectrogramCache.analyse when audio buffer exists and not cached', 
       audioBuffer,
       defaultProps.track.color,
       '0:0:0',
+      expect.any(Function),
     );
   });
 });
@@ -231,6 +233,7 @@ it('uses cached entry without re-analysis', () => {
       duration: 5.0,
     },
     tiles: [],
+    analysisComplete: true,
   };
   mockGetEntry.mockReturnValue(cachedEntry);
 

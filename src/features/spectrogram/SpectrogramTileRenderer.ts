@@ -1,7 +1,7 @@
 import { type TrackColor } from '../tracks/types';
 import { SpectrogramData } from './OfflineAnalyser';
+import { TILE_FRAMES } from './tileConstants';
 
-const DEFAULT_TILE_WIDTH = 4096;
 const COLOR_MAP_SIZE = 256;
 const BYTES_PER_PIXEL = 4;
 
@@ -66,7 +66,7 @@ function renderTilePixels(
 export function renderTiles(
   data: SpectrogramData,
   color: TrackColor,
-  tileFrames: number = DEFAULT_TILE_WIDTH,
+  tileFrames: number = TILE_FRAMES,
 ): ImageBitmap[] {
   const { frequencyFrames, frequencyBinCount } = data;
   const totalFrames = frequencyFrames.length;

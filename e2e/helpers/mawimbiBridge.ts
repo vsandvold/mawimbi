@@ -20,10 +20,10 @@ import { expect } from '../fixtures';
 const MELODY_POLL_TIMEOUT_MS = 20_000;
 const MELODY_POLL_INTERVAL_MS = 500;
 
-// Full-track CQT analysis has no progressive output yet (spec 006 M1 is the
-// measurement harness only — M2 adds chunked emission), so a long fixture's
-// analysisComplete flag doesn't flip until the whole track is analysed.
-// Generous bound for a 3+ minute fixture in a sandboxed CI environment.
+// Analysis is chunked (spec 006 M2): tileCount grows well before this flag
+// flips, but the flag itself still only flips once the whole track has been
+// analysed. Generous bound for a 3+ minute fixture in a sandboxed CI
+// environment.
 const SPECTROGRAM_STATS_POLL_TIMEOUT_MS = 90_000;
 const SPECTROGRAM_STATS_POLL_INTERVAL_MS = 1_000;
 
@@ -100,12 +100,13 @@ export async function getSpectrogramCounters(
 }
 
 /**
- * Polls until `trackId`'s spectrogram analysis completes (bridge's
- * `analysisComplete` flag), then returns its final per-track stats. Full
- * analysis of a long fixture has no progressive output before spec 006 M2,
- * so this can take real wall-clock time proportional to the track's
- * duration — callers uploading a multi-minute fixture should expect this
- * poll to dominate the test's runtime.
+ * Polls until `trackId`'s spectrogram analysis fully completes (bridge's
+ * `analysisComplete` flag), then returns its final per-track stats.
+ * Analysis is chunked (spec 006 M2) so `tileCount` grows well before this
+ * resolves — use `sampleSpectrogramTileGrowth` to observe that instead —
+ * but the flag itself only flips once the whole track has been analysed,
+ * so this can still take real wall-clock time proportional to the track's
+ * duration for a long fixture.
  */
 export async function waitForSpectrogramAnalysisComplete(
   page: Page,
@@ -144,4 +145,56 @@ export async function waitForSpectrogramAnalysisComplete(
     .toBe(true);
 
   return stats!;
+}
+
+/**
+ * Samples `trackId`'s spectrogram stats repeatedly (mawimbi#539, spec 006
+ * milestone 2's progressive-tiling proof) until `analysisComplete` flips,
+ * returning every recorded sample in arrival order (including the final,
+ * complete one). Built on `expect.poll` — same idiom as
+ * `waitForSpectrogramAnalysisComplete` above, just pushing each sample
+ * into a closure-captured array from inside the poll callback instead of
+ * only keeping the last one (review fix, mawimbi#539: an earlier version
+ * hand-rolled this with a raw loop and `page.waitForTimeout`, duplicating
+ * `expect.poll`'s own cadence/timeout handling and violating CLAUDE.md's
+ * e2e "No blind waits" rule).
+ *
+ * `getTrackStats` legitimately returns `undefined` for a brief real window
+ * right after upload — `recordAnalysisStart` runs before the first chunk's
+ * `recordEntry` does, so there's no per-track entry yet — those ticks are
+ * skipped rather than recorded or treated as a bridge failure. The bridge
+ * object itself missing entirely (a real regression, not a timing gap) is
+ * checked once up front, matching `waitForSpectrogramAnalysisComplete`.
+ */
+export async function sampleSpectrogramTileGrowth(
+  page: Page,
+  trackId: string,
+): Promise<TrackSpectrogramStats[]> {
+  const bridgeAvailable = await page.evaluate(() =>
+    Boolean(window.__mawimbi?.spectrogramStats),
+  );
+  if (!bridgeAvailable) {
+    throw new Error('window.__mawimbi.spectrogramStats is unavailable');
+  }
+
+  const samples: TrackSpectrogramStats[] = [];
+
+  await expect
+    .poll(
+      async () => {
+        const stats = await page.evaluate(
+          (id) => window.__mawimbi?.spectrogramStats.getTrackStats(id),
+          trackId,
+        );
+        if (stats) samples.push(stats);
+        return stats?.analysisComplete ?? false;
+      },
+      {
+        timeout: SPECTROGRAM_STATS_POLL_TIMEOUT_MS,
+        intervals: [SPECTROGRAM_STATS_POLL_INTERVAL_MS],
+      },
+    )
+    .toBe(true);
+
+  return samples;
 }

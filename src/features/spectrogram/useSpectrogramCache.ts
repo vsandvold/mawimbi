@@ -93,12 +93,32 @@ export function useSpectrogramCache(
   useEffect(() => {
     if (!audioBuffer) return;
 
+    let cancelled = false;
+
     const cached = audioService.spectrogramCache.getEntry(trackId);
     if (cached) {
       const cachedHash = cached.effectsParamsHash ?? DRY_EFFECTS_HASH;
       if (cachedHash === effectsHash) {
         setEntry(cached);
-        return;
+        if (cached.analysisComplete) return;
+
+        // The cached entry is still being filled in by a chunked analysis
+        // that this mount didn't itself start (e.g. it was already in
+        // flight when this component mounted, or a previous mount's
+        // analyse() call is still running after this one remounted).
+        // Without this, the hook would silently treat a partial snapshot
+        // as final and never learn about the remaining tiles or the
+        // analysis completing (review fix, mawimbi#539).
+        const unsubscribe = audioService.spectrogramCache.subscribeToEntry(
+          trackId,
+          (updated) => {
+            if (!cancelled) setEntry(updated);
+          },
+        );
+        return () => {
+          cancelled = true;
+          unsubscribe();
+        };
       }
 
       // Already analysed this session but for different effect amounts —
@@ -125,8 +145,6 @@ export function useSpectrogramCache(
       schedulerRef.current.schedule(trackId, audioBuffer, color, effects);
       return;
     }
-
-    let cancelled = false;
 
     // The dry buffer analyses directly; any non-default effects need a
     // post-effect offline render first, whether this mount-time pass is
@@ -169,6 +187,9 @@ export function useSpectrogramCache(
             rendered,
             color,
             effectsHash,
+            (progressEntry) => {
+              if (!cancelled) setEntry(progressEntry);
+            },
           );
           if (cancelled) return;
           const refreshed = audioService.spectrogramCache.getEntry(trackId);
@@ -216,6 +237,9 @@ export function useSpectrogramCache(
         rendered,
         color,
         effectsHash,
+        (progressEntry) => {
+          if (!cancelled) setEntry(progressEntry);
+        },
       );
 
       if (cancelled) return;

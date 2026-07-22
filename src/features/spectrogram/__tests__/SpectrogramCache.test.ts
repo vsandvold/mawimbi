@@ -67,13 +67,41 @@ function mockAudioBuffer(channels = 1): AudioBuffer {
   } as unknown as AudioBuffer;
 }
 
+// Simulates the worker's real protocol (mawimbi#539, spec 006 milestone 2):
+// tiles and frames arrive exclusively via 'chunk' messages, and the final
+// 'result' message carries only scalar metadata (SpectrogramCache
+// reconstructs `data` from what it already accumulated, rather than
+// re-cloning every frame a second time — review fix, mawimbi#539). Every
+// existing call site here passes a single-element `tiles` array, so one
+// 'chunk' message covering the whole (small, synthetic)
+// `data.frequencyFrames` reproduces the prior single-message behavior.
 function simulateWorkerResult(
   data: SpectrogramData,
   tiles: ImageBitmap[],
   id = 0,
 ) {
+  const [tile] = tiles;
   mockWorker.onmessage!({
-    data: { id, type: 'result', data, tiles },
+    data: {
+      id,
+      type: 'chunk',
+      frames: data.frequencyFrames,
+      startFrame: 0,
+      tile,
+      frequencyBinCount: data.frequencyBinCount,
+      timeResolution: data.timeResolution,
+      sampleRate: data.sampleRate,
+    },
+  } as MessageEvent);
+  mockWorker.onmessage!({
+    data: {
+      id,
+      type: 'result',
+      frequencyBinCount: data.frequencyBinCount,
+      timeResolution: data.timeResolution,
+      sampleRate: data.sampleRate,
+      duration: data.duration,
+    },
   } as MessageEvent);
 }
 
@@ -113,11 +141,11 @@ describe('analyse', () => {
 
     const entry = cache.getEntry('track-1');
     expect(entry).toBeDefined();
-    expect(entry!.data).toBe(MOCK_SPECTROGRAM_DATA);
+    expect(entry!.data).toEqual(MOCK_SPECTROGRAM_DATA);
     expect(entry!.tiles).toEqual([mockTileBitmap]);
   });
 
-  it('overwrites an existing entry for the same track', async () => {
+  it('overwrites an existing entry for the same track, closing the superseded tile', async () => {
     const promise1 = cache.analyse('track-1', mockAudioBuffer(), COLOR);
     simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap], 0);
     await promise1;
@@ -132,8 +160,84 @@ describe('analyse', () => {
     await promise2;
 
     const entry = cache.getEntry('track-1');
-    expect(entry!.data).toBe(secondData);
+    expect(entry!.data).toEqual(secondData);
     expect(entry!.tiles).toEqual([secondTile]);
+    // The first entry's tile is entirely replaced (not reused by
+    // reference) by the second analysis, so it must be closed rather than
+    // silently leaked (review fix, mawimbi#539).
+    expect(mockTileBitmap.close).toHaveBeenCalled();
+  });
+
+  it('applies each chunk via a fresh tiles array and notifies onProgress before the final result', async () => {
+    const onProgress = vi.fn();
+    const chunkTile1 = makeMockTile();
+    const chunkTile2 = makeMockTile();
+
+    const promise = cache.analyse(
+      'track-1',
+      mockAudioBuffer(),
+      COLOR,
+      undefined,
+      onProgress,
+    );
+
+    mockWorker.onmessage!({
+      data: {
+        id: 0,
+        type: 'chunk',
+        frames: [MOCK_SPECTROGRAM_DATA.frequencyFrames[0]],
+        startFrame: 0,
+        tile: chunkTile1,
+        frequencyBinCount: MOCK_SPECTROGRAM_DATA.frequencyBinCount,
+        timeResolution: MOCK_SPECTROGRAM_DATA.timeResolution,
+        sampleRate: MOCK_SPECTROGRAM_DATA.sampleRate,
+      },
+    } as MessageEvent);
+
+    expect(onProgress).toHaveBeenCalledTimes(1);
+    const afterFirstChunk = cache.getEntry('track-1');
+    expect(afterFirstChunk?.tiles).toEqual([chunkTile1]);
+    expect(afterFirstChunk?.data.frequencyFrames.length).toBe(1);
+    expect(afterFirstChunk?.analysisComplete).toBe(false);
+
+    mockWorker.onmessage!({
+      data: {
+        id: 0,
+        type: 'chunk',
+        frames: [MOCK_SPECTROGRAM_DATA.frequencyFrames[1]],
+        startFrame: 1,
+        tile: chunkTile2,
+        frequencyBinCount: MOCK_SPECTROGRAM_DATA.frequencyBinCount,
+        timeResolution: MOCK_SPECTROGRAM_DATA.timeResolution,
+        sampleRate: MOCK_SPECTROGRAM_DATA.sampleRate,
+      },
+    } as MessageEvent);
+
+    expect(onProgress).toHaveBeenCalledTimes(2);
+    const afterSecondChunk = cache.getEntry('track-1');
+    expect(afterSecondChunk?.tiles).toEqual([chunkTile1, chunkTile2]);
+    // A fresh array each delivery, never a mutation of the previous one —
+    // the #494 reference-identity dirty-check contract (CLAUDE.md).
+    expect(afterSecondChunk?.tiles).not.toBe(afterFirstChunk?.tiles);
+    expect(afterSecondChunk?.data.frequencyFrames.length).toBe(2);
+
+    mockWorker.onmessage!({
+      data: {
+        id: 0,
+        type: 'result',
+        frequencyBinCount: MOCK_SPECTROGRAM_DATA.frequencyBinCount,
+        timeResolution: MOCK_SPECTROGRAM_DATA.timeResolution,
+        sampleRate: MOCK_SPECTROGRAM_DATA.sampleRate,
+        duration: MOCK_SPECTROGRAM_DATA.duration,
+      },
+    } as MessageEvent);
+    await promise;
+
+    expect(onProgress).toHaveBeenCalledTimes(3);
+    const finalEntry = cache.getEntry('track-1');
+    expect(finalEntry?.data).toEqual(MOCK_SPECTROGRAM_DATA);
+    expect(finalEntry?.tiles).toEqual([chunkTile1, chunkTile2]);
+    expect(finalEntry?.analysisComplete).toBe(true);
   });
 
   it('falls back to main thread when the worker responds with an error', async () => {
@@ -181,8 +285,8 @@ describe('getEntry', () => {
     simulateWorkerResult(secondData, [secondTile], 1);
     await promise2;
 
-    expect(cache.getEntry('track-1')!.data).toBe(MOCK_SPECTROGRAM_DATA);
-    expect(cache.getEntry('track-2')!.data).toBe(secondData);
+    expect(cache.getEntry('track-1')!.data).toEqual(MOCK_SPECTROGRAM_DATA);
+    expect(cache.getEntry('track-2')!.data).toEqual(secondData);
   });
 });
 
@@ -211,6 +315,90 @@ describe('restore', () => {
     cache.restore('track-1', MOCK_SPECTROGRAM_DATA, COLOR);
 
     expect(mockRenderTiles).toHaveBeenCalledWith(MOCK_SPECTROGRAM_DATA, COLOR);
+  });
+});
+
+describe('setEntry', () => {
+  it('stamps analysisComplete on the entry, defaulting to true', () => {
+    cache.setEntry('track-1', MOCK_SPECTROGRAM_DATA, []);
+    expect(cache.getEntry('track-1')?.analysisComplete).toBe(true);
+
+    cache.setEntry(
+      'track-2',
+      MOCK_SPECTROGRAM_DATA,
+      [],
+      undefined,
+      undefined,
+      false,
+    );
+    expect(cache.getEntry('track-2')?.analysisComplete).toBe(false);
+  });
+
+  it('closes a previous tile the new set does not reuse by reference, but leaves a reused tile open (review fix, mawimbi#539)', () => {
+    const reusedTile = makeMockTile();
+    const droppedTile = makeMockTile();
+    const freshTile = makeMockTile();
+
+    cache.setEntry(
+      'track-1',
+      MOCK_SPECTROGRAM_DATA,
+      [reusedTile, droppedTile],
+      undefined,
+      undefined,
+      false,
+    );
+    cache.setEntry('track-1', MOCK_SPECTROGRAM_DATA, [reusedTile, freshTile]);
+
+    expect(reusedTile.close).not.toHaveBeenCalled();
+    expect(droppedTile.close).toHaveBeenCalledOnce();
+    expect(freshTile.close).not.toHaveBeenCalled();
+  });
+
+  it('does not attempt to close anything for a brand-new entry', () => {
+    expect(() =>
+      cache.setEntry('track-1', MOCK_SPECTROGRAM_DATA, [makeMockTile()]),
+    ).not.toThrow();
+  });
+});
+
+describe('subscribeToEntry', () => {
+  it('notifies the subscriber on every setEntry call for that track', () => {
+    const callback = vi.fn();
+    cache.subscribeToEntry('track-1', callback);
+
+    cache.setEntry(
+      'track-1',
+      MOCK_SPECTROGRAM_DATA,
+      [],
+      undefined,
+      undefined,
+      false,
+    );
+    cache.setEntry('track-1', MOCK_SPECTROGRAM_DATA, []);
+
+    expect(callback).toHaveBeenCalledTimes(2);
+    expect(callback).toHaveBeenLastCalledWith(
+      expect.objectContaining({ analysisComplete: true }),
+    );
+  });
+
+  it('does not notify a subscriber of a different track', () => {
+    const callback = vi.fn();
+    cache.subscribeToEntry('track-1', callback);
+
+    cache.setEntry('track-2', MOCK_SPECTROGRAM_DATA, []);
+
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  it('stops notifying once unsubscribed', () => {
+    const callback = vi.fn();
+    const unsubscribe = cache.subscribeToEntry('track-1', callback);
+    unsubscribe();
+
+    cache.setEntry('track-1', MOCK_SPECTROGRAM_DATA, []);
+
+    expect(callback).not.toHaveBeenCalled();
   });
 });
 
