@@ -112,6 +112,7 @@ async function handleSpectrogram(request: AnalyseRequest): Promise<void> {
           frequencyBinCount: frames[0].length,
           sampleRate,
           duration: frames.length * HOP_SECONDS,
+          totalFrames: frames.length,
         };
         const [tile] = renderTiles(chunkData, color, TILE_FRAMES);
         const chunkResponse: AnalyseChunkResponse = {

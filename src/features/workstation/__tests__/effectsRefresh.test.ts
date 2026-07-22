@@ -32,6 +32,7 @@ function spectrogramDataFor(marker: string): SpectrogramData {
     frequencyBinCount: 1,
     sampleRate: 44100,
     duration: 1,
+    totalFrames: 1,
   };
 }
 
@@ -213,6 +214,107 @@ describe('EffectsRefreshScheduler persistence', () => {
     const releaseOrder = releaseFrames.mock.invocationCallOrder[0];
     const refreshedOrder = onRefreshed.mock.invocationCallOrder[0];
     expect(releaseOrder).toBeLessThan(refreshedOrder);
+  });
+
+  // Code review finding (mawimbi#540 follow-up): a request whose own
+  // `saveSpectrogramData` is still pending must not re-fire releaseFrames/
+  // onRefreshed after a newer request for the same track has already
+  // completed in full — the tail lacked the same isSuperseded() guard the
+  // two earlier async stages already had.
+  it('does not re-fire releaseFrames/onRefreshed for a request superseded while its own save is still pending', async () => {
+    const renderOffline = vi
+      .fn()
+      .mockImplementation((buffer: AudioBuffer) => Promise.resolve(buffer));
+    const analyseToResult = vi.fn().mockImplementation(
+      async (buffer: AudioBuffer): Promise<SpectrogramResult> => ({
+        data: spectrogramDataFor(
+          (buffer as unknown as { marker: string }).marker,
+        ),
+        tiles: [],
+      }),
+    );
+    const setEntry = vi.fn();
+    const releaseFrames = vi.fn();
+    const onRefreshed = vi.fn();
+
+    const deferredSaveA = createDeferred<void>();
+    const saveSpy = vi.spyOn(
+      await import('../../project/ProjectStorageService'),
+      'saveSpectrogramData',
+    );
+    let saveCallCount = 0;
+    saveSpy.mockImplementation(() => {
+      saveCallCount++;
+      // Request A's save stalls; request B's resolves immediately.
+      return saveCallCount === 1 ? deferredSaveA.promise : Promise.resolve();
+    });
+
+    const scheduler = new EffectsRefreshScheduler({
+      renderOffline,
+      analyseToResult,
+      setEntry,
+      releaseFrames,
+      onRefreshed,
+    });
+
+    // Request A: reaches its (stalled) save and stops there.
+    scheduler.schedule(TRACK_ID, mockAudioBuffer('A'), COLOR, AMOUNTS_A);
+    await waitForCallCount(setEntry, 1);
+
+    // Request B for the same track, fully completes (its own save resolves
+    // immediately) while A's save is still pending.
+    scheduler.schedule(TRACK_ID, mockAudioBuffer('B'), COLOR, AMOUNTS_B);
+    await waitForCallCount(setEntry, 2);
+    await waitForCallCount(releaseFrames, 1);
+    await waitForCallCount(onRefreshed, 1);
+
+    // A's stalled save finally resolves — A is now superseded by B.
+    deferredSaveA.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // A's late completion must not trigger a second release/refresh.
+    expect(releaseFrames).toHaveBeenCalledOnce();
+    expect(onRefreshed).toHaveBeenCalledOnce();
+
+    saveSpy.mockRestore();
+  });
+
+  it('still releases frames and notifies onRefreshed when persisting fails', async () => {
+    const renderOffline = vi
+      .fn()
+      .mockResolvedValue(mockAudioBuffer('rendered'));
+    const analyseToResult = vi.fn().mockResolvedValue({
+      data: spectrogramDataFor('rendered'),
+      tiles: [],
+    } as SpectrogramResult);
+    const setEntry = vi.fn();
+    const releaseFrames = vi.fn();
+    const onRefreshed = vi.fn();
+
+    const saveSpy = vi
+      .spyOn(
+        await import('../../project/ProjectStorageService'),
+        'saveSpectrogramData',
+      )
+      .mockRejectedValueOnce(new Error('quota exceeded'));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const scheduler = new EffectsRefreshScheduler({
+      renderOffline,
+      analyseToResult,
+      setEntry,
+      releaseFrames,
+      onRefreshed,
+    });
+
+    scheduler.schedule(TRACK_ID, mockAudioBuffer('dry'), COLOR, AMOUNTS_A);
+    await waitForCallCount(onRefreshed, 1);
+
+    expect(releaseFrames).toHaveBeenCalledOnce();
+    expect(warnSpy).toHaveBeenCalled();
+
+    saveSpy.mockRestore();
+    warnSpy.mockRestore();
   });
 });
 

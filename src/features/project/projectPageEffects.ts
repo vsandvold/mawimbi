@@ -3,10 +3,7 @@ import { useAudioService } from '../audio/useAudioService';
 import { useTrackService } from '../tracks/useTrackService';
 import useDebounced from '../../shared/hooks/useDebounced';
 import {
-  deleteAudioData,
-  deleteMelodyData,
-  deleteSpectrogramData,
-  deleteTranscription,
+  deleteTrackData,
   loadAudioData,
   loadProject,
   saveAudioData,
@@ -321,14 +318,14 @@ export const useDeleteTrackAudio = (tracks: Track[]) => {
 
     for (const track of previousTracks) {
       if (!currIds.has(track.trackId)) {
-        deleteAudioData(track.trackId);
-        deleteSpectrogramData(track.trackId);
-        // Melody data had no counterpart here before mawimbi#540 (spec 006
-        // M3's IndexedDB orphan audit) — every single-track deletion (most
-        // commonly undoing an upload) left its `melodies` entry behind
-        // forever, unlike `deleteProject`, which already swept it.
-        deleteMelodyData(track.trackId);
-        deleteTranscription(track.trackId);
+        // `deleteTrackData` sweeps every store a track owns (audioData/
+        // spectrograms/melodies/transcriptions) from the same shared list
+        // `deleteProject` uses — before mawimbi#540's IndexedDB orphan
+        // audit, this hook hand-maintained its own list and had drifted
+        // from `deleteProject`'s (missing `melodies`); every single-track
+        // deletion (most commonly undoing an upload) left that entry
+        // behind forever.
+        deleteTrackData(track.trackId);
         // Cheaper to rebuild (re-analyse from the still-in-memory audio
         // buffer, kb/decisions.md 2026-02-22) than to keep tiles/frames
         // alive for a track that's gone from the project — undo restoring

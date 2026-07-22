@@ -35,6 +35,7 @@ export function toSpectrogramStoreData(
     frequencyBinCount: data.frequencyBinCount,
     sampleRate: data.sampleRate,
     duration: data.duration,
+    totalFrames: data.totalFrames,
   };
 }
 
@@ -49,6 +50,10 @@ export function fromSpectrogramStoreData(
     frequencyBinCount: stored.frequencyBinCount,
     sampleRate: stored.sampleRate,
     duration: stored.duration,
+    // Absent on rows persisted before mawimbi#540 — derive it the same way
+    // the pre-milestone3 analysis path did, so legacy entries keep working.
+    totalFrames:
+      stored.totalFrames ?? Math.floor(stored.duration / stored.timeResolution),
   };
 }
 
@@ -215,7 +220,19 @@ export function useSpectrogramCache(
           if (refreshed) {
             const storeData = toSpectrogramStoreData(trackId, refreshed.data);
             storeData.effectsParamsHash = effectsHash;
-            saveSpectrogramData(storeData).then(releaseFramesAndSync);
+            saveSpectrogramData(storeData)
+              .catch((error) => {
+                // Release still runs on failure (caught below) — the entry is
+                // cheap to rebuild from the audio buffer next load if this
+                // write never persisted (kb/decisions.md 2026-02-22); silently
+                // leaving frames un-released for the rest of the session would
+                // be worse than a logged, recoverable persist failure.
+                console.warn(
+                  `[spectrogram] Failed to persist track ${trackId} to IndexedDB:`,
+                  error,
+                );
+              })
+              .then(releaseFramesAndSync);
           }
         }
 
@@ -270,7 +287,19 @@ export function useSpectrogramCache(
       if (analysedEntry) {
         const storeData = toSpectrogramStoreData(trackId, analysedEntry.data);
         storeData.effectsParamsHash = effectsHash;
-        saveSpectrogramData(storeData).then(releaseFramesAndSync);
+        saveSpectrogramData(storeData)
+          .catch((error) => {
+            // Release still runs on failure (caught below) — the entry is
+            // cheap to rebuild from the audio buffer next load if this
+            // write never persisted (kb/decisions.md 2026-02-22); silently
+            // leaving frames un-released for the rest of the session would
+            // be worse than a logged, recoverable persist failure.
+            console.warn(
+              `[spectrogram] Failed to persist track ${trackId} to IndexedDB:`,
+              error,
+            );
+          })
+          .then(releaseFramesAndSync);
       }
 
       // Run melody extraction in the background
@@ -309,6 +338,13 @@ function extractAndCacheMelody(
       console.log(
         `[melody] Melody extraction complete for track ${trackId}: ${melody.notes.length} notes`,
       );
+      // The track may have been deleted while extraction was in flight —
+      // useDeleteTrackAudio's invalidate(trackId) (mawimbi#540) removes the
+      // cache entry, which doubles here as the "still part of the project"
+      // signal. Without this check, saveMelodyData would resurrect the
+      // exact orphaned-row bug class this milestone's IndexedDB audit
+      // fixed, just via a race instead of a missing delete call.
+      if (!audioService.spectrogramCache.getEntry(trackId)) return;
       audioService.spectrogramCache.setMelody(trackId, melody);
       saveMelodyData(toMelodyStoreData(trackId, melody));
       onComplete();

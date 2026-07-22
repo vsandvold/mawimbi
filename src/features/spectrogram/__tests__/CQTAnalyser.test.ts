@@ -172,6 +172,20 @@ describe('analyseCQT', () => {
     expect(result.frequencyFrames).toHaveLength(expectedFrames);
   });
 
+  // mawimbi#540 follow-up (code review): `totalFrames` is retained as its
+  // own field rather than left derivable, so it must match the true frame
+  // count exactly — this is the value `Spectrogram.tsx` reads once raw
+  // frames are released and can no longer be counted directly.
+  it('sets totalFrames to the actual frame count', () => {
+    const duration = 0.1;
+    const length = Math.ceil(duration * SAMPLE_RATE);
+    const channelData = [new Float32Array(length)];
+
+    const result = analyseCQT(channelData, SAMPLE_RATE, length);
+
+    expect(result.totalFrames).toBe(result.frequencyFrames.length);
+  });
+
   it('frames are independent Uint8Array copies', () => {
     const duration = 0.1;
     const length = Math.ceil(duration * SAMPLE_RATE);

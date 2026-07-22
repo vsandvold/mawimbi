@@ -7,6 +7,7 @@ const DATA: SpectrogramData = {
   frequencyBinCount: 4,
   sampleRate: 44100,
   duration: 0.075,
+  totalFrames: 3,
 };
 
 function mockTile(width: number, height: number): ImageBitmap {

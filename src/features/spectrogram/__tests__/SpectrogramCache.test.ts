@@ -20,6 +20,7 @@ const MOCK_SPECTROGRAM_DATA: SpectrogramData = {
   frequencyBinCount: 2,
   sampleRate: 44100,
   duration: 0.05,
+  totalFrames: 2,
 };
 
 const mockTileBitmap = {

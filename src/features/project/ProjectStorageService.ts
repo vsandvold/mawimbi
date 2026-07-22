@@ -6,6 +6,19 @@ import { type TranscriptionSegment } from '../transcription/types';
 const DB_NAME = 'mawimbi-db';
 const DB_VERSION = 3;
 
+// Every IndexedDB store keyed by trackId — the single source of truth for
+// "what does a track own." `deleteProject` and `deleteTrackData` both build
+// their per-track cleanup from this list instead of each hand-maintaining
+// their own (mawimbi#540's IndexedDB orphan audit found these two lists had
+// already drifted once: `deleteTrackData`'s single-track path was missing
+// `melodies` while `deleteProject` already had it).
+const TRACK_DATA_STORES = [
+  'audioData',
+  'spectrograms',
+  'melodies',
+  'transcriptions',
+] as const;
+
 export type StoredProject = {
   id: string;
   title: string;
@@ -29,6 +42,10 @@ export type SpectrogramStoreData = {
   // rendered before spec 004 (dry data — an empty-amounts hash is a safe
   // stand-in, since M6 has not shipped a re-analysis workflow yet).
   effectsParamsHash?: string;
+  // Frame count at analysis time (mawimbi#540, spec 006 M3). Absent on
+  // entries persisted before this milestone — `fromSpectrogramStoreData`
+  // falls back to deriving it from `duration`/`timeResolution` for those.
+  totalFrames?: number;
 };
 
 export type MelodyStoreData = {
@@ -125,19 +142,29 @@ export async function deleteProject(id: string): Promise<void> {
   const project = await db.get('projects', id);
   if (project) {
     const trackIds = project.tracks.map((t) => t.trackId);
-    const tx = db.transaction(
-      ['projects', 'audioData', 'spectrograms', 'melodies', 'transcriptions'],
-      'readwrite',
-    );
+    const tx = db.transaction(['projects', ...TRACK_DATA_STORES], 'readwrite');
     tx.objectStore('projects').delete(id);
     for (const trackId of trackIds) {
-      tx.objectStore('audioData').delete(trackId);
-      tx.objectStore('spectrograms').delete(trackId);
-      tx.objectStore('melodies').delete(trackId);
-      tx.objectStore('transcriptions').delete(trackId);
+      for (const store of TRACK_DATA_STORES) {
+        tx.objectStore(store).delete(trackId);
+      }
     }
     await tx.done;
   }
+}
+
+// Deletes every store a single track owns (audioData/spectrograms/melodies/
+// transcriptions) in one transaction. The per-track counterpart to
+// `deleteProject`'s cleanup, sharing the same `TRACK_DATA_STORES` list so
+// the two can't drift the way they did before mawimbi#540 (single-track
+// deletion — most commonly undoing an upload — was missing `melodies`).
+export async function deleteTrackData(trackId: string): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction(TRACK_DATA_STORES, 'readwrite');
+  for (const store of TRACK_DATA_STORES) {
+    tx.objectStore(store).delete(trackId);
+  }
+  await tx.done;
 }
 
 export async function saveAudioData(
