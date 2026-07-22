@@ -12,6 +12,7 @@ import { drawPianoRoll, type PianoRollViewport } from './PianoRollRenderer';
 import RecordingBuffer from './RecordingBuffer';
 import './Spectrogram.css';
 import { spectrogramStats } from './SpectrogramStats';
+import { TILE_FRAMES } from './tileConstants';
 import { useSpectrogramCache } from './useSpectrogramCache';
 
 type SpectrogramProps = {
@@ -20,7 +21,6 @@ type SpectrogramProps = {
   isRecordingTrack?: boolean;
 };
 
-const TILE_FRAMES = 4096;
 const SCRUBBER_CLASS = 'scrubber';
 const PHANTOM_SCROLLER_SELECTOR = '.scrubber__phantom';
 

@@ -138,6 +138,12 @@ describe('recordEntry', () => {
     expect(trackStats?.analysisComplete).toBe(true);
   });
 
+  it('records analysisComplete as false for an intermediate chunk delivery (spec 006 M2)', () => {
+    stats.recordEntry('track-1', [mockTile(4, 3)], DATA, undefined, false);
+
+    expect(stats.getTrackStats('track-1')?.analysisComplete).toBe(false);
+  });
+
   it('tracks multiple tracks independently', () => {
     stats.recordEntry('track-1', [mockTile(4, 3)], DATA);
     stats.recordEntry('track-2', [mockTile(4, 3), mockTile(4, 3)], DATA);

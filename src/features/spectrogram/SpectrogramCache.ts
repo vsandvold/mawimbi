@@ -17,10 +17,27 @@ export type TrackSpectrogramEntry = {
 
 export type SpectrogramResult = { data: SpectrogramData; tiles: ImageBitmap[] };
 
+// One completed chunk of a progressive worker analysis (mawimbi#539, spec
+// 006 milestone 2) — this chunk's own frames and single tile, not the
+// cumulative total; `appendChunk` below does the accumulating.
+export type SpectrogramChunk = {
+  frames: Uint8Array[];
+  tile: ImageBitmap;
+  frequencyBinCount: number;
+  timeResolution: number;
+  sampleRate: number;
+};
+
 type PendingSpectrogramRequest = {
   kind: 'spectrogram';
   resolve: (result: SpectrogramResult) => void;
   reject: (error: Error) => void;
+  onChunk?: (chunk: SpectrogramChunk) => void;
+  // Tiles accumulated from 'chunk' messages for this in-flight request —
+  // an ImageBitmap can only be transferred once, so the worker's final
+  // 'result' message carries no tiles at all; this is the only place they
+  // exist once transferred out of the worker.
+  chunkTiles: ImageBitmap[];
 };
 
 type PendingMelodyRequest = {
@@ -38,16 +55,26 @@ class SpectrogramCache {
   private nextMessageId = 0;
   private pendingRequests = new Map<number, PendingRequest>();
 
+  // Analyses `audioBuffer` and writes progressively-growing entries into
+  // the cache as chunks arrive (mawimbi#539, spec 006 milestone 2), so the
+  // first tile is visible well before the whole track finishes analysing.
+  // `onProgress` (if given) is called with the freshly-updated entry after
+  // every delivery, including the final one — the caller's hook to push
+  // that entry into React state without waiting for the returned promise.
   async analyse(
     trackId: string,
     audioBuffer: AudioBuffer,
     color: TrackColor,
     effectsParamsHash?: string,
+    onProgress?: (entry: TrackSpectrogramEntry) => void,
   ): Promise<void> {
     const analysisToken = import.meta.env.DEV
       ? spectrogramStats.recordAnalysisStart(trackId)
       : undefined;
-    const result = await this.analyseToResult(audioBuffer, color);
+    const result = await this.analyseToResult(audioBuffer, color, (chunk) => {
+      this.appendChunk(trackId, chunk, effectsParamsHash, analysisToken);
+      onProgress?.(this.getEntry(trackId)!);
+    });
     this.setEntry(
       trackId,
       result.data,
@@ -55,22 +82,26 @@ class SpectrogramCache {
       effectsParamsHash,
       analysisToken,
     );
+    onProgress?.(this.getEntry(trackId)!);
   }
 
   // Runs the analysis (worker, falling back to main thread) without
   // writing it to `entries` — the caller decides when/whether to commit
   // the result. Used directly by the effects-refresh scheduler (spec 004
   // M6, #494) so an in-flight analysis superseded by a newer commit can be
-  // discarded instead of clobbering a fresher result.
+  // discarded instead of clobbering a fresher result. `onChunk` is only
+  // meaningful on the worker path — the main-thread fallback still
+  // analyses in one pass (its result is byte-identical either way).
   async analyseToResult(
     audioBuffer: AudioBuffer,
     color: TrackColor,
+    onChunk?: (chunk: SpectrogramChunk) => void,
   ): Promise<SpectrogramResult> {
     if (this.workerFailed) {
       return this.analyseOnMainThread(audioBuffer, color);
     }
     try {
-      return await this.analyseInWorker(audioBuffer, color);
+      return await this.analyseInWorker(audioBuffer, color, onChunk);
     } catch {
       // Worker failed (e.g. OfflineAudioContext unavailable in worker scope)
       this.workerFailed = true;
@@ -87,12 +118,53 @@ class SpectrogramCache {
     tiles: ImageBitmap[],
     effectsParamsHash?: string,
     analysisToken?: number,
+    analysisComplete = true,
   ): void {
     const melody = this.entries.get(trackId)?.melody;
     this.entries.set(trackId, { data, tiles, melody, effectsParamsHash });
     if (import.meta.env.DEV) {
-      spectrogramStats.recordEntry(trackId, tiles, data, analysisToken);
+      spectrogramStats.recordEntry(
+        trackId,
+        tiles,
+        data,
+        analysisToken,
+        analysisComplete,
+      );
     }
+  }
+
+  // Merges one incremental chunk into the track's growing entry — always a
+  // fresh `frequencyFrames`/`tiles` array (never a mutation of the
+  // previous one), satisfying `Spectrogram.tsx`'s reference-identity dirty
+  // check (#494; CLAUDE.md). `analysisComplete` stays false until the
+  // final, whole-track `setEntry` call in `analyse()` above.
+  private appendChunk(
+    trackId: string,
+    chunk: SpectrogramChunk,
+    effectsParamsHash: string | undefined,
+    analysisToken: number | undefined,
+  ): void {
+    const existing = this.entries.get(trackId);
+    const frequencyFrames = [
+      ...(existing?.data.frequencyFrames ?? []),
+      ...chunk.frames,
+    ];
+    const data: SpectrogramData = {
+      frequencyFrames,
+      timeResolution: chunk.timeResolution,
+      frequencyBinCount: chunk.frequencyBinCount,
+      sampleRate: chunk.sampleRate,
+      duration: frequencyFrames.length * chunk.timeResolution,
+    };
+    const tiles = [...(existing?.tiles ?? []), chunk.tile];
+    this.setEntry(
+      trackId,
+      data,
+      tiles,
+      effectsParamsHash,
+      analysisToken,
+      false,
+    );
   }
 
   restore(
@@ -179,6 +251,23 @@ class SpectrogramCache {
         const { id, type } = event.data;
         const pending = this.pendingRequests.get(id);
         if (!pending) return;
+
+        // A 'chunk' delivery doesn't resolve or reject the request — more
+        // messages (further chunks, then one final 'result') are still
+        // coming for this id, so `pending` stays in the map.
+        if (type === 'chunk') {
+          if (pending.kind !== 'spectrogram') return;
+          pending.chunkTiles.push(event.data.tile);
+          pending.onChunk?.({
+            frames: event.data.frames,
+            tile: event.data.tile,
+            frequencyBinCount: event.data.frequencyBinCount,
+            timeResolution: event.data.timeResolution,
+            sampleRate: event.data.sampleRate,
+          });
+          return;
+        }
+
         this.pendingRequests.delete(id);
 
         if (type === 'error') {
@@ -194,7 +283,10 @@ class SpectrogramCache {
           );
           pending.resolve(event.data.data);
         } else if (type === 'result' && pending.kind === 'spectrogram') {
-          pending.resolve({ data: event.data.data, tiles: event.data.tiles });
+          // Tiles arrived exclusively via 'chunk' messages above — an
+          // ImageBitmap can only be transferred once, so the worker's
+          // final message carries no tiles of its own.
+          pending.resolve({ data: event.data.data, tiles: pending.chunkTiles });
         }
       };
       this.worker.onerror = (event) => {
@@ -218,6 +310,7 @@ class SpectrogramCache {
   private analyseInWorker(
     audioBuffer: AudioBuffer,
     color: TrackColor,
+    onChunk?: (chunk: SpectrogramChunk) => void,
   ): Promise<SpectrogramResult> {
     const worker = this.getWorker();
     const id = this.nextMessageId++;
@@ -231,7 +324,13 @@ class SpectrogramCache {
     }
 
     return new Promise((resolve, reject) => {
-      this.pendingRequests.set(id, { kind: 'spectrogram', resolve, reject });
+      this.pendingRequests.set(id, {
+        kind: 'spectrogram',
+        resolve,
+        reject,
+        onChunk,
+        chunkTiles: [],
+      });
       worker.postMessage(
         {
           id,

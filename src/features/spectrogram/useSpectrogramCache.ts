@@ -169,6 +169,9 @@ export function useSpectrogramCache(
             rendered,
             color,
             effectsHash,
+            (progressEntry) => {
+              if (!cancelled) setEntry(progressEntry);
+            },
           );
           if (cancelled) return;
           const refreshed = audioService.spectrogramCache.getEntry(trackId);
@@ -216,6 +219,9 @@ export function useSpectrogramCache(
         rendered,
         color,
         effectsHash,
+        (progressEntry) => {
+          if (!cancelled) setEntry(progressEntry);
+        },
       );
 
       if (cancelled) return;

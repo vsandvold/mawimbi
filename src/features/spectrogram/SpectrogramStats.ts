@@ -65,11 +65,16 @@ class SpectrogramStats {
   // `recordAnalysisStart` entry to consume it and compute a real
   // `analysisMs`; a missing or stale (superseded by a newer analysis for
   // the same track) token reports elapsedMs as 0 and leaves the map alone.
+  // `analysisComplete` is false for an intermediate delivery of a chunked
+  // analysis (spec 006 milestone 2) — true (the default) for every
+  // atomic/whole-track delivery: restore, effects-refresh, and the final
+  // chunk of a progressive analysis.
   recordEntry(
     trackId: TrackId,
     tiles: ImageBitmap[],
     data: SpectrogramData,
     token?: number,
+    analysisComplete = true,
   ): void {
     const pending = this.analysisStarts.get(trackId);
     let elapsedMs = 0;
@@ -99,7 +104,7 @@ class SpectrogramStats {
       frameBytes,
       analysisMs: elapsedMs,
       firstTileMs,
-      analysisComplete: true,
+      analysisComplete,
     });
   }
 

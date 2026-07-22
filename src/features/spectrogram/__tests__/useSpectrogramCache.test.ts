@@ -276,7 +276,13 @@ describe('useSpectrogramCache', () => {
       expect(result.current).toBe(MOCK_ENTRY);
     });
 
-    expect(mockAnalyse).toHaveBeenCalledWith('track-1', buffer, COLOR, '0:0:0');
+    expect(mockAnalyse).toHaveBeenCalledWith(
+      'track-1',
+      buffer,
+      COLOR,
+      '0:0:0',
+      expect.any(Function),
+    );
 
     // Verify spectrogram data was saved to IndexedDB
     const stored = await loadSpectrogramData('track-1');
@@ -450,6 +456,7 @@ describe('useSpectrogramCache', () => {
         renderedBuffer,
         COLOR,
         '50:0:0',
+        expect.any(Function),
       );
       expect(mockRestore).not.toHaveBeenCalled();
 
@@ -486,6 +493,7 @@ describe('useSpectrogramCache', () => {
         renderedBuffer,
         COLOR,
         '50:0:0',
+        expect.any(Function),
       );
 
       const stored = await loadSpectrogramData('track-1');

@@ -67,13 +67,32 @@ function mockAudioBuffer(channels = 1): AudioBuffer {
   } as unknown as AudioBuffer;
 }
 
+// Simulates the worker's real protocol (mawimbi#539, spec 006 milestone 2):
+// tiles arrive exclusively via 'chunk' messages, and the final 'result'
+// message carries only `data`. Every existing call site here passes a
+// single-element `tiles` array, so one 'chunk' message covering the whole
+// (small, synthetic) `data.frequencyFrames` reproduces the prior
+// single-message behavior exactly.
 function simulateWorkerResult(
   data: SpectrogramData,
   tiles: ImageBitmap[],
   id = 0,
 ) {
+  const [tile] = tiles;
   mockWorker.onmessage!({
-    data: { id, type: 'result', data, tiles },
+    data: {
+      id,
+      type: 'chunk',
+      frames: data.frequencyFrames,
+      startFrame: 0,
+      tile,
+      frequencyBinCount: data.frequencyBinCount,
+      timeResolution: data.timeResolution,
+      sampleRate: data.sampleRate,
+    },
+  } as MessageEvent);
+  mockWorker.onmessage!({
+    data: { id, type: 'result', data },
   } as MessageEvent);
 }
 
@@ -134,6 +153,69 @@ describe('analyse', () => {
     const entry = cache.getEntry('track-1');
     expect(entry!.data).toBe(secondData);
     expect(entry!.tiles).toEqual([secondTile]);
+  });
+
+  it('applies each chunk via a fresh tiles array and notifies onProgress before the final result', async () => {
+    const onProgress = vi.fn();
+    const chunkTile1 = makeMockTile();
+    const chunkTile2 = makeMockTile();
+
+    const promise = cache.analyse(
+      'track-1',
+      mockAudioBuffer(),
+      COLOR,
+      undefined,
+      onProgress,
+    );
+
+    mockWorker.onmessage!({
+      data: {
+        id: 0,
+        type: 'chunk',
+        frames: [MOCK_SPECTROGRAM_DATA.frequencyFrames[0]],
+        startFrame: 0,
+        tile: chunkTile1,
+        frequencyBinCount: MOCK_SPECTROGRAM_DATA.frequencyBinCount,
+        timeResolution: MOCK_SPECTROGRAM_DATA.timeResolution,
+        sampleRate: MOCK_SPECTROGRAM_DATA.sampleRate,
+      },
+    } as MessageEvent);
+
+    expect(onProgress).toHaveBeenCalledTimes(1);
+    const afterFirstChunk = cache.getEntry('track-1');
+    expect(afterFirstChunk?.tiles).toEqual([chunkTile1]);
+    expect(afterFirstChunk?.data.frequencyFrames.length).toBe(1);
+
+    mockWorker.onmessage!({
+      data: {
+        id: 0,
+        type: 'chunk',
+        frames: [MOCK_SPECTROGRAM_DATA.frequencyFrames[1]],
+        startFrame: 1,
+        tile: chunkTile2,
+        frequencyBinCount: MOCK_SPECTROGRAM_DATA.frequencyBinCount,
+        timeResolution: MOCK_SPECTROGRAM_DATA.timeResolution,
+        sampleRate: MOCK_SPECTROGRAM_DATA.sampleRate,
+      },
+    } as MessageEvent);
+
+    expect(onProgress).toHaveBeenCalledTimes(2);
+    const afterSecondChunk = cache.getEntry('track-1');
+    expect(afterSecondChunk?.tiles).toEqual([chunkTile1, chunkTile2]);
+    // A fresh array each delivery, never a mutation of the previous one —
+    // the #494 reference-identity dirty-check contract (CLAUDE.md).
+    expect(afterSecondChunk?.tiles).not.toBe(afterFirstChunk?.tiles);
+    expect(afterSecondChunk?.data.frequencyFrames.length).toBe(2);
+
+    mockWorker.onmessage!({
+      data: { id: 0, type: 'result', data: MOCK_SPECTROGRAM_DATA },
+    } as MessageEvent);
+    await promise;
+
+    expect(onProgress).toHaveBeenCalledTimes(3);
+    const finalEntry = cache.getEntry('track-1');
+    expect(finalEntry?.data).toBe(MOCK_SPECTROGRAM_DATA);
+    expect(finalEntry?.tiles).toEqual([chunkTile1, chunkTile2]);
   });
 
   it('falls back to main thread when the worker responds with an error', async () => {

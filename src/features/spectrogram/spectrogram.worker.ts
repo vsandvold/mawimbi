@@ -2,15 +2,15 @@
 import '../../shared/workerWindowPolyfill';
 
 import { type TrackColor } from '../tracks/types';
-import { analyseCQT } from './CQTAnalyser';
+import { analyseCQTChunked, HOP_SECONDS, mixToMono } from './CQTAnalyser';
 import {
   type MelodyData,
   extractMelody,
   preWarmBasicPitch,
 } from '../transcription/MelodyExtractor';
-import { mixToMono } from './CQTAnalyser';
 import { type SpectrogramData } from './OfflineAnalyser';
 import { renderTiles } from './SpectrogramTileRenderer';
+import { TILE_FRAMES } from './tileConstants';
 
 // ---------------------------------------------------------------------------
 // Message protocol
@@ -35,8 +35,26 @@ export type MelodyRequest = {
 
 export type WorkerRequest = AnalyseRequest | MelodyRequest;
 
+// Emitted once per completed chunk during progressive analysis (mawimbi#539,
+// spec 006 milestone 2) — the chunk's own frames and single rendered tile,
+// not the cumulative total (SpectrogramCache accumulates across deliveries).
+// Sent before the final 'result' message, which carries only the complete
+// SpectrogramData: every tile is delivered exactly once, via 'chunk', so it
+// is transferred exactly once (an ImageBitmap can't be transferred twice).
+export type AnalyseChunkResponse = {
+  id: number;
+  type: 'chunk';
+  frames: Uint8Array[];
+  startFrame: number;
+  tile: ImageBitmap;
+  frequencyBinCount: number;
+  timeResolution: number;
+  sampleRate: number;
+};
+
 export type AnalyseResponse =
-  | { id: number; type: 'result'; data: SpectrogramData; tiles: ImageBitmap[] }
+  | { id: number; type: 'result'; data: SpectrogramData }
+  | AnalyseChunkResponse
   | { id: number; type: 'error'; message: string };
 
 export type MelodyResponse =
@@ -68,10 +86,35 @@ async function handleSpectrogram(request: AnalyseRequest): Promise<void> {
   const { id, channelData, sampleRate, length, color } = request;
 
   try {
-    const data = analyseCQT(channelData, sampleRate, length);
-    const tiles = renderTiles(data, color);
-    const response: AnalyseResponse = { id, type: 'result', data, tiles };
-    workerSelf.postMessage(response, tiles as unknown as Transferable[]);
+    const data = analyseCQTChunked(
+      channelData,
+      sampleRate,
+      length,
+      TILE_FRAMES,
+      (frames, startFrame) => {
+        const chunkData: SpectrogramData = {
+          frequencyFrames: frames,
+          timeResolution: HOP_SECONDS,
+          frequencyBinCount: frames[0].length,
+          sampleRate,
+          duration: frames.length * HOP_SECONDS,
+        };
+        const [tile] = renderTiles(chunkData, color, TILE_FRAMES);
+        const chunkResponse: AnalyseChunkResponse = {
+          id,
+          type: 'chunk',
+          frames,
+          startFrame,
+          tile,
+          frequencyBinCount: chunkData.frequencyBinCount,
+          timeResolution: HOP_SECONDS,
+          sampleRate,
+        };
+        workerSelf.postMessage(chunkResponse, [tile]);
+      },
+    );
+    const response: AnalyseResponse = { id, type: 'result', data };
+    workerSelf.postMessage(response);
 
     if (!modelPreWarmed) {
       modelPreWarmed = true;

@@ -210,16 +210,31 @@ function computeFrame(
 }
 
 /**
- * Runs CQT analysis on audio data and returns spectrogram frames.
+ * Runs CQT analysis on audio data, optionally delivering frames in chunks
+ * as they're computed.
  *
- * This is the main entry point for both the web worker and the
- * main-thread fallback path. It produces the same SpectrogramData
- * output type as the previous multi-band STFT pipeline.
+ * Chunking is purely about *emission* boundaries, not new DSP: every frame
+ * is still computed the same way, from the same full in-memory `signal`
+ * and the same precomputed `kernel` (no re-priming, no per-chunk slicing
+ * of the input audio) — so `onChunk`'s delivered frames are always
+ * byte-identical to the corresponding slice of the final, single returned
+ * `SpectrogramData` (mawimbi#539, spec 006 milestone 2 — verified by
+ * `chunkedAnalysis.test.ts` rather than assumed). `onChunk` fires once per
+ * `chunkFrames`-sized group of newly computed frames, and once more for a
+ * final, possibly-shorter group; each call receives that group's frames
+ * (not the cumulative total) and the frame index it starts at.
+ *
+ * This is also the main entry point for both the web worker and the
+ * main-thread fallback path (via `analyseCQT` below, a fixed-chunk-size
+ * wrapper). It produces the same SpectrogramData output type as the
+ * previous multi-band STFT pipeline.
  */
-export function analyseCQT(
+export function analyseCQTChunked(
   channelData: Float32Array[],
   sampleRate: number,
   length: number,
+  chunkFrames: number,
+  onChunk?: (frames: Uint8Array[], startFrame: number) => void,
 ): SpectrogramData {
   const kernel = computeKernel(sampleRate);
   const { numberBins, hopSize } = kernel;
@@ -230,11 +245,19 @@ export function analyseCQT(
   const frameCount = Math.floor(duration / HOP_SECONDS);
   const frequencyFrames: Uint8Array[] = new Array(frameCount);
 
+  let chunkStart = 0;
   for (let f = 0; f < frameCount; f++) {
     const hopPosition = (f + 1) * hopSize;
     const frame = new Uint8Array(numberBins);
     computeFrame(signal, length, kernel, hopPosition, frame);
     frequencyFrames[f] = frame;
+
+    const isChunkBoundary = f - chunkStart + 1 === chunkFrames;
+    const isLastFrame = f === frameCount - 1;
+    if (isChunkBoundary || isLastFrame) {
+      onChunk?.(frequencyFrames.slice(chunkStart, f + 1), chunkStart);
+      chunkStart = f + 1;
+    }
   }
 
   return {
@@ -244,6 +267,21 @@ export function analyseCQT(
     sampleRate,
     duration,
   };
+}
+
+/**
+ * Runs CQT analysis on audio data and returns spectrogram frames in one
+ * pass, with no incremental delivery. A thin wrapper over
+ * `analyseCQTChunked` with an unreachable chunk boundary — the single
+ * source of truth for the per-frame computation guarantees this is always
+ * byte-identical to any chunked call over the same input.
+ */
+export function analyseCQT(
+  channelData: Float32Array[],
+  sampleRate: number,
+  length: number,
+): SpectrogramData {
+  return analyseCQTChunked(channelData, sampleRate, length, Infinity);
 }
 
 /**
