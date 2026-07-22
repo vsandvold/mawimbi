@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react';
-import { useAnimationFrame } from '../../shared/hooks/useAnimationFrame';
 import { usePlaybackService } from '../playback/usePlaybackService';
 import { useRecordingService } from '../recording/useRecordingService';
 import { useTrackService } from '../tracks/useTrackService';
@@ -13,6 +12,10 @@ import RecordingBuffer from './RecordingBuffer';
 import './Spectrogram.css';
 import { spectrogramStats } from './SpectrogramStats';
 import { TILE_FRAMES } from './tileConstants';
+import {
+  timelineRenderLoop,
+  type SharedCanvasWindow,
+} from './TimelineRenderLoop';
 import { useSpectrogramCache } from './useSpectrogramCache';
 
 type SpectrogramProps = {
@@ -22,7 +25,6 @@ type SpectrogramProps = {
 };
 
 const SCRUBBER_CLASS = 'scrubber';
-const PHANTOM_SCROLLER_SELECTOR = '.scrubber__phantom';
 
 const Spectrogram = ({
   pixelsPerSecond,
@@ -40,7 +42,13 @@ const Spectrogram = ({
   const lastDrawnOverlayRef = useRef({
     offset: -1,
     pps: -1,
-    noteCount: -1,
+    // 0, not -1: `writeMelodyOverlay` only ever runs when `notes.length > 0`
+    // (see the `write` registration below), so a track with no melody notes
+    // at all would never update this away from a sentinel that isn't a
+    // real note count — leaving `peekDirty`'s `0 !== sentinel` comparison
+    // permanently true and defeating the render loop's idle short-circuit.
+    noteCount: 0,
+    activeNotesKey: '',
   });
   const recordingBufferRef = useRef<RecordingBuffer | null>(null);
 
@@ -97,56 +105,146 @@ const Spectrogram = ({
     // Hook objects reference stable service singletons via getters
   }, [isRecordingTrack, color]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Draw visible tiles and melody overlay on each animation frame
-  useAnimationFrame(() => {
-    const canvas = canvasRef.current;
-    const overlay = overlayRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container) return;
-
-    if (isRecordingTrack) {
-      drawRecordingFrame(
-        canvas,
-        container,
-        recordingBufferRef.current,
-        visualizerRef.current,
-        recording,
-        playback,
-        pixelsPerSecond,
-      );
-      return;
-    }
-
-    if (tiles.length === 0) return;
-
-    drawTilesFrame(
-      canvas,
-      container,
-      pixelsPerSecond,
-      tiles,
-      totalFrames,
-      frameDisplayHeight,
-      tileDisplayHeight,
-      duration,
-      lastDrawnRef,
-    );
-
-    if (overlay && melodyNotes.length > 0) {
-      drawMelodyOverlay(
-        overlay,
-        container,
-        pixelsPerSecond,
-        melodyNotes,
-        color,
-        frequencyBinCount,
-        duration,
-        startTime,
-        playback.getEngineTime(),
-        playback.isPlaying,
-        lastDrawnOverlayRef,
-      );
-    }
+  // Latest render's values, read by the render-loop registration below —
+  // that registration is created once per mount (not on every prop change),
+  // matching the previous useAnimationFrame callback-ref pattern.
+  const latestRef = useRef({
+    pixelsPerSecond,
+    tiles,
+    totalFrames,
+    frameDisplayHeight,
+    tileDisplayHeight,
+    duration,
+    melodyNotes,
+    color,
+    frequencyBinCount,
+    startTime,
   });
+  latestRef.current = {
+    pixelsPerSecond,
+    tiles,
+    totalFrames,
+    frameDisplayHeight,
+    tileDisplayHeight,
+    duration,
+    melodyNotes,
+    color,
+    frequencyBinCount,
+    startTime,
+  };
+
+  // Register with the shared TimelineRenderLoop (mawimbi#541) instead of an
+  // always-on per-track rAF loop. Measure (DOM reads) and write (DOM/canvas
+  // writes) run as separate phases across every mounted track, so the loop
+  // can batch them and short-circuit whole frames where nothing changed.
+  useEffect(() => {
+    const tileMeasurement: TileFrameMeasurement = { containerTop: 0 };
+    const recordingMeasurement: RecordingFrameMeasurement = {
+      containerTop: 0,
+      contentHeight: 0,
+      recordingStartTime: 0,
+      isBufferReady: false,
+    };
+
+    const unregister = timelineRenderLoop.register({
+      bypassIdle: isRecordingTrack,
+      peekDirty: () => {
+        const { tiles, pixelsPerSecond, melodyNotes } = latestRef.current;
+        if (tiles.length === 0) return false;
+        return (
+          tiles !== lastDrawnRef.current.tiles ||
+          pixelsPerSecond !== lastDrawnRef.current.pps ||
+          melodyNotes.length !== lastDrawnOverlayRef.current.noteCount
+        );
+      },
+      measure: () => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        if (isRecordingTrack) {
+          measureRecordingFrame(
+            container,
+            recordingBufferRef.current,
+            visualizerRef.current,
+            recording,
+            playback,
+            latestRef.current.pixelsPerSecond,
+            recordingMeasurement,
+          );
+          return;
+        }
+
+        measureTileFrame(container, tileMeasurement);
+      },
+      write: (win) => {
+        const canvas = canvasRef.current;
+        const overlay = overlayRef.current;
+        const container = containerRef.current;
+        if (!canvas || !container) return;
+
+        if (isRecordingTrack) {
+          writeRecordingFrame(
+            canvas,
+            container,
+            recordingBufferRef.current,
+            win,
+            recordingMeasurement,
+            latestRef.current.pixelsPerSecond,
+          );
+          return;
+        }
+
+        const {
+          pixelsPerSecond,
+          tiles,
+          totalFrames,
+          frameDisplayHeight,
+          tileDisplayHeight,
+          duration,
+          melodyNotes,
+          color,
+          frequencyBinCount,
+          startTime,
+        } = latestRef.current;
+
+        if (tiles.length === 0) return;
+
+        writeTileFrame(
+          canvas,
+          win,
+          tileMeasurement,
+          pixelsPerSecond,
+          tiles,
+          totalFrames,
+          frameDisplayHeight,
+          tileDisplayHeight,
+          duration,
+          lastDrawnRef,
+        );
+
+        if (overlay && melodyNotes.length > 0) {
+          writeMelodyOverlay(
+            overlay,
+            win,
+            tileMeasurement,
+            pixelsPerSecond,
+            melodyNotes,
+            color,
+            frequencyBinCount,
+            duration,
+            startTime,
+            playback.getEngineTime(),
+            lastDrawnOverlayRef,
+          );
+        }
+      },
+    });
+
+    return unregister;
+    // Hook objects reference stable service singletons via getters; latest
+    // prop/state values are read from latestRef instead of closed over here
+    // — the registration itself must stay stable across renders.
+  }, [isRecordingTrack]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { opacity } = useTrackVolume(trackId);
 
@@ -188,55 +286,19 @@ const Spectrogram = ({
  * scroll container. The tilt stage itself is translated, not scrolled, so
  * content coordinates are `local Y + phantom.scrollTop`.
  */
-type CanvasWindow = {
-  /** Canvas bitmap width — the full plane width. */
-  width: number;
-  /** Canvas bitmap height — the window's pre-transform span. */
-  height: number;
-  /** Scroll-content Y of the window's top edge. */
-  contentTop: number;
+type CanvasWindow = SharedCanvasWindow & {
   /** Scroll-content Y of this track container's top edge. */
   containerTop: number;
 };
-
-function getCanvasWindow(container: HTMLDivElement): CanvasWindow {
-  if (import.meta.env.DEV) spectrogramStats.incrementWindowReads();
-
-  const scrubber = container.closest(
-    `.${SCRUBBER_CLASS}`,
-  ) as HTMLElement | null;
-  const phantom = scrubber?.querySelector(PHANTOM_SCROLLER_SELECTOR) ?? null;
-  const scrollTop = phantom?.scrollTop ?? 0;
-  const width = scrubber?.clientWidth ?? window.innerWidth;
-  const fallbackHeight = scrubber?.clientHeight ?? window.innerHeight;
-
-  let windowTop = 0;
-  let windowBottom = fallbackHeight;
-  if (scrubber) {
-    const styles = getComputedStyle(scrubber);
-    const top = parseFloat(styles.getPropertyValue('--runway-window-top'));
-    const bottom = parseFloat(
-      styles.getPropertyValue('--runway-window-bottom'),
-    );
-    if (Number.isFinite(top) && Number.isFinite(bottom) && bottom > top) {
-      windowTop = top;
-      windowBottom = bottom;
-    }
-  }
-
-  return {
-    width,
-    height: Math.ceil(windowBottom - windowTop),
-    contentTop: scrollTop + windowTop,
-    containerTop: getContentOffsetTop(container),
-  };
-}
 
 /**
  * Layout position of an element within the scrubber's scroll content.
  * Walks offsetParents up to the scrubber; `offsetTop` ignores transforms,
  * so this measures the untranslated content position regardless of the
- * offset stage's current translateY.
+ * offset stage's current translateY. This is the one per-track DOM read
+ * `TimelineRenderLoop` can't hoist into its once-per-frame shared window —
+ * every mounted track has its own container position — so it stays here,
+ * confined to each registration's `measure` phase.
  */
 function getContentOffsetTop(container: HTMLElement): number {
   let top = 0;
@@ -280,19 +342,62 @@ function flipCanvasY(ctx: CanvasRenderingContext2D, canvasHeight: number) {
   ctx.scale(1, -1);
 }
 
-function drawRecordingFrame(
-  canvas: HTMLCanvasElement,
+type TileFrameMeasurement = {
+  containerTop: number;
+};
+
+/** Per-track DOM read for the tile/melody-overlay path — see `getContentOffsetTop`. */
+function measureTileFrame(
+  container: HTMLDivElement,
+  held: TileFrameMeasurement,
+): void {
+  held.containerTop = getContentOffsetTop(container);
+}
+
+function toTrackWindow(
+  win: SharedCanvasWindow,
+  containerTop: number,
+): CanvasWindow {
+  return {
+    width: win.width,
+    height: win.height,
+    contentTop: win.contentTop,
+    containerTop,
+  };
+}
+
+type RecordingFrameMeasurement = {
+  containerTop: number;
+  contentHeight: number;
+  recordingStartTime: number;
+  isBufferReady: boolean;
+};
+
+/**
+ * Recording-frame measure phase: accumulates this tick's audio frame (not a
+ * DOM operation — safe here) and reads `containerTop`, but does **not**
+ * write `container.style.height`/`marginBottom` — those writes happen in
+ * `writeRecordingFrame` instead, so every registered callback's DOM reads
+ * run before any callback's DOM writes this frame (mawimbi#541 Goal 4,
+ * fixing the per-frame forced synchronous layout of #469 item 2).
+ */
+function measureRecordingFrame(
   container: HTMLDivElement,
   buffer: RecordingBuffer | null,
   visualizer: FrequencyVisualizer | null,
   recordingHook: ReturnType<typeof useRecordingService>,
   playbackHook: ReturnType<typeof usePlaybackService>,
   pixelsPerSecond: number,
+  held: RecordingFrameMeasurement,
 ): void {
-  if (!buffer || !visualizer) return;
+  if (!buffer || !visualizer) {
+    held.isBufferReady = false;
+    return;
+  }
+  held.isBufferReady = true;
 
   const isRecActive = recordingHook.isOverdubRecording();
-  const recordingStartTime = recordingHook.getRecordingStartTime();
+  held.recordingStartTime = recordingHook.getRecordingStartTime();
   // Read engine time directly instead of the transportTime signal.
   // The signal is updated by the Scrubber animation loop which only runs
   // when playbackState is 'playing'. During the first recording from
@@ -300,13 +405,9 @@ function drawRecordingFrame(
   // so the signal stays at 0 even though the transport is running.
   const elapsed = Math.max(
     0,
-    playbackHook.getEngineTime() - recordingStartTime,
+    playbackHook.getEngineTime() - held.recordingStartTime,
   );
-  const contentHeight = elapsed * pixelsPerSecond;
-
-  // Update container height and offset directly to avoid React re-renders
-  container.style.height = `${contentHeight}px`;
-  container.style.marginBottom = `${recordingStartTime * pixelsPerSecond}px`;
+  held.contentHeight = elapsed * pixelsPerSecond;
 
   // Accumulate a new frame while recording is active
   if (isRecActive) {
@@ -314,19 +415,34 @@ function drawRecordingFrame(
     buffer.addFrame(frequencyData);
   }
 
+  held.containerTop = getContentOffsetTop(container);
+}
+
+function writeRecordingFrame(
+  canvas: HTMLCanvasElement,
+  container: HTMLDivElement,
+  buffer: RecordingBuffer | null,
+  win: SharedCanvasWindow,
+  held: RecordingFrameMeasurement,
+  pixelsPerSecond: number,
+): void {
+  if (!held.isBufferReady || !buffer) return;
+
+  // Update container height and offset directly to avoid React re-renders
+  container.style.height = `${held.contentHeight}px`;
+  container.style.marginBottom = `${held.recordingStartTime * pixelsPerSecond}px`;
+
   if (buffer.frameCount === 0) return;
 
-  // Measured after the height/margin writes above so the layout offset
-  // reflects this frame's content size.
-  const win = getCanvasWindow(container);
-  positionCanvas(canvas, win);
-  const trackBase = getTrackBase(win, contentHeight);
+  const trackWin = toTrackWindow(win, held.containerTop);
+  positionCanvas(canvas, trackWin);
+  const trackBase = getTrackBase(trackWin, held.contentHeight);
 
   const needsResize =
-    canvas.width !== win.width || canvas.height !== win.height;
+    canvas.width !== trackWin.width || canvas.height !== trackWin.height;
   if (needsResize) {
-    canvas.width = win.width;
-    canvas.height = win.height;
+    canvas.width = trackWin.width;
+    canvas.height = trackWin.height;
   }
 
   const ctx = canvas.getContext('2d');
@@ -335,15 +451,15 @@ function drawRecordingFrame(
 
   // Visible slice of the recording content, in flipped canvas coords.
   const visibleStart = Math.max(0, trackBase);
-  const visibleEnd = Math.min(win.height, trackBase + contentHeight);
-  if (visibleEnd <= visibleStart || contentHeight <= 0) return;
+  const visibleEnd = Math.min(trackWin.height, trackBase + held.contentHeight);
+  if (visibleEnd <= visibleStart || held.contentHeight <= 0) return;
 
   ctx.save();
-  flipCanvasY(ctx, win.height);
+  flipCanvasY(ctx, trackWin.height);
 
   // Map buffer frames (1 frame = 1 pixel in the buffer) to display pixels.
   // bufferFrames maps to contentHeight display pixels.
-  const framesPerPixel = buffer.frameCount / contentHeight;
+  const framesPerPixel = buffer.frameCount / held.contentHeight;
   const destHeight = visibleEnd - visibleStart;
   const srcY = Math.floor((visibleStart - trackBase) * framesPerPixel);
   const srcHeight = Math.min(
@@ -351,14 +467,53 @@ function drawRecordingFrame(
     buffer.frameCount - srcY,
   );
 
-  buffer.drawTo(ctx, srcY, srcHeight, visibleStart, destHeight, win.width);
+  buffer.drawTo(ctx, srcY, srcHeight, visibleStart, destHeight, trackWin.width);
 
   ctx.restore();
 }
 
-function drawTilesFrame(
+// Height, in canvas pixels, of the alpha fade applied toward the runway's
+// far edge (mawimbi#468 option 2) — an arbitrary but visually comfortable
+// fraction of the default `runwayLengthPx` (1800px); not derived from it,
+// since the fade lives in canvas pixel space while `runwayLengthPx` is
+// pre-transform plane space and the two aren't meant to track each other.
+const FAR_EDGE_FADE_PX = 200;
+
+/**
+ * Fades the last `FAR_EDGE_FADE_PX` of drawn content toward the canvas's
+ * top row — the runway's far edge in this component's flipped-Y coordinate
+ * space (`flipCanvasY` puts time 0 at the canvas bottom, so increasing time
+ * runs toward the top). Only applied when the track's content actually
+ * continues past the visible window; a track that ends within the window
+ * already trails into transparent canvas, so fading it too would just dim
+ * real, already-visible content for no reason.
+ */
+function applyFarEdgeFade(
+  ctx: CanvasRenderingContext2D,
+  win: CanvasWindow,
+  trackBase: number,
+  contentLength: number,
+): void {
+  const contentExtendsPastWindow = trackBase + contentLength > win.height;
+  if (!contentExtendsPastWindow) return;
+
+  const fadeHeight = Math.min(FAR_EDGE_FADE_PX, win.height);
+  if (fadeHeight <= 0) return;
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-out';
+  const gradient = ctx.createLinearGradient(0, 0, 0, fadeHeight);
+  gradient.addColorStop(0, 'rgba(0, 0, 0, 1)');
+  gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, win.width, fadeHeight);
+  ctx.restore();
+}
+
+function writeTileFrame(
   canvas: HTMLCanvasElement,
-  container: HTMLDivElement,
+  win: SharedCanvasWindow,
+  held: TileFrameMeasurement,
   pixelsPerSecond: number,
   tiles: ImageBitmap[],
   totalFrames: number,
@@ -372,12 +527,12 @@ function drawTilesFrame(
   }>,
 ): void {
   const contentLength = duration * pixelsPerSecond;
-  const win = getCanvasWindow(container);
-  positionCanvas(canvas, win);
-  const trackBase = getTrackBase(win, contentLength);
+  const trackWin = toTrackWindow(win, held.containerTop);
+  positionCanvas(canvas, trackWin);
+  const trackBase = getTrackBase(trackWin, contentLength);
 
   const needsResize =
-    canvas.width !== win.width || canvas.height !== win.height;
+    canvas.width !== trackWin.width || canvas.height !== trackWin.height;
 
   const last = lastDrawnRef.current;
   if (
@@ -394,8 +549,8 @@ function drawTilesFrame(
   if (import.meta.env.DEV) spectrogramStats.incrementDrawCalls();
 
   if (needsResize) {
-    canvas.width = win.width;
-    canvas.height = win.height;
+    canvas.width = trackWin.width;
+    canvas.height = trackWin.height;
   }
 
   const ctx = canvas.getContext('2d');
@@ -403,14 +558,14 @@ function drawTilesFrame(
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   ctx.save();
-  flipCanvasY(ctx, win.height);
+  flipCanvasY(ctx, trackWin.height);
 
   // Tile t spans [trackBase + t·tileH, ...] in flipped coords; draw the
   // tiles that intersect the canvas span [0, win.height].
   const firstTile = Math.max(0, Math.floor(-trackBase / tileDisplayHeight));
   const lastTile = Math.min(
     tiles.length - 1,
-    Math.floor((win.height - trackBase) / tileDisplayHeight),
+    Math.floor((trackWin.height - trackBase) / tileDisplayHeight),
   );
 
   for (let t = firstTile; t <= lastTile; t++) {
@@ -421,15 +576,42 @@ function drawTilesFrame(
       : TILE_FRAMES;
     const drawHeight = tileFrameCount * frameDisplayHeight;
 
-    ctx.drawImage(tiles[t], 0, drawY, win.width, drawHeight);
+    ctx.drawImage(tiles[t], 0, drawY, trackWin.width, drawHeight);
   }
 
   ctx.restore();
+
+  applyFarEdgeFade(ctx, trackWin, trackBase, contentLength);
 }
 
-function drawMelodyOverlay(
+/**
+ * A stable signature of which notes currently intersect the playhead, used
+ * to scope the melody overlay's redraw to frames where that actually
+ * changes (mawimbi#541 Goal 4) instead of unconditionally every frame
+ * during playback — the previous behavior, since the playhead glow is the
+ * overlay's only per-frame-varying input.
+ */
+function computeActiveNotesKey(
+  notes: MelodyNote[],
+  trackPlayheadTime: number,
+): string {
+  if (trackPlayheadTime < 0) return '';
+  let key = '';
+  for (const note of notes) {
+    if (
+      trackPlayheadTime >= note.startTime &&
+      trackPlayheadTime < note.endTime
+    ) {
+      key += `${note.startTime}:${note.midiNote};`;
+    }
+  }
+  return key;
+}
+
+function writeMelodyOverlay(
   canvas: HTMLCanvasElement,
-  container: HTMLDivElement,
+  win: SharedCanvasWindow,
+  held: TileFrameMeasurement,
   pixelsPerSecond: number,
   notes: MelodyNote[],
   color: TrackColor,
@@ -437,40 +619,43 @@ function drawMelodyOverlay(
   duration: number,
   startTime: number,
   playheadTime: number,
-  isPlaying: boolean,
   lastDrawnOverlayRef: React.MutableRefObject<{
     offset: number;
     pps: number;
     noteCount: number;
+    activeNotesKey: string;
   }>,
 ): void {
   const contentLength = duration * pixelsPerSecond;
-  const win = getCanvasWindow(container);
-  positionCanvas(canvas, win);
-  const trackBase = getTrackBase(win, contentLength);
+  const trackWin = toTrackWindow(win, held.containerTop);
+  positionCanvas(canvas, trackWin);
+  const trackBase = getTrackBase(trackWin, contentLength);
 
   const needsResize =
-    canvas.width !== win.width || canvas.height !== win.height;
+    canvas.width !== trackWin.width || canvas.height !== trackWin.height;
 
-  // During playback, always redraw to update the playhead glow effect.
-  // When stopped, use memoization to skip unchanged frames.
+  // Playhead time relative to this track's start time
+  const trackPlayheadTime = playheadTime - startTime;
+  const activeNotesKey = computeActiveNotesKey(notes, trackPlayheadTime);
+
   const last = lastDrawnOverlayRef.current;
   if (
-    !isPlaying &&
     !needsResize &&
     trackBase === last.offset &&
     pixelsPerSecond === last.pps &&
-    notes.length === last.noteCount
+    notes.length === last.noteCount &&
+    activeNotesKey === last.activeNotesKey
   ) {
     return;
   }
   last.offset = trackBase;
   last.pps = pixelsPerSecond;
   last.noteCount = notes.length;
+  last.activeNotesKey = activeNotesKey;
 
   if (needsResize) {
-    canvas.width = win.width;
-    canvas.height = win.height;
+    canvas.width = trackWin.width;
+    canvas.height = trackWin.height;
   }
 
   const ctx = canvas.getContext('2d');
@@ -478,18 +663,15 @@ function drawMelodyOverlay(
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   ctx.save();
-  flipCanvasY(ctx, win.height);
-
-  // Playhead time relative to this track's start time
-  const trackPlayheadTime = playheadTime - startTime;
+  flipCanvasY(ctx, trackWin.height);
 
   const viewport: PianoRollViewport = {
     pixelsPerSecond,
     // The renderer draws note t at `t·pps − contentOffset` in flipped
     // coords; the canvas bottom sits at −trackBase in flipped track coords.
     contentOffset: -trackBase,
-    viewportHeight: win.height,
-    canvasWidth: win.width,
+    viewportHeight: trackWin.height,
+    canvasWidth: trackWin.width,
     frequencyBinCount,
     playheadTime: trackPlayheadTime,
   };

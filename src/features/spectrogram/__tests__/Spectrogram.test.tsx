@@ -1,19 +1,43 @@
 import { render, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
-import { useAnimationFrame } from '../../../shared/hooks/useAnimationFrame';
 import AudioService from '../../audio/AudioService';
 import { resetAllSignals } from '../../tracks/__tests__/testUtils';
 import { mockTrack } from '../../../testUtils';
 import Spectrogram from '../Spectrogram';
+import { type TimelineRenderCallback } from '../TimelineRenderLoop';
 
 const audioService = AudioService.getInstance();
 const playbackService = audioService.playbackService;
 const recordingService = audioService.recordingService;
 const trackService = audioService.trackService;
 
-vi.mock('../../../shared/hooks/useAnimationFrame', () => ({
-  useAnimationFrame: vi.fn(),
+const { mockRegister } = vi.hoisted(() => ({
+  mockRegister: vi.fn().mockReturnValue(() => {}),
 }));
+
+vi.mock('../TimelineRenderLoop', () => ({
+  timelineRenderLoop: { register: mockRegister },
+}));
+
+/**
+ * A generously large shared window (mawimbi#541) so a recording test's
+ * `contentHeight` (elapsed seconds × pixelsPerSecond, well under 1000px in
+ * these tests) always fits inside it — the recording draw path only
+ * produces visible output when `contentHeight <= win.height`.
+ */
+const TEST_SHARED_WINDOW = { width: 800, height: 1000, contentTop: 0 };
+
+/** Drives a `Spectrogram`'s most recently registered render-loop callback
+ * through one measure+write frame, mirroring what `TimelineRenderLoop`
+ * would do on an active frame. */
+function runRegisteredFrame(): void {
+  const calls = mockRegister.mock.calls;
+  const registration = calls[calls.length - 1]?.[0] as
+    | TimelineRenderCallback
+    | undefined;
+  registration?.measure(TEST_SHARED_WINDOW);
+  registration?.write(TEST_SHARED_WINDOW);
+}
 
 // OffscreenCanvas mock for RecordingBuffer
 vi.stubGlobal(
@@ -367,9 +391,7 @@ describe('recording mode', () => {
 
     const { container } = render(<Spectrogram {...recordingProps} />);
 
-    const calls = vi.mocked(useAnimationFrame).mock.calls;
-    const callback = calls[calls.length - 1]?.[0];
-    callback?.();
+    runRegisteredFrame();
 
     const spectrogram = container.querySelector('.spectrogram');
     // marginBottom = recordingStartTime * pixelsPerSecond = 3.0 * 200 = 600
@@ -413,9 +435,7 @@ describe('recording mode', () => {
 
     const { container } = render(<Spectrogram {...recordingProps} />);
 
-    const calls = vi.mocked(useAnimationFrame).mock.calls;
-    const callback = calls[calls.length - 1]?.[0];
-    callback?.();
+    runRegisteredFrame();
 
     const spectrogram = container.querySelector('.spectrogram');
     // elapsed = getEngineTime() - 0 = 2.0, height = 2.0 * 200 = 400
@@ -451,9 +471,7 @@ describe('recording mode', () => {
 
     const { container } = render(<Spectrogram {...recordingProps} />);
 
-    const calls = vi.mocked(useAnimationFrame).mock.calls;
-    const callback = calls[calls.length - 1]?.[0];
-    callback?.();
+    runRegisteredFrame();
 
     const spectrogram = container.querySelector('.spectrogram');
     // elapsed = 2.0 - 0 = 2.0, height = 2.0 * 200 = 400
