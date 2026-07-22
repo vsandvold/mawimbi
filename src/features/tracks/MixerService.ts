@@ -26,6 +26,10 @@ class MixerService {
     Tone.getDestination().connect(analyser.input);
   }
 
+  getWorkletAnalyser(): WorkletAnalyser | null {
+    return this.workletAnalyser;
+  }
+
   getLoudness(): number {
     if (this.workletAnalyser) {
       return this.workletAnalyser.getLoudness();

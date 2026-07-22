@@ -127,17 +127,26 @@ export function useScrubberScroll({
 
   // Create/dispose the FrequencyVisualizer when playback starts/stops.
   // Connected to Tone.getDestination() so it sees the combined master output.
+  // Prefers the audio-thread worklet analyser AudioService already taps at
+  // the destination for loudness metering (spec 006 Decision 2) — CQT runs
+  // on the audio thread instead of the main thread every frame. Falls back
+  // to the main-thread LiveCQTAnalyser path automatically (FrequencyVisualizer
+  // constructor) when the worklet hasn't initialized yet or is unavailable.
   useEffect(() => {
     if (!playing) return;
 
-    const visualizer = new FrequencyVisualizer(audioService.getDestination());
+    const workletAnalyser = trackHook.getWorkletAnalyser() ?? undefined;
+    const visualizer = new FrequencyVisualizer(audioService.getDestination(), {
+      workletAnalyser,
+    });
     visualizerRef.current = visualizer;
 
     return () => {
       visualizer.dispose();
       visualizerRef.current = null;
     };
-  }, [playing, audioService]);
+    // Hook objects reference stable service singletons via getters
+  }, [playing, audioService]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Animation loop: runs during playback, reads from audio engine, updates DOM directly
   useEffect(() => {
