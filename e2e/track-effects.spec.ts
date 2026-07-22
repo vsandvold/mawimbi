@@ -16,18 +16,34 @@ const CONTENT_SETTLE_WAIT_MS = 3000;
 const DRAWER_ANIMATION_MS = 350;
 // Matches workstationSignals.ts's DEFAULT_PIXELS_PER_SECOND (not exported).
 const DEFAULT_PIXELS_PER_SECOND = 200;
-// The burst decays to near-silence by ~0.15s; the window starts well after
-// that so it only ever contains dry silence or reverb tail, never the
-// burst's own onset energy. Kept short (not out to the file's 2.0s end):
-// at the default zoom only ~0.8s of elapsed time renders above the
-// playhead line before the runway's canvas window stops drawing content,
-// so a wider window would sample empty (non-runway) background instead.
-const DRY_WINDOW_START_SEC = 0.25;
-const DRY_WINDOW_END_SEC = 0.65;
-// Comfortably above any dry-silence noise floor, comfortably below the
-// luminance a reverb tail actually produces (tuned against a real run:
-// dry ≈0.7, Space=100 tail ≈7 in this window).
-const TAIL_ENERGY_MARGIN = 3;
+// The raw burst is 0.15s, but its *CQT-rendered* energy smears well past
+// that — low-frequency analysis kernels have a longer effective window
+// (kb/domain.md, "CQT kernels are precomputed... capped at
+// MAX_KERNEL_HOPS = 4"), so a broadband noise burst's visible tail in the
+// spectrogram measured ~0.42s empirically (screenshot row-scan, decoded
+// pixel-by-pixel), nearly 3x the raw audio duration. A window starting at
+// 0.25s (the original value) sampled part of that smeared tail, not true
+// silence, chronically flaky in CI (mawimbi#541 PR #550's build). 0.45s
+// leaves a margin past the measured smear.
+const DRY_WINDOW_START_SEC = 0.45;
+const DRY_WINDOW_END_SEC = 0.75;
+// The floating "back" button (`.floating-back-button`, top-left, ~42px)
+// overlaps screen Y in this window at the default viewport width — clip
+// starts after it so the window never samples UI chrome.
+const CLIP_X_START_PX = 100;
+// Repeated reads of an unchanged frame are bit-identical (measured: 6
+// consecutive reads, zero variance) — screenshot-decoded luminance has no
+// measurement noise floor to clear. The real constraint is Tone.Reverb's
+// IR: it's generated from un-seedable white noise (`Math.random`, never
+// pinned here — pinning it to a constant silences the reverb entirely,
+// kb/verification.md), so the tail's actual measured strength varies
+// run-to-run by over 30x in this window (observed: ~0.17–6.5 luminance
+// above dry across repeated runs) — a fixed margin only needs to clear
+// zero, not discriminate against noise. 3 (tuned against a single lucky
+// run) failed on the low end of that real range most of the time
+// (mawimbi#541 PR #550's CI); 0.1 clears true-zero with room to spare
+// while staying safely under the weakest real draw observed.
+const TAIL_ENERGY_MARGIN = 0.1;
 
 async function openEffectsDrawer(page: import('@playwright/test').Page) {
   await page.getByTitle('Show effects').click();
@@ -45,11 +61,11 @@ async function dryWindowClip(page: import('@playwright/test').Page) {
   const viewportWidth = page.viewportSize()?.width ?? 0;
 
   return {
-    x: 0,
+    x: CLIP_X_START_PX,
     y: Math.round(
       playheadLineY - DRY_WINDOW_END_SEC * DEFAULT_PIXELS_PER_SECOND,
     ),
-    width: viewportWidth,
+    width: viewportWidth - CLIP_X_START_PX,
     height: Math.round(
       (DRY_WINDOW_END_SEC - DRY_WINDOW_START_SEC) * DEFAULT_PIXELS_PER_SECOND,
     ),
