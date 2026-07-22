@@ -14,6 +14,7 @@ import {
   Q_FACTOR,
 } from '../CQTAnalyser';
 import { vi } from 'vitest';
+import { findPeakBin } from './cqtTestHelpers';
 
 const SAMPLE_RATE = 44100;
 
@@ -234,11 +235,7 @@ describe('analyseCQT', () => {
     const midFrame =
       result.frequencyFrames[Math.floor(result.frequencyFrames.length / 2)];
 
-    // Find the peak bin
-    let peakBin = 0;
-    for (let i = 1; i < midFrame.length; i++) {
-      if (midFrame[i] > midFrame[peakBin]) peakBin = i;
-    }
+    const peakBin = findPeakBin(midFrame);
 
     // Peak should be within ±1 bin of expected
     expect(Math.abs(peakBin - expectedBin)).toBeLessThanOrEqual(1);
@@ -261,10 +258,7 @@ describe('analyseCQT', () => {
     const midFrame =
       result.frequencyFrames[Math.floor(result.frequencyFrames.length / 2)];
 
-    let peakBin = 0;
-    for (let i = 1; i < midFrame.length; i++) {
-      if (midFrame[i] > midFrame[peakBin]) peakBin = i;
-    }
+    const peakBin = findPeakBin(midFrame);
 
     // Wider tolerance than the 440 Hz test because 200 Hz falls in the
     // kernel-capped range where frequency resolution is reduced.

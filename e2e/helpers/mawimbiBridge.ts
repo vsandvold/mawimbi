@@ -27,6 +27,21 @@ const MELODY_POLL_INTERVAL_MS = 500;
 const SPECTROGRAM_STATS_POLL_TIMEOUT_MS = 90_000;
 const SPECTROGRAM_STATS_POLL_INTERVAL_MS = 1_000;
 
+/**
+ * Scrolls the phantom scroller to its vertical midpoint — a lightweight way
+ * to exercise scroll-driven redraws without simulating a real drag gesture.
+ * Shared by spectrogram-stats.spec.ts and playhead-meter-source.spec.ts.
+ */
+export async function scrubToMiddle(page: Page): Promise<void> {
+  const phantom = page.locator('.scrubber__phantom');
+  const maxScrollTop = await phantom.evaluate(
+    (el) => el.scrollHeight - el.clientHeight,
+  );
+  await phantom.evaluate((el, pos) => {
+    el.scrollTop = pos;
+  }, Math.floor(maxScrollTop / 2));
+}
+
 export async function getFirstTrackId(page: Page): Promise<string> {
   const trackId = await page
     .locator('.timeline__track')

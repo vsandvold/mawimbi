@@ -1,6 +1,7 @@
 import { vi } from 'vitest';
 import { analyseCQTFromAudioBuffer } from '../CQTAnalyser';
 import LiveCQTAnalyser from '../LiveCQTAnalyser';
+import { findPeakBin } from './cqtTestHelpers';
 
 // The worklet processor extends the AudioWorkletProcessor global and calls
 // registerProcessor() at module load time, neither of which exist in jsdom.
@@ -40,14 +41,6 @@ function getPostMessageCalls(
   return port.postMessage.mock.calls.map((call) => call[0]);
 }
 
-function peakBin(frame: Uint8Array): number {
-  let peak = 0;
-  for (let i = 1; i < frame.length; i++) {
-    if (frame[i] > frame[peak]) peak = i;
-  }
-  return peak;
-}
-
 function generateToneSamples(): Float32Array {
   const totalSamples = Math.ceil(TONE_DURATION_S * SAMPLE_RATE);
   const signal = new Float32Array(totalSamples);
@@ -55,6 +48,21 @@ function generateToneSamples(): Float32Array {
     signal[i] = Math.sin((2 * Math.PI * TONE_FREQUENCY_HZ * i) / SAMPLE_RATE);
   }
   return signal;
+}
+
+// Feeds `signal` into the processor's process() callback in real-time-quantum
+// sized chunks, mirroring how the audio thread actually calls it.
+function feedProcessor(
+  processor: InstanceType<typeof AnalysisProcessor>,
+  signal: Float32Array,
+): void {
+  for (let offset = 0; offset < signal.length; offset += RENDER_QUANTUM) {
+    const chunk = signal.subarray(
+      offset,
+      Math.min(offset + RENDER_QUANTUM, signal.length),
+    );
+    processor.process([[chunk]]);
+  }
 }
 
 describe('AnalysisProcessor', () => {
@@ -71,18 +79,12 @@ describe('AnalysisProcessor', () => {
     } as MessageEvent);
 
     const signal = generateToneSamples();
-    for (let offset = 0; offset < signal.length; offset += RENDER_QUANTUM) {
-      const chunk = signal.subarray(
-        offset,
-        Math.min(offset + RENDER_QUANTUM, signal.length),
-      );
-      processor.process([[chunk]]);
-    }
+    feedProcessor(processor, signal);
 
     const cqtMessages = getPostMessageCalls(processor).filter(isCqtMessage);
     expect(cqtMessages.length).toBeGreaterThan(0);
     const workletFrame = cqtMessages[cqtMessages.length - 1].bins;
-    const workletPeakBin = peakBin(workletFrame);
+    const workletPeakBin = findPeakBin(workletFrame);
 
     const offlineAudioBuffer = {
       numberOfChannels: 1,
@@ -93,7 +95,7 @@ describe('AnalysisProcessor', () => {
     const offlineData = analyseCQTFromAudioBuffer(offlineAudioBuffer);
     const offlineFrame =
       offlineData.frequencyFrames[offlineData.frequencyFrames.length - 1];
-    const offlinePeakBin = peakBin(offlineFrame);
+    const offlinePeakBin = findPeakBin(offlineFrame);
 
     expect(Math.abs(workletPeakBin - offlinePeakBin)).toBeLessThanOrEqual(2);
     expect(workletFrame[workletPeakBin]).toBeGreaterThan(0);
@@ -103,13 +105,7 @@ describe('AnalysisProcessor', () => {
     const processor = new AnalysisProcessor();
 
     const signal = generateToneSamples();
-    for (let offset = 0; offset < signal.length; offset += RENDER_QUANTUM) {
-      const chunk = signal.subarray(
-        offset,
-        Math.min(offset + RENDER_QUANTUM, signal.length),
-      );
-      processor.process([[chunk]]);
-    }
+    feedProcessor(processor, signal);
 
     const loudnessMessages = getPostMessageCalls(processor).filter(
       (msg) => (msg as { type?: string }).type === 'loudness',

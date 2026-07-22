@@ -1,5 +1,9 @@
 import { expect, test, uploadAudioFile, LONG_AUDIO_10S } from './fixtures';
-import { getFirstTrackId, getSpectrogramCounters } from './helpers/mawimbiBridge';
+import {
+  getEngineTime,
+  getSpectrogramCounters,
+  scrubToMiddle,
+} from './helpers/mawimbiBridge';
 
 /**
  * Proves the playhead meter's CQT frames come from the audio-thread worklet
@@ -35,38 +39,27 @@ test.describe('Playhead meter frame source', () => {
     await page.goto('/project/test-id');
     await uploadAudioFile(page, LONG_AUDIO_10S);
     await expect(page.locator('.timeline__track')).toBeVisible();
-    await getFirstTrackId(page);
 
     await page.getByTitle('Play').click();
     await expect
-      .poll(
-        async () =>
-          page.evaluate(() => window.__mawimbi?.playback.getEngineTime()),
-        { timeout: ENGINE_TIME_POLL_TIMEOUT_MS, intervals: [20] },
-      )
+      .poll(async () => getEngineTime(page), {
+        timeout: ENGINE_TIME_POLL_TIMEOUT_MS,
+        intervals: [20],
+      })
       .toBeGreaterThan(0.5);
     await page.getByTitle('Pause').click();
 
-    // Scrub: move the scroll position directly, mirroring the pattern
-    // established in e2e/spectrogram-stats.spec.ts.
-    const phantom = page.locator('.scrubber__phantom');
-    const maxScrollTop = await phantom.evaluate(
-      (el) => el.scrollHeight - el.clientHeight,
-    );
-    await phantom.evaluate((el, pos) => {
-      el.scrollTop = pos;
-    }, Math.floor(maxScrollTop / 2));
+    await scrubToMiddle(page);
 
     // A second play/pause cycle exercises the visualizer's dispose/recreate
     // path again — a latent fallback would keep incrementing the counter on
     // every cycle, not just the first.
     await page.getByTitle('Play').click();
     await expect
-      .poll(
-        async () =>
-          page.evaluate(() => window.__mawimbi?.playback.getEngineTime()),
-        { timeout: ENGINE_TIME_POLL_TIMEOUT_MS, intervals: [20] },
-      )
+      .poll(async () => getEngineTime(page), {
+        timeout: ENGINE_TIME_POLL_TIMEOUT_MS,
+        intervals: [20],
+      })
       .toBeGreaterThan(0);
     await page.getByTitle('Pause').click();
 

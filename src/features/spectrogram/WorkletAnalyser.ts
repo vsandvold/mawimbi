@@ -15,14 +15,34 @@ import {
   type AnalysisCommand,
   type AnalysisMessage,
 } from './AnalysisProcessor';
-import LiveCQTAnalyser, {
+import { computeKernel } from './CQTAnalyser';
+import {
   type SerializedCQTKernel,
   getTransferables,
+  serializeKernel,
 } from './LiveCQTAnalyser';
 
 const PROCESSOR_NAME = 'analysis-processor';
 const DEFAULT_SMOOTHING = 0.8;
 const POWER_CURVE_EXPONENT = 0.6;
+
+// The CQT kernel depends only on sample rate, which is constant for a
+// session — computing it (~225 bins, ~1M trig calls) and serializing it
+// (~4MB) is too expensive to repeat on every enableCQTAnalysis() call
+// (every playback start, since useScrubberScroll disposes/recreates its
+// FrequencyVisualizer on every play/pause toggle). Cached at module scope
+// so every WorkletAnalyser instance shares it (mixer and mic analysers
+// typically share one AudioContext's sample rate).
+const serializedKernelCache = new Map<number, SerializedCQTKernel>();
+
+function getCachedSerializedKernel(sampleRate: number): SerializedCQTKernel {
+  let kernel = serializedKernelCache.get(sampleRate);
+  if (!kernel) {
+    kernel = serializeKernel(computeKernel(sampleRate));
+    serializedKernelCache.set(sampleRate, kernel);
+  }
+  return kernel;
+}
 
 class WorkletAnalyser {
   private audioContext: AudioContext;
@@ -92,10 +112,17 @@ class WorkletAnalyser {
    * Computes the CQT kernel for the given sample rate and transfers
    * it to the AudioWorklet processor. The processor runs the CQT at
    * the hop interval (25ms) and posts back CQT frames.
+   *
+   * Single-consumer today: enable/disableCQTAnalysis have no consumer
+   * tracking — whichever caller calls disableCQTAnalysis() last turns CQT
+   * off for every holder of this instance. Only `useScrubberScroll`'s
+   * playback visualizer uses the destination-tapped instance for CQT right
+   * now; a second concurrent consumer (e.g. OnsetDetector #485, spec 005's
+   * live pitch) sharing it via TrackService.getWorkletAnalyser() would need
+   * refcounting added here first.
    */
   enableCQTAnalysis(sampleRate: number): void {
-    const liveCQT = new LiveCQTAnalyser(sampleRate);
-    const serialized = liveCQT.getSerializedKernel();
+    const serialized = getCachedSerializedKernel(sampleRate);
     this._cqtBinCount = serialized.numberBins;
     this.currentCQTBins = new Uint8Array(serialized.numberBins);
 
@@ -138,16 +165,29 @@ class WorkletAnalyser {
   private sendCQTConfig(serialized: SerializedCQTKernel): void {
     if (!this.node) return;
 
-    const transferables = getTransferables(serialized);
+    // `serialized` is the shared cache entry (getCachedSerializedKernel) —
+    // clone its buffers before handing them to postMessage's transfer list.
+    // A Transferable transfer detaches the underlying ArrayBuffers from the
+    // sender; transferring the cached arrays directly would leave the cache
+    // entry's arrays zero-length for every subsequent caller.
+    const cosBuffer = serialized.cosBuffer.slice();
+    const sinBuffer = serialized.sinBuffer.slice();
+    const binLengths = serialized.binLengths.slice();
+    const transferables = getTransferables({
+      ...serialized,
+      cosBuffer,
+      sinBuffer,
+      binLengths,
+    });
 
     this.node.port.postMessage(
       {
         type: 'configure',
         cqtAnalysis: true,
         cqtKernel: {
-          cosBuffer: serialized.cosBuffer,
-          sinBuffer: serialized.sinBuffer,
-          binLengths: serialized.binLengths,
+          cosBuffer,
+          sinBuffer,
+          binLengths,
           numberBins: serialized.numberBins,
           hopSize: serialized.hopSize,
         },

@@ -135,14 +135,28 @@ export function useScrubberScroll({
   useEffect(() => {
     if (!playing) return;
 
-    const workletAnalyser = trackHook.getWorkletAnalyser() ?? undefined;
-    const visualizer = new FrequencyVisualizer(audioService.getDestination(), {
-      workletAnalyser,
+    // Waits for AudioService's worklet-analyser init (fire-and-forget from
+    // its constructor) before deciding worklet vs. fallback — otherwise a
+    // Play pressed before that init resolves would read a null analyser and
+    // get stuck on the main-thread fallback for this entire play session,
+    // since this effect only re-evaluates on the next playing transition
+    // (mawimbi#542). The promise always resolves (init failures are caught
+    // internally), so this never blocks the fallback path either.
+    let cancelled = false;
+    let visualizer: FrequencyVisualizer | null = null;
+
+    audioService.workletAnalyserReady.finally(() => {
+      if (cancelled) return;
+      const workletAnalyser = trackHook.getWorkletAnalyser() ?? undefined;
+      visualizer = new FrequencyVisualizer(audioService.getDestination(), {
+        workletAnalyser,
+      });
+      visualizerRef.current = visualizer;
     });
-    visualizerRef.current = visualizer;
 
     return () => {
-      visualizer.dispose();
+      cancelled = true;
+      visualizer?.dispose();
       visualizerRef.current = null;
     };
     // Hook objects reference stable service singletons via getters

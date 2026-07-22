@@ -1,5 +1,6 @@
 import { vi } from 'vitest';
 import { analyseCQT, computeNumberBins, HOP_SECONDS } from '../CQTAnalyser';
+import { findPeakBin } from './cqtTestHelpers';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -81,10 +82,7 @@ describe('analyseCQT (worker path)', () => {
 
     const midFrame =
       result.frequencyFrames[Math.floor(result.frequencyFrames.length / 2)];
-    let peakBin = 0;
-    for (let i = 1; i < midFrame.length; i++) {
-      if (midFrame[i] > midFrame[peakBin]) peakBin = i;
-    }
+    const peakBin = findPeakBin(midFrame);
 
     expect(Math.abs(peakBin - expectedBin)).toBeLessThanOrEqual(1);
   });
