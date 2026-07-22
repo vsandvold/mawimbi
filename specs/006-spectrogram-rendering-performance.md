@@ -1,8 +1,8 @@
 # 006 — Spectrogram rendering: performance, memory, and live analysis foundation
 
-**Status:** Draft
+**Status:** Issues filed
 **Date:** 2026-07-22
-**Issues:** (filled by /spec-to-issues)
+**Issues:** #537 (tracking) → #538 (harness), #539 (progressive analysis), #540 (cache lifecycle), #541 (render loop + fade), #542 (live analysis), #543 (effects preview), #544 (close-out)
 
 ## Summary
 
