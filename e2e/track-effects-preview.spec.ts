@@ -114,6 +114,38 @@ async function dragSpaceSliderWithoutRelease(
   return { thumb };
 }
 
+/** Drags the Space slider's thumb to its maximum and back down to its
+ * starting value (0), without releasing — a round trip. Radix's own
+ * `onValueCommit` only fires when the released value differs from the
+ * value at drag-*start* (`@radix-ui/react-slider`'s `handleSlideEnd`), so
+ * releasing after this drag never calls it at all. */
+async function dragSpaceSliderRoundTrip(page: import('@playwright/test').Page) {
+  const thumb = page.getByRole('slider', { name: 'Space amount' });
+  const track = thumb.locator('xpath=../../span[@data-slot="slider-track"]');
+  const box = await track.boundingBox();
+  if (!box) throw new Error('Space slider track not found');
+
+  const y = box.y + box.height / 2;
+  const startX = box.x;
+  const endX = box.x + box.width;
+
+  await page.mouse.move(startX, y);
+  await page.mouse.down();
+
+  for (let step = 1; step <= DRAG_STEPS; step++) {
+    const x = startX + ((endX - startX) * step) / DRAG_STEPS;
+    await page.mouse.move(x, y);
+    await page.waitForTimeout(DRAG_STEP_DELAY_MS);
+  }
+  for (let step = DRAG_STEPS - 1; step >= 0; step--) {
+    const x = startX + ((endX - startX) * step) / DRAG_STEPS;
+    await page.mouse.move(x, y);
+    await page.waitForTimeout(DRAG_STEP_DELAY_MS);
+  }
+
+  return { thumb };
+}
+
 test.describe('Live effects preview while dragging', () => {
   test.beforeEach(async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -167,5 +199,33 @@ test.describe('Live effects preview while dragging', () => {
       const luminance = await meanLuminance(page, await dryWindowClip(page));
       expect(luminance).toBeGreaterThan(dryLuminance + TAIL_ENERGY_MARGIN);
     }).toPass({ timeout: 15_000 });
+  });
+
+  // Regression for a code-review finding (mawimbi#551), confirmed against a
+  // real drag before the fix: Radix's onValueCommit never fires when a drag
+  // releases back at its starting value, so clearing the overlay only from
+  // `commitAmount` left it stuck on screen indefinitely for this gesture.
+  test('a round-trip drag back to the original amount still clears the preview overlay on release', async ({
+    page,
+  }) => {
+    await openEffectsDrawer(page);
+    const trackId = await getFirstTrackId(page);
+    const dryHash = await getEffectsHash(page, trackId);
+
+    const { thumb } = await dragSpaceSliderRoundTrip(page);
+    await expect(thumb).toHaveAttribute('aria-valuenow', '0');
+
+    await expect
+      .poll(() => hasPreviewOverlay(page, trackId), { timeout: 15_000 })
+      .toBe(true);
+
+    await page.mouse.up();
+
+    await expect
+      .poll(() => hasPreviewOverlay(page, trackId), { timeout: 15_000 })
+      .toBe(false);
+    // The overlay clearing directly (not via a hash change) is exactly the
+    // point of this test — the committed hash is genuinely unchanged.
+    expect(await getEffectsHash(page, trackId)).toBe(dryHash);
   });
 });

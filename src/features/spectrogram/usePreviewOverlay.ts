@@ -14,7 +14,7 @@ import {
 } from '../workstation/effectsPreview';
 import {
   markPreviewOverlayActive,
-  registerPreviewRequester,
+  registerPreviewTrigger,
 } from './previewOverlayRegistry';
 import { type TrackSpectrogramEntry } from './SpectrogramCache';
 
@@ -30,6 +30,14 @@ export function usePreviewOverlay(
   >();
   const schedulerRef = useRef<PreviewScheduler | null>(null);
   const visibleWindowRef = useRef<PreviewWindowRequest | null>(null);
+  // Mirrors `previewOverlay` state outside React so the overlay's
+  // `ImageBitmap` can be closed the instant it's replaced or cleared,
+  // including from the unmount cleanup below — a `useState` closure
+  // captured at effect-setup time would otherwise see a stale value
+  // (code review finding, mawimbi#551: without this, every replaced or
+  // cleared overlay tile leaked, since nothing ever called `.close()` on
+  // it — unlike `SpectrogramCache.setEntry`'s explicit stale-tile close).
+  const currentOverlayRef = useRef<PreviewOverlay | undefined>(undefined);
 
   useEffect(() => {
     if (!audioBuffer) return;
@@ -39,26 +47,35 @@ export function usePreviewOverlay(
       analyseToResult: (buffer, col) =>
         audioService.spectrogramCache.analyseToResult(buffer, col),
       setPreview: (id, overlay) => {
+        currentOverlayRef.current?.tile.close();
+        currentOverlayRef.current = overlay;
         setPreviewOverlay(overlay);
         markPreviewOverlayActive(id, true);
       },
       clearPreview: (id) => {
+        currentOverlayRef.current?.tile.close();
+        currentOverlayRef.current = undefined;
         setPreviewOverlay(undefined);
         markPreviewOverlayActive(id, false);
       },
     });
     schedulerRef.current = scheduler;
 
-    const unregister = registerPreviewRequester(trackId, (amounts) => {
-      const request = visibleWindowRef.current;
-      if (!request) return;
-      scheduler.schedule(trackId, audioBuffer, color, amounts, request);
+    const unregister = registerPreviewTrigger(trackId, {
+      requestPreview: (amounts) => {
+        const request = visibleWindowRef.current;
+        if (!request) return;
+        scheduler.schedule(trackId, audioBuffer, color, amounts, request);
+      },
+      clearPreview: () => scheduler.clear(trackId),
     });
 
     return () => {
       unregister();
       scheduler.dispose();
       schedulerRef.current = null;
+      currentOverlayRef.current?.tile.close();
+      currentOverlayRef.current = undefined;
     };
     // color is a stable per-track identity object; audioService is a
     // stable singleton accessed via context.
@@ -68,9 +85,13 @@ export function usePreviewOverlay(
   // The commit refresh landing (its result stamps a new effectsParamsHash
   // on `entry`) supersedes any provisional preview for this track — clear
   // it so the committed tiles show through immediately instead of waiting
-  // for the next drag tick. Also covers a drag abandoned without a normal
-  // release: the dirty-flag safety net in useEffectControls.ts always
-  // commits on unmount/track-switch, which lands here the same way.
+  // for the next drag tick. This is a secondary safety net (e.g. an
+  // external change to `effects`, such as undo, that never goes through
+  // `commitAmount` at all) — the primary clear path is the direct
+  // `clearTrackPreview` call `commitAmount`/the unmount safety net make in
+  // `useEffectControls.ts`, since a commit that lands back at the same
+  // amount it started from never changes this hash (code review finding,
+  // mawimbi#551).
   useEffect(() => {
     schedulerRef.current?.clear(trackId);
     // trackId is stable for the lifetime of this hook instance.
