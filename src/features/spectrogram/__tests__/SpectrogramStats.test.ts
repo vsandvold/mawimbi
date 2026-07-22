@@ -48,6 +48,22 @@ describe('recordEntry', () => {
     nowSpy.mockRestore();
   });
 
+  it('reports the total elapsed time on the final delivery of a chunked analysis, not 0 (review fix, mawimbi#539)', () => {
+    const nowSpy = vi
+      .spyOn(performance, 'now')
+      .mockImplementationOnce(() => 0) // recordAnalysisStart
+      .mockImplementationOnce(() => 100) // first (intermediate) chunk
+      .mockImplementationOnce(() => 300); // final (complete) chunk
+
+    const token = stats.recordAnalysisStart('track-1');
+    stats.recordEntry('track-1', [mockTile(4, 3)], DATA, token, false);
+    expect(stats.getTrackStats('track-1')?.analysisMs).toBe(100);
+
+    stats.recordEntry('track-1', [mockTile(4, 5)], DATA, token, true);
+    expect(stats.getTrackStats('track-1')?.analysisMs).toBe(300);
+    nowSpy.mockRestore();
+  });
+
   it('reports 0 analysisMs when no token is passed, even if a start is pending', () => {
     const nowSpy = vi.spyOn(performance, 'now').mockReturnValue(1000);
 

@@ -38,9 +38,11 @@ export type WorkerRequest = AnalyseRequest | MelodyRequest;
 // Emitted once per completed chunk during progressive analysis (mawimbi#539,
 // spec 006 milestone 2) — the chunk's own frames and single rendered tile,
 // not the cumulative total (SpectrogramCache accumulates across deliveries).
-// Sent before the final 'result' message, which carries only the complete
-// SpectrogramData: every tile is delivered exactly once, via 'chunk', so it
-// is transferred exactly once (an ImageBitmap can't be transferred twice).
+// Sent before the final 'result' message, which carries no frames or tiles
+// of its own: every frame and tile was already sent exactly once via
+// 'chunk' (an ImageBitmap can't be transferred twice, and re-sending every
+// frame again in the final message would clone the whole track's data a
+// second time for no reason — review fix, mawimbi#539).
 export type AnalyseChunkResponse = {
   id: number;
   type: 'chunk';
@@ -52,8 +54,20 @@ export type AnalyseChunkResponse = {
   sampleRate: number;
 };
 
+// Scalar metadata only — SpectrogramCache reconstructs the full
+// SpectrogramData from the frames it already accumulated via 'chunk'
+// messages, rather than receiving them a second time here.
+export type AnalyseResultResponse = {
+  id: number;
+  type: 'result';
+  frequencyBinCount: number;
+  timeResolution: number;
+  sampleRate: number;
+  duration: number;
+};
+
 export type AnalyseResponse =
-  | { id: number; type: 'result'; data: SpectrogramData }
+  | AnalyseResultResponse
   | AnalyseChunkResponse
   | { id: number; type: 'error'; message: string };
 
@@ -113,7 +127,14 @@ async function handleSpectrogram(request: AnalyseRequest): Promise<void> {
         workerSelf.postMessage(chunkResponse, [tile]);
       },
     );
-    const response: AnalyseResponse = { id, type: 'result', data };
+    const response: AnalyseResponse = {
+      id,
+      type: 'result',
+      frequencyBinCount: data.frequencyBinCount,
+      timeResolution: data.timeResolution,
+      sampleRate: data.sampleRate,
+      duration: data.duration,
+    };
     workerSelf.postMessage(response);
 
     if (!modelPreWarmed) {

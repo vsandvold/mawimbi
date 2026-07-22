@@ -74,6 +74,7 @@ vi.mock('../../audio/useAudioService', () => ({
       restore: vi.fn(),
       getMelody: vi.fn(),
       setMelody: vi.fn(),
+      subscribeToEntry: vi.fn().mockReturnValue(() => {}),
       extractMelodyInWorker: vi
         .fn()
         .mockResolvedValue({ notes: [], timeResolution: 0.0029 }),
@@ -232,6 +233,7 @@ it('uses cached entry without re-analysis', () => {
       duration: 5.0,
     },
     tiles: [],
+    analysisComplete: true,
   };
   mockGetEntry.mockReturnValue(cachedEntry);
 

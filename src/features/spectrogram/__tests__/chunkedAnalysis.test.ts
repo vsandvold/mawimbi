@@ -13,6 +13,11 @@ import {
 } from '../CQTAnalyser';
 
 const SAMPLE_RATE = 44100;
+// Shared by both 12-TET guard tests below — the tone duration used to build
+// each synthetic signal and the mid-frame index picked from it must stay in
+// lock-step, so both derive from this one constant (review fix, mawimbi#539:
+// they were previously two independent `0.5` literals).
+const TARGET_TONE_SECONDS = 0.5;
 
 function makeToneSignal(
   durationSeconds: number,
@@ -114,11 +119,12 @@ describe('analyseCQTChunked', () => {
 
   it('places a 440 Hz tone within the expected CQ bin on the chunked path (12-TET guard, pattern #220)', () => {
     const CHUNK_FRAMES = 5;
-    const signal = makeToneSignal(0.5, 440); // 20 frames
+    const signal = makeToneSignal(TARGET_TONE_SECONDS, 440); // 20 frames
 
     let midFrame: Uint8Array | undefined;
     let frameIndex = 0;
-    const targetFrameIndex = Math.floor(0.5 / HOP_SECONDS / 2); // avoid edge effects
+    // Avoid edge effects by picking a frame from the middle.
+    const targetFrameIndex = Math.floor(TARGET_TONE_SECONDS / HOP_SECONDS / 2);
 
     analyseCQTChunked(
       [signal],
@@ -147,10 +153,10 @@ describe('analyseCQTChunked', () => {
     // low-frequency range (below ~340 Hz, kb/domain.md) so peak detection
     // isn't confounded by its reduced resolution.
     const frequencies = [440, 880, 1760, 3520, 7040];
-    const targetFrameIndex = Math.floor(0.5 / HOP_SECONDS / 2);
+    const targetFrameIndex = Math.floor(TARGET_TONE_SECONDS / HOP_SECONDS / 2);
 
     const peakBins = frequencies.map((frequencyHz) => {
-      const signal = makeToneSignal(0.5, frequencyHz);
+      const signal = makeToneSignal(TARGET_TONE_SECONDS, frequencyHz);
       let midFrame: Uint8Array | undefined;
       let frameIndex = 0;
       analyseCQTChunked(

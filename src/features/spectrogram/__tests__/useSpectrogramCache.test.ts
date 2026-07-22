@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto';
 import { IDBFactory } from 'fake-indexeddb';
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MelodyData } from '../../transcription/MelodyExtractor';
 import type { SpectrogramData } from '../OfflineAnalyser';
@@ -44,12 +44,14 @@ const MOCK_MELODY: MelodyData = {
 const MOCK_ENTRY: TrackSpectrogramEntry = {
   data: MOCK_DATA,
   tiles: [],
+  analysisComplete: true,
 };
 
 const MOCK_ENTRY_WITH_MELODY: TrackSpectrogramEntry = {
   data: MOCK_DATA,
   tiles: [],
   melody: MOCK_MELODY,
+  analysisComplete: true,
 };
 
 const mockGetEntry = vi.fn();
@@ -60,20 +62,30 @@ const mockSetMelody = vi.fn();
 const mockExtractMelodyInWorker = vi.fn();
 const mockAnalyseToResult = vi.fn();
 const mockSetEntry = vi.fn();
+const mockSubscribeToEntry = vi.fn();
+
+// A stable object identity, matching the real useAudioService() (a
+// singleton context value) — a fresh `{ spectrogramCache: {...} }` literal
+// on every call would make `audioService` change identity on every render,
+// spuriously re-running any effect that depends on it. Harmless for a
+// one-shot analysis, but it breaks a persistent subscription (mawimbi#539's
+// `subscribeToEntry`): each spurious re-run re-reads the (static) mocked
+// `getEntry` and clobbers whatever state a later notification had set.
+const mockSpectrogramCache = {
+  getEntry: mockGetEntry,
+  analyse: mockAnalyse,
+  restore: mockRestore,
+  getMelody: mockGetMelody,
+  setMelody: mockSetMelody,
+  extractMelodyInWorker: mockExtractMelodyInWorker,
+  analyseToResult: mockAnalyseToResult,
+  setEntry: mockSetEntry,
+  subscribeToEntry: mockSubscribeToEntry,
+};
+const mockAudioServiceValue = { spectrogramCache: mockSpectrogramCache };
 
 vi.mock('../../audio/useAudioService', () => ({
-  useAudioService: () => ({
-    spectrogramCache: {
-      getEntry: mockGetEntry,
-      analyse: mockAnalyse,
-      restore: mockRestore,
-      getMelody: mockGetMelody,
-      setMelody: mockSetMelody,
-      extractMelodyInWorker: mockExtractMelodyInWorker,
-      analyseToResult: mockAnalyseToResult,
-      setEntry: mockSetEntry,
-    },
-  }),
+  useAudioService: () => mockAudioServiceValue,
 }));
 
 const mockRenderTrackOffline = vi.fn();
@@ -98,6 +110,7 @@ beforeEach(() => {
   });
   resetDB();
   vi.clearAllMocks();
+  mockSubscribeToEntry.mockReturnValue(() => {});
 });
 
 describe('toSpectrogramStoreData', () => {
@@ -224,6 +237,52 @@ describe('useSpectrogramCache', () => {
     expect(result.current).toBe(MOCK_ENTRY);
     expect(mockAnalyse).not.toHaveBeenCalled();
     expect(mockRestore).not.toHaveBeenCalled();
+    expect(mockSubscribeToEntry).not.toHaveBeenCalled();
+  });
+
+  it('subscribes to further updates when the cached entry is still mid-analysis, instead of freezing on the partial snapshot (review fix, mawimbi#539)', () => {
+    const partialEntry: TrackSpectrogramEntry = {
+      ...MOCK_ENTRY,
+      analysisComplete: false,
+    };
+    mockGetEntry.mockReturnValue(partialEntry);
+
+    let notify: ((entry: TrackSpectrogramEntry) => void) | undefined;
+    mockSubscribeToEntry.mockImplementation((_id, callback) => {
+      notify = callback;
+      return () => {
+        notify = undefined;
+      };
+    });
+
+    // A stable buffer reference matters here (see the effects-hash tests
+    // below) — a fresh object every render would change the effect's deps
+    // and re-run it, re-reading the static mock and clobbering the state
+    // update `notify` produces below.
+    const buffer = mockAudioBuffer();
+    const { result, unmount } = renderHook(() =>
+      useSpectrogramCache('track-1', buffer, COLOR),
+    );
+
+    // The partial snapshot is shown immediately, but the hook is now
+    // listening for more — it must not have started a second analysis.
+    expect(result.current).toBe(partialEntry);
+    expect(mockAnalyse).not.toHaveBeenCalled();
+    expect(mockSubscribeToEntry).toHaveBeenCalledWith(
+      'track-1',
+      expect.any(Function),
+    );
+
+    const completedEntry: TrackSpectrogramEntry = {
+      ...MOCK_ENTRY,
+      analysisComplete: true,
+    };
+    act(() => notify!(completedEntry));
+
+    expect(result.current).toBe(completedEntry);
+
+    unmount();
+    expect(notify).toBeUndefined();
   });
 
   it('restores from IndexedDB when available, skipping analysis', async () => {
@@ -272,8 +331,12 @@ describe('useSpectrogramCache', () => {
       useSpectrogramCache('track-1', buffer, COLOR),
     );
 
+    // Content equality, not reference: once background melody extraction
+    // resolves, its callback commits `{ ...updated }` (a fresh object, so
+    // the melody-only change still triggers a re-render) rather than the
+    // literal `MOCK_ENTRY` reference this test's own mock returns.
     await waitFor(() => {
-      expect(result.current).toBe(MOCK_ENTRY);
+      expect(result.current).toEqual(MOCK_ENTRY);
     });
 
     expect(mockAnalyse).toHaveBeenCalledWith(

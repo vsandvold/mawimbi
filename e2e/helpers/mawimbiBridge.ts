@@ -147,22 +147,17 @@ export async function waitForSpectrogramAnalysisComplete(
   return stats!;
 }
 
-// One cap for both the sample count and the interval between them, so the
-// worst case (`analysisComplete` never flips) still bounds total wall-clock
-// the same way `SPECTROGRAM_STATS_POLL_TIMEOUT_MS` does above, rather than
-// spinning indefinitely.
-const TILE_GROWTH_SAMPLE_INTERVAL_MS = SPECTROGRAM_STATS_POLL_INTERVAL_MS;
-const TILE_GROWTH_MAX_SAMPLES =
-  SPECTROGRAM_STATS_POLL_TIMEOUT_MS / TILE_GROWTH_SAMPLE_INTERVAL_MS;
-
 /**
  * Samples `trackId`'s spectrogram stats repeatedly (mawimbi#539, spec 006
- * milestone 2's progressive-tiling proof) until `analysisComplete` flips
- * or the sample cap is hit, returning every recorded sample in arrival
- * order (including the final, complete one). A genuine poll of live
- * bridge state on each iteration, not a guessed wait — the interval
- * between reads is just the sampling cadence, and the loop's real exit
- * condition is the bridge's own `analysisComplete` flag.
+ * milestone 2's progressive-tiling proof) until `analysisComplete` flips,
+ * returning every recorded sample in arrival order (including the final,
+ * complete one). Built on `expect.poll` — same idiom as
+ * `waitForSpectrogramAnalysisComplete` above, just pushing each sample
+ * into a closure-captured array from inside the poll callback instead of
+ * only keeping the last one (review fix, mawimbi#539: an earlier version
+ * hand-rolled this with a raw loop and `page.waitForTimeout`, duplicating
+ * `expect.poll`'s own cadence/timeout handling and violating CLAUDE.md's
+ * e2e "No blind waits" rule).
  *
  * `getTrackStats` legitimately returns `undefined` for a brief real window
  * right after upload — `recordAnalysisStart` runs before the first chunk's
@@ -183,16 +178,23 @@ export async function sampleSpectrogramTileGrowth(
   }
 
   const samples: TrackSpectrogramStats[] = [];
-  for (let i = 0; i < TILE_GROWTH_MAX_SAMPLES; i++) {
-    const stats = await page.evaluate(
-      (id) => window.__mawimbi?.spectrogramStats.getTrackStats(id),
-      trackId,
-    );
-    if (stats) {
-      samples.push(stats);
-      if (stats.analysisComplete) break;
-    }
-    await page.waitForTimeout(TILE_GROWTH_SAMPLE_INTERVAL_MS);
-  }
+
+  await expect
+    .poll(
+      async () => {
+        const stats = await page.evaluate(
+          (id) => window.__mawimbi?.spectrogramStats.getTrackStats(id),
+          trackId,
+        );
+        if (stats) samples.push(stats);
+        return stats?.analysisComplete ?? false;
+      },
+      {
+        timeout: SPECTROGRAM_STATS_POLL_TIMEOUT_MS,
+        intervals: [SPECTROGRAM_STATS_POLL_INTERVAL_MS],
+      },
+    )
+    .toBe(true);
+
   return samples;
 }
