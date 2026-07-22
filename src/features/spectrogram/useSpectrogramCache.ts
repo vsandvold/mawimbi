@@ -138,6 +138,8 @@ export function useSpectrogramCache(
               result.tiles,
               hash,
             ),
+          releaseFrames: (id) =>
+            audioService.spectrogramCache.releaseFrames(id),
           onRefreshed: (id) =>
             setEntry(audioService.spectrogramCache.getEntry(id)),
         });
@@ -163,6 +165,20 @@ export function useSpectrogramCache(
 
       if (cancelled) return;
 
+      // Releases the entry's raw frames once persisted (spec 006 M3,
+      // mawimbi#540) and re-syncs this hook's local state to the released
+      // reference — without the re-sync, the closure's own `entry` state
+      // would keep the old, frame-carrying object alive, defeating the
+      // release. Guarded on `cancelled` since it runs after a fire-and-
+      // forget `saveSpectrogramData` promise, detached from the effect's
+      // synchronous flow.
+      const releaseFramesAndSync = () => {
+        audioService.spectrogramCache.releaseFrames(trackId);
+        if (!cancelled) {
+          setEntry(audioService.spectrogramCache.getEntry(trackId));
+        }
+      };
+
       if (storedSpectrogram) {
         const storedHash =
           storedSpectrogram.effectsParamsHash ?? DRY_EFFECTS_HASH;
@@ -175,6 +191,9 @@ export function useSpectrogramCache(
             color,
             storedHash,
           );
+          // Already persisted (that's where it was just loaded from) — no
+          // save to wait for, so release immediately, synchronously.
+          audioService.spectrogramCache.releaseFrames(trackId);
         } else {
           // The persisted spectrogram is stale against the track's current
           // committed effects (e.g. the page reloaded mid-debounce) —
@@ -196,7 +215,7 @@ export function useSpectrogramCache(
           if (refreshed) {
             const storeData = toSpectrogramStoreData(trackId, refreshed.data);
             storeData.effectsParamsHash = effectsHash;
-            saveSpectrogramData(storeData);
+            saveSpectrogramData(storeData).then(releaseFramesAndSync);
           }
         }
 
@@ -251,7 +270,7 @@ export function useSpectrogramCache(
       if (analysedEntry) {
         const storeData = toSpectrogramStoreData(trackId, analysedEntry.data);
         storeData.effectsParamsHash = effectsHash;
-        saveSpectrogramData(storeData);
+        saveSpectrogramData(storeData).then(releaseFramesAndSync);
       }
 
       // Run melody extraction in the background

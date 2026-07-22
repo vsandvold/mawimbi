@@ -5,10 +5,12 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 import {
   saveProject,
   saveAudioData,
+  saveMelodyData,
   saveSpectrogramData,
   saveTranscription,
   loadProject,
   loadAudioData,
+  loadMelodyData,
   loadSpectrogramData,
   loadTranscription,
   resetDB,
@@ -19,9 +21,22 @@ import {
   useDeleteTrackAudio,
   useLoadProject,
   useRestoreAudio,
+  useTeardownSpectrogramCache,
 } from '../projectPageEffects';
 import { type ProjectState } from '../projectPageReducer';
 import { type Track } from '../../tracks/types';
+
+const mockInvalidate = vi.fn();
+const mockInvalidateAll = vi.fn();
+
+vi.mock('../../audio/useAudioService', () => ({
+  useAudioService: () => ({
+    spectrogramCache: {
+      invalidate: mockInvalidate,
+      invalidateAll: mockInvalidateAll,
+    },
+  }),
+}));
 
 function createStoredProject(
   overrides: Partial<StoredProject> = {},
@@ -64,6 +79,8 @@ beforeEach(() => {
     configurable: true,
   });
   resetDB();
+  mockInvalidate.mockClear();
+  mockInvalidateAll.mockClear();
 });
 
 describe('useLoadProject', () => {
@@ -453,5 +470,77 @@ describe('useDeleteTrackAudio', () => {
       const transcription = await loadTranscription('track-1');
       expect(transcription).toBeNull();
     });
+  });
+
+  // mawimbi#540 (spec 006 M3) — melody had no delete counterpart before
+  // this milestone (IndexedDB orphan audit finding): every single-track
+  // deletion left its `melodies` entry behind forever.
+  it('deletes melody data when a track is removed', async () => {
+    await saveMelodyData({
+      trackId: 'track-1',
+      notes: [{ startTime: 0, endTime: 0.5, midiNote: 60, confidence: 0.9 }],
+      timeResolution: 0.0029,
+    });
+
+    const initialTracks = [createTrack({ trackId: 'track-1' })];
+    const { rerender } = renderHook(
+      ({ tracks }) => useDeleteTrackAudio(tracks),
+      { initialProps: { tracks: initialTracks } },
+    );
+
+    rerender({ tracks: [] });
+
+    await waitFor(async () => {
+      const melody = await loadMelodyData('track-1');
+      expect(melody).toBeNull();
+    });
+  });
+
+  // mawimbi#540 (spec 006 M3) — bounded memory: a removed track's tiles
+  // and frames must not linger in the in-memory spectrogram cache either.
+  it('invalidates the spectrogram cache entry when a track is removed', () => {
+    const initialTracks = [createTrack({ trackId: 'track-1' })];
+    const { rerender } = renderHook(
+      ({ tracks }) => useDeleteTrackAudio(tracks),
+      { initialProps: { tracks: initialTracks } },
+    );
+
+    rerender({ tracks: [] });
+
+    expect(mockInvalidate).toHaveBeenCalledWith('track-1');
+  });
+
+  it('does not invalidate the spectrogram cache for tracks that remain', () => {
+    const initialTracks = [
+      createTrack({ trackId: 'track-1' }),
+      createTrack({ trackId: 'track-2', index: 1 }),
+    ];
+    const { rerender } = renderHook(
+      ({ tracks }) => useDeleteTrackAudio(tracks),
+      { initialProps: { tracks: initialTracks } },
+    );
+
+    rerender({ tracks: [createTrack({ trackId: 'track-2', index: 0 })] });
+
+    expect(mockInvalidate).toHaveBeenCalledOnce();
+    expect(mockInvalidate).toHaveBeenCalledWith('track-1');
+  });
+});
+
+describe('useTeardownSpectrogramCache', () => {
+  it('does not invalidate the cache while mounted', () => {
+    renderHook(() => useTeardownSpectrogramCache());
+
+    expect(mockInvalidateAll).not.toHaveBeenCalled();
+  });
+
+  // Fires on ProjectPageContent unmounting — leaving the project for Home,
+  // or switching to a different project (both remount it, keyed by id).
+  it('invalidates the entire spectrogram cache on unmount', () => {
+    const { unmount } = renderHook(() => useTeardownSpectrogramCache());
+
+    unmount();
+
+    expect(mockInvalidateAll).toHaveBeenCalledOnce();
   });
 });

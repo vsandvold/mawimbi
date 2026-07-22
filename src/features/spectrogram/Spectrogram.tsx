@@ -65,7 +65,15 @@ const Spectrogram = ({
   const frameDisplayHeight = pixelsPerSecond * timeResolution;
   const tileDisplayHeight = TILE_FRAMES * frameDisplayHeight;
   const frequencyBinCount = entry?.data.frequencyBinCount ?? 0;
-  const totalFrames = entry?.data.frequencyFrames.length ?? 0;
+  // Derived from duration/timeResolution rather than
+  // `frequencyFrames.length` — the raw frames are released from memory
+  // once persisted (`SpectrogramCache.releaseFrames`, mawimbi#540), but
+  // duration and timeResolution are the same values used to compute the
+  // frame count at analysis time (`analyseCQT`'s `frameCount`), so this
+  // reproduces it exactly without needing the frames themselves.
+  const totalFrames = entry
+    ? Math.floor(entry.data.duration / entry.data.timeResolution)
+    : 0;
   const tiles = entry?.tiles ?? [];
   const melodyNotes = entry?.melody?.notes ?? [];
 

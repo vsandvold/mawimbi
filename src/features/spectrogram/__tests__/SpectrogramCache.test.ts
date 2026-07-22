@@ -402,6 +402,52 @@ describe('subscribeToEntry', () => {
   });
 });
 
+describe('releaseFrames', () => {
+  it('empties frequencyFrames while keeping tiles and metadata intact', async () => {
+    const promise = cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap]);
+    await promise;
+
+    cache.releaseFrames('track-1');
+
+    const entry = cache.getEntry('track-1');
+    expect(entry!.data.frequencyFrames).toEqual([]);
+    expect(entry!.tiles).toEqual([mockTileBitmap]);
+    expect(entry!.data.timeResolution).toBe(
+      MOCK_SPECTROGRAM_DATA.timeResolution,
+    );
+    expect(entry!.data.frequencyBinCount).toBe(
+      MOCK_SPECTROGRAM_DATA.frequencyBinCount,
+    );
+    expect(entry!.data.duration).toBe(MOCK_SPECTROGRAM_DATA.duration);
+  });
+
+  it('does not close tiles (they remain in use for rendering)', async () => {
+    const promise = cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap]);
+    await promise;
+
+    cache.releaseFrames('track-1');
+
+    expect(mockTileBitmap.close).not.toHaveBeenCalled();
+  });
+
+  it('preserves melody data', async () => {
+    const promise = cache.analyse('track-1', mockAudioBuffer(), COLOR);
+    simulateWorkerResult(MOCK_SPECTROGRAM_DATA, [mockTileBitmap]);
+    await promise;
+    cache.setMelody('track-1', MOCK_MELODY_DATA);
+
+    cache.releaseFrames('track-1');
+
+    expect(cache.getMelody('track-1')).toBe(MOCK_MELODY_DATA);
+  });
+
+  it('does nothing when releasing an unknown track', () => {
+    expect(() => cache.releaseFrames('nonexistent')).not.toThrow();
+  });
+});
+
 describe('invalidate', () => {
   it('removes the entry for the given track', async () => {
     const promise = cache.analyse('track-1', mockAudioBuffer(), COLOR);

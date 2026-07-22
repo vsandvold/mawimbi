@@ -180,6 +180,40 @@ describe('EffectsRefreshScheduler persistence', () => {
     expect(stored).not.toBeNull();
     expect(stored!.effectsParamsHash).toBe('10:0:0');
   });
+
+  // mawimbi#540 (spec 006 M3) — the committed refresh's raw frames must
+  // also release once persisted, same as the mount-time analysis paths.
+  it('releases raw frames after persisting, before notifying onRefreshed', async () => {
+    const renderOffline = vi
+      .fn()
+      .mockResolvedValue(mockAudioBuffer('rendered'));
+    const analyseToResult = vi.fn().mockResolvedValue({
+      data: spectrogramDataFor('rendered'),
+      tiles: [],
+    } as SpectrogramResult);
+    const setEntry = vi.fn();
+    const releaseFrames = vi.fn();
+    const onRefreshed = vi.fn();
+
+    const scheduler = new EffectsRefreshScheduler({
+      renderOffline,
+      analyseToResult,
+      setEntry,
+      releaseFrames,
+      onRefreshed,
+    });
+
+    scheduler.schedule(TRACK_ID, mockAudioBuffer('dry'), COLOR, AMOUNTS_A);
+    await waitForCallCount(onRefreshed, 1);
+
+    expect(releaseFrames).toHaveBeenCalledOnce();
+    expect(releaseFrames).toHaveBeenCalledWith(TRACK_ID);
+    // Order matters: onRefreshed's setEntry(getEntry(id)) must observe the
+    // already-released entry, not race it.
+    const releaseOrder = releaseFrames.mock.invocationCallOrder[0];
+    const refreshedOrder = onRefreshed.mock.invocationCallOrder[0];
+    expect(releaseOrder).toBeLessThan(refreshedOrder);
+  });
 });
 
 describe('EffectsRefreshScheduler dispose', () => {

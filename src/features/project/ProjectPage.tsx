@@ -11,6 +11,7 @@ import {
   useFullscreen,
   useLoadProject,
   useRestoreAudio,
+  useTeardownSpectrogramCache,
   useTrackControlsSync,
   useTrackSideEffects,
   useUploadFile,
@@ -45,6 +46,7 @@ const ProjectPageContent = ({ initialState }: ProjectPageContentProps) => {
   useTrackSideEffects(state.tracks);
   useTrackControlsSync(state.tracks);
   useDeleteTrackAudio(state.tracks);
+  useTeardownSpectrogramCache();
   useAutoSave(state);
 
   const toggleLogOverlay = useCallback(

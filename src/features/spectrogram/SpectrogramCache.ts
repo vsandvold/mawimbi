@@ -220,6 +220,25 @@ class SpectrogramCache {
     }
   }
 
+  // Releases a persisted entry's raw per-frame columns while keeping its
+  // tiles and metadata (bin count, time resolution, duration — frame count
+  // is derivable from duration/timeResolution, see Spectrogram.tsx) intact.
+  // Called once a track's spectrogram has been written to IndexedDB (or,
+  // for `restore`, was already loaded from there) — the frames' only job
+  // was producing the tiles and the persisted bytes; retaining them for
+  // the rest of the session is the unbounded-growth path spec 006 M3
+  // fixes (mawimbi#540). A no-op for an unknown track.
+  releaseFrames(trackId: string): void {
+    const entry = this.entries.get(trackId);
+    if (!entry) return;
+    const releasedData: SpectrogramData = {
+      ...entry.data,
+      frequencyFrames: [],
+    };
+    this.entries.set(trackId, { ...entry, data: releasedData });
+    if (import.meta.env.DEV) spectrogramStats.releaseFrames(trackId);
+  }
+
   invalidate(trackId: string): void {
     const entry = this.entries.get(trackId);
     if (entry) {

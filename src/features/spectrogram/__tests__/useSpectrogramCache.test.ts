@@ -63,6 +63,7 @@ const mockExtractMelodyInWorker = vi.fn();
 const mockAnalyseToResult = vi.fn();
 const mockSetEntry = vi.fn();
 const mockSubscribeToEntry = vi.fn();
+const mockReleaseFrames = vi.fn();
 
 // A stable object identity, matching the real useAudioService() (a
 // singleton context value) — a fresh `{ spectrogramCache: {...} }` literal
@@ -81,6 +82,7 @@ const mockSpectrogramCache = {
   analyseToResult: mockAnalyseToResult,
   setEntry: mockSetEntry,
   subscribeToEntry: mockSubscribeToEntry,
+  releaseFrames: mockReleaseFrames,
 };
 const mockAudioServiceValue = { spectrogramCache: mockSpectrogramCache };
 
@@ -318,6 +320,23 @@ describe('useSpectrogramCache', () => {
     expect(mockAnalyse).not.toHaveBeenCalled();
   });
 
+  // mawimbi#540 (spec 006 M3) — a restored entry was already persisted
+  // (that's where it was just loaded from), so its raw frames release
+  // immediately rather than waiting on a save that isn't going to happen.
+  it('releases raw frames immediately after restoring from IndexedDB', async () => {
+    mockGetEntry.mockReturnValueOnce(undefined).mockReturnValue(MOCK_ENTRY);
+
+    const storeData = toSpectrogramStoreData('track-1', MOCK_DATA);
+    await saveSpectrogramData(storeData);
+    mockExtractMelodyInWorker.mockResolvedValue(MOCK_MELODY);
+
+    renderHook(() => useSpectrogramCache('track-1', mockAudioBuffer(), COLOR));
+
+    await waitFor(() => {
+      expect(mockReleaseFrames).toHaveBeenCalledWith('track-1');
+    });
+  });
+
   it('runs analysis and saves to IndexedDB when no cached data exists', async () => {
     mockGetEntry
       .mockReturnValueOnce(undefined) // initial check
@@ -352,6 +371,12 @@ describe('useSpectrogramCache', () => {
     expect(stored).not.toBeNull();
     expect(stored!.trackId).toBe('track-1');
     expect(stored!.timeResolution).toBe(0.025);
+
+    // mawimbi#540 (spec 006 M3) — raw frames release once the fresh
+    // analysis is persisted.
+    await waitFor(() => {
+      expect(mockReleaseFrames).toHaveBeenCalledWith('track-1');
+    });
   });
 
   it('restores melody from IndexedDB alongside spectrogram', async () => {

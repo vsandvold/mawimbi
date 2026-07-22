@@ -30,6 +30,10 @@ export type EffectsRefreshDeps = {
     result: SpectrogramResult,
     effectsParamsHash: string,
   ) => void;
+  // Releases the refreshed entry's raw frames once persisted (spec 006 M3,
+  // mawimbi#540) — optional so existing callers/tests that don't care
+  // about the memory-bound accounting aren't forced to wire it up.
+  releaseFrames?: (trackId: TrackId) => void;
   onRefreshed?: (trackId: TrackId) => void;
 };
 
@@ -105,6 +109,7 @@ export class EffectsRefreshScheduler {
     storeData.effectsParamsHash = effectsParamsHash;
     await saveSpectrogramData(storeData);
 
+    this.deps.releaseFrames?.(trackId);
     this.deps.onRefreshed?.(trackId);
   }
 
