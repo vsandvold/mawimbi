@@ -22,7 +22,11 @@ const DEFAULT_SAMPLE_RATE = 44100;
 const DEFAULT_TONE_FREQUENCY_HZ = 440;
 const HEADER_SIZE = 44;
 const BYTES_PER_SAMPLE = 2;
-const AMPLITUDE = 0.5 * 32767;
+const TONE_AMPLITUDE = 0.5 * 32767;
+// Louder than TONE_AMPLITUDE, matching generate-wav.mjs's burst generator —
+// broadband noise at a percussive hit's energy reads differently from a
+// sustained tone at the same peak.
+const BURST_AMPLITUDE = 0.8 * 32767;
 // Decay time-constants fitting inside a burst window (matches
 // generate-wav.mjs's BURST_TIME_CONSTANTS) — by the burst's end the
 // envelope has decayed to ~1% of peak, so the burst/silence boundary has
@@ -38,6 +42,49 @@ export type WavSegment =
 export type MakeWavFixtureOptions = {
   sampleRate?: number;
 };
+
+/**
+ * Builds a mono 16-bit WAV from a sequence of segments and writes it to a
+ * uniquely-named file under the gitignored fixtures temp dir. Returns the
+ * absolute file path to hand to `uploadAudioFile`.
+ */
+export function makeWavFixture(
+  segments: WavSegment[],
+  { sampleRate = DEFAULT_SAMPLE_RATE }: MakeWavFixtureOptions = {},
+): string {
+  const segmentSamples = segments.map((segment) =>
+    Math.floor(segment.seconds * sampleRate),
+  );
+  const numSamples = segmentSamples.reduce((sum, n) => sum + n, 0);
+  const buffer = Buffer.alloc(HEADER_SIZE + numSamples * BYTES_PER_SAMPLE);
+  writeWavHeader(buffer, { numSamples, sampleRate });
+
+  let byteOffset = HEADER_SIZE;
+  segments.forEach((segment, index) => {
+    const numSegmentSamples = segmentSamples[index];
+    if (segment.kind === 'tone') {
+      writeToneSegment(
+        buffer,
+        byteOffset,
+        numSegmentSamples,
+        sampleRate,
+        segment.frequencyHz ?? DEFAULT_TONE_FREQUENCY_HZ,
+      );
+    } else if (segment.kind === 'burst') {
+      writeBurstSegment(buffer, byteOffset, numSegmentSamples, sampleRate);
+    }
+    byteOffset += numSegmentSamples * BYTES_PER_SAMPLE;
+  });
+
+  mkdirSync(OUTPUT_DIR, { recursive: true });
+  // Playwright runs specs across multiple parallel workers (fullyParallel,
+  // playwright.config.ts) — a unique name per call avoids one worker's
+  // fixture being overwritten mid-read by another's.
+  const filename = `wav-fixture-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.wav`;
+  const filePath = join(OUTPUT_DIR, filename);
+  writeFileSync(filePath, buffer);
+  return filePath;
+}
 
 /** Deterministic PRNG (mulberry32), matching generate-wav.mjs. */
 function createSeededRandom(seed: number): () => number {
@@ -86,7 +133,7 @@ function writeToneSegment(
   for (let i = 0; i < numSamples; i++) {
     const t = i / sampleRate;
     const sample = Math.round(
-      AMPLITUDE * Math.sin(2 * Math.PI * frequencyHz * t),
+      TONE_AMPLITUDE * Math.sin(2 * Math.PI * frequencyHz * t),
     );
     buffer.writeInt16LE(sample, byteOffset + i * BYTES_PER_SAMPLE);
   }
@@ -103,51 +150,8 @@ function writeBurstSegment(
   for (let i = 0; i < numSamples; i++) {
     const t = i / sampleRate;
     const envelope = Math.exp(-t / decayTimeConstant);
-    const sample = Math.round(AMPLITUDE * envelope * (random() * 2 - 1));
+    const sample = Math.round(BURST_AMPLITUDE * envelope * (random() * 2 - 1));
     buffer.writeInt16LE(sample, byteOffset + i * BYTES_PER_SAMPLE);
   }
 }
 // Silence segments are left untouched — Buffer.alloc zero-fills.
-
-/**
- * Builds a mono 16-bit WAV from a sequence of segments and writes it to a
- * uniquely-named file under the gitignored fixtures temp dir. Returns the
- * absolute file path to hand to `uploadAudioFile`.
- */
-export function makeWavFixture(
-  segments: WavSegment[],
-  { sampleRate = DEFAULT_SAMPLE_RATE }: MakeWavFixtureOptions = {},
-): string {
-  const segmentSamples = segments.map((segment) =>
-    Math.floor(segment.seconds * sampleRate),
-  );
-  const numSamples = segmentSamples.reduce((sum, n) => sum + n, 0);
-  const buffer = Buffer.alloc(HEADER_SIZE + numSamples * BYTES_PER_SAMPLE);
-  writeWavHeader(buffer, { numSamples, sampleRate });
-
-  let byteOffset = HEADER_SIZE;
-  segments.forEach((segment, index) => {
-    const numSegmentSamples = segmentSamples[index];
-    if (segment.kind === 'tone') {
-      writeToneSegment(
-        buffer,
-        byteOffset,
-        numSegmentSamples,
-        sampleRate,
-        segment.frequencyHz ?? DEFAULT_TONE_FREQUENCY_HZ,
-      );
-    } else if (segment.kind === 'burst') {
-      writeBurstSegment(buffer, byteOffset, numSegmentSamples, sampleRate);
-    }
-    byteOffset += numSegmentSamples * BYTES_PER_SAMPLE;
-  });
-
-  mkdirSync(OUTPUT_DIR, { recursive: true });
-  // Playwright runs specs across multiple parallel workers (fullyParallel,
-  // playwright.config.ts) — a unique name per call avoids one worker's
-  // fixture being overwritten mid-read by another's.
-  const filename = `wav-fixture-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}.wav`;
-  const filePath = join(OUTPUT_DIR, filename);
-  writeFileSync(filePath, buffer);
-  return filePath;
-}

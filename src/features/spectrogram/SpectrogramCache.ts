@@ -44,9 +44,17 @@ class SpectrogramCache {
     color: TrackColor,
     effectsParamsHash?: string,
   ): Promise<void> {
-    if (import.meta.env.DEV) spectrogramStats.recordAnalysisStart(trackId);
+    const analysisToken = import.meta.env.DEV
+      ? spectrogramStats.recordAnalysisStart(trackId)
+      : undefined;
     const result = await this.analyseToResult(audioBuffer, color);
-    this.setEntry(trackId, result.data, result.tiles, effectsParamsHash);
+    this.setEntry(
+      trackId,
+      result.data,
+      result.tiles,
+      effectsParamsHash,
+      analysisToken,
+    );
   }
 
   // Runs the analysis (worker, falling back to main thread) without
@@ -78,10 +86,13 @@ class SpectrogramCache {
     data: SpectrogramData,
     tiles: ImageBitmap[],
     effectsParamsHash?: string,
+    analysisToken?: number,
   ): void {
     const melody = this.entries.get(trackId)?.melody;
     this.entries.set(trackId, { data, tiles, melody, effectsParamsHash });
-    if (import.meta.env.DEV) spectrogramStats.recordEntry(trackId, tiles, data);
+    if (import.meta.env.DEV) {
+      spectrogramStats.recordEntry(trackId, tiles, data, analysisToken);
+    }
   }
 
   restore(
@@ -114,6 +125,7 @@ class SpectrogramCache {
     if (entry) {
       entry.tiles.forEach((tile) => tile.close());
       this.entries.delete(trackId);
+      if (import.meta.env.DEV) spectrogramStats.clearTrack(trackId);
     }
   }
 
@@ -122,6 +134,7 @@ class SpectrogramCache {
       entry.tiles.forEach((tile) => tile.close());
     });
     this.entries.clear();
+    if (import.meta.env.DEV) spectrogramStats.clearAll();
   }
 
   extractMelodyInWorker(audioBuffer: AudioBuffer): Promise<MelodyData> {

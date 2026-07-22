@@ -111,6 +111,20 @@ export async function waitForSpectrogramAnalysisComplete(
   page: Page,
   trackId: string,
 ): Promise<TrackSpectrogramStats> {
+  // Checked once, up front, rather than inside the poll callback below —
+  // `expect.poll` retries on a thrown error the same as a false result, so
+  // throwing from inside the callback wouldn't actually fail fast; it would
+  // just burn the full timeout with a differently-worded error. A real
+  // DEV-bridge regression should fail immediately, matching
+  // `getSpectrogramCounters`'s behavior, not surface as an unexplained
+  // 90-second timeout.
+  const bridgeAvailable = await page.evaluate(() =>
+    Boolean(window.__mawimbi?.spectrogramStats),
+  );
+  if (!bridgeAvailable) {
+    throw new Error('window.__mawimbi.spectrogramStats is unavailable');
+  }
+
   let stats: TrackSpectrogramStats | undefined;
 
   await expect
