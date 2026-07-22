@@ -1,19 +1,43 @@
 import { render, waitFor } from '@testing-library/react';
 import { vi } from 'vitest';
-import { useAnimationFrame } from '../../../shared/hooks/useAnimationFrame';
 import AudioService from '../../audio/AudioService';
 import { resetAllSignals } from '../../tracks/__tests__/testUtils';
 import { mockTrack } from '../../../testUtils';
 import Spectrogram from '../Spectrogram';
+import { type TimelineRenderCallback } from '../TimelineRenderLoop';
 
 const audioService = AudioService.getInstance();
 const playbackService = audioService.playbackService;
 const recordingService = audioService.recordingService;
 const trackService = audioService.trackService;
 
-vi.mock('../../../shared/hooks/useAnimationFrame', () => ({
-  useAnimationFrame: vi.fn(),
+const { mockRegister } = vi.hoisted(() => ({
+  mockRegister: vi.fn().mockReturnValue(() => {}),
 }));
+
+vi.mock('../TimelineRenderLoop', () => ({
+  timelineRenderLoop: { register: mockRegister },
+}));
+
+/**
+ * A generously large shared window (mawimbi#541) so a recording test's
+ * `contentHeight` (elapsed seconds × pixelsPerSecond, well under 1000px in
+ * these tests) always fits inside it — the recording draw path only
+ * produces visible output when `contentHeight <= win.height`.
+ */
+const TEST_SHARED_WINDOW = { width: 800, height: 1000, contentTop: 0 };
+
+/** Drives a `Spectrogram`'s most recently registered render-loop callback
+ * through one measure+write frame, mirroring what `TimelineRenderLoop`
+ * would do on an active frame. */
+function runRegisteredFrame(): void {
+  const calls = mockRegister.mock.calls;
+  const registration = calls[calls.length - 1]?.[0] as
+    | TimelineRenderCallback
+    | undefined;
+  registration?.measure(TEST_SHARED_WINDOW);
+  registration?.write(TEST_SHARED_WINDOW);
+}
 
 // OffscreenCanvas mock for RecordingBuffer
 vi.stubGlobal(
@@ -250,6 +274,86 @@ it('does not trigger analysis without audio buffer', () => {
   expect(mockAnalyse).not.toHaveBeenCalled();
 });
 
+describe('render-loop registration peekDirty (mawimbi#541)', () => {
+  function getLatestRegistration(): TimelineRenderCallback {
+    const calls = mockRegister.mock.calls;
+    return calls[calls.length - 1]?.[0] as TimelineRenderCallback;
+  }
+
+  function makeCachedEntry(tiles: ImageBitmap[]) {
+    return {
+      data: {
+        frequencyFrames: [],
+        timeResolution: 0.025,
+        frequencyBinCount: 2048,
+        sampleRate: 44100,
+        duration: 5.0,
+      },
+      tiles,
+      analysisComplete: true,
+    };
+  }
+
+  it('reports not dirty when there is no audio buffer yet (no tiles)', () => {
+    mockRetrieveAudioBuffer.mockReturnValue(undefined);
+
+    render(<Spectrogram {...defaultProps} />);
+
+    expect(getLatestRegistration().peekDirty()).toBe(false);
+  });
+
+  it('settles to not-dirty after one draw for a track with tiles but zero melody notes', () => {
+    // Regression test for the exact bug fixed in this PR: the
+    // lastDrawnOverlayRef `noteCount` sentinel used to start at -1, so
+    // `melodyNotes.length (0) !== noteCount (-1)` was permanently true for
+    // any zero-note track, even after a real draw — defeating the render
+    // loop's idle short-circuit forever, since `writeMelodyOverlay` (the
+    // only place that would clear the sentinel) never runs at all when
+    // there are no notes to draw. The first peekDirty() call is expected to
+    // be true (nothing has been drawn yet); it's the one *after* a draw
+    // that must go false and stay false.
+    const audioBuffer = { duration: 5.0 } as AudioBuffer;
+    mockRetrieveAudioBuffer.mockReturnValue(audioBuffer);
+    mockGetEntry.mockReturnValue(makeCachedEntry([{} as ImageBitmap]));
+
+    render(<Spectrogram {...defaultProps} />);
+    expect(getLatestRegistration().peekDirty()).toBe(true);
+
+    runRegisteredFrame();
+
+    expect(getLatestRegistration().peekDirty()).toBe(false);
+  });
+
+  it('reports dirty once the cache entry lands a fresh tiles array (e.g. an effects-refresh commit)', () => {
+    const audioBuffer = { duration: 5.0 } as AudioBuffer;
+    mockRetrieveAudioBuffer.mockReturnValue(audioBuffer);
+    mockGetEntry.mockReturnValue(makeCachedEntry([{} as ImageBitmap]));
+
+    const { rerender } = render(<Spectrogram {...defaultProps} />);
+    runRegisteredFrame();
+    expect(getLatestRegistration().peekDirty()).toBe(false);
+
+    mockGetEntry.mockReturnValue(makeCachedEntry([{} as ImageBitmap]));
+    rerender(<Spectrogram {...defaultProps} />);
+
+    expect(getLatestRegistration().peekDirty()).toBe(true);
+  });
+
+  it('reports dirty when pixelsPerSecond changes', () => {
+    const audioBuffer = { duration: 5.0 } as AudioBuffer;
+    mockRetrieveAudioBuffer.mockReturnValue(audioBuffer);
+    mockGetEntry.mockReturnValue(makeCachedEntry([{} as ImageBitmap]));
+
+    const { rerender } = render(<Spectrogram {...defaultProps} />);
+    runRegisteredFrame();
+    expect(getLatestRegistration().peekDirty()).toBe(false);
+
+    rerender(<Spectrogram {...defaultProps} pixelsPerSecond={400} />);
+
+    expect(getLatestRegistration().peekDirty()).toBe(true);
+  });
+});
+
 it('sets container height from duration and pixelsPerSecond', () => {
   const duration = 2.5;
   const audioBuffer = { duration } as AudioBuffer;
@@ -367,9 +471,7 @@ describe('recording mode', () => {
 
     const { container } = render(<Spectrogram {...recordingProps} />);
 
-    const calls = vi.mocked(useAnimationFrame).mock.calls;
-    const callback = calls[calls.length - 1]?.[0];
-    callback?.();
+    runRegisteredFrame();
 
     const spectrogram = container.querySelector('.spectrogram');
     // marginBottom = recordingStartTime * pixelsPerSecond = 3.0 * 200 = 600
@@ -413,9 +515,7 @@ describe('recording mode', () => {
 
     const { container } = render(<Spectrogram {...recordingProps} />);
 
-    const calls = vi.mocked(useAnimationFrame).mock.calls;
-    const callback = calls[calls.length - 1]?.[0];
-    callback?.();
+    runRegisteredFrame();
 
     const spectrogram = container.querySelector('.spectrogram');
     // elapsed = getEngineTime() - 0 = 2.0, height = 2.0 * 200 = 400
@@ -451,9 +551,7 @@ describe('recording mode', () => {
 
     const { container } = render(<Spectrogram {...recordingProps} />);
 
-    const calls = vi.mocked(useAnimationFrame).mock.calls;
-    const callback = calls[calls.length - 1]?.[0];
-    callback?.();
+    runRegisteredFrame();
 
     const spectrogram = container.querySelector('.spectrogram');
     // elapsed = 2.0 - 0 = 2.0, height = 2.0 * 200 = 400
