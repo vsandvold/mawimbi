@@ -4,6 +4,12 @@ Architectural decisions with rationale and provenance, newest first. Entry forma
 
 **Hygiene note:** this file is past the KB's ~150-line guideline (`kb/INDEX.md`) — due a split (e.g. by year, or into `decisions.md` + `decisions-archive.md`) in a future `/harness-audit` or dedicated session, not blocking here.
 
+## 2026-07-22 — `work-issue` ships the PR right after the feature commit; code review moves to a human-gated pause after that
+
+**Decision:** Reordered `work-issue`'s Commit/Review/Pay-back/Ship steps to Commit → Ship (open the PR) → Review (wait for a human to run `/code-review`, then address findings in a separate commit) → Pay back (`/kb write`, its own commit). CLAUDE.md's Working Defaults and Pull Requests sections updated to match — PR creation is no longer gated on running `/code-review` first.
+**Why:** `/code-review` has `disable-model-invocation` set (`kb/environment.md`, 2026-07-21) — the agent can never trigger it, only a human typing `/code-review` can. The prior order (review, then ship) implicitly assumed the agent could run review itself before opening the PR; under the real gate that would block PR creation forever. Shipping right after the feature commit keeps `work-issue` able to deliver a PR autonomously, while review still lands as its own commit on the same branch once a human actually runs it — the three-commit shape (feature → review fix → KB) is unchanged, only the step order around it.
+**Source:** `.claude/skills/work-issue/SKILL.md`, `CLAUDE.md` (Working Defaults, Pull Requests), `kb/environment.md` (2026-07-21).
+
 ## 2026-07-21 — Input monitoring resets to off on every mic close, not just page reload
 
 **Decision:** `MicrophoneService.close()` (spec 005 milestone 3, #524) always tears down monitoring (`disableMonitoring()`) as part of closing the mic, and `RecordingService` mirrors that into its `isMonitoring` signal at every one of its three `microphone.close()` call sites (`closeMicrophoneAndResetMonitoring()`). Practical effect: the user must re-enable monitoring after every recording take (stop or cancel), not just after a page reload.
@@ -81,6 +87,7 @@ Architectural decisions with rationale and provenance, newest first. Entry forma
 **Decision:** `work-issue`'s old combined "Ship" step (commit feature code including any review fixes, then commit the KB update separately) is split into three steps — Commit (feature code, before review runs), Review (`/code-review`, its fixes committed separately), Pay back (`/kb write`, committed separately) — landing three distinct commits per PR instead of two.
 **Why:** Committing the feature code only at Ship time meant `/code-review` ran against an uncommitted diff and its fixes were silently folded into the same commit as the original implementation — the PR history couldn't show what review actually changed. Committing before review makes the fix commit a visible, separate diff.
 **Source:** `.claude/skills/work-issue/SKILL.md`, `.claude/skills/kb/SKILL.md`.
+**Superseded (2026-07-22):** the three-commit shape (feature → review fix → KB) still holds, but "Review, before Ship" no longer does — Ship (open the PR) now comes right after Commit, and Review moves after Ship as a human-gated pause. See the 2026-07-22 entry below.
 
 ## 2026-07-20 — A React-state-derived signal module's enter/exit lives in one `useEffect`, not scattered across every setter of that state
 

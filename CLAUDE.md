@@ -49,7 +49,7 @@ Session defaults: **ground nontrivial work with `/kb read` before planning, and 
 
 ## Working Defaults
 
-- Before creating a pull request, run the `/code-review` skill on the diff and address confirmed findings first.
+- `/code-review` is gated to explicit human invocation and cannot be triggered by the agent (`kb/environment.md`, 2026-07-21). Don't block PR creation on it: commit and open the PR first, then wait for a human to run `/code-review`; address confirmed findings in a separate commit once they do.
 - Before reporting work as complete, verify it: run `npm run lint` and the tests relevant to the change. Only claim what you have evidence for from this session.
 - Do the simplest thing that works. No features, refactors, or abstractions beyond what the task requires.
 - When a decision is ambiguous, state the assumption you're making and proceed with a recommendation rather than presenting a menu of options.
@@ -268,9 +268,11 @@ npx playwright test e2e/your-spec.spec.ts --reporter=list
 
 ## Pull Requests
 
-After all tasks are done — code changes committed and pushed — run the `/code-review` skill and address confirmed findings, then create a pull request with `gh pr create --repo vsandvold/mawimbi` targeting `master`. Include a summary of what changed and a test plan in the PR body. When the PR resolves a tracked GitHub issue, include `Closes #<issue-number>` in the body so merging the PR automatically closes the issue — don't wait for a follow-up step to close it.
+After all tasks are done, commit the code changes, push, and create a pull request with `gh pr create --repo vsandvold/mawimbi` targeting `master`. Include a summary of what changed and a test plan in the PR body. When the PR resolves a tracked GitHub issue, include `Closes #<issue-number>` in the body so merging the PR automatically closes the issue — don't wait for a follow-up step to close it.
 
 PR creation is pre-authorized: this is standing permission (per the Executing Actions guidance on durable instructions) to open the PR once work is committed and pushed, without pausing to ask first.
+
+Then wait for a human to invoke `/code-review` — it's gated to explicit human invocation and the agent cannot trigger it itself (`kb/environment.md`, 2026-07-21). When findings come back, address confirmed ones and push a separate commit for the fixes (don't fold them into the original diff). Only after that, do `/kb write` and push its commit — this way the KB capture can include anything durable that review surfaced.
 
 ## Issue Updates
 
