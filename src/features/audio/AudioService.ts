@@ -13,6 +13,7 @@ import InstrumentClassificationService from '../classification/InstrumentClassif
 import TranscriptionService from '../transcription/TranscriptionService';
 import SpectrogramCache from '../spectrogram/SpectrogramCache';
 import { spectrogramStats } from '../spectrogram/SpectrogramStats';
+import { hasActivePreviewOverlay } from '../spectrogram/previewOverlayRegistry';
 import WorkletAnalyser from '../spectrogram/WorkletAnalyser';
 
 // Reduce scheduling lookahead from the default 0.1s to 0.05s for lower
@@ -78,6 +79,7 @@ class AudioService {
         spectrogramCache: this.spectrogramCache,
         spectrogramStats,
         playback: this.playbackService,
+        previewOverlay: { hasOverlay: hasActivePreviewOverlay },
         sampleRate: context.sampleRate,
       };
     }

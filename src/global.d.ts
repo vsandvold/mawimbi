@@ -1,6 +1,7 @@
 import type SpectrogramCache from './features/spectrogram/SpectrogramCache';
 import type SpectrogramStats from './features/spectrogram/SpectrogramStats';
 import type PlaybackService from './features/playback/PlaybackService';
+import type { hasActivePreviewOverlay } from './features/spectrogram/previewOverlayRegistry';
 
 declare global {
   interface Window {
@@ -26,11 +27,17 @@ declare global {
      * byte counts and analysis timing, plus global draw/read counters — so
      * later milestones' e2e suites can assert on measured numbers instead
      * of guessing from pixels or wall-clock timing.
+     *
+     * `previewOverlay` (mawimbi#543, spec 006 milestone 6) reports whether
+     * a track currently has a live effects-preview overlay showing — the
+     * overlay itself lives in React state local to each `Spectrogram`
+     * mount, with no other DOM/CSS surface an e2e test could poll.
      */
     __mawimbi?: {
-      spectrogramCache: Pick<SpectrogramCache, 'getMelody'>;
+      spectrogramCache: Pick<SpectrogramCache, 'getMelody' | 'getEntry'>;
       spectrogramStats: Pick<SpectrogramStats, 'getTrackStats' | 'getCounters'>;
       playback: Pick<PlaybackService, 'getEngineTime'>;
+      previewOverlay: { hasOverlay: typeof hasActivePreviewOverlay };
       sampleRate: number;
     };
   }

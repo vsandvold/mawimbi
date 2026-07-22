@@ -9,6 +9,7 @@ import { type TrackId } from '../tracks/types';
 import { useTrackService } from '../tracks/useTrackService';
 import { SET_TRACK_EFFECT } from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
+import { requestTrackPreview } from '../spectrogram/previewOverlayRegistry';
 
 export function useEffectControls(trackId: TrackId) {
   const trackHook = useTrackService();
@@ -33,6 +34,10 @@ export function useEffectControls(trackId: TrackId) {
     if (trackSignals) {
       trackSignals.effects[effectId].value = amount;
       dirtyRef.current[effectId] = true;
+      requestTrackPreview(trackId, {
+        ...amounts,
+        [effectId]: amount,
+      });
     }
   };
 
