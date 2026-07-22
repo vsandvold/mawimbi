@@ -49,7 +49,7 @@ Session defaults: **ground nontrivial work with `/kb read` before planning, and 
 
 ## Working Defaults
 
-- `/code-review` is gated to explicit human invocation and cannot be triggered by the agent (`kb/environment.md`, 2026-07-21). Don't block PR creation on it: commit and open the PR first, then wait for a human to run `/code-review`; address confirmed findings in a separate commit once they do.
+- `/code-review` is gated to explicit human invocation and cannot be triggered by the agent. Don't block PR creation on it: commit and open the PR first, then wait for a human to run `/code-review`; address confirmed findings in a separate commit once they do.
 - Before reporting work as complete, verify it: run `npm run lint` and the tests relevant to the change. Only claim what you have evidence for from this session.
 - Do the simplest thing that works. No features, refactors, or abstractions beyond what the task requires.
 - When a decision is ambiguous, state the assumption you're making and proceed with a recommendation rather than presenting a menu of options.
@@ -272,7 +272,7 @@ After all tasks are done, commit the code changes, push, and create a pull reque
 
 PR creation is pre-authorized: this is standing permission (per the Executing Actions guidance on durable instructions) to open the PR once work is committed and pushed, without pausing to ask first.
 
-Then wait for a human to invoke `/code-review` — it's gated to explicit human invocation and the agent cannot trigger it itself (`kb/environment.md`, 2026-07-21). When findings come back, address confirmed ones and push a separate commit for the fixes (don't fold them into the original diff). Only after that, do `/kb write` and push its commit — this way the KB capture can include anything durable that review surfaced.
+Then wait for a human to invoke `/code-review` — it's gated to explicit human invocation and the agent cannot trigger it itself. When findings come back, address confirmed ones and push a separate commit for the fixes (don't fold them into the original diff). Only after that, do `/kb write` and push its commit — this way the KB capture can include anything durable that review surfaced.
 
 ## Issue Updates
 

@@ -6,7 +6,7 @@ argument-hint: <issue number>
 
 # Work an Issue
 
-The delivery loop for one issue. The ordering is the point: **verification exists before implementation**, **the PR opens as soon as the feature commit lands**, **code review is a human-gated pause after that** (`/code-review` cannot be triggered by the agent — `kb/environment.md`, 2026-07-21), and **the KB gets paid back after review, before the session ends**. Each stage lands its own commit — feature code, then review fixes, then the KB update — so the PR history shows what review actually changed instead of folding it into the original diff.
+The delivery loop for one issue. The ordering is the point: **verification exists before implementation**, **the PR opens as soon as the feature commit lands**, **code review is a human-gated pause after that** (`/code-review` cannot be triggered by the agent), and **the KB gets paid back after review, before the session ends**. Each stage lands its own commit — feature code, then review fixes, then the KB update — so the PR history shows what review actually changed instead of folding it into the original diff.
 
 ## 1. Ground
 
@@ -36,7 +36,7 @@ Push the feature commit and open the PR: a summary, a test plan listing the comm
 
 ## 7. Review (human-gated)
 
-`/code-review` is gated to explicit human invocation and the agent cannot trigger it itself (`kb/environment.md`, 2026-07-21). End this stage by waiting rather than substituting a manual pass — the point of this step is the real skill's findings. When a human runs `/code-review` (this session or a fresh one against the PR branch) and findings come back, address the confirmed ones and commit the fixes **separately** from the feature commit, then push. Do this before `/kb write` — review often surfaces the mistakes and tradeoffs that are actually worth capturing.
+`/code-review` is gated to explicit human invocation and the agent cannot trigger it itself. End this stage by waiting rather than substituting a manual pass — the point of this step is the real skill's findings. When a human runs `/code-review` (this session or a fresh one against the PR branch) and findings come back, address the confirmed ones and commit the fixes **separately** from the feature commit, then push. Do this before `/kb write` — review often surfaces the mistakes and tradeoffs that are actually worth capturing.
 
 ## 8. Pay back
 
