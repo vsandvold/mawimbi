@@ -63,6 +63,35 @@ describe('TimelineRenderLoop registry lifecycle', () => {
     const loop = new TimelineRenderLoop();
     expect(() => loop.runFrame()).not.toThrow();
   });
+
+  it('cancels the rAF chain once the last callback unregisters', () => {
+    const loop = new TimelineRenderLoop();
+    const a = makeCallback();
+    const b = makeCallback();
+
+    const unregisterA = loop.register(a);
+    const unregisterB = loop.register(b);
+
+    unregisterA();
+    expect(cancelAnimationFrame).not.toHaveBeenCalled();
+
+    unregisterB();
+    expect(cancelAnimationFrame).toHaveBeenCalledTimes(1);
+  });
+
+  it('restarts the rAF chain if a callback registers again after the loop stopped', () => {
+    const loop = new TimelineRenderLoop();
+    const first = makeCallback();
+    loop.register(first)();
+    expect(cancelAnimationFrame).toHaveBeenCalledTimes(1);
+
+    const requestCallsBefore = vi.mocked(requestAnimationFrame).mock.calls
+      .length;
+    loop.register(makeCallback());
+    expect(vi.mocked(requestAnimationFrame).mock.calls.length).toBeGreaterThan(
+      requestCallsBefore,
+    );
+  });
 });
 
 describe('TimelineRenderLoop measure/write phase ordering', () => {

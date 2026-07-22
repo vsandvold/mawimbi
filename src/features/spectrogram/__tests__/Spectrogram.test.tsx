@@ -274,6 +274,86 @@ it('does not trigger analysis without audio buffer', () => {
   expect(mockAnalyse).not.toHaveBeenCalled();
 });
 
+describe('render-loop registration peekDirty (mawimbi#541)', () => {
+  function getLatestRegistration(): TimelineRenderCallback {
+    const calls = mockRegister.mock.calls;
+    return calls[calls.length - 1]?.[0] as TimelineRenderCallback;
+  }
+
+  function makeCachedEntry(tiles: ImageBitmap[]) {
+    return {
+      data: {
+        frequencyFrames: [],
+        timeResolution: 0.025,
+        frequencyBinCount: 2048,
+        sampleRate: 44100,
+        duration: 5.0,
+      },
+      tiles,
+      analysisComplete: true,
+    };
+  }
+
+  it('reports not dirty when there is no audio buffer yet (no tiles)', () => {
+    mockRetrieveAudioBuffer.mockReturnValue(undefined);
+
+    render(<Spectrogram {...defaultProps} />);
+
+    expect(getLatestRegistration().peekDirty()).toBe(false);
+  });
+
+  it('settles to not-dirty after one draw for a track with tiles but zero melody notes', () => {
+    // Regression test for the exact bug fixed in this PR: the
+    // lastDrawnOverlayRef `noteCount` sentinel used to start at -1, so
+    // `melodyNotes.length (0) !== noteCount (-1)` was permanently true for
+    // any zero-note track, even after a real draw — defeating the render
+    // loop's idle short-circuit forever, since `writeMelodyOverlay` (the
+    // only place that would clear the sentinel) never runs at all when
+    // there are no notes to draw. The first peekDirty() call is expected to
+    // be true (nothing has been drawn yet); it's the one *after* a draw
+    // that must go false and stay false.
+    const audioBuffer = { duration: 5.0 } as AudioBuffer;
+    mockRetrieveAudioBuffer.mockReturnValue(audioBuffer);
+    mockGetEntry.mockReturnValue(makeCachedEntry([{} as ImageBitmap]));
+
+    render(<Spectrogram {...defaultProps} />);
+    expect(getLatestRegistration().peekDirty()).toBe(true);
+
+    runRegisteredFrame();
+
+    expect(getLatestRegistration().peekDirty()).toBe(false);
+  });
+
+  it('reports dirty once the cache entry lands a fresh tiles array (e.g. an effects-refresh commit)', () => {
+    const audioBuffer = { duration: 5.0 } as AudioBuffer;
+    mockRetrieveAudioBuffer.mockReturnValue(audioBuffer);
+    mockGetEntry.mockReturnValue(makeCachedEntry([{} as ImageBitmap]));
+
+    const { rerender } = render(<Spectrogram {...defaultProps} />);
+    runRegisteredFrame();
+    expect(getLatestRegistration().peekDirty()).toBe(false);
+
+    mockGetEntry.mockReturnValue(makeCachedEntry([{} as ImageBitmap]));
+    rerender(<Spectrogram {...defaultProps} />);
+
+    expect(getLatestRegistration().peekDirty()).toBe(true);
+  });
+
+  it('reports dirty when pixelsPerSecond changes', () => {
+    const audioBuffer = { duration: 5.0 } as AudioBuffer;
+    mockRetrieveAudioBuffer.mockReturnValue(audioBuffer);
+    mockGetEntry.mockReturnValue(makeCachedEntry([{} as ImageBitmap]));
+
+    const { rerender } = render(<Spectrogram {...defaultProps} />);
+    runRegisteredFrame();
+    expect(getLatestRegistration().peekDirty()).toBe(false);
+
+    rerender(<Spectrogram {...defaultProps} pixelsPerSecond={400} />);
+
+    expect(getLatestRegistration().peekDirty()).toBe(true);
+  });
+});
+
 it('sets container height from duration and pixelsPerSecond', () => {
   const duration = 2.5;
   const audioBuffer = { duration } as AudioBuffer;

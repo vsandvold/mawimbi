@@ -7,7 +7,11 @@ import FrequencyVisualizer from './FrequencyVisualizer';
 import { type MelodyNote } from '../transcription/MelodyExtractor';
 import { type TrackColor } from '../tracks/types';
 import { type Track } from '../tracks/types';
-import { drawPianoRoll, type PianoRollViewport } from './PianoRollRenderer';
+import {
+  drawPianoRoll,
+  isNoteActiveAt,
+  type PianoRollViewport,
+} from './PianoRollRenderer';
 import RecordingBuffer from './RecordingBuffer';
 import './Spectrogram.css';
 import { spectrogramStats } from './SpectrogramStats';
@@ -185,11 +189,9 @@ const Spectrogram = ({
         if (isRecordingTrack) {
           writeRecordingFrame(
             canvas,
-            container,
             recordingBufferRef.current,
             win,
             recordingMeasurement,
-            latestRef.current.pixelsPerSecond,
           );
           return;
         }
@@ -374,12 +376,24 @@ type RecordingFrameMeasurement = {
 };
 
 /**
- * Recording-frame measure phase: accumulates this tick's audio frame (not a
- * DOM operation — safe here) and reads `containerTop`, but does **not**
- * write `container.style.height`/`marginBottom` — those writes happen in
- * `writeRecordingFrame` instead, so every registered callback's DOM reads
- * run before any callback's DOM writes this frame (mawimbi#541 Goal 4,
- * fixing the per-frame forced synchronous layout of #469 item 2).
+ * Recording-frame measure phase. Accumulates this tick's audio frame (not a
+ * DOM operation — safe here), then — unlike every other measure phase —
+ * also performs this container's own `height`/`marginBottom` writes before
+ * reading `containerTop`.
+ *
+ * This is a deliberate exception to the "reads before writes" split (Goal 4
+ * otherwise fixes the per-frame forced synchronous layout of #469 item 2):
+ * `.timeline__track` is a CSS grid item with `align-items: end` sharing its
+ * row with every other track, so *this* container's own height directly
+ * moves *its own* `offsetTop` (bottom-anchored within a row sized to the
+ * tallest track). `getContentOffsetTop` therefore cannot correctly read
+ * this frame's position without this frame's height/margin already applied
+ * — deferring the write to the write phase (as the generic split would)
+ * reads a stale, one-frame-old offset every tick throughout the recording
+ * (caught in code review, mawimbi#541). Doing the write-then-read pair here
+ * still avoids the N-track thrashing Goal 4 targets, since there is only
+ * ever one recording track and no other callback's measure phase depends
+ * on it.
  */
 function measureRecordingFrame(
   container: HTMLDivElement,
@@ -415,23 +429,21 @@ function measureRecordingFrame(
     buffer.addFrame(frequencyData);
   }
 
+  // Update container height and offset directly to avoid React re-renders.
+  // Must happen before the offsetTop read below — see the doc comment above.
+  container.style.height = `${held.contentHeight}px`;
+  container.style.marginBottom = `${held.recordingStartTime * pixelsPerSecond}px`;
+
   held.containerTop = getContentOffsetTop(container);
 }
 
 function writeRecordingFrame(
   canvas: HTMLCanvasElement,
-  container: HTMLDivElement,
   buffer: RecordingBuffer | null,
   win: SharedCanvasWindow,
   held: RecordingFrameMeasurement,
-  pixelsPerSecond: number,
 ): void {
   if (!held.isBufferReady || !buffer) return;
-
-  // Update container height and offset directly to avoid React re-renders
-  container.style.height = `${held.contentHeight}px`;
-  container.style.marginBottom = `${held.recordingStartTime * pixelsPerSecond}px`;
-
   if (buffer.frameCount === 0) return;
 
   const trackWin = toTrackWindow(win, held.containerTop);
@@ -595,13 +607,9 @@ function computeActiveNotesKey(
   notes: MelodyNote[],
   trackPlayheadTime: number,
 ): string {
-  if (trackPlayheadTime < 0) return '';
   let key = '';
   for (const note of notes) {
-    if (
-      trackPlayheadTime >= note.startTime &&
-      trackPlayheadTime < note.endTime
-    ) {
+    if (isNoteActiveAt(note, trackPlayheadTime)) {
       key += `${note.startTime}:${note.midiNote};`;
     }
   }

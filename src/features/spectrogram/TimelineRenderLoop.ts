@@ -93,18 +93,69 @@ function computeSharedCanvasWindow(scrollTop: number): SharedCanvasWindow {
 }
 
 class TimelineRenderLoop {
-  private callbacks = new Map<symbol, TimelineRenderCallback>();
+  // Partitioned at register/unregister time (not per-frame) so `runFrame`
+  // never allocates — it only iterates these two live collections.
+  private normalCallbacks = new Map<symbol, TimelineRenderCallback>();
+  private bypassCallbacks = new Map<symbol, TimelineRenderCallback>();
   private rafId: number | null = null;
   private lastScrollTop: number | null = null;
 
   /** Registers a callback pair and returns an unregister function. */
   register(callback: TimelineRenderCallback): () => void {
     const id = Symbol('timeline-render-loop-callback');
-    this.callbacks.set(id, callback);
+    const target = callback.bypassIdle
+      ? this.bypassCallbacks
+      : this.normalCallbacks;
+    target.set(id, callback);
     this.ensureRunning();
     return () => {
-      this.callbacks.delete(id);
+      target.delete(id);
+      if (this.normalCallbacks.size === 0 && this.bypassCallbacks.size === 0) {
+        this.stop();
+      }
     };
+  }
+
+  /**
+   * Runs one frame. Exposed (not private) so unit tests can drive frames
+   * deterministically instead of racing real `requestAnimationFrame` timing.
+   */
+  runFrame(): void {
+    if (this.normalCallbacks.size === 0 && this.bypassCallbacks.size === 0) {
+      return;
+    }
+
+    const scrollTop = readPhantomScrollTop();
+    let anyDirty = scrollTop !== this.lastScrollTop;
+
+    if (!anyDirty) {
+      for (const callback of this.normalCallbacks.values()) {
+        if (callback.peekDirty()) {
+          anyDirty = true;
+          break;
+        }
+      }
+    }
+
+    // Idle frame: nothing global changed and no recording track needs its
+    // per-tick accumulation — return without any further DOM access.
+    if (!anyDirty && this.bypassCallbacks.size === 0) return;
+
+    this.lastScrollTop = scrollTop;
+    const win = computeSharedCanvasWindow(scrollTop);
+
+    // Every callback's measure runs before any callback's write, whether or
+    // not `normalCallbacks` participates this frame.
+    for (const callback of this.bypassCallbacks.values()) callback.measure(win);
+    if (anyDirty) {
+      for (const callback of this.normalCallbacks.values())
+        callback.measure(win);
+    }
+
+    for (const callback of this.bypassCallbacks.values()) callback.write(win);
+    if (anyDirty) {
+      for (const callback of this.normalCallbacks.values()) callback.write(win);
+    }
   }
 
   private ensureRunning(): void {
@@ -116,36 +167,13 @@ class TimelineRenderLoop {
     this.rafId = requestAnimationFrame(tick);
   }
 
-  /**
-   * Runs one frame. Exposed (not private) so unit tests can drive frames
-   * deterministically instead of racing real `requestAnimationFrame` timing.
-   */
-  runFrame(): void {
-    if (this.callbacks.size === 0) return;
-
-    const scrollTop = readPhantomScrollTop();
-    const scrollChanged = scrollTop !== this.lastScrollTop;
-
-    const bypassing: TimelineRenderCallback[] = [];
-    let anyDirty = scrollChanged;
-    for (const callback of this.callbacks.values()) {
-      if (callback.bypassIdle) {
-        bypassing.push(callback);
-        continue;
-      }
-      if (callback.peekDirty()) anyDirty = true;
-    }
-
-    // Idle frame: nothing global changed and no recording track needs its
-    // per-tick accumulation — return without any further DOM access.
-    if (!anyDirty && bypassing.length === 0) return;
-
-    this.lastScrollTop = scrollTop;
-    const win = computeSharedCanvasWindow(scrollTop);
-
-    const active = anyDirty ? [...this.callbacks.values()] : bypassing;
-    for (const callback of active) callback.measure(win);
-    for (const callback of active) callback.write(win);
+  /** Stops the rAF chain once the last callback unregisters, so the loop
+   * doesn't keep polling `document.querySelector` forever on pages with no
+   * mounted `Spectrogram` (e.g. after navigating away from every project). */
+  private stop(): void {
+    if (this.rafId === null) return;
+    cancelAnimationFrame(this.rafId);
+    this.rafId = null;
   }
 }
 

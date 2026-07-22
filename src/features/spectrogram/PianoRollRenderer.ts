@@ -79,6 +79,22 @@ export function midiNoteToBin(midiNote: number): number {
   return BINS_PER_OCTAVE * Math.log2(freq / CQT_BASE_FREQUENCY);
 }
 
+/**
+ * Whether `note` is currently sounding at `playheadTime` — shared by
+ * `drawPianoRoll`'s per-note active-glow decision and `Spectrogram.tsx`'s
+ * `computeActiveNotesKey` dirty-check, so the two boundary conditions can't
+ * drift apart (code review, mawimbi#541).
+ */
+export function isNoteActiveAt(
+  note: MelodyNote,
+  playheadTime: number | undefined | null,
+): boolean {
+  if (playheadTime === undefined || playheadTime === null || playheadTime < 0) {
+    return false;
+  }
+  return playheadTime >= note.startTime && playheadTime < note.endTime;
+}
+
 // ---------------------------------------------------------------------------
 // Rendering
 // ---------------------------------------------------------------------------
@@ -130,8 +146,6 @@ export function drawPianoRoll(
   const viewEndTime = (contentOffset + viewportHeight) / pixelsPerSecond;
 
   const { r, g, b } = color;
-  const hasPlayhead =
-    playheadTime !== undefined && playheadTime !== null && playheadTime >= 0;
 
   for (let i = 0; i < notes.length; i++) {
     const note = notes[i];
@@ -155,10 +169,7 @@ export function drawPianoRoll(
 
     if (width < 1) continue;
 
-    const isActive =
-      hasPlayhead &&
-      playheadTime >= note.startTime &&
-      playheadTime < note.endTime;
+    const isActive = isNoteActiveAt(note, playheadTime);
 
     drawNote(ctx, x, y, width, height, r, g, b, isActive);
 
