@@ -1,39 +1,26 @@
 // AnalysisProcessor — AudioWorkletProcessor that computes RMS loudness
-// and optional frequency analysis on the audio thread.
+// and CQT frequency analysis on the audio thread.
 //
 // Runs inside an AudioWorklet scope on a dedicated thread, eliminating
 // main-thread contention during complex playback with many tracks.
 //
-// Two frequency analysis modes (mutually exclusive, both opt-in):
-//
-// 1. **FFT mode** — Cooley-Tukey radix-2 FFT with Hann window. Enabled
-//    via `frequencyAnalysis: true`. Posts `frequencyData` messages.
-//
-// 2. **CQT mode** — Constant-Q Transform using pre-computed kernels
-//    transferred from the main thread. Produces the same log-frequency
-//    output as the offline CQT analyser. Enabled via `cqtAnalysis: true`
-//    with kernel data. Posts `cqtData` messages.
+// CQT frequency analysis — Constant-Q Transform using pre-computed kernels
+// transferred from the main thread. Produces the same log-frequency output
+// as the offline CQT analyser. Enabled via `cqtAnalysis: true` with kernel
+// data. Posts `cqtData` messages.
 //
 // Message protocol:
 //   Processor → Main:  { type: 'loudness', rms: number }
-//   Processor → Main:  { type: 'frequencyData', bins: Uint8Array }
 //   Processor → Main:  { type: 'cqtData', bins: Uint8Array }
 //   Main → Processor:  { type: 'configure', ... }
 
-import { createHannWindow, fft, magnitudeToBytes } from './fft';
-
 export type AnalysisMessage =
   | { type: 'loudness'; rms: number }
-  | { type: 'frequencyData'; bins: Uint8Array }
   | { type: 'cqtData'; bins: Uint8Array };
 
 export type AnalysisCommand = {
   type: 'configure';
   smoothing?: number;
-  frequencyAnalysis?: boolean;
-  fftSize?: number;
-  minDecibels?: number;
-  maxDecibels?: number;
   cqtAnalysis?: boolean;
   cqtKernel?: {
     cosBuffer: Float32Array;
@@ -52,10 +39,6 @@ const DEFAULT_SMOOTHING = 0.8;
 // At 128 samples / 44100 Hz ≈ 2.9ms per call, 8 calls ≈ 23ms ≈ 43 Hz
 // update rate — sufficient for smooth meter animation.
 const REPORT_INTERVAL = 8;
-
-const DEFAULT_FFT_SIZE = 2048;
-const DEFAULT_MIN_DECIBELS = -100;
-const DEFAULT_MAX_DECIBELS = -30;
 
 // CQT dB range matching CQTAnalyser.ts
 const CQT_MIN_DECIBELS = -80;
@@ -111,17 +94,6 @@ class AnalysisProcessor extends AudioWorkletProcessor {
   private smoothedRms = 0;
   private callCount = 0;
 
-  // FFT frequency analysis state (lazily allocated on enable)
-  private frequencyEnabled = false;
-  private fftSize = DEFAULT_FFT_SIZE;
-  private minDecibels = DEFAULT_MIN_DECIBELS;
-  private maxDecibels = DEFAULT_MAX_DECIBELS;
-  private fftRingBuffer: Float32Array | null = null;
-  private fftRingWritePos = 0;
-  private hannWindow: Float32Array | null = null;
-  private samplesUntilFft = 0;
-  private fftHopSize = 0;
-
   // CQT analysis state (lazily allocated on enable)
   private cqtEnabled = false;
   private cqtKernel: CQTKernelState | null = null;
@@ -165,11 +137,6 @@ class AnalysisProcessor extends AudioWorkletProcessor {
       } satisfies AnalysisMessage);
     }
 
-    // FFT frequency analysis
-    if (this.frequencyEnabled && this.fftRingBuffer) {
-      this.accumulateAndAnalyseFFT(channelData);
-    }
-
     // CQT frequency analysis
     if (this.cqtEnabled && this.cqtRingBuffer && this.cqtKernel) {
       this.accumulateAndAnalyseCQT(channelData);
@@ -181,27 +148,6 @@ class AnalysisProcessor extends AudioWorkletProcessor {
   private handleConfigure(cmd: AnalysisCommand): void {
     if (cmd.smoothing !== undefined) {
       this.smoothing = cmd.smoothing;
-    }
-    if (cmd.minDecibels !== undefined) {
-      this.minDecibels = cmd.minDecibels;
-    }
-    if (cmd.maxDecibels !== undefined) {
-      this.maxDecibels = cmd.maxDecibels;
-    }
-
-    const fftSizeChanged =
-      cmd.fftSize !== undefined && cmd.fftSize !== this.fftSize;
-    if (fftSizeChanged) {
-      this.fftSize = cmd.fftSize!;
-    }
-
-    if (cmd.frequencyAnalysis !== undefined) {
-      this.frequencyEnabled = cmd.frequencyAnalysis;
-    }
-
-    // (Re-)allocate FFT buffers when enabling or changing FFT size
-    if (this.frequencyEnabled && (!this.fftRingBuffer || fftSizeChanged)) {
-      this.initFFTBuffers();
     }
 
     // CQT analysis
@@ -219,64 +165,6 @@ class AnalysisProcessor extends AudioWorkletProcessor {
       );
       this.initCQTBuffers();
     }
-  }
-
-  // --- FFT analysis ---
-
-  private initFFTBuffers(): void {
-    this.fftRingBuffer = new Float32Array(this.fftSize);
-    this.hannWindow = createHannWindow(this.fftSize);
-    this.fftRingWritePos = 0;
-    // Hop size = fftSize / 4 gives 75% overlap.
-    // At 44.1 kHz with fftSize=2048: hop=512 → ~86 Hz update rate.
-    this.fftHopSize = this.fftSize / 4;
-    this.samplesUntilFft = this.fftSize;
-  }
-
-  private accumulateAndAnalyseFFT(channelData: Float32Array): void {
-    const ring = this.fftRingBuffer!;
-    const fftSize = this.fftSize;
-
-    // Write incoming samples into the ring buffer
-    for (let i = 0; i < channelData.length; i++) {
-      ring[this.fftRingWritePos] = channelData[i];
-      this.fftRingWritePos = (this.fftRingWritePos + 1) % fftSize;
-    }
-
-    this.samplesUntilFft -= channelData.length;
-    if (this.samplesUntilFft > 0) return;
-
-    // Reset countdown for next FFT
-    this.samplesUntilFft += this.fftHopSize;
-
-    // Copy ring buffer into FFT input with Hann window applied.
-    // ringWritePos points to the oldest sample, so we read from there
-    // wrapping around to get the most recent fftSize samples in order.
-    const real = new Float32Array(fftSize);
-    const imag = new Float32Array(fftSize);
-    const window = this.hannWindow!;
-
-    for (let i = 0; i < fftSize; i++) {
-      const idx = (this.fftRingWritePos + i) % fftSize;
-      real[i] = ring[idx] * window[i];
-    }
-
-    fft(real, imag);
-
-    const bins = new Uint8Array(fftSize / 2);
-    magnitudeToBytes(
-      real,
-      imag,
-      fftSize,
-      this.minDecibels,
-      this.maxDecibels,
-      bins,
-    );
-
-    this.port.postMessage(
-      { type: 'frequencyData', bins } satisfies AnalysisMessage,
-      [bins.buffer],
-    );
   }
 
   // --- CQT analysis ---
@@ -361,3 +249,8 @@ function magnitudeToByte(magnitude: number): number {
 }
 
 registerProcessor('analysis-processor', AnalysisProcessor);
+
+// Exported for testing (registerProcessor above is the real worklet entry
+// point; the class itself is only otherwise reachable from inside worklet
+// scope).
+export default AnalysisProcessor;

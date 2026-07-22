@@ -2,6 +2,7 @@ import { expect, test, uploadAudioFile, makeWavFixture } from './fixtures';
 import {
   getFirstTrackId,
   getSpectrogramCounters,
+  scrubToMiddle,
   waitForSpectrogramAnalysisComplete,
 } from './helpers/mawimbiBridge';
 
@@ -56,13 +57,7 @@ test.describe('Spectrogram stats bridge', () => {
 
     const before = await getSpectrogramCounters(page);
 
-    const phantom = page.locator('.scrubber__phantom');
-    const maxScrollTop = await phantom.evaluate(
-      (el) => el.scrollHeight - el.clientHeight,
-    );
-    await phantom.evaluate((el, pos) => {
-      el.scrollTop = pos;
-    }, Math.floor(maxScrollTop / 2));
+    await scrubToMiddle(page);
 
     await expect
       .poll(async () => {

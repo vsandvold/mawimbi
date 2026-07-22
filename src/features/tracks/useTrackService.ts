@@ -80,6 +80,7 @@ export function useTrackService() {
     // --- Audio engine ---
 
     getLoudness: () => service.getLoudness(),
+    getWorkletAnalyser: () => service.getWorkletAnalyser(),
     retrieveChannel: (trackId: string) => service.retrieveChannel(trackId),
     recreateChannel: (trackId: string) => service.recreateChannel(trackId),
 

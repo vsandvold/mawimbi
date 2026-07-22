@@ -127,17 +127,40 @@ export function useScrubberScroll({
 
   // Create/dispose the FrequencyVisualizer when playback starts/stops.
   // Connected to Tone.getDestination() so it sees the combined master output.
+  // Prefers the audio-thread worklet analyser AudioService already taps at
+  // the destination for loudness metering (spec 006 Decision 2) — CQT runs
+  // on the audio thread instead of the main thread every frame. Falls back
+  // to the main-thread LiveCQTAnalyser path automatically (FrequencyVisualizer
+  // constructor) when the worklet hasn't initialized yet or is unavailable.
   useEffect(() => {
     if (!playing) return;
 
-    const visualizer = new FrequencyVisualizer(audioService.getDestination());
-    visualizerRef.current = visualizer;
+    // Waits for AudioService's worklet-analyser init (fire-and-forget from
+    // its constructor) before deciding worklet vs. fallback — otherwise a
+    // Play pressed before that init resolves would read a null analyser and
+    // get stuck on the main-thread fallback for this entire play session,
+    // since this effect only re-evaluates on the next playing transition
+    // (mawimbi#542). The promise always resolves (init failures are caught
+    // internally), so this never blocks the fallback path either.
+    let cancelled = false;
+    let visualizer: FrequencyVisualizer | null = null;
+
+    audioService.workletAnalyserReady.finally(() => {
+      if (cancelled) return;
+      const workletAnalyser = trackHook.getWorkletAnalyser() ?? undefined;
+      visualizer = new FrequencyVisualizer(audioService.getDestination(), {
+        workletAnalyser,
+      });
+      visualizerRef.current = visualizer;
+    });
 
     return () => {
-      visualizer.dispose();
+      cancelled = true;
+      visualizer?.dispose();
       visualizerRef.current = null;
     };
-  }, [playing, audioService]);
+    // Hook objects reference stable service singletons via getters
+  }, [playing, audioService]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Animation loop: runs during playback, reads from audio engine, updates DOM directly
   useEffect(() => {

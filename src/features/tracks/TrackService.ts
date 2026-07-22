@@ -329,6 +329,15 @@ class TrackService {
     this.mixer.useWorkletAnalyser(analyser);
   }
 
+  // Destination-tapped worklet analyser (spec 006 milestone 5) — the
+  // frame-stream accessor consumed by useScrubberScroll's playback
+  // visualizer, and future consumers (OnsetDetector #485, spec 005's live
+  // pitch) that need the same CQT frames without constructing their own
+  // main-thread analyser.
+  getWorkletAnalyser(): WorkletAnalyser | null {
+    return this.mixer.getWorkletAnalyser();
+  }
+
   getLoudness(): number {
     return this.mixer.getLoudness();
   }

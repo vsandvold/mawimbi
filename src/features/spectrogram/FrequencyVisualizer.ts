@@ -150,7 +150,7 @@ function normalizeOptions(
 ): FrequencyVisualizerOptions {
   if (!arg) return {};
   // Detect WorkletAnalyser by duck-typing its characteristic method
-  if ('enableFrequencyAnalysis' in arg) {
+  if ('enableCQTAnalysis' in arg) {
     return { workletAnalyser: arg as WorkletAnalyser };
   }
   return arg as FrequencyVisualizerOptions;

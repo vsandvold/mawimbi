@@ -37,6 +37,11 @@ class AudioService {
   readonly classificationService: InstrumentClassificationService;
   readonly transcriptionService: TranscriptionService;
   readonly spectrogramCache: SpectrogramCache;
+  // Resolves once the destination-tapped WorkletAnalyser is wired up (or
+  // definitively unavailable) — awaited by useScrubberScroll's playback
+  // visualizer so a Play pressed before this resolves doesn't get stuck on
+  // the main-thread CQT fallback for its whole session (mawimbi#542).
+  readonly workletAnalyserReady: Promise<void>;
 
   private static instance: AudioService;
 
@@ -65,7 +70,7 @@ class AudioService {
     // Attempt to initialize the AudioWorklet-based loudness analyser.
     // Replaces Tone.Meter on the destination for lower-latency metering.
     // Falls back to Tone.Meter silently if AudioWorklet is unavailable.
-    this.initializeWorkletAnalyser();
+    this.workletAnalyserReady = this.initializeWorkletAnalyser();
 
     // e2e verification bridge (mawimbi#480) — see global.d.ts for scope.
     if (import.meta.env.DEV) {

@@ -4,6 +4,7 @@ import LiveCQTAnalyser, {
   computeNumberBins,
 } from '../LiveCQTAnalyser';
 import { computeKernel } from '../CQTAnalyser';
+import { findPeakBin } from './cqtTestHelpers';
 
 const SAMPLE_RATE = 44100;
 
@@ -43,10 +44,7 @@ describe('LiveCQTAnalyser', () => {
     const frame = analyser.getFrame();
     const expectedBin = Math.round(24 * Math.log2(440 / 32.7));
 
-    let peakBin = 0;
-    for (let i = 1; i < frame.length; i++) {
-      if (frame[i] > frame[peakBin]) peakBin = i;
-    }
+    const peakBin = findPeakBin(frame);
 
     expect(Math.abs(peakBin - expectedBin)).toBeLessThanOrEqual(1);
     expect(frame[peakBin]).toBeGreaterThan(0);
