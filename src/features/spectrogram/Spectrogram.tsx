@@ -21,6 +21,11 @@ import {
   type SharedCanvasWindow,
 } from './TimelineRenderLoop';
 import { useSpectrogramCache } from './useSpectrogramCache';
+import { usePreviewOverlay } from './usePreviewOverlay';
+import {
+  PREVIEW_FEATHER_PX,
+  type PreviewOverlay,
+} from '../workstation/effectsPreview';
 
 type SpectrogramProps = {
   pixelsPerSecond: number;
@@ -54,6 +59,12 @@ const Spectrogram = ({
     noteCount: 0,
     activeNotesKey: '',
   });
+  // Reference-identity dirty check for the provisional preview overlay
+  // (spec 006 M6, mawimbi#543), same convention as `lastDrawnRef`'s tiles
+  // check — `PreviewScheduler` always hands a fresh object (or `undefined`)
+  // to `setPreview`/`clearPreview`, never mutates one in place.
+  const lastDrawnPreviewRef = useRef<PreviewOverlay | undefined>(undefined);
+  const previewFeatherCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const recordingBufferRef = useRef<RecordingBuffer | null>(null);
 
   const { trackId, color, effects } = track;
@@ -66,6 +77,12 @@ const Spectrogram = ({
     : trackHook.retrieveAudioBuffer(trackId);
 
   const entry = useSpectrogramCache(trackId, audioBuffer, color, effects);
+  const { previewOverlay, reportVisibleWindow } = usePreviewOverlay(
+    trackId,
+    audioBuffer,
+    color,
+    entry,
+  );
 
   const startTime = isRecordingTrack
     ? 0
@@ -123,6 +140,7 @@ const Spectrogram = ({
     color,
     frequencyBinCount,
     startTime,
+    previewOverlay,
   });
   latestRef.current = {
     pixelsPerSecond,
@@ -135,6 +153,7 @@ const Spectrogram = ({
     color,
     frequencyBinCount,
     startTime,
+    previewOverlay,
   };
 
   // Register with the shared TimelineRenderLoop (mawimbi#541) instead of an
@@ -153,12 +172,14 @@ const Spectrogram = ({
     const unregister = timelineRenderLoop.register({
       bypassIdle: isRecordingTrack,
       peekDirty: () => {
-        const { tiles, pixelsPerSecond, melodyNotes } = latestRef.current;
+        const { tiles, pixelsPerSecond, melodyNotes, previewOverlay } =
+          latestRef.current;
         if (tiles.length === 0) return false;
         return (
           tiles !== lastDrawnRef.current.tiles ||
           pixelsPerSecond !== lastDrawnRef.current.pps ||
-          melodyNotes.length !== lastDrawnOverlayRef.current.noteCount
+          melodyNotes.length !== lastDrawnOverlayRef.current.noteCount ||
+          previewOverlay !== lastDrawnPreviewRef.current
         );
       },
       measure: () => {
@@ -207,10 +228,20 @@ const Spectrogram = ({
           color,
           frequencyBinCount,
           startTime,
+          previewOverlay,
         } = latestRef.current;
 
         if (tiles.length === 0) return;
 
+        const trackWin = toTrackWindow(win, tileMeasurement.containerTop);
+        const contentLength = duration * pixelsPerSecond;
+        const trackBase = getTrackBase(trackWin, contentLength);
+        reportVisibleWindow({
+          startSeconds: -trackBase / pixelsPerSecond,
+          endSeconds: (trackWin.height - trackBase) / pixelsPerSecond,
+        });
+
+        const previewChanged = previewOverlay !== lastDrawnPreviewRef.current;
         writeTileFrame(
           canvas,
           win,
@@ -222,7 +253,20 @@ const Spectrogram = ({
           tileDisplayHeight,
           duration,
           lastDrawnRef,
+          previewChanged,
         );
+
+        if (previewOverlay) {
+          writePreviewOverlay(
+            canvas,
+            trackWin,
+            trackBase,
+            pixelsPerSecond,
+            previewOverlay,
+            previewFeatherCanvasRef,
+          );
+        }
+        lastDrawnPreviewRef.current = previewOverlay;
 
         if (overlay && melodyNotes.length > 0) {
           writeMelodyOverlay(
@@ -537,6 +581,12 @@ function writeTileFrame(
     pps: number;
     tiles: ImageBitmap[] | null;
   }>,
+  // True when the provisional preview overlay (spec 006 M6, mawimbi#543)
+  // appeared, changed, or was cleared since the last write — bypasses the
+  // "nothing changed" skip below so the full `clearRect` + redraw actually
+  // runs and erases a previous frame's overlay pixels the dry redraw alone
+  // wouldn't otherwise touch.
+  forceRedraw: boolean,
 ): void {
   const contentLength = duration * pixelsPerSecond;
   const trackWin = toTrackWindow(win, held.containerTop);
@@ -548,6 +598,7 @@ function writeTileFrame(
 
   const last = lastDrawnRef.current;
   if (
+    !forceRedraw &&
     !needsResize &&
     trackBase === last.offset &&
     pixelsPerSecond === last.pps &&
@@ -594,6 +645,75 @@ function writeTileFrame(
   ctx.restore();
 
   applyFarEdgeFade(ctx, trackWin, trackBase, contentLength);
+}
+
+/**
+ * Draws the live effects preview's provisional bitmap (spec 006 M6,
+ * mawimbi#543) on top of the dry tiles just drawn by `writeTileFrame`, for
+ * exactly the overlay's own time range, with both edges feathered so the
+ * boundary against the surrounding dry tiles blends rather than showing a
+ * hard rectangle. Feathering needs the overlay's own alpha reduced before
+ * it's composited onto the main canvas (a `destination-out` gradient drawn
+ * directly on the main canvas — `applyFarEdgeFade`'s approach — would erase
+ * the dry tiles underneath instead, since by that point they're already
+ * flattened into the same raster and there's no "layer" left to reveal) —
+ * so the tile is first drawn and masked on a small offscreen canvas, then
+ * composited onto the main canvas with normal `source-over`.
+ */
+function writePreviewOverlay(
+  canvas: HTMLCanvasElement,
+  trackWin: CanvasWindow,
+  trackBase: number,
+  pixelsPerSecond: number,
+  overlay: PreviewOverlay,
+  featherCanvasRef: React.MutableRefObject<HTMLCanvasElement | null>,
+): void {
+  const drawHeight = overlay.durationSeconds * pixelsPerSecond;
+  if (drawHeight <= 0) return;
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  if (!featherCanvasRef.current) {
+    featherCanvasRef.current = document.createElement('canvas');
+  }
+  const featherCanvas = featherCanvasRef.current;
+  featherCanvas.width = trackWin.width;
+  featherCanvas.height = Math.ceil(drawHeight);
+  const featherCtx = featherCanvas.getContext('2d');
+  if (!featherCtx) return;
+
+  featherCtx.clearRect(0, 0, featherCanvas.width, featherCanvas.height);
+  featherCtx.drawImage(
+    overlay.tile,
+    0,
+    0,
+    featherCanvas.width,
+    featherCanvas.height,
+  );
+
+  const feather = Math.min(PREVIEW_FEATHER_PX, drawHeight / 2);
+  if (feather > 0) {
+    featherCtx.save();
+    featherCtx.globalCompositeOperation = 'destination-in';
+    const gradient = featherCtx.createLinearGradient(0, 0, 0, drawHeight);
+    const start = feather / drawHeight;
+    const end = 1 - start;
+    gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    gradient.addColorStop(start, 'rgba(0, 0, 0, 1)');
+    gradient.addColorStop(end, 'rgba(0, 0, 0, 1)');
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    featherCtx.fillStyle = gradient;
+    featherCtx.fillRect(0, 0, featherCanvas.width, drawHeight);
+    featherCtx.restore();
+  }
+
+  const drawY = trackBase + overlay.startSeconds * pixelsPerSecond;
+
+  ctx.save();
+  flipCanvasY(ctx, trackWin.height);
+  ctx.drawImage(featherCanvas, 0, drawY, trackWin.width, drawHeight);
+  ctx.restore();
 }
 
 /**

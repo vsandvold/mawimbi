@@ -118,10 +118,22 @@ type EffectSlidersProps = {
 };
 
 const EffectSliders = ({ trackId }: EffectSlidersProps) => {
-  const { amounts, updateAmount, commitAmount } = useEffectControls(trackId);
+  const { amounts, updateAmount, commitAmount, endDrag } =
+    useEffectControls(trackId);
 
   return (
-    <div className="effects-bottom-sheet__sliders">
+    // Preview-overlay teardown follows the pointer lifecycle, not slider
+    // value events — same reason as Channel.tsx's volume-fader focus:
+    // Radix's onValueCommit doesn't fire when a drag releases back at the
+    // value it started from (useEffectControls.ts, endDrag). One wrapper
+    // for all three sliders is enough since only one can be dragged by a
+    // given pointer at a time.
+    <div
+      className="effects-bottom-sheet__sliders"
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      onLostPointerCapture={endDrag}
+    >
       {EFFECT_ORDER.map((effectId) => (
         <label key={effectId} className="effects-bottom-sheet__effect">
           <span className="effects-bottom-sheet__effect-label">
