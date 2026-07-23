@@ -32,6 +32,12 @@ declare global {
      * a track currently has a live effects-preview overlay showing — the
      * overlay itself lives in React state local to each `Spectrogram`
      * mount, with no other DOM/CSS surface an e2e test could poll.
+     *
+     * `debugGetGlobalContextName` (mawimbi#554) reports the process-global
+     * Tone context's class name — the only way an e2e test can observe
+     * whether something stranded it on a defunct `OfflineContext` (see
+     * `renderTrackOffline.ts`'s module comment) instead of the real,
+     * always-`'Context'` live app context.
      */
     __mawimbi?: {
       spectrogramCache: Pick<SpectrogramCache, 'getMelody' | 'getEntry'>;
@@ -39,6 +45,7 @@ declare global {
       playback: Pick<PlaybackService, 'getEngineTime'>;
       previewOverlay: { hasOverlay: typeof hasActivePreviewOverlay };
       sampleRate: number;
+      debugGetGlobalContextName: () => string;
     };
   }
 }

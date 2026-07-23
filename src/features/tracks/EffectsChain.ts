@@ -130,17 +130,17 @@ class EffectsChain {
     // `context: this.source.context` is required, not cosmetic: without it
     // a bare `new Tone.Reverb(...)` binds to whatever Tone.getContext()
     // (the process-global current context) happens to be at this exact
-    // moment. renderTrackOffline's Tone.Offline() calls (effects refresh +
-    // live preview, both can be in flight while dragging during playback)
-    // synchronously swap that global context for the full duration of their
-    // callback, including a real `await reverb.ready` gap — see
-    // node_modules/tone/Tone/core/context/Offline.ts. A live-chain node
-    // constructed during that window binds to the throwaway
-    // OfflineContext; rewire()'s subsequent source.chain(...) then throws
-    // (native "cannot connect to an AudioNode belonging to a different
-    // audio context"), and since source.disconnect() already ran, the
-    // track is left silently disconnected from the destination bus for the
-    // rest of the session — confirmed via a real-Tone.js repro, not
+    // moment, rather than to the live track's own context. renderTrackOffline
+    // used to swap that global out from under live code this way (fixed in
+    // #554 — it now builds its own Tone.OfflineContext and never touches the
+    // global at all), and any future code that does the same thing — a
+    // library call, a worker bridge, anything reaching for Tone.setContext()
+    // — would silently re-break this the same way: a live-chain node bound
+    // to the wrong context makes rewire()'s subsequent source.chain(...)
+    // throw (native "cannot connect to an AudioNode belonging to a
+    // different audio context"), and since source.disconnect() already ran,
+    // the track is left silently disconnected from the destination bus for
+    // the rest of the session — confirmed via a real-Tone.js repro, not
     // speculative (session notes, not yet in kb/).
     const context = this.source.context;
     switch (effectId) {

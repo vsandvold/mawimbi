@@ -154,3 +154,38 @@ console.log(`Created test-chirp-10s.wav (${chirpWav.length} bytes)`);
 const burstTailWav = generateBurstTailWav(0.15, 1.85);
 writeFileSync(join(__dirname, 'test-burst-tail.wav'), burstTailWav);
 console.log(`Created test-burst-tail.wav (${burstTailWav.length} bytes)`);
+
+/**
+ * Generates a long, mostly-silent fixture with a single decaying noise
+ * burst positioned near the *start* only — deliberately asymmetric (not
+ * mirrored front/back like test-burst-tail.wav) so a reversed time axis is
+ * unambiguous: the energy would move from an early time-bucket to a late
+ * one, not just swap between two symmetric ends (mawimbi#554).
+ */
+function generateEarlyBurstWav(durationSeconds, burstStartSeconds, burstLenSeconds, sampleRate = 44100) {
+  const numSamples = Math.floor(sampleRate * durationSeconds);
+  const headerSize = 44;
+  const bytesPerSample = 2;
+  const buffer = Buffer.alloc(headerSize + numSamples * bytesPerSample);
+  writeWavHeader(buffer, { numSamples, numChannels: 1, sampleRate, bitsPerSample: 16 });
+
+  const amplitude = 0.85 * 32767;
+  const random = createSeededRandom(BURST_TAIL_NOISE_SEED);
+  const startSample = Math.floor(burstStartSeconds * sampleRate);
+  const lenSamples = Math.floor(burstLenSeconds * sampleRate);
+  const decay = burstLenSeconds / BURST_TIME_CONSTANTS;
+  for (let i = 0; i < lenSamples; i++) {
+    const t = i / sampleRate;
+    const envelope = Math.exp(-t / decay);
+    const sample = Math.round(amplitude * envelope * (random() * 2 - 1));
+    const idx = startSample + i;
+    if (idx < numSamples) buffer.writeInt16LE(sample, headerSize + idx * bytesPerSample);
+  }
+
+  return buffer;
+}
+
+// Generate long early-burst fixture (14s total, burst at 1.0-1.4s)
+const earlyBurstWav = generateEarlyBurstWav(14.0, 1.0, 0.4);
+writeFileSync(join(__dirname, 'test-early-burst-14s.wav'), earlyBurstWav);
+console.log(`Created test-early-burst-14s.wav (${earlyBurstWav.length} bytes)`);

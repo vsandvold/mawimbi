@@ -81,6 +81,12 @@ class AudioService {
         playback: this.playbackService,
         previewOverlay: { hasOverlay: hasActivePreviewOverlay },
         sampleRate: context.sampleRate,
+        // Reports the process-global Tone context's class name (mawimbi#554)
+        // — 'OfflineContext' here means something stranded the global on a
+        // defunct offline context (see renderTrackOffline.ts's module
+        // comment); the live app context is always a plain 'Context'. e2e's
+        // only way to observe this without reaching into Tone internals.
+        debugGetGlobalContextName: () => Tone.getContext().name,
       };
     }
   }

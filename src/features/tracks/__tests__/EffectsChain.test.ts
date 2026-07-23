@@ -145,14 +145,18 @@ describe('EffectsChain wiring', () => {
   // Regression test: EffectsChain.ensureNode() used to construct effect
   // nodes with no explicit `context`, so they bound to whatever
   // Tone.getContext() (the process-global current context) happened to be
-  // at that moment. Tone.Offline() (renderTrackOffline, used by the
-  // effects-refresh/preview pipeline) swaps that global context for the
-  // duration of its callback, so a live effect activated while an offline
-  // render was in flight would silently bind to the wrong, throwaway
-  // context — confirmed via a real-Tone.js repro to throw on the
-  // subsequent source.chain(...) call and leave the track permanently
-  // disconnected from the destination bus. Passing the source node's own
-  // context explicitly makes this immune to whatever the ambient global
+  // at that moment rather than to the live track's own context. Before #554,
+  // Tone.Offline() (renderTrackOffline, used by the effects-refresh/preview
+  // pipeline) swapped that global context for the duration of its callback,
+  // so a live effect activated while an offline render was in flight would
+  // silently bind to the wrong, throwaway context — confirmed via a
+  // real-Tone.js repro to throw on the subsequent source.chain(...) call and
+  // leave the track permanently disconnected from the destination bus. #554
+  // fixed that specific trigger (renderTrackOffline no longer touches the
+  // global context at all), but this binding stays required as a general
+  // guard: any other code that ever reaches for Tone.setContext() would
+  // silently reintroduce the same failure mode. Passing the source node's
+  // own context explicitly makes this immune to whatever the ambient global
   // context is doing.
   it("binds new effect nodes to the source node's own context, not the ambient global one", () => {
     chain.setAmount('space', 40);
