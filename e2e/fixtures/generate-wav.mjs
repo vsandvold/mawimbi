@@ -170,10 +170,10 @@ function generateEarlyBurstWav(durationSeconds, burstStartSeconds, burstLenSecon
   writeWavHeader(buffer, { numSamples, numChannels: 1, sampleRate, bitsPerSample: 16 });
 
   const amplitude = 0.85 * 32767;
-  const random = createSeededRandom(442);
+  const random = createSeededRandom(BURST_TAIL_NOISE_SEED);
   const startSample = Math.floor(burstStartSeconds * sampleRate);
   const lenSamples = Math.floor(burstLenSeconds * sampleRate);
-  const decay = burstLenSeconds / 5;
+  const decay = burstLenSeconds / BURST_TIME_CONSTANTS;
   for (let i = 0; i < lenSamples; i++) {
     const t = i / sampleRate;
     const envelope = Math.exp(-t / decay);
