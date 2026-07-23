@@ -1,8 +1,8 @@
 # 008 — Rhythm made visible: onset, tempo, beat, and pulse on the runway
 
-**Status:** Draft
+**Status:** Issues filed
 **Date:** 2026-07-23
-**Issues:** (filled by /spec-to-issues)
+**Issues:** #566 (tracking); milestones #567, #568, #569, #570, #571, #572, #573
 
 ## Summary
 
