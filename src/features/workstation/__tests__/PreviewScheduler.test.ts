@@ -262,4 +262,45 @@ describe('PreviewScheduler.clear', () => {
     expect(setPreview).not.toHaveBeenCalled();
     expect(clearPreview).toHaveBeenCalledTimes(1);
   });
+
+  it('does not permanently disable future previews for a track after a drag ends', async () => {
+    // Regression: `clear()` used to call the underlying throttled
+    // function's `.cancel()` with no options, which (per throttle-debounce)
+    // sets an internal `cancelled` flag that is never reset — every future
+    // call to that same throttled wrapper silently no-ops forever. Since
+    // `clear()` runs at the end of every drag (both the direct
+    // commitAmount/endDrag call and the effectsParamsHash-changed effect in
+    // usePreviewOverlay.ts), this made the very first drag on a track work
+    // and every subsequent drag on that same track produce no preview at
+    // all — confirmed against a real drag in the browser.
+    const renderOfflineWindow = vi.fn().mockResolvedValue(mockAudioBuffer(1));
+    const analyseToResult = vi.fn().mockResolvedValue(spectrogramResult());
+    const setPreview = vi.fn();
+    const clearPreview = vi.fn();
+
+    const scheduler = new PreviewScheduler({
+      renderOfflineWindow,
+      analyseToResult,
+      setPreview,
+      clearPreview,
+    });
+
+    const buffer = mockAudioBuffer(20);
+    const request = { startSeconds: 0, endSeconds: 8 };
+
+    // First drag: a tick runs, then the drag ends (clear).
+    scheduler.schedule(TRACK_ID, buffer, COLOR, AMOUNTS_A, request);
+    await waitForCallCount(renderOfflineWindow, 1);
+    scheduler.clear(TRACK_ID);
+
+    // Second drag on the same track must still produce a preview tick.
+    scheduler.schedule(TRACK_ID, buffer, COLOR, AMOUNTS_B, request);
+    await waitForCallCount(renderOfflineWindow, 2);
+    expect(renderOfflineWindow).toHaveBeenNthCalledWith(
+      2,
+      buffer,
+      AMOUNTS_B,
+      expect.anything(),
+    );
+  });
 });

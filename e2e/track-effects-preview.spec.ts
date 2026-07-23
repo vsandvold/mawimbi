@@ -146,6 +146,39 @@ async function dragSpaceSliderRoundTrip(page: import('@playwright/test').Page) {
   return { thumb };
 }
 
+/** Drags the Space slider's thumb from its *current* position to
+ * `targetFraction` (0–1 of the track's width) without releasing. Unlike
+ * `dragSpaceSliderWithoutRelease`, which always starts from the track's
+ * left edge (correct only when the thumb starts at 0), this starts from
+ * the thumb's own bounding box — required once a prior drag has already
+ * moved the thumb away from 0, since a value=100 thumb's clickable center
+ * sits inset from the track's raw right edge by the thumb's own radius. */
+async function dragSpaceSliderFromCurrentTo(
+  page: import('@playwright/test').Page,
+  targetFraction: number,
+) {
+  const thumb = page.getByRole('slider', { name: 'Space amount' });
+  const track = thumb.locator('xpath=../../span[@data-slot="slider-track"]');
+  const trackBox = await track.boundingBox();
+  const thumbBox = await thumb.boundingBox();
+  if (!trackBox || !thumbBox) throw new Error('Space slider not found');
+
+  const y = trackBox.y + trackBox.height / 2;
+  const startX = thumbBox.x + thumbBox.width / 2;
+  const endX = trackBox.x + trackBox.width * targetFraction;
+
+  await page.mouse.move(startX, y);
+  await page.mouse.down();
+
+  for (let step = 1; step <= DRAG_STEPS; step++) {
+    const x = startX + ((endX - startX) * step) / DRAG_STEPS;
+    await page.mouse.move(x, y);
+    await page.waitForTimeout(DRAG_STEP_DELAY_MS);
+  }
+
+  return { thumb };
+}
+
 test.describe('Live effects preview while dragging', () => {
   test.beforeEach(async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
@@ -227,5 +260,88 @@ test.describe('Live effects preview while dragging', () => {
     // The overlay clearing directly (not via a hash change) is exactly the
     // point of this test — the committed hash is genuinely unchanged.
     expect(await getEffectsHash(page, trackId)).toBe(dryHash);
+  });
+
+  // Regression: `PreviewScheduler.clear()` used to call the underlying
+  // throttled function's `.cancel()` with no options. Per throttle-debounce,
+  // that sets an internal `cancelled` flag that is never reset — every
+  // future call to that same cached-per-track throttled wrapper silently
+  // no-ops forever. `clear()` runs at the end of every drag (both the direct
+  // commitAmount/endDrag call and usePreviewOverlay.ts's
+  // effectsParamsHash-changed effect), so only the *first* drag on a track
+  // ever produced a preview; every drag after that looked completely
+  // unresponsive (confirmed against a real drag before the fix). Fixed by
+  // passing `{ upcomingOnly: true }`, which drops just the pending trailing
+  // tick instead of permanently disabling the wrapper.
+  test('a second drag on the same track still produces a live preview after the first one commits', async ({
+    page,
+  }) => {
+    await openEffectsDrawer(page);
+    const trackId = await getFirstTrackId(page);
+
+    const { thumb: firstThumb } = await dragSpaceSliderWithoutRelease(page);
+    await expect(firstThumb).toHaveAttribute('aria-valuenow', '100');
+    await expect
+      .poll(() => hasPreviewOverlay(page, trackId), { timeout: 15_000 })
+      .toBe(true);
+    await page.mouse.up();
+    await expect
+      .poll(() => hasPreviewOverlay(page, trackId), { timeout: 15_000 })
+      .toBe(false);
+
+    const { thumb: secondThumb } = await dragSpaceSliderFromCurrentTo(page, 0);
+    await expect(secondThumb).toHaveAttribute('aria-valuenow', '0');
+    await expect
+      .poll(() => hasPreviewOverlay(page, trackId), { timeout: 15_000 })
+      .toBe(true);
+    await page.mouse.up();
+  });
+
+  // Regression: `writePreviewOverlay` (Spectrogram.tsx) drew the (feathered)
+  // preview tile over the dry tiles with ordinary `source-over` compositing,
+  // using the tile's own per-pixel alpha (which encodes *loudness* —
+  // `createColorMap`: alpha=0 at silence, alpha=255 at peak — not "how
+  // opaque this layer is"). Since real spectrogram content is rarely at
+  // max loudness, the still-present dry tile showed through underneath
+  // almost everywhere instead of the preview replacing it — most visible
+  // when turning an effect *down* after a loud commit: the old committed
+  // tail kept bleeding through, unchanged, throughout the new (quieter)
+  // drag (confirmed against a real drag before the fix — the "quiet"
+  // reading stayed bit-identical to the loud committed reading). Fixed by
+  // erasing the dry content first with the same feather-gradient shape
+  // before compositing the overlay on top.
+  test('turning Space back down previews as quiet, not blended with the old loud committed tail', async ({
+    page,
+  }) => {
+    await openEffectsDrawer(page);
+
+    const dryLuminance = await meanLuminance(page, await dryWindowClip(page));
+
+    // Commit Space to max — the dry tiles now carry a real reverb tail in
+    // what was a near-black dry window.
+    const { thumb } = await dragSpaceSliderWithoutRelease(page);
+    await page.mouse.up();
+    await expect(async () => {
+      const luminance = await meanLuminance(page, await dryWindowClip(page));
+      expect(luminance).toBeGreaterThan(dryLuminance + TAIL_ENERGY_MARGIN);
+    }).toPass({ timeout: 15_000 });
+    const committedLoudLuminance = await meanLuminance(
+      page,
+      await dryWindowClip(page),
+    );
+
+    // Drag back down toward 0 without releasing — the preview should read
+    // close to the original dry baseline, not stay pinned near the old
+    // committed loud reading.
+    await dragSpaceSliderFromCurrentTo(page, 0);
+    await expect(thumb).toHaveAttribute('aria-valuenow', '0');
+    await expect(async () => {
+      const luminance = await meanLuminance(page, await dryWindowClip(page));
+      expect(luminance).toBeLessThan(
+        (committedLoudLuminance + dryLuminance) / 2,
+      );
+    }).toPass({ timeout: 15_000 });
+
+    await page.mouse.up();
   });
 });

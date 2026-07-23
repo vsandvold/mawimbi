@@ -151,8 +151,15 @@ export class PreviewScheduler {
   // and clears the overlay. Called when the commit refresh lands (its
   // full-track result supersedes the windowed preview) or when the drag
   // itself is abandoned (track cycled, drawer closed, unmount).
+  //
+  // `{ upcomingOnly: true }` matters: without it, throttle-debounce's
+  // `cancel()` sets an internal `cancelled` flag that is never reset,
+  // permanently disabling this track's cached throttled wrapper — since
+  // `clear()` runs at the end of every drag, that made only the first drag
+  // on a track ever produce a preview. `upcomingOnly` drops just the
+  // pending trailing tick, leaving the wrapper usable for the next drag.
   clear(trackId: TrackId): void {
-    this.throttled.get(trackId)?.cancel();
+    this.throttled.get(trackId)?.cancel({ upcomingOnly: true });
     this.latestRequestId.set(trackId, ++this.nextRequestId);
     this.deps.clearPreview(trackId);
   }
