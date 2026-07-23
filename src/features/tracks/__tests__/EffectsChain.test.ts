@@ -16,6 +16,7 @@ type MockNode = {
   disconnect: Mock;
   chain: Mock;
   dispose: Mock;
+  context: object;
 };
 
 function makeMockNode(): MockNode {
@@ -24,6 +25,10 @@ function makeMockNode(): MockNode {
     disconnect: vi.fn().mockReturnThis(),
     chain: vi.fn().mockReturnThis(),
     dispose: vi.fn(),
+    // A unique marker object, not a real Tone context — only used to
+    // assert identity (`toHaveBeenCalledWith({ context: source.context })`)
+    // in the "binds new effect nodes to the source's own context" test.
+    context: {},
   };
 }
 
@@ -135,6 +140,34 @@ describe('EffectsChain wiring', () => {
 
     expect(chain.getAmount('space')).toBe(MIN_EFFECT_AMOUNT);
     expect(source.chain).toHaveBeenLastCalledWith(destination);
+  });
+
+  // Regression test: EffectsChain.ensureNode() used to construct effect
+  // nodes with no explicit `context`, so they bound to whatever
+  // Tone.getContext() (the process-global current context) happened to be
+  // at that moment. Tone.Offline() (renderTrackOffline, used by the
+  // effects-refresh/preview pipeline) swaps that global context for the
+  // duration of its callback, so a live effect activated while an offline
+  // render was in flight would silently bind to the wrong, throwaway
+  // context — confirmed via a real-Tone.js repro to throw on the
+  // subsequent source.chain(...) call and leave the track permanently
+  // disconnected from the destination bus. Passing the source node's own
+  // context explicitly makes this immune to whatever the ambient global
+  // context is doing.
+  it("binds new effect nodes to the source node's own context, not the ambient global one", () => {
+    chain.setAmount('space', 40);
+    chain.setAmount('echo', 40);
+    chain.setAmount('tone', 40);
+
+    expect(Tone.Reverb).toHaveBeenCalledWith(
+      expect.objectContaining({ context: source.context }),
+    );
+    expect(Tone.FeedbackDelay).toHaveBeenCalledWith(
+      expect.objectContaining({ context: source.context }),
+    );
+    expect(Tone.Filter).toHaveBeenCalledWith(
+      expect.objectContaining({ context: source.context }),
+    );
   });
 
   it('reports amounts through the plain getter', () => {

@@ -126,11 +126,29 @@ class EffectsChain {
     // The reverb's impulse response generates asynchronously (silent until
     // its `ready` resolves, #489). Wiring immediately is fine live: the
     // dry portion of the crossfade keeps sounding while the IR renders.
+    //
+    // `context: this.source.context` is required, not cosmetic: without it
+    // a bare `new Tone.Reverb(...)` binds to whatever Tone.getContext()
+    // (the process-global current context) happens to be at this exact
+    // moment. renderTrackOffline's Tone.Offline() calls (effects refresh +
+    // live preview, both can be in flight while dragging during playback)
+    // synchronously swap that global context for the full duration of their
+    // callback, including a real `await reverb.ready` gap — see
+    // node_modules/tone/Tone/core/context/Offline.ts. A live-chain node
+    // constructed during that window binds to the throwaway
+    // OfflineContext; rewire()'s subsequent source.chain(...) then throws
+    // (native "cannot connect to an AudioNode belonging to a different
+    // audio context"), and since source.disconnect() already ran, the
+    // track is left silently disconnected from the destination bus for the
+    // rest of the session — confirmed via a real-Tone.js repro, not
+    // speculative (session notes, not yet in kb/).
+    const context = this.source.context;
     switch (effectId) {
       case 'space':
         this.nodes.space = new Tone.Reverb({
           decay: SPACE_DECAY_SECONDS,
           wet: 0,
+          context,
         });
         break;
       case 'echo':
@@ -138,12 +156,14 @@ class EffectsChain {
           delayTime: ECHO_DELAY_SECONDS,
           feedback: ECHO_MIN_FEEDBACK,
           wet: 0,
+          context,
         });
         break;
       case 'tone':
         this.nodes.tone = new Tone.Filter({
           frequency: TONE_MAX_CUTOFF_HZ,
           type: 'lowpass',
+          context,
         });
         break;
     }
