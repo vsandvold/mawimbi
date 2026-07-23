@@ -712,6 +712,41 @@ function writePreviewOverlay(
 
   ctx.save();
   flipCanvasY(ctx, trackWin.height);
+
+  // Punch a hole in the dry tiles just drawn, shaped exactly like the
+  // feather mask above, before compositing the overlay into it. Without
+  // this, the overlay's own per-pixel alpha (loudness, not "how opaque
+  // this layer is" — `createColorMap`'s alpha=0 at silence, alpha=255 at
+  // peak) gets alpha-blended straight over the still-present dry pixels via
+  // ordinary `source-over`, so anywhere the preview isn't at max loudness
+  // (i.e. almost everywhere) the dry spectrogram shows through underneath
+  // instead of the overlay replacing it — a double-exposure ghosting
+  // effect, not a true preview. Erasing first with the *same* gradient
+  // shape (not the tile's own alpha) fully clears the core region and only
+  // crossfades at the feathered edges, matching what's actually drawn on
+  // top.
+  ctx.save();
+  ctx.globalCompositeOperation = 'destination-out';
+  if (feather > 0) {
+    const eraseGradient = ctx.createLinearGradient(
+      0,
+      drawY,
+      0,
+      drawY + drawHeight,
+    );
+    const start = feather / drawHeight;
+    const end = 1 - start;
+    eraseGradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    eraseGradient.addColorStop(start, 'rgba(0, 0, 0, 1)');
+    eraseGradient.addColorStop(end, 'rgba(0, 0, 0, 1)');
+    eraseGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = eraseGradient;
+  } else {
+    ctx.fillStyle = 'rgba(0, 0, 0, 1)';
+  }
+  ctx.fillRect(0, drawY, trackWin.width, drawHeight);
+  ctx.restore();
+
   ctx.drawImage(featherCanvas, 0, drawY, trackWin.width, drawHeight);
   ctx.restore();
 }
