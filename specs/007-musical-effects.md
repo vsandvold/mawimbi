@@ -1,8 +1,8 @@
 # 007 — Musical effects: pitch, time, tempo-synced echo, crush
 
-**Status:** Draft
+**Status:** Issues filed
 **Date:** 2026-07-23
-**Issues:** (filled by /spec-to-issues)
+**Issues:** #556 (tracking); milestones #557, #558, #559, #560, #561, #562, #563
 
 ## Summary
 
@@ -55,7 +55,7 @@ Extends spec 004's per-track effects with the musical properties the product's p
 > **Rationale:** this is `kb/product.md`'s two-layers principle applied to input: pitch and musical time are *categorization-layer* properties, manipulated in the units musicians think in. Practically: each tap is one dispatch (undo granularity = gesture granularity for free), the debounced scheduler coalesces rapid taps, and the entire Radix-slider commit/drag-lifecycle gotcha class (CLAUDE.md) is avoided because there is no drag.
 > **Dissent:** *Simplicity* asked whether stretch could ship fewer ratios ({½, 1, 2}); kept ¾/1½ because dotted-feel and half-time-shuffle relationships are the musically common cases. *Product* flags the stepper must still feel playful (it's the first non-slider control in the drawer) — human QA checks reach and feel.
 
-> **Decision 3 — transform library: `signalsmith-stretch` (MIT) as primary candidate, selected by an M1 evaluation, `soundtouchjs` (LGPL-2.1) as fallback; `rubberband-web` rejected on license (GPL-2.0+).** The evaluation is a real-shape + quality gate, not a benchmark essay: run the candidate in a worker and in vitest, feed the 440 Hz and burst fixtures, assert the 12-TET bin shift (±2 bins), duration tolerance (±1 hop), finite output, and record processing time; pick the first candidate that passes; capture the decision in `kb/decisions.md`.
+> **Decision 3 — transform library: `signalsmith-stretch` (MIT) as primary candidate, selected by an M1 evaluation, `soundtouchjs` (LGPL-2.1) as fallback; `rubberband-web` (GPL-2.0+) deprioritized to last resort.** *(Correction 2026-07-23: the repo is itself GPL-3.0 licensed, so GPL dependencies are compatible — the original "rejected on license" was wrong. Rubber Band stays last-choice on size/complexity grounds and because the MIT/LGPL candidates keep future licensing options open, but it may be evaluated if both primary candidates fail the gate.)* The evaluation is a real-shape + quality gate, not a benchmark essay: run the candidate in a worker and in vitest, feed the 440 Hz and burst fixtures, assert the 12-TET bin shift (±2 bins), duration tolerance (±1 hop), finite output, and record processing time; pick the first candidate that passes; capture the decision in `kb/decisions.md`.
 > **Rationale:** license first (this is a deployed app), then verifiable quality. Signalsmith Stretch is polyphonic, small, and MIT; its npm packaging shape (worklet-oriented vs. plain WASM API) is exactly the kind of assumption five classification bugs taught us to validate before mocking (`kb/verification.md`).
 > **Dissent:** *Adversary* predicted the npm package would be worklet-first — **confirmed by direct package inspection** (see Prior art in Grounding): there is no plain-function API, so the offline render runs the worklet node on an `OfflineAudioContext` (`audioWorklet.addModule` on the offline context, `addBuffers` + `schedule({rate, semitones})` + `start`, then `startRendering`). This merges with the BitCrusher offline-worklet validation into one M1 question: *do worklet nodes process correctly during offline rendering in this app's contexts (and in the sandbox's offline renders — #542 covers live delivery, not offline)?* The quality-gate assertions consequently run browser-side (a `zzz-`/e2e harness feeding results through the CQT analysis), not in vitest. If offline-worklet rendering fails, the fallback-of-last-resort is a plain WSOLA implementation in the worker (quality gate still applies); that outcome would be a spec-level check-in, not a silent substitution.
 
