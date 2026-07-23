@@ -14,8 +14,20 @@ import { type EffectAmounts } from '../tracks/EffectsChain';
 import { type TrackColor, type TrackId } from '../tracks/types';
 
 export const PREVIEW_THROTTLE_MS = 150;
-export const PREVIEW_WINDOW_MAX_SECONDS = 12;
-export const PREVIEW_PREROLL_SECONDS = 2;
+// Halved from 12/2 after measuring real render+analyse latency in-session
+// (session notes, not yet in kb/): a near-cap (~11-12s) preview tick
+// averaged ~3.3s (0.8-1.8s offline render + 1.0-3.8s CQT analysis, sandboxed
+// headless measurement), utterly dwarfing PREVIEW_THROTTLE_MS — the throttle
+// was never the bottleneck, tick duration was. Both stages scale ~linearly
+// with rendered duration, so this should roughly halve average latency.
+// Default zoom's own visible window (~11.3s) was already brushing the old
+// 12s cap, so this also trims coverage at ordinary zoom, not just at the
+// zoomed-out extreme — accepted given a future playhead-relative preview
+// (limiting the window to already-played runway) would make a small cap the
+// right semantic anyway, not just a latency compromise. Revisit with M7's
+// on-device QA (spec 006 open question 1) once that lands.
+export const PREVIEW_WINDOW_MAX_SECONDS = 6;
+export const PREVIEW_PREROLL_SECONDS = 1;
 // Canvas-pixel height of the alpha feather applied at both edges of the
 // provisional overlay (Spectrogram.tsx) — separate from the far-edge fade
 // (`FAR_EDGE_FADE_PX`, Spectrogram.tsx), which only applies at a track's
