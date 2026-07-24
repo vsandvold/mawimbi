@@ -1,5 +1,6 @@
 import { type TrackColor } from '../tracks/types';
 import { type MelodyData } from '../transcription/MelodyExtractor';
+import { type RhythmData } from '../rhythm/RhythmAnalyser';
 import OfflineAnalyser, { type SpectrogramData } from './OfflineAnalyser';
 import { renderTiles } from './SpectrogramTileRenderer';
 import { spectrogramStats } from './SpectrogramStats';
@@ -9,6 +10,7 @@ export type TrackSpectrogramEntry = {
   data: SpectrogramData;
   tiles: ImageBitmap[];
   melody?: MelodyData;
+  rhythm?: RhythmData;
   // Hash of the effect amounts this entry was rendered from (spec 004 M6,
   // hashEffectAmounts). Undefined means dry (pre-effects-refresh data, or
   // never explicitly stamped) — callers treat that as the dry hash.
@@ -60,7 +62,16 @@ type PendingMelodyRequest = {
   reject: (error: Error) => void;
 };
 
-type PendingRequest = PendingSpectrogramRequest | PendingMelodyRequest;
+type PendingRhythmRequest = {
+  kind: 'rhythm';
+  resolve: (result: RhythmData) => void;
+  reject: (error: Error) => void;
+};
+
+type PendingRequest =
+  | PendingSpectrogramRequest
+  | PendingMelodyRequest
+  | PendingRhythmRequest;
 
 class SpectrogramCache {
   private entries = new Map<string, TrackSpectrogramEntry>();
@@ -156,6 +167,7 @@ class SpectrogramCache {
       data,
       tiles,
       melody: existing?.melody,
+      rhythm: existing?.rhythm,
       effectsParamsHash,
       analysisComplete,
     };
@@ -217,6 +229,17 @@ class SpectrogramCache {
     const entry = this.entries.get(trackId);
     if (entry) {
       entry.melody = melody;
+    }
+  }
+
+  getRhythm(trackId: string): RhythmData | undefined {
+    return this.entries.get(trackId)?.rhythm;
+  }
+
+  setRhythm(trackId: string, rhythm: RhythmData): void {
+    const entry = this.entries.get(trackId);
+    if (entry) {
+      entry.rhythm = rhythm;
     }
   }
 
@@ -296,6 +319,38 @@ class SpectrogramCache {
     });
   }
 
+  extractRhythmInWorker(audioBuffer: AudioBuffer): Promise<RhythmData> {
+    const durationSeconds = audioBuffer.length / audioBuffer.sampleRate;
+    console.log(
+      `[rhythm] Sending rhythm extraction to worker: ${audioBuffer.numberOfChannels}ch, ${audioBuffer.length} samples, ${audioBuffer.sampleRate} Hz, ${durationSeconds.toFixed(2)}s`,
+    );
+
+    const worker = this.getWorker();
+    const id = this.nextMessageId++;
+
+    const channelData: Float32Array[] = [];
+    const transferables: Transferable[] = [];
+    for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) {
+      const copy = new Float32Array(audioBuffer.getChannelData(ch));
+      channelData.push(copy);
+      transferables.push(copy.buffer);
+    }
+
+    return new Promise((resolve, reject) => {
+      this.pendingRequests.set(id, { kind: 'rhythm', resolve, reject });
+      worker.postMessage(
+        {
+          id,
+          kind: 'rhythm',
+          channelData,
+          sampleRate: audioBuffer.sampleRate,
+          length: audioBuffer.length,
+        },
+        transferables,
+      );
+    });
+  }
+
   private getWorker(): Worker {
     if (!this.worker) {
       this.worker = new Worker(
@@ -336,6 +391,11 @@ class SpectrogramCache {
         } else if (type === 'melody-result' && pending.kind === 'melody') {
           console.log(
             `[melody] Worker returned ${event.data.data.notes.length} notes`,
+          );
+          pending.resolve(event.data.data);
+        } else if (type === 'rhythm-result' && pending.kind === 'rhythm') {
+          console.log(
+            `[rhythm] Worker returned bpm=${event.data.data.bpm.toFixed(1)}, ${event.data.data.ticks.length} ticks, ${event.data.data.onsets.length} onsets`,
           );
           pending.resolve(event.data.data);
         } else if (type === 'result' && pending.kind === 'spectrogram') {

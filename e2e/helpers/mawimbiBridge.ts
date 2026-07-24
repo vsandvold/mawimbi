@@ -7,6 +7,7 @@
  */
 import type { Page } from '@playwright/test';
 import type { MelodyData } from '../../src/features/transcription/MelodyExtractor';
+import type { RhythmData } from '../../src/features/rhythm/RhythmAnalyser';
 import type {
   SpectrogramStatsCounters,
   TrackSpectrogramStats,
@@ -19,6 +20,12 @@ import { expect } from '../fixtures';
 // timeout with the assertion mid-flight.
 const MELODY_POLL_TIMEOUT_MS = 20_000;
 const MELODY_POLL_INTERVAL_MS = 500;
+
+// Rhythm extraction runs essentia's RhythmExtractor2013 + OnsetRate as one
+// worker round-trip (spec 008 milestone 1) — not yet measured against a
+// production-length fixture, so this starts generous like melody's.
+const RHYTHM_POLL_TIMEOUT_MS = 20_000;
+const RHYTHM_POLL_INTERVAL_MS = 500;
 
 // Analysis is chunked (spec 006 M2): tileCount grows well before this flag
 // flips, but the flag itself still only flips once the whole track has been
@@ -94,6 +101,34 @@ export async function waitForMelody(
     .toBeGreaterThan(0);
 
   return melody!;
+}
+
+/**
+ * Polls until rhythm extraction has produced at least one tick for
+ * `trackId`, then returns it — the rhythm analog of `waitForMelody`, same
+ * capture-inside-the-poll shape (no second round trip after the poll
+ * succeeds).
+ */
+export async function waitForRhythm(
+  page: Page,
+  trackId: string,
+): Promise<RhythmData> {
+  let rhythm: RhythmData | undefined;
+
+  await expect
+    .poll(
+      async () => {
+        rhythm = await page.evaluate(
+          (id) => window.__mawimbi?.spectrogramCache.getRhythm(id),
+          trackId,
+        );
+        return rhythm?.ticks.length ?? 0;
+      },
+      { timeout: RHYTHM_POLL_TIMEOUT_MS, intervals: [RHYTHM_POLL_INTERVAL_MS] },
+    )
+    .toBeGreaterThan(0);
+
+  return rhythm!;
 }
 
 /**

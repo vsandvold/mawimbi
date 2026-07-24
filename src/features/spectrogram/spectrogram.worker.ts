@@ -8,6 +8,7 @@ import {
   extractMelody,
   preWarmBasicPitch,
 } from '../transcription/MelodyExtractor';
+import { type RhythmData, analyseRhythm } from '../rhythm/RhythmAnalyser';
 import { type SpectrogramData } from './OfflineAnalyser';
 import { renderTiles } from './SpectrogramTileRenderer';
 import { TILE_FRAMES } from './tileConstants';
@@ -33,7 +34,15 @@ export type MelodyRequest = {
   length: number;
 };
 
-export type WorkerRequest = AnalyseRequest | MelodyRequest;
+export type RhythmRequest = {
+  id: number;
+  kind: 'rhythm';
+  channelData: Float32Array[];
+  sampleRate: number;
+  length: number;
+};
+
+export type WorkerRequest = AnalyseRequest | MelodyRequest | RhythmRequest;
 
 // Emitted once per completed chunk during progressive analysis (mawimbi#539,
 // spec 006 milestone 2) — the chunk's own frames and single rendered tile,
@@ -75,7 +84,11 @@ export type MelodyResponse =
   | { id: number; type: 'melody-result'; data: MelodyData }
   | { id: number; type: 'error'; message: string };
 
-export type WorkerResponse = AnalyseResponse | MelodyResponse;
+export type RhythmResponse =
+  | { id: number; type: 'rhythm-result'; data: RhythmData }
+  | { id: number; type: 'error'; message: string };
+
+export type WorkerResponse = AnalyseResponse | MelodyResponse | RhythmResponse;
 
 // ---------------------------------------------------------------------------
 // Worker implementation
@@ -177,6 +190,30 @@ async function handleMelody(request: MelodyRequest): Promise<void> {
   }
 }
 
+async function handleRhythm(request: RhythmRequest): Promise<void> {
+  const { id, channelData, sampleRate, length } = request;
+  const durationSeconds = length / sampleRate;
+
+  console.log(
+    `[rhythm] Worker received rhythm request: ${channelData.length}ch, ${length} samples, ${sampleRate} Hz, ${durationSeconds.toFixed(2)}s`,
+  );
+
+  try {
+    const mono = mixToMono(channelData, length);
+    const data = await analyseRhythm(mono, sampleRate);
+    console.log(
+      `[rhythm] Worker rhythm extraction complete: bpm=${data.bpm.toFixed(1)}, confidence=${data.confidence.toFixed(2)}, ${data.ticks.length} ticks, ${data.onsets.length} onsets`,
+    );
+    const response: RhythmResponse = { id, type: 'rhythm-result', data };
+    workerSelf.postMessage(response);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[rhythm] Worker rhythm extraction failed: ${message}`);
+    const response: RhythmResponse = { id, type: 'error', message };
+    workerSelf.postMessage(response);
+  }
+}
+
 workerSelf.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   const request = event.data;
 
@@ -185,6 +222,8 @@ workerSelf.onmessage = async (event: MessageEvent<WorkerRequest>) => {
 
   if (kind === 'melody') {
     await handleMelody(request as MelodyRequest);
+  } else if (kind === 'rhythm') {
+    await handleRhythm(request as RhythmRequest);
   } else {
     await handleSpectrogram(request as AnalyseRequest);
   }

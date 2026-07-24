@@ -38,9 +38,17 @@ declare global {
      * whether something stranded it on a defunct `OfflineContext` (see
      * `renderTrackOffline.ts`'s module comment) instead of the real,
      * always-`'Context'` live app context.
+     *
+     * `getRhythm` (mawimbi#567, spec 008 milestone 1) exposes worker-produced
+     * rhythm data (beat ticks, tempo, confidence, onsets) the same way
+     * `getMelody` exposes transcribed notes — no DOM/CSS surface an e2e test
+     * could otherwise read this from.
      */
     __mawimbi?: {
-      spectrogramCache: Pick<SpectrogramCache, 'getMelody' | 'getEntry'>;
+      spectrogramCache: Pick<
+        SpectrogramCache,
+        'getMelody' | 'getRhythm' | 'getEntry'
+      >;
       spectrogramStats: Pick<SpectrogramStats, 'getTrackStats' | 'getCounters'>;
       playback: Pick<PlaybackService, 'getEngineTime'>;
       previewOverlay: { hasOverlay: typeof hasActivePreviewOverlay };
