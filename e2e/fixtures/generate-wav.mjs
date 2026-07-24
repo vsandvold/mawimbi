@@ -4,7 +4,7 @@
  * - test-tone-short.wav: 0.5 second 440 Hz sine wave (mono, 16-bit, 44100 Hz)
  * - test-tone-long.wav:  2.0 second 440 Hz sine wave (mono, 16-bit, 44100 Hz)
  * - test-burst-tail.wav: 0.15s decaying noise burst + 1.85s true silence
- * - test-click-120bpm.wav: 8 percussive clicks at a known 120 BPM, plus
+ * - test-click-120bpm.wav: 32 percussive clicks at a known 120 BPM, plus
  *   trailing silence (tempo-estimator fixture, spec 007 M1)
  *
  * Run: node e2e/fixtures/generate-wav.mjs
@@ -29,6 +29,29 @@ function createSeededRandom(seed) {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+/**
+ * Writes an exponentially-decaying noise burst — the shared shape behind
+ * every percussive-hit fixture in this file (test-burst-tail.wav,
+ * test-early-burst-14s.wav, test-click-120bpm.wav) — into `buffer` starting
+ * at `startSample`. `random` is an already-seeded generator (not a seed),
+ * so callers that need the sequence to keep advancing across repeated
+ * bursts (test-click-120bpm.wav's per-beat clicks) can pass one shared
+ * instance instead of getting a fresh one each call.
+ */
+function writeNoiseBurst(
+  buffer,
+  { headerSize, bytesPerSample, numSamples, sampleRate, startSample, lenSamples, decayTimeConstant, amplitude, random },
+) {
+  for (let i = 0; i < lenSamples; i++) {
+    const idx = startSample + i;
+    if (idx >= numSamples) break;
+    const t = i / sampleRate;
+    const envelope = Math.exp(-t / decayTimeConstant);
+    const sample = Math.round(amplitude * envelope * (random() * 2 - 1));
+    buffer.writeInt16LE(sample, headerSize + idx * bytesPerSample);
+  }
 }
 
 function writeWavHeader(buffer, { numSamples, numChannels, sampleRate, bitsPerSample }) {
@@ -125,12 +148,17 @@ function generateBurstTailWav(burstSeconds, silenceSeconds, sampleRate = 44100) 
   const amplitude = 0.8 * 32767;
   const decayTimeConstant = burstSeconds / BURST_TIME_CONSTANTS;
   const random = createSeededRandom(BURST_TAIL_NOISE_SEED);
-  for (let i = 0; i < burstSamples; i++) {
-    const t = i / sampleRate;
-    const envelope = Math.exp(-t / decayTimeConstant);
-    const sample = Math.round(amplitude * envelope * (random() * 2 - 1));
-    buffer.writeInt16LE(sample, headerSize + i * bytesPerSample);
-  }
+  writeNoiseBurst(buffer, {
+    headerSize,
+    bytesPerSample,
+    numSamples,
+    sampleRate,
+    startSample: 0,
+    lenSamples: burstSamples,
+    decayTimeConstant,
+    amplitude,
+    random,
+  });
   // Remaining samples stay zeroed by Buffer.alloc — true silence.
 
   return buffer;
@@ -175,14 +203,18 @@ function generateEarlyBurstWav(durationSeconds, burstStartSeconds, burstLenSecon
   const random = createSeededRandom(BURST_TAIL_NOISE_SEED);
   const startSample = Math.floor(burstStartSeconds * sampleRate);
   const lenSamples = Math.floor(burstLenSeconds * sampleRate);
-  const decay = burstLenSeconds / BURST_TIME_CONSTANTS;
-  for (let i = 0; i < lenSamples; i++) {
-    const t = i / sampleRate;
-    const envelope = Math.exp(-t / decay);
-    const sample = Math.round(amplitude * envelope * (random() * 2 - 1));
-    const idx = startSample + i;
-    if (idx < numSamples) buffer.writeInt16LE(sample, headerSize + idx * bytesPerSample);
-  }
+  const decayTimeConstant = burstLenSeconds / BURST_TIME_CONSTANTS;
+  writeNoiseBurst(buffer, {
+    headerSize,
+    bytesPerSample,
+    numSamples,
+    sampleRate,
+    startSample,
+    lenSamples,
+    decayTimeConstant,
+    amplitude,
+    random,
+  });
 
   return buffer;
 }
@@ -226,14 +258,17 @@ function generateClickTrackWav(
 
   for (let beat = 0; beat < numBeats; beat++) {
     const beatStartSample = Math.round(beat * beatSeconds * sampleRate);
-    for (let i = 0; i < clickSamples; i++) {
-      const idx = beatStartSample + i;
-      if (idx >= numSamples) break;
-      const t = i / sampleRate;
-      const envelope = Math.exp(-t / decayTimeConstant);
-      const sample = Math.round(amplitude * envelope * (random() * 2 - 1));
-      buffer.writeInt16LE(sample, headerSize + idx * bytesPerSample);
-    }
+    writeNoiseBurst(buffer, {
+      headerSize,
+      bytesPerSample,
+      numSamples,
+      sampleRate,
+      startSample: beatStartSample,
+      lenSamples: clickSamples,
+      decayTimeConstant,
+      amplitude,
+      random,
+    });
   }
   // Remaining samples stay zeroed by Buffer.alloc — true silence.
 
