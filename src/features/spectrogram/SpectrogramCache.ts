@@ -417,7 +417,7 @@ class SpectrogramCache {
         }
       };
       this.worker.onerror = (event) => {
-        console.error('[melody] Spectrogram worker crashed:', event);
+        console.error('[spectrogram-worker] Worker crashed:', event);
         this.workerFailed = true;
         this.rejectAllPending(
           new Error('Spectrogram worker failed; falling back to main thread'),

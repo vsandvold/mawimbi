@@ -34,6 +34,11 @@ const RHYTHM_EXTRACTOR_MAX_TEMPO_BPM = 208;
 const RHYTHM_EXTRACTOR_MIN_TEMPO_BPM = 40;
 const RHYTHM_EXTRACTOR_METHOD = 'multifeature';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function deleteVector(vector: any): void {
+  if (typeof vector?.delete === 'function') vector.delete();
+}
+
 /**
  * Extracts rhythm data from a mono signal at `sampleRate`. Resamples to
  * `RHYTHM_ANALYSIS_SAMPLE_RATE` first when `sampleRate` differs (a no-op for
@@ -47,20 +52,39 @@ export async function analyseRhythm(
   const signal = resample(mono, sampleRate, RHYTHM_ANALYSIS_SAMPLE_RATE);
   const vector = essentia.arrayToVector(signal);
 
-  const rhythm = essentia.RhythmExtractor2013(
-    vector,
-    RHYTHM_EXTRACTOR_MAX_TEMPO_BPM,
-    RHYTHM_EXTRACTOR_METHOD,
-    RHYTHM_EXTRACTOR_MIN_TEMPO_BPM,
-  );
-  const onsetResult = essentia.OnsetRate(vector);
+  try {
+    const rhythm = essentia.RhythmExtractor2013(
+      vector,
+      RHYTHM_EXTRACTOR_MAX_TEMPO_BPM,
+      RHYTHM_EXTRACTOR_METHOD,
+      RHYTHM_EXTRACTOR_MIN_TEMPO_BPM,
+    );
+    const onsetResult = essentia.OnsetRate(vector);
 
-  return {
-    bpm: rhythm.bpm,
-    confidence: rhythm.confidence,
-    ticks: Array.from(essentia.vectorToArray(rhythm.ticks) as Float32Array),
-    onsets: Array.from(
-      essentia.vectorToArray(onsetResult.onsets) as Float32Array,
-    ),
-  };
+    try {
+      return {
+        bpm: rhythm.bpm,
+        confidence: rhythm.confidence,
+        ticks: Array.from(essentia.vectorToArray(rhythm.ticks) as Float32Array),
+        onsets: Array.from(
+          essentia.vectorToArray(onsetResult.onsets) as Float32Array,
+        ),
+      };
+    } finally {
+      // essentia.js's VectorFloat return values are embind-wrapped
+      // WASM-heap handles, not plain JS values (why `vectorToArray` exists
+      // at all) — they leak WASM memory if never `.delete()`d, the same
+      // class of bug CLAUDE.md documents for `ImageBitmap.close()`. This
+      // worker's essentia instance is a session-long singleton
+      // (`SpectrogramCache.getWorker()`), so every upload would otherwise
+      // leak its full-duration signal and every returned vector for the
+      // rest of the session.
+      deleteVector(rhythm.ticks);
+      deleteVector(rhythm.estimates);
+      deleteVector(rhythm.bpmIntervals);
+      deleteVector(onsetResult.onsets);
+    }
+  } finally {
+    deleteVector(vector);
+  }
 }
