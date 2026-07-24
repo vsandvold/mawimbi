@@ -38,6 +38,10 @@ export const EARLY_BURST_AUDIO_14S = path.join(
   FIXTURES_DIR,
   'test-early-burst-14s.wav',
 );
+export const CLICK_120BPM_AUDIO = path.join(
+  FIXTURES_DIR,
+  'test-click-120bpm.wav',
+);
 
 /**
  * Uploads an audio file via the hidden file input inside the Ant Design Upload component.
