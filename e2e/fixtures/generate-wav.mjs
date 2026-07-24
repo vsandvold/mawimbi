@@ -4,6 +4,8 @@
  * - test-tone-short.wav: 0.5 second 440 Hz sine wave (mono, 16-bit, 44100 Hz)
  * - test-tone-long.wav:  2.0 second 440 Hz sine wave (mono, 16-bit, 44100 Hz)
  * - test-burst-tail.wav: 0.15s decaying noise burst + 1.85s true silence
+ * - test-click-120bpm.wav: 8 percussive clicks at a known 120 BPM, plus
+ *   trailing silence (tempo-estimator fixture, spec 007 M1)
  *
  * Run: node e2e/fixtures/generate-wav.mjs
  */
@@ -189,3 +191,62 @@ function generateEarlyBurstWav(durationSeconds, burstStartSeconds, burstLenSecon
 const earlyBurstWav = generateEarlyBurstWav(14.0, 1.0, 0.4);
 writeFileSync(join(__dirname, 'test-early-burst-14s.wav'), earlyBurstWav);
 console.log(`Created test-early-burst-14s.wav (${earlyBurstWav.length} bytes)`);
+
+/**
+ * Generates a percussive click-track fixture at a known, fixed BPM: a
+ * short decaying noise burst (the same envelope shape as
+ * generateBurstTailWav's percussive hit) repeated on every beat, followed
+ * by true silence. Gives a tempo estimator (spec 007 M1/M3) a
+ * ground-truth BPM to check its output against, and — like
+ * test-burst-tail.wav — a known-silent tail for reverb/delay assertions
+ * that need a near-black dry region to compare against.
+ */
+const CLICK_TIME_CONSTANTS = 8;
+const CLICK_NOISE_SEED = 120;
+
+function generateClickTrackWav(
+  bpm,
+  numBeats,
+  clickSeconds,
+  tailSeconds,
+  sampleRate = 44100,
+) {
+  const beatSeconds = 60 / bpm;
+  const durationSeconds = (numBeats - 1) * beatSeconds + clickSeconds + tailSeconds;
+  const numSamples = Math.floor(sampleRate * durationSeconds);
+  const headerSize = 44;
+  const bytesPerSample = 2;
+  const buffer = Buffer.alloc(headerSize + numSamples * bytesPerSample);
+  writeWavHeader(buffer, { numSamples, numChannels: 1, sampleRate, bitsPerSample: 16 });
+
+  const amplitude = 0.9 * 32767;
+  const clickSamples = Math.floor(sampleRate * clickSeconds);
+  const decayTimeConstant = clickSeconds / CLICK_TIME_CONSTANTS;
+  const random = createSeededRandom(CLICK_NOISE_SEED);
+
+  for (let beat = 0; beat < numBeats; beat++) {
+    const beatStartSample = Math.round(beat * beatSeconds * sampleRate);
+    for (let i = 0; i < clickSamples; i++) {
+      const idx = beatStartSample + i;
+      if (idx >= numSamples) break;
+      const t = i / sampleRate;
+      const envelope = Math.exp(-t / decayTimeConstant);
+      const sample = Math.round(amplitude * envelope * (random() * 2 - 1));
+      buffer.writeInt16LE(sample, headerSize + idx * bytesPerSample);
+    }
+  }
+  // Remaining samples stay zeroed by Buffer.alloc — true silence.
+
+  return buffer;
+}
+
+// Generate 120 BPM click-track fixture: 32 beats (15.5s of clicks at
+// 0.5s/beat) + 1.5s trailing silence. Duration matters here, not just
+// beat count: essentia's RhythmExtractor2013 'multifeature'/'degara'
+// confidence output measured 0 (a degenerate value, not merely low) on
+// an earlier ~5s/8-beat version of this fixture and only became a usable
+// non-zero signal once the same click pattern ran long enough — empirically
+// confirmed in spec 007 M1's evaluation harness (kb/decisions.md, #557).
+const clickTrackWav = generateClickTrackWav(120, 32, 0.03, 1.5);
+writeFileSync(join(__dirname, 'test-click-120bpm.wav'), clickTrackWav);
+console.log(`Created test-click-120bpm.wav (${clickTrackWav.length} bytes)`);
