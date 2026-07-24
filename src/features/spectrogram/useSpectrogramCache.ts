@@ -310,6 +310,18 @@ export function useSpectrogramCache(
           setEntry({ ...updated });
         }
       });
+
+      // Run rhythm extraction in the background (spec 008 milestone 1 — no
+      // persistence or restore-path yet, that's milestone 2's `rhythms`
+      // store; this proves the analysis→cache→bridge path end to end for a
+      // fresh upload).
+      extractAndCacheRhythm(audioService, trackId, audioBuffer, () => {
+        if (cancelled) return;
+        const updated = audioService.spectrogramCache.getEntry(trackId);
+        if (updated) {
+          setEntry({ ...updated });
+        }
+      });
     };
 
     loadOrAnalyse();
@@ -353,6 +365,32 @@ function extractAndCacheMelody(
       const detail = error instanceof Error ? error.message : String(error);
       console.warn(
         `[melody] Melody extraction failed for track ${trackId}: ${detail}`,
+      );
+    });
+}
+
+function extractAndCacheRhythm(
+  audioService: ReturnType<typeof useAudioService>,
+  trackId: string,
+  audioBuffer: AudioBuffer,
+  onComplete: () => void,
+): void {
+  audioService.spectrogramCache
+    .extractRhythmInWorker(audioBuffer)
+    .then((rhythm) => {
+      console.log(
+        `[rhythm] Rhythm extraction complete for track ${trackId}: bpm=${rhythm.bpm.toFixed(1)}, ${rhythm.ticks.length} ticks, ${rhythm.onsets.length} onsets`,
+      );
+      // Same existence guard as melody's (mawimbi#540): the track may have
+      // been deleted while extraction was in flight.
+      if (!audioService.spectrogramCache.getEntry(trackId)) return;
+      audioService.spectrogramCache.setRhythm(trackId, rhythm);
+      onComplete();
+    })
+    .catch((error) => {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[rhythm] Rhythm extraction failed for track ${trackId}: ${detail}`,
       );
     });
 }

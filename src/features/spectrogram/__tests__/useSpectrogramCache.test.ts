@@ -60,11 +60,25 @@ const mockAnalyse = vi.fn();
 const mockRestore = vi.fn();
 const mockGetMelody = vi.fn();
 const mockSetMelody = vi.fn();
+const mockSetRhythm = vi.fn();
 const mockExtractMelodyInWorker = vi.fn();
+const mockExtractRhythmInWorker = vi.fn();
 const mockAnalyseToResult = vi.fn();
 const mockSetEntry = vi.fn();
 const mockSubscribeToEntry = vi.fn();
 const mockReleaseFrames = vi.fn();
+
+// Rhythm extraction (spec 008 milestone 1) isn't the subject of any test in
+// this file — give it a stable default resolution so every test's
+// fresh-analysis branch (which fires it fire-and-forget, like melody) never
+// throws an unhandled rejection, without needing every test to set it like
+// melody's success/failure paths intentionally do.
+mockExtractRhythmInWorker.mockResolvedValue({
+  bpm: 120,
+  confidence: 3,
+  ticks: [0.5],
+  onsets: [0.5],
+});
 
 // A stable object identity, matching the real useAudioService() (a
 // singleton context value) — a fresh `{ spectrogramCache: {...} }` literal
@@ -79,7 +93,9 @@ const mockSpectrogramCache = {
   restore: mockRestore,
   getMelody: mockGetMelody,
   setMelody: mockSetMelody,
+  setRhythm: mockSetRhythm,
   extractMelodyInWorker: mockExtractMelodyInWorker,
+  extractRhythmInWorker: mockExtractRhythmInWorker,
   analyseToResult: mockAnalyseToResult,
   setEntry: mockSetEntry,
   subscribeToEntry: mockSubscribeToEntry,

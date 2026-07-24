@@ -6,12 +6,31 @@
  * - test-burst-tail.wav: 0.15s decaying noise burst + 1.85s true silence
  * - test-click-120bpm.wav: 32 percussive clicks at a known 120 BPM, plus
  *   trailing silence (tempo-estimator fixture, spec 007 M1)
+ * - test-click-120bpm-swung.wav: 120 BPM, ~62% swung eighths (spec 008 M1)
+ * - test-click-accelerando.wav: clicks ramping 100→140 BPM (spec 008 M1)
+ * - test-click-then-continue.wav: 16 clicks at 120 BPM, then a continuous
+ *   tone with no further clicks (spec 008 M1)
+ * - test-arrhythmic-noise.wav: continuous noise, no periodic clicks (spec
+ *   008 M1)
+ *
+ * Every rhythm fixture's click times are computed in `rhythmGroundTruth.mjs`
+ * and imported here, so the audio this script writes and the ground truth a
+ * test asserts against can never drift apart.
  *
  * Run: node e2e/fixtures/generate-wav.mjs
  */
 import { writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import {
+  SWUNG_CLICK,
+  SWUNG_CLICK_TIMES,
+  ACCELERANDO_CLICK,
+  ACCELERANDO_CLICK_TIMES,
+  CLICKS_THEN_CONTINUE,
+  CLICKS_THEN_CONTINUE_TIMES,
+  ARRHYTHMIC_NOISE,
+} from './rhythmGroundTruth.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -285,3 +304,202 @@ function generateClickTrackWav(
 const clickTrackWav = generateClickTrackWav(120, 32, 0.03, 1.5);
 writeFileSync(join(__dirname, 'test-click-120bpm.wav'), clickTrackWav);
 console.log(`Created test-click-120bpm.wav (${clickTrackWav.length} bytes)`);
+
+/**
+ * Writes a decaying noise burst (the same percussive-hit envelope as
+ * `writeNoiseBurst`) at each time in `times` (seconds) — the generalized
+ * form of `generateClickTrackWav`'s fixed-interval loop, used by every
+ * ground-truth-driven click fixture below (swung, accelerando, then-silence)
+ * so their audio is built from the exact times a test will assert against.
+ */
+function writeClicksAtTimes(buffer, times, { headerSize, bytesPerSample, numSamples, sampleRate, clickSamples, decayTimeConstant, amplitude, random }) {
+  for (const t of times) {
+    writeNoiseBurst(buffer, {
+      headerSize,
+      bytesPerSample,
+      numSamples,
+      sampleRate,
+      startSample: Math.round(t * sampleRate),
+      lenSamples: clickSamples,
+      decayTimeConstant,
+      amplitude,
+      random,
+    });
+  }
+}
+
+/**
+ * Writes a sine tone into `buffer` over `[startSample, startSample +
+ * lenSamples)`, with a short linear fade in/out (`fadeSeconds`) so the
+ * segment's own onset doesn't itself read as a percussive click to an onset
+ * detector — this fixture's whole point is a segment with *no* click-like
+ * events.
+ */
+function writeToneSegment(buffer, { headerSize, bytesPerSample, numSamples, sampleRate, startSample, lenSamples, frequency, amplitude, fadeSeconds }) {
+  const fadeSamples = Math.floor(fadeSeconds * sampleRate);
+  for (let i = 0; i < lenSamples; i++) {
+    const idx = startSample + i;
+    if (idx >= numSamples) break;
+    const t = i / sampleRate;
+    let gain = 1;
+    if (i < fadeSamples) gain = i / fadeSamples;
+    else if (i >= lenSamples - fadeSamples) gain = (lenSamples - i) / fadeSamples;
+    const sample = Math.round(amplitude * gain * Math.sin(2 * Math.PI * frequency * t));
+    buffer.writeInt16LE(sample, headerSize + idx * bytesPerSample);
+  }
+}
+
+/**
+ * Generates the swung-click fixture (spec 008 M1): 120 BPM with ~62% swung
+ * eighths — the geometry-is-the-annotation claim (onset ticks offset
+ * against the induced beat grid) needs a fixture with a known, non-straight
+ * micro-timing to prove against.
+ */
+function generateSwungClickWav(times, clickSeconds, tailSeconds, sampleRate = 44100) {
+  const durationSeconds = times[times.length - 1] + clickSeconds + tailSeconds;
+  const numSamples = Math.floor(sampleRate * durationSeconds);
+  const headerSize = 44;
+  const bytesPerSample = 2;
+  const buffer = Buffer.alloc(headerSize + numSamples * bytesPerSample);
+  writeWavHeader(buffer, { numSamples, numChannels: 1, sampleRate, bitsPerSample: 16 });
+
+  writeClicksAtTimes(buffer, times, {
+    headerSize,
+    bytesPerSample,
+    numSamples,
+    sampleRate,
+    clickSamples: Math.floor(sampleRate * clickSeconds),
+    decayTimeConstant: clickSeconds / CLICK_TIME_CONSTANTS,
+    amplitude: 0.9 * 32767,
+    random: createSeededRandom(SWUNG_NOISE_SEED),
+  });
+
+  return buffer;
+}
+
+const SWUNG_NOISE_SEED = 162;
+const swungClickWav = generateSwungClickWav(
+  SWUNG_CLICK_TIMES,
+  SWUNG_CLICK.clickSeconds,
+  SWUNG_CLICK.tailSeconds,
+);
+writeFileSync(join(__dirname, 'test-click-120bpm-swung.wav'), swungClickWav);
+console.log(`Created test-click-120bpm-swung.wav (${swungClickWav.length} bytes)`);
+
+/**
+ * Generates the accelerando fixture (spec 008 M1): clicks ramping 100→140
+ * BPM — the rubato-class case where ticks must track the actual drifting
+ * beat times rather than a fixed global tempo, and the induced grid must
+ * adapt smoothly rather than reproducing per-beat jitter.
+ */
+function generateAccelerandoClickWav(times, clickSeconds, tailSeconds, sampleRate = 44100) {
+  const durationSeconds = times[times.length - 1] + clickSeconds + tailSeconds;
+  const numSamples = Math.floor(sampleRate * durationSeconds);
+  const headerSize = 44;
+  const bytesPerSample = 2;
+  const buffer = Buffer.alloc(headerSize + numSamples * bytesPerSample);
+  writeWavHeader(buffer, { numSamples, numChannels: 1, sampleRate, bitsPerSample: 16 });
+
+  writeClicksAtTimes(buffer, times, {
+    headerSize,
+    bytesPerSample,
+    numSamples,
+    sampleRate,
+    clickSamples: Math.floor(sampleRate * clickSeconds),
+    decayTimeConstant: clickSeconds / CLICK_TIME_CONSTANTS,
+    amplitude: 0.9 * 32767,
+    random: createSeededRandom(ACCELERANDO_NOISE_SEED),
+  });
+
+  return buffer;
+}
+
+const ACCELERANDO_NOISE_SEED = 140;
+const accelerandoClickWav = generateAccelerandoClickWav(
+  ACCELERANDO_CLICK_TIMES,
+  ACCELERANDO_CLICK.clickSeconds,
+  ACCELERANDO_CLICK.tailSeconds,
+);
+writeFileSync(join(__dirname, 'test-click-accelerando.wav'), accelerandoClickWav);
+console.log(`Created test-click-accelerando.wav (${accelerandoClickWav.length} bytes)`);
+
+/**
+ * Generates the clicks-then-continue fixture (spec 008 M1): 16 clicks at
+ * 120 BPM, then a continuous tone with no further clicks — "beats stop,
+ * audio continues" (not true silence), proving detection correctly stops
+ * producing ticks once the clicking itself stops.
+ */
+function generateClicksThenContinueWav(
+  times,
+  { clickSeconds, continuationSeconds, continuationFrequency, continuationFadeSeconds },
+  sampleRate = 44100,
+) {
+  const continuationStartSeconds = times[times.length - 1] + clickSeconds;
+  const durationSeconds = continuationStartSeconds + continuationSeconds;
+  const numSamples = Math.floor(sampleRate * durationSeconds);
+  const headerSize = 44;
+  const bytesPerSample = 2;
+  const buffer = Buffer.alloc(headerSize + numSamples * bytesPerSample);
+  writeWavHeader(buffer, { numSamples, numChannels: 1, sampleRate, bitsPerSample: 16 });
+
+  writeClicksAtTimes(buffer, times, {
+    headerSize,
+    bytesPerSample,
+    numSamples,
+    sampleRate,
+    clickSamples: Math.floor(sampleRate * clickSeconds),
+    decayTimeConstant: clickSeconds / CLICK_TIME_CONSTANTS,
+    amplitude: 0.9 * 32767,
+    random: createSeededRandom(CLICKS_THEN_CONTINUE_NOISE_SEED),
+  });
+
+  writeToneSegment(buffer, {
+    headerSize,
+    bytesPerSample,
+    numSamples,
+    sampleRate,
+    startSample: Math.round(continuationStartSeconds * sampleRate),
+    lenSamples: numSamples - Math.round(continuationStartSeconds * sampleRate),
+    frequency: continuationFrequency,
+    amplitude: 0.5 * 32767,
+    fadeSeconds: continuationFadeSeconds,
+  });
+
+  return buffer;
+}
+
+const CLICKS_THEN_CONTINUE_NOISE_SEED = 174;
+const clicksThenContinueWav = generateClicksThenContinueWav(
+  CLICKS_THEN_CONTINUE_TIMES,
+  CLICKS_THEN_CONTINUE,
+);
+writeFileSync(join(__dirname, 'test-click-then-continue.wav'), clicksThenContinueWav);
+console.log(`Created test-click-then-continue.wav (${clicksThenContinueWav.length} bytes)`);
+
+/**
+ * Generates the arrhythmic-noise fixture (spec 008 M1): continuous,
+ * non-decaying white noise for the whole duration — no click envelope, no
+ * periodicity. The absence-of-confidence case: essentia's tempo/onset
+ * extractors must not hallucinate a confident grid here.
+ */
+function generateArrhythmicNoiseWav(durationSeconds, sampleRate = 44100) {
+  const numSamples = Math.floor(sampleRate * durationSeconds);
+  const headerSize = 44;
+  const bytesPerSample = 2;
+  const buffer = Buffer.alloc(headerSize + numSamples * bytesPerSample);
+  writeWavHeader(buffer, { numSamples, numChannels: 1, sampleRate, bitsPerSample: 16 });
+
+  const amplitude = 0.5 * 32767;
+  const random = createSeededRandom(ARRHYTHMIC_NOISE_SEED);
+  for (let i = 0; i < numSamples; i++) {
+    const sample = Math.round(amplitude * (random() * 2 - 1));
+    buffer.writeInt16LE(sample, headerSize + i * bytesPerSample);
+  }
+
+  return buffer;
+}
+
+const ARRHYTHMIC_NOISE_SEED = 190;
+const arrhythmicNoiseWav = generateArrhythmicNoiseWav(ARRHYTHMIC_NOISE.durationSeconds);
+writeFileSync(join(__dirname, 'test-arrhythmic-noise.wav'), arrhythmicNoiseWav);
+console.log(`Created test-arrhythmic-noise.wav (${arrhythmicNoiseWav.length} bytes)`);

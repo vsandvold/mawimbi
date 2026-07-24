@@ -42,6 +42,22 @@ export const CLICK_120BPM_AUDIO = path.join(
   FIXTURES_DIR,
   'test-click-120bpm.wav',
 );
+export const SWUNG_CLICK_AUDIO = path.join(
+  FIXTURES_DIR,
+  'test-click-120bpm-swung.wav',
+);
+export const ACCELERANDO_CLICK_AUDIO = path.join(
+  FIXTURES_DIR,
+  'test-click-accelerando.wav',
+);
+export const CLICKS_THEN_CONTINUE_AUDIO = path.join(
+  FIXTURES_DIR,
+  'test-click-then-continue.wav',
+);
+export const ARRHYTHMIC_NOISE_AUDIO = path.join(
+  FIXTURES_DIR,
+  'test-arrhythmic-noise.wav',
+);
 
 /**
  * Uploads an audio file via the hidden file input inside the Ant Design Upload component.

@@ -98,10 +98,14 @@ vi.mock('../../audio/useAudioService', () => ({
       restore: vi.fn(),
       getMelody: vi.fn(),
       setMelody: vi.fn(),
+      setRhythm: vi.fn(),
       subscribeToEntry: vi.fn().mockReturnValue(() => {}),
       extractMelodyInWorker: vi
         .fn()
         .mockResolvedValue({ notes: [], timeResolution: 0.0029 }),
+      extractRhythmInWorker: vi
+        .fn()
+        .mockResolvedValue({ bpm: 120, confidence: 3, ticks: [], onsets: [] }),
     },
   }),
 }));

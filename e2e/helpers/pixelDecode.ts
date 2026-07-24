@@ -117,6 +117,86 @@ export function hasWarmAccentPixelInColumns(
   return false;
 }
 
+// Default luminance departure (0-255 scale) that counts a pixel as
+// "painted" for the row-scan helper below — matches `hasWarmAccentPixel`'s
+// default channel-gap threshold in magnitude, chosen for the same reason:
+// generous enough to survive alpha-blended rendering, tight enough that a
+// neutral background never trips it.
+const LINE_LUMINANCE_DELTA = 20;
+// A "full-width" line (spec 008's beat rungs) doesn't need every column
+// painted — anti-aliasing and rail overlays can interrupt a few columns —
+// but a sparse row of scattered pixels isn't a line.
+const LINE_MIN_WIDTH_FRACTION = 0.8;
+
+/**
+ * Screenshots `clip` and checks whether it contains a horizontal line at
+ * (or within `tolerancePx` of) row `y` — the transpose of
+ * `hasWarmAccentPixelInColumns`' column scan, for "is there a full-width
+ * line at Y" claims (e.g. spec 008's beat rungs) rather than "is there
+ * colored content in this column range". A row counts as a line when at
+ * least `minWidthFraction` of its columns have luminance departing from
+ * `backgroundLuminance` by more than `minLuminanceDelta` — hue-agnostic,
+ * since a rung's exact color is a renderer constant not yet decided (spec
+ * 008 open question 1).
+ */
+export async function hasHorizontalLineAtY(
+  page: Page,
+  clip: PixelClip,
+  y: number,
+  backgroundLuminance: number,
+  options: {
+    tolerancePx?: number;
+    minLuminanceDelta?: number;
+    minWidthFraction?: number;
+  } = {},
+): Promise<boolean> {
+  const decoded = await decodeClip(page, clip);
+  return hasHorizontalLineAtRow(decoded, y - clip.y, backgroundLuminance, options);
+}
+
+/**
+ * Same check as `hasHorizontalLineAtY`, but scans an already-decoded image
+ * at row `y` (relative to the decoded image's own top edge) — lets a
+ * caller decode one screenshot and check multiple candidate rows against
+ * it, the same one-decode-many-checks pattern `hasWarmAccentPixelInColumns`
+ * follows for columns (mawimbi#484: two separately-screenshotted regions
+ * can capture different real-world instants for a short-lived effect).
+ */
+export function hasHorizontalLineAtRow(
+  decoded: DecodedPixels,
+  y: number,
+  backgroundLuminance: number,
+  {
+    tolerancePx = 2,
+    minLuminanceDelta = LINE_LUMINANCE_DELTA,
+    minWidthFraction = LINE_MIN_WIDTH_FRACTION,
+  }: {
+    tolerancePx?: number;
+    minLuminanceDelta?: number;
+    minWidthFraction?: number;
+  } = {},
+): boolean {
+  const { data, width, height } = decoded;
+  const rowStart = Math.max(0, Math.floor(y - tolerancePx));
+  const rowEnd = Math.min(height, Math.ceil(y + tolerancePx) + 1);
+
+  for (let row = rowStart; row < rowEnd; row++) {
+    let paintedColumns = 0;
+    for (let x = 0; x < width; x++) {
+      const i = (row * width + x) * 4;
+      const luminance =
+        LUMA_WEIGHT_RED * data[i] +
+        LUMA_WEIGHT_GREEN * data[i + 1] +
+        LUMA_WEIGHT_BLUE * data[i + 2];
+      if (Math.abs(luminance - backgroundLuminance) > minLuminanceDelta) {
+        paintedColumns++;
+      }
+    }
+    if (paintedColumns / width >= minWidthFraction) return true;
+  }
+  return false;
+}
+
 /**
  * Screenshots `clip` and decodes it to raw RGBA pixel data in the page
  * context, returned as a plain number array (typed arrays don't survive
