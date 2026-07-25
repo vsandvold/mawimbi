@@ -15,6 +15,7 @@ import type { TrackId } from '../tracks/types';
 import type { WorkerMessage, ClassifyResponse } from './classification.worker';
 import {
   FALLBACK_LABEL,
+  isInstrumentLabel,
   JAMENDO_CLASSES,
   mapToInstrumentLabel,
   type InstrumentLabel,
@@ -44,6 +45,10 @@ const MODEL_SAMPLE_RATE = 16_000;
 // At 16 kHz with frame=512 and hop=256: (128-1)*256 + 512 = 33,024 samples ≈ 2.07s.
 // Rounded up to give a small margin.
 const MIN_AUDIO_DURATION_SECONDS = 2.1;
+
+// Score reported for a label restored from a persisted track record rather
+// than predicted in this session.
+const HYDRATED_SCORE = 0;
 
 // RMS threshold below which a sample frame is considered silence.
 // Chosen to be just above the noise floor for typical recordings.
@@ -138,6 +143,34 @@ class InstrumentClassificationService {
 
   getClassificationState(trackId: TrackId): ClassificationState {
     return this.cache.get(trackId)?.state ?? 'idle';
+  }
+
+  // --- Restore ---
+
+  // Seeds a track's entry from the label persisted on its track record, so a
+  // reloaded project starts out knowing what every track is. Nothing persists
+  // the classification itself (there is no `classifications` store), so
+  // without this the cache is cold on every load and `restoreTrack`'s
+  // onTrackCreated hook re-runs the full WASM + ONNX pass per track just to
+  // recompute a label the project already stored.
+  //
+  // Marking the entry `done` is what makes `classify()` short-circuit, so
+  // hydration has to happen before the track is restored.
+  hydrate(trackId: TrackId, instrument: string): void {
+    // Only a completed classification outranks the persisted label. The cache
+    // is a session-long singleton that nothing clears in production, so a
+    // track left in `error` by a blocked model download would otherwise stay
+    // that way — and re-entering the project would re-run the whole download
+    // and inference for a label already on the track record.
+    if (this.getClassificationState(trackId) === 'done') return;
+    if (!isInstrumentLabel(instrument)) return;
+
+    // The persisted record carries no score — it is only ever logged, and a
+    // restored label is not a fresh prediction to report confidence for.
+    this.setEntry(trackId, {
+      state: 'done',
+      result: { label: instrument, score: HYDRATED_SCORE },
+    });
   }
 
   // --- Classification ---

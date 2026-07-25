@@ -281,6 +281,7 @@ export const useAutoSave = (state: ProjectState) => {
 
 export const useRestoreAudio = (tracks: Track[]) => {
   const trackHook = useTrackService();
+  const audioService = useAudioService();
   const [isRestoring, setIsRestoring] = useState(true);
 
   useEffect(() => {
@@ -299,6 +300,15 @@ export const useRestoreAudio = (tracks: Track[]) => {
       for (const { track, audioData } of results) {
         if (cancelled) break;
         if (!audioData) continue;
+        // Before restoreTrack: restoring fires AudioService's onTrackCreated
+        // hook, and only an already-hydrated entry makes classify() skip a
+        // full re-run of a label this project already knows.
+        if (track.instrument) {
+          audioService.classificationService.hydrate(
+            track.trackId,
+            track.instrument,
+          );
+        }
         try {
           await trackHook.restoreTrack(
             track.trackId,

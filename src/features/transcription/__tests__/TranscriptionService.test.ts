@@ -9,6 +9,27 @@ import {
   resetDB,
 } from '../../project/ProjectStorageService';
 
+// Lets one test make the storage read fail (private browsing denies IndexedDB,
+// another tab blocks a version upgrade) while every other test keeps the real
+// fake-indexeddb-backed implementation.
+const { storageFailure } = vi.hoisted(() => ({
+  storageFailure: { readError: null as Error | null },
+}));
+
+vi.mock('../../project/ProjectStorageService', async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import('../../project/ProjectStorageService')
+    >();
+  return {
+    ...actual,
+    loadTranscription: (trackId: string) =>
+      storageFailure.readError
+        ? Promise.reject(storageFailure.readError)
+        : actual.loadTranscription(trackId),
+  };
+});
+
 // Mock @huggingface/transformers for main-thread fallback tests
 const mockTranscriberFn = vi.fn();
 
@@ -72,26 +93,44 @@ const sampleSegments: TranscriptionSegment[] = [
   },
 ];
 
-function simulateWorkerResult(
+// `transcribe` consults IndexedDB for a persisted transcription before it
+// dispatches to the worker, so the request these helpers answer is not pending
+// synchronously after the call. Waiting for the dispatch keeps every simulated
+// response ordered behind the request it belongs to.
+async function waitForWorkerRequest(count: number): Promise<void> {
+  await vi.waitFor(() => {
+    expect(mockWorker.postMessage).toHaveBeenCalledTimes(count);
+  });
+}
+
+async function simulateWorkerResult(
   language: string,
   segments: TranscriptionSegment[],
   id = 0,
-): void {
+): Promise<void> {
+  await waitForWorkerRequest(id + 1);
   mockWorker.onmessage!({
     data: { id, type: 'result', language, segments },
   } as MessageEvent);
 }
 
-function simulateWorkerError(message: string, id = 0): void {
+async function simulateWorkerError(message: string, id = 0): Promise<void> {
+  await waitForWorkerRequest(id + 1);
   mockWorker.onmessage!({
     data: { id, type: 'error', message },
   } as MessageEvent);
 }
 
-function simulateDownloadProgress(progress: number): void {
+async function simulateDownloadProgress(progress: number): Promise<void> {
+  await waitForWorkerRequest(1);
   mockWorker.onmessage!({
     data: { type: 'download-progress', progress },
   } as MessageEvent);
+}
+
+async function simulateWorkerCrash(): Promise<void> {
+  await waitForWorkerRequest(1);
+  mockWorker.onerror!({} as ErrorEvent);
 }
 
 // Set up main-thread fallback mock — returns sample transcription result
@@ -113,6 +152,7 @@ beforeEach(() => {
     configurable: true,
   });
   resetDB();
+  storageFailure.readError = null;
   service = new TranscriptionService();
   mockTranscriberFn.mockReset();
   setupMainThreadMocks();
@@ -151,7 +191,7 @@ describe('TranscriptionService', () => {
       const buffer = createAudioBuffer();
       const promise = service.transcribe('track-1', buffer);
 
-      simulateWorkerResult('en', sampleSegments);
+      await simulateWorkerResult('en', sampleSegments);
       await promise;
 
       const result = service.getTranscription('track-1');
@@ -166,7 +206,7 @@ describe('TranscriptionService', () => {
       const buffer = createAudioBuffer();
       const promise = service.transcribe('track-1', buffer);
 
-      simulateWorkerResult('en', sampleSegments);
+      await simulateWorkerResult('en', sampleSegments);
       await promise;
 
       expect(service.getTranscriptionState('track-1')).toBe('done');
@@ -176,13 +216,51 @@ describe('TranscriptionService', () => {
       const buffer = createAudioBuffer();
 
       const promise1 = service.transcribe('track-1', buffer);
-      simulateWorkerResult('en', sampleSegments);
+      await simulateWorkerResult('en', sampleSegments);
       await promise1;
 
       const result = await service.transcribe('track-1', buffer);
 
       expect(result.language).toBe('en');
       expect(mockWorker.postMessage).toHaveBeenCalledTimes(1);
+    });
+
+    // A reload empties the in-memory cache while the persisted row survives.
+    // Re-running Whisper would burn minutes and overwrite a good result.
+    it('returns the persisted transcription without re-running inference', async () => {
+      await saveTranscription({
+        trackId: 'track-1',
+        language: 'en',
+        segments: sampleSegments,
+      });
+
+      const result = await service.transcribe('track-1', createAudioBuffer());
+
+      expect(result.segments).toEqual(sampleSegments);
+      expect(service.getTranscriptionState('track-1')).toBe('done');
+      expect(mockWorker?.postMessage).not.toHaveBeenCalled();
+    });
+
+    // The storage read is an optimisation, not a precondition: if it fails,
+    // transcription must still run. Leaving the entry on the `transcribing`
+    // it was claimed as would strand the row on a spinner with no Retry for
+    // the rest of the session.
+    it('transcribes anyway when the storage read fails', async () => {
+      storageFailure.readError = new Error('storage unavailable');
+
+      const promise = service.transcribe('track-1', createAudioBuffer());
+      await simulateWorkerResult('en', sampleSegments);
+
+      await expect(promise).resolves.toMatchObject({ language: 'en' });
+      expect(service.getTranscriptionState('track-1')).toBe('done');
+    });
+
+    it('resolves loadCachedTranscription to null when the storage read fails', async () => {
+      storageFailure.readError = new Error('storage unavailable');
+
+      await expect(
+        service.loadCachedTranscription('track-1'),
+      ).resolves.toBeNull();
     });
 
     it('transcribes multiple tracks independently', async () => {
@@ -199,11 +277,11 @@ describe('TranscriptionService', () => {
       ];
 
       const promise1 = service.transcribe('track-1', buffer1);
-      simulateWorkerResult('en', sampleSegments, 0);
+      await simulateWorkerResult('en', sampleSegments, 0);
       await promise1;
 
       const promise2 = service.transcribe('track-2', buffer2);
-      simulateWorkerResult('fr', otherSegments, 1);
+      await simulateWorkerResult('fr', otherSegments, 1);
       await promise2;
 
       expect(service.getTranscription('track-1')?.language).toBe('en');
@@ -217,7 +295,7 @@ describe('TranscriptionService', () => {
 
       expect(service.getTranscriptionState('track-1')).toBe('transcribing');
 
-      simulateWorkerResult('en', sampleSegments);
+      await simulateWorkerResult('en', sampleSegments);
       await promise;
     });
   });
@@ -227,11 +305,11 @@ describe('TranscriptionService', () => {
       const buffer = createAudioBuffer();
       const promise = service.transcribe('track-1', buffer);
 
-      simulateDownloadProgress(45);
+      await simulateDownloadProgress(45);
 
       expect(service.downloadProgress).toBe(45);
 
-      simulateWorkerResult('en', sampleSegments);
+      await simulateWorkerResult('en', sampleSegments);
       await promise;
     });
 
@@ -239,10 +317,10 @@ describe('TranscriptionService', () => {
       const buffer = createAudioBuffer();
       const promise = service.transcribe('track-1', buffer);
 
-      simulateDownloadProgress(75);
+      await simulateDownloadProgress(75);
       expect(service.downloadProgress).toBe(75);
 
-      simulateWorkerResult('en', sampleSegments);
+      await simulateWorkerResult('en', sampleSegments);
       await promise;
 
       expect(service.downloadProgress).toBeNull();
@@ -252,11 +330,11 @@ describe('TranscriptionService', () => {
       const buffer = createAudioBuffer();
       const promise = service.transcribe('track-1', buffer);
 
-      simulateDownloadProgress(50);
+      await simulateDownloadProgress(50);
 
       // Trigger onerror (catastrophic worker failure) — rejects all pending
       // requests and falls back to main-thread inference.
-      mockWorker.onerror!({} as ErrorEvent);
+      await simulateWorkerCrash();
       await promise;
 
       expect(service.downloadProgress).toBeNull();
@@ -268,7 +346,7 @@ describe('TranscriptionService', () => {
       const buffer = createAudioBuffer();
       const promise = service.transcribe('track-1', buffer);
 
-      simulateWorkerError('Whisper pipeline failed');
+      await simulateWorkerError('Whisper pipeline failed');
       await promise;
 
       // Should have fallen back to main-thread pipeline
@@ -281,7 +359,7 @@ describe('TranscriptionService', () => {
       const buffer = createAudioBuffer();
       const promise = service.transcribe('track-1', buffer);
 
-      mockWorker.onerror!({} as ErrorEvent);
+      await simulateWorkerCrash();
       await promise;
 
       expect(mockTranscriberFn).toHaveBeenCalled();
@@ -294,7 +372,7 @@ describe('TranscriptionService', () => {
       const buffer = createAudioBuffer();
       const promise = service.transcribe('track-1', buffer);
 
-      simulateWorkerError('Worker failed');
+      await simulateWorkerError('Worker failed');
 
       await expect(promise).rejects.toThrow(
         'Transcription failed for track track-1',
@@ -307,7 +385,7 @@ describe('TranscriptionService', () => {
 
       // First call — worker error triggers fallback
       const promise1 = service.transcribe('track-1', buffer);
-      simulateWorkerError('Worker failed');
+      await simulateWorkerError('Worker failed');
       await promise1;
 
       // Second call — should go directly to main thread (no worker message)
@@ -332,7 +410,7 @@ describe('TranscriptionService', () => {
 
       // First call — trigger fallback
       const promise1 = service.transcribe('track-1', buffer);
-      simulateWorkerError('Worker failed');
+      await simulateWorkerError('Worker failed');
       await promise1;
 
       // Second call — reuses pipeline
@@ -352,7 +430,7 @@ describe('TranscriptionService', () => {
       const buffer = createAudioBuffer(2, 48000, 16000);
 
       const promise = service.transcribe('track-1', buffer);
-      simulateWorkerError('Worker failed');
+      await simulateWorkerError('Worker failed');
       await promise;
 
       // The main-thread transcriber should receive a Float32Array (mono)
@@ -366,7 +444,7 @@ describe('TranscriptionService', () => {
       const buffer = createAudioBuffer(1, 132300, 44100);
 
       const promise = service.transcribe('track-1', buffer);
-      simulateWorkerError('Worker failed');
+      await simulateWorkerError('Worker failed');
       await promise;
 
       // After resampling: 3s * 16000 = 48000 samples
@@ -378,7 +456,7 @@ describe('TranscriptionService', () => {
       const buffer = createAudioBuffer(1, 48000, 16000);
 
       const promise = service.transcribe('track-1', buffer);
-      simulateWorkerError('Worker failed');
+      await simulateWorkerError('Worker failed');
       await promise;
 
       const audioArg = mockTranscriberFn.mock.calls[0][0] as Float32Array;
@@ -390,7 +468,7 @@ describe('TranscriptionService', () => {
     it('removes a transcription entry', async () => {
       const buffer = createAudioBuffer();
       const promise = service.transcribe('track-1', buffer);
-      simulateWorkerResult('en', sampleSegments);
+      await simulateWorkerResult('en', sampleSegments);
       await promise;
 
       service.removeTranscription('track-1');
@@ -406,11 +484,11 @@ describe('TranscriptionService', () => {
       const buffer = createAudioBuffer();
 
       const promise1 = service.transcribe('track-1', buffer);
-      simulateWorkerResult('en', sampleSegments, 0);
+      await simulateWorkerResult('en', sampleSegments, 0);
       await promise1;
 
       const promise2 = service.transcribe('track-2', buffer);
-      simulateWorkerResult('en', sampleSegments, 1);
+      await simulateWorkerResult('en', sampleSegments, 1);
       await promise2;
 
       service.reset();
@@ -424,7 +502,7 @@ describe('TranscriptionService', () => {
       const buffer = createAudioBuffer();
       const promise = service.transcribe('track-1', buffer);
 
-      simulateWorkerResult('en', sampleSegments);
+      await simulateWorkerResult('en', sampleSegments);
       await promise;
 
       // Wait for fire-and-forget persist
@@ -465,7 +543,7 @@ describe('TranscriptionService', () => {
     it('returns in-memory cache instead of hitting IndexedDB when already loaded', async () => {
       const buffer = createAudioBuffer();
       const promise = service.transcribe('track-1', buffer);
-      simulateWorkerResult('en', sampleSegments);
+      await simulateWorkerResult('en', sampleSegments);
       await promise;
 
       const result = await service.loadCachedTranscription('track-1');

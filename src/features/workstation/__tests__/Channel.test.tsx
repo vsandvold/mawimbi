@@ -280,15 +280,31 @@ it('shows instrument icon from track prop when service has no classification', (
   expect(instrumentDiv?.querySelector('svg')).toBeInTheDocument();
 });
 
-it('prefers service classification over track instrument prop', () => {
+// The track record is where a user's own correction lands (SET_INSTRUMENT
+// from the dropdown below), so it outranks whatever the classifier said.
+it('prefers the track instrument prop over a service classification', () => {
   mockGetClassification.mockReturnValue({ label: 'guitar', score: 0.85 });
   mockGetClassificationState.mockReturnValue('done');
 
   const track = mockTrack({ trackId: 'track-1', instrument: 'drums' });
   const { container } = render(<Channel {...{ ...defaultProps, track }} />);
 
-  const instrumentDiv = container.querySelector('.channel__instrument');
-  expect(instrumentDiv?.querySelector('svg')).toBeInTheDocument();
+  const instrumentButton = container.querySelector('.channel__instrument');
+  expect(instrumentButton?.querySelector('svg')).toBeInTheDocument();
+  expect(instrumentButton).toHaveAttribute('title', 'Drums');
+});
+
+it('shows the service classification while the track has no instrument yet', () => {
+  mockGetClassification.mockReturnValue({ label: 'guitar', score: 0.85 });
+  mockGetClassificationState.mockReturnValue('done');
+
+  const track = mockTrack({ trackId: 'track-1' });
+  const { container } = render(<Channel {...{ ...defaultProps, track }} />);
+
+  expect(container.querySelector('.channel__instrument')).toHaveAttribute(
+    'title',
+    'Guitar',
+  );
 });
 
 it('shows download progress percentage when model is downloading', () => {

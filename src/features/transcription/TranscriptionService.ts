@@ -110,7 +110,19 @@ class TranscriptionService {
       return cached.result;
     }
 
-    const stored = await loadTranscription(trackId);
+    // A stored transcription is an optimisation, never a precondition, and
+    // both callers treat "none" as a normal answer — the lyrics sheet ignores
+    // the result entirely, and `transcribe` goes on to run inference. Storage
+    // can be denied outright (private browsing) or blocked by another tab's
+    // version upgrade, so a rejection here must not escape: it would strand
+    // the caller's entry on the state it claimed and surface as an unhandled
+    // idb error rather than anything a user could act on.
+    const stored = await loadTranscription(trackId).catch((error) => {
+      console.warn(
+        `[transcription] Could not read stored transcription for track ${trackId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return null;
+    });
     if (!stored) return null;
 
     const transcription: Transcription = {
@@ -149,12 +161,28 @@ class TranscriptionService {
       return cached.result;
     }
 
+    // Claim the track before the first await: the storage read below is short
+    // but the row it guards renders a Transcribe button until the state moves
+    // off idle, and a second click would start a second Whisper run.
+    this.setEntry(trackId, { state: 'transcribing' });
+
+    // The in-memory cache is empty after a reload while the persisted row
+    // survives, so an idle-looking track may already have lyrics. Whisper is
+    // minutes of work and `applyResult` would overwrite the stored result, so
+    // check storage before treating this as a fresh transcription.
+    const persisted = await this.loadCachedTranscription(trackId);
+    if (persisted) {
+      console.debug(
+        `[transcription] Track ${trackId} restored from storage (${persisted.segments.length} segments)`,
+      );
+      return persisted;
+    }
+
     const durationSeconds = audioBuffer.length / audioBuffer.sampleRate;
     console.debug(
       `[transcription] Track ${trackId}: ${audioBuffer.numberOfChannels}ch, ${audioBuffer.length} samples, ${audioBuffer.sampleRate} Hz, ${durationSeconds.toFixed(2)}s`,
     );
 
-    this.setEntry(trackId, { state: 'transcribing' });
     console.log(`[transcription] Transcribing track ${trackId}`);
 
     try {
