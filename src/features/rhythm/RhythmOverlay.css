@@ -1,0 +1,42 @@
+/*
+ * Beat-rung overlay (spec 008 milestone 3) — a canvas sharing the
+ * `.timeline` grid cell with the `.timeline__track` items.
+ *
+ * Zero height so it can't grow the row, and `align-items: end` (inherited
+ * from `.timeline`) then puts its top edge exactly on the row's bottom
+ * edge — which is where project time 0 sits, since every track is bottom-
+ * anchored to that same edge. The rung math reads that one measurement
+ * rather than re-deriving the timeline's padding or the tracks' own
+ * offsets.
+ *
+ * `position: relative` so the canvas inside positions against *this* item
+ * rather than against `.timeline` (which is itself positioned, for the
+ * rails): the canvas's `top: 0` and its `offsetTop` have to agree with the
+ * container the render loop measures, or every rung lands one timeline
+ * padding off.
+ */
+.timeline__rhythm {
+  grid-column-start: 1;
+  grid-column-end: 1;
+  grid-row-start: 1;
+  grid-row-end: 1;
+  position: relative;
+  height: 0;
+  /* Above every track lift tier (0–2) and below the runway rails (4), per
+     the layer order in Timeline.css. The rungs are a floor marking under
+     the music: they read over the track content, but the rails stay the
+     runway's outermost edge. Which side of the track content the rungs
+     belong on is a human-QA question (spec 008 open question 1) — moving
+     them is this one number. */
+  z-index: 3;
+  pointer-events: none;
+}
+
+.timeline__rhythm-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: block;
+  pointer-events: none;
+  will-change: transform;
+}

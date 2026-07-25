@@ -1,6 +1,9 @@
 import { signal, type ReadonlySignal } from '@preact/signals-react';
 
-const DEFAULT_PIXELS_PER_SECOND = 200;
+// Exported for e2e specs that predict on-screen positions from track times
+// (`rhythm-runway.spec.ts`) — hardcoding the zoom there would silently
+// invalidate every predicted Y if this default ever moved.
+export const DEFAULT_PIXELS_PER_SECOND = 200;
 export const MIN_PIXELS_PER_SECOND = 50;
 export const MAX_PIXELS_PER_SECOND = 800;
 const ZOOM_STEP_FACTOR = 1.5;
