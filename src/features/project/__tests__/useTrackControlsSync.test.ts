@@ -24,12 +24,13 @@ describe('useTrackControlsSync', () => {
   describe('effects', () => {
     it('pushes a persisted effect amount into the live signal when it changes (undo/redo)', () => {
       trackService.createSignals('track-1', 100, {
+        crush: 0,
         space: 40,
         echo: 0,
         tone: 0,
       });
       const initialTracks = [
-        createTrack({ effects: { space: 40, echo: 0, tone: 0 } }),
+        createTrack({ effects: { crush: 0, space: 40, echo: 0, tone: 0 } }),
       ];
 
       const { rerender } = renderHook(
@@ -41,7 +42,7 @@ describe('useTrackControlsSync', () => {
 
       // Simulate an undo reverting the committed amount back to 10
       const undoneTracks = [
-        createTrack({ effects: { space: 10, echo: 0, tone: 0 } }),
+        createTrack({ effects: { crush: 0, space: 10, echo: 0, tone: 0 } }),
       ];
       rerender({ tracks: undoneTracks });
 
@@ -50,6 +51,7 @@ describe('useTrackControlsSync', () => {
 
     it('does nothing for a track with no persisted effects', () => {
       trackService.createSignals('track-1', 100, {
+        crush: 0,
         space: 40,
         echo: 0,
         tone: 0,
@@ -66,7 +68,7 @@ describe('useTrackControlsSync', () => {
       // action unrelated to this track (e.g. DELETE_TRACK reindexing, or
       // SET_INSTRUMENT from background classification) rebuilds every track
       // object but passes the same `effects` object through unchanged.
-      const effects = { space: 40, echo: 0, tone: 0 };
+      const effects = { crush: 0, space: 40, echo: 0, tone: 0 };
       trackService.createSignals('track-1', 100, effects);
       const initialTracks = [createTrack({ effects })];
 
@@ -165,7 +167,7 @@ describe('useTrackControlsSync', () => {
     const tracks = [
       createTrack({
         trackId: 'not-created-yet',
-        effects: { space: 40, echo: 0, tone: 0 },
+        effects: { crush: 0, space: 40, echo: 0, tone: 0 },
         volume: 40,
         mute: true,
       }),

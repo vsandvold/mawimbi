@@ -6,7 +6,7 @@ import { requestTrackPreview } from '../previewOverlayRegistry';
 
 const COLOR: TrackColor = { r: 1, g: 2, b: 3 };
 const TRACK_ID = 'track-1';
-const AMOUNTS = { space: 50, echo: 0, tone: 0 };
+const AMOUNTS = { crush: 0, space: 50, echo: 0, tone: 0 };
 
 const mockAnalyseToResult = vi.fn();
 const mockSpectrogramCache = { analyseToResult: mockAnalyseToResult };

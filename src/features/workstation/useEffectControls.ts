@@ -19,12 +19,14 @@ export function useEffectControls(trackId: TrackId) {
   const dispatch = useProjectDispatch();
   const trackSignals = trackHook.getSignals(trackId);
   const dirtyRef = useRef<Record<EffectId, boolean>>({
+    crush: false,
     space: false,
     echo: false,
     tone: false,
   });
 
   const amounts: EffectAmounts = {
+    crush: trackSignals?.effects.crush.value ?? MIN_EFFECT_AMOUNT,
     space: trackSignals?.effects.space.value ?? MIN_EFFECT_AMOUNT,
     echo: trackSignals?.effects.echo.value ?? MIN_EFFECT_AMOUNT,
     tone: trackSignals?.effects.tone.value ?? MIN_EFFECT_AMOUNT,
