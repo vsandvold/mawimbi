@@ -714,6 +714,23 @@ describe('TrackService', () => {
       );
     });
 
+    // #212 class, for tempo-synced Echo (spec 007 M4, #560): the sync lives
+    // on a signal precisely so the resync that re-binds volume/mute/effects
+    // after a channel rebuild carries it too — otherwise an undo-restored
+    // track silently drops back to the fixed delay while the drawer still
+    // shows its subdivision selected.
+    it('re-applies the echo sync when the channel is recreated', async () => {
+      const { trackId } = await service.createTrack(new ArrayBuffer(8));
+      const sync = { subdivision: 'dottedEighth' as const, bpm: 120 };
+
+      service.disposeSignals(trackId);
+      service.deleteChannel(trackId);
+      service.createSignals(trackId, 80, undefined, false, false, sync);
+      service.recreateChannel(trackId);
+
+      expect(service.retrieveChannel(trackId)!.getEchoSync()).toEqual(sync);
+    });
+
     it('applies current signal values to the recreated channel immediately', async () => {
       const { trackId } = await service.createTrack(new ArrayBuffer(8));
 

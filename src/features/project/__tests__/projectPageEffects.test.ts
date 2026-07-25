@@ -266,6 +266,9 @@ describe('useRestoreAudio', () => {
 
     const emptyPersisted = {
       effects: undefined,
+      // A track with no subdivision committed (or no confident tempo)
+      // resolves to no sync — the fixed delay (spec 007 M4, #560).
+      echoSync: null,
       volume: undefined,
       mute: undefined,
       solo: undefined,

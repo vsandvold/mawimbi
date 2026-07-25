@@ -62,10 +62,17 @@ export function usePreviewOverlay(
     schedulerRef.current = scheduler;
 
     const unregister = registerPreviewTrigger(trackId, {
-      requestPreview: (amounts) => {
+      requestPreview: (amounts, echoSync) => {
         const request = visibleWindowRef.current;
         if (!request) return;
-        scheduler.schedule(trackId, audioBuffer, color, amounts, request);
+        scheduler.schedule(
+          trackId,
+          audioBuffer,
+          color,
+          amounts,
+          request,
+          echoSync,
+        );
       },
       clearPreview: () => scheduler.clear(trackId),
     });

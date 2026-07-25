@@ -130,6 +130,7 @@ describe('PreviewScheduler throttle', () => {
       buffer,
       AMOUNTS_A,
       expect.anything(),
+      null,
     );
 
     // Trailing edge: the coalesced B/C calls land once, after the throttle
@@ -144,6 +145,7 @@ describe('PreviewScheduler throttle', () => {
       buffer,
       AMOUNTS_C,
       expect.anything(),
+      null,
     );
   });
 });
@@ -301,6 +303,7 @@ describe('PreviewScheduler.clear', () => {
       buffer,
       AMOUNTS_B,
       expect.anything(),
+      null,
     );
   });
 });

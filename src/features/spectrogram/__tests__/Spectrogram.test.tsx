@@ -245,7 +245,9 @@ it('triggers spectrogramCache.analyse when audio buffer exists and not cached', 
       TRACK_ID,
       audioBuffer,
       defaultProps.track.color,
-      '0:0:0:0',
+      // Four macro amounts plus the echo's resolved delay time — unsynced
+      // here, so the fixed default (spec 007 M4, #560).
+      '0:0:0:0:0.250',
       expect.any(Function),
     );
   });

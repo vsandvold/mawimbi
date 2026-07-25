@@ -1,5 +1,6 @@
 import * as Tone from 'tone';
 import EffectsChain, { type EffectId } from './EffectsChain';
+import { type EchoSync } from './echoSync';
 import type WorkletAnalyser from '../spectrogram/WorkletAnalyser';
 
 const SMOOTHING = 0.8;
@@ -123,6 +124,14 @@ export class AudioChannel {
 
   getEffectAmount(effectId: EffectId): number {
     return this.effectsChain.getAmount(effectId);
+  }
+
+  setEchoSync(echoSync: EchoSync | null): void {
+    this.effectsChain.setEchoSync(echoSync);
+  }
+
+  getEchoSync(): EchoSync | null {
+    return this.effectsChain.getEchoSync();
   }
 
   get mute(): boolean {

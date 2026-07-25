@@ -28,7 +28,6 @@
 // writes it.
 import * as Tone from 'tone';
 import {
-  ECHO_DELAY_SECONDS,
   MIN_EFFECT_AMOUNT,
   SPACE_DECAY_SECONDS,
   mapCrushAmount,
@@ -37,12 +36,18 @@ import {
   mapToneAmount,
   type EffectAmounts,
 } from './EffectsChain';
+import {
+  ECHO_MAX_DELAY_SECONDS,
+  selectEchoDelaySeconds,
+  type EchoSync,
+} from './echoSync';
 
 const OFFLINE_RENDER_CHANNELS = 2;
 
 async function buildEffectsChain(
   amounts: EffectAmounts,
   context: Tone.OfflineContext,
+  echoSync: EchoSync | null,
 ): Promise<Tone.ToneAudioNode[]> {
   const nodes: Tone.ToneAudioNode[] = [];
 
@@ -75,8 +80,13 @@ async function buildEffectsChain(
   if (amounts.echo > MIN_EFFECT_AMOUNT) {
     const { wet, feedback } = mapEchoAmount(amounts.echo);
     nodes.push(
+      // Same `selectEchoDelaySeconds` call the live chain makes, so the
+      // tiles this render produces describe the delay the user is actually
+      // hearing — one shared param source, not duplicated math (spec 007
+      // Goal 5). `maxDelay` for the same reason as the live chain's.
       new Tone.FeedbackDelay({
-        delayTime: ECHO_DELAY_SECONDS,
+        delayTime: selectEchoDelaySeconds(echoSync),
+        maxDelay: ECHO_MAX_DELAY_SECONDS,
         feedback,
         wet,
         context,
@@ -104,6 +114,7 @@ async function renderOnOfflineContext(
   amounts: EffectAmounts,
   durationSeconds: number,
   startOffset: number,
+  echoSync: EchoSync | null,
 ): Promise<AudioBuffer> {
   const context = new Tone.OfflineContext(
     OFFLINE_RENDER_CHANNELS,
@@ -112,7 +123,7 @@ async function renderOnOfflineContext(
   );
   const buffer = new Tone.ToneAudioBuffer(audioBuffer);
   const player = new Tone.Player({ url: buffer, context });
-  const nodes = await buildEffectsChain(amounts, context);
+  const nodes = await buildEffectsChain(amounts, context, echoSync);
 
   player.chain(...nodes, context.destination);
   player.start(0, startOffset);
@@ -124,8 +135,15 @@ async function renderOnOfflineContext(
 export default async function renderTrackOffline(
   audioBuffer: AudioBuffer,
   amounts: EffectAmounts,
+  echoSync: EchoSync | null = null,
 ): Promise<AudioBuffer> {
-  return renderOnOfflineContext(audioBuffer, amounts, audioBuffer.duration, 0);
+  return renderOnOfflineContext(
+    audioBuffer,
+    amounts,
+    audioBuffer.duration,
+    0,
+    echoSync,
+  );
 }
 
 // A capped window of the track's audio, rendered post-effect for the live
@@ -144,12 +162,14 @@ export async function renderTrackOfflineWindow(
     renderDurationSeconds: number;
     prerollSeconds: number;
   },
+  echoSync: EchoSync | null = null,
 ): Promise<AudioBuffer> {
   const rendered = await renderOnOfflineContext(
     audioBuffer,
     amounts,
     plan.renderDurationSeconds,
     plan.renderStartSeconds,
+    echoSync,
   );
 
   return trimAudioBufferStart(rendered, plan.prerollSeconds);

@@ -12,6 +12,7 @@ import { saveSpectrogramData } from '../project/ProjectStorageService';
 import { toSpectrogramStoreData } from '../spectrogram/useSpectrogramCache';
 import { type SpectrogramResult } from '../spectrogram/SpectrogramCache';
 import { hashEffectAmounts, type EffectAmounts } from '../tracks/EffectsChain';
+import { type EchoSync } from '../tracks/echoSync';
 import { type TrackColor, type TrackId } from '../tracks/types';
 
 export const EFFECTS_REFRESH_DEBOUNCE_MS = 400;
@@ -20,6 +21,7 @@ export type EffectsRefreshDeps = {
   renderOffline: (
     audioBuffer: AudioBuffer,
     amounts: EffectAmounts,
+    echoSync: EchoSync | null,
   ) => Promise<AudioBuffer>;
   analyseToResult: (
     audioBuffer: AudioBuffer,
@@ -41,6 +43,7 @@ type Debounced = ((
   audioBuffer: AudioBuffer,
   color: TrackColor,
   amounts: EffectAmounts,
+  echoSync: EchoSync | null,
 ) => void) & { cancel: (options?: { upcomingOnly?: boolean }) => void };
 
 export class EffectsRefreshScheduler {
@@ -63,19 +66,25 @@ export class EffectsRefreshScheduler {
     audioBuffer: AudioBuffer,
     color: TrackColor,
     amounts: EffectAmounts,
+    echoSync: EchoSync | null = null,
   ): void {
     if (this.disposed) return;
     let debounced = this.scheduled.get(trackId);
     if (!debounced) {
       debounced = debounce(
         EFFECTS_REFRESH_DEBOUNCE_MS,
-        (buffer: AudioBuffer, col: TrackColor, amt: EffectAmounts) => {
-          this.run(trackId, buffer, col, amt);
+        (
+          buffer: AudioBuffer,
+          col: TrackColor,
+          amt: EffectAmounts,
+          sync: EchoSync | null,
+        ) => {
+          this.run(trackId, buffer, col, amt, sync);
         },
       ) as Debounced;
       this.scheduled.set(trackId, debounced);
     }
-    debounced(audioBuffer, color, amounts);
+    debounced(audioBuffer, color, amounts, echoSync);
   }
 
   // Cancels any pending debounced runs and stops in-flight runs from
@@ -92,17 +101,22 @@ export class EffectsRefreshScheduler {
     audioBuffer: AudioBuffer,
     color: TrackColor,
     amounts: EffectAmounts,
+    echoSync: EchoSync | null,
   ): Promise<void> {
     const requestId = ++this.nextRequestId;
     this.latestRequestId.set(trackId, requestId);
 
-    const rendered = await this.deps.renderOffline(audioBuffer, amounts);
+    const rendered = await this.deps.renderOffline(
+      audioBuffer,
+      amounts,
+      echoSync,
+    );
     if (this.isSuperseded(trackId, requestId)) return;
 
     const result = await this.deps.analyseToResult(rendered, color);
     if (this.isSuperseded(trackId, requestId)) return;
 
-    const effectsParamsHash = hashEffectAmounts(amounts);
+    const effectsParamsHash = hashEffectAmounts(amounts, echoSync);
     this.deps.setEntry(trackId, result, effectsParamsHash);
 
     const storeData = toSpectrogramStoreData(trackId, result.data);

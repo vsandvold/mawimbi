@@ -7,6 +7,7 @@ import {
   RENAME_PROJECT,
   SET_INSTRUMENT,
   SET_TRACK_TEMPO,
+  SET_TRACK_ECHO_SYNC,
   SET_TRACK_EFFECT,
   SET_TRACK_VOLUME,
   SET_TRACK_MUTE_SOLO,
@@ -578,5 +579,81 @@ describe('RENAME_PROJECT', () => {
     expect(result.tracks).toEqual(state.tracks);
     expect(result.nextColorId).toBe(state.nextColorId);
     expect(result.nextIndex).toBe(state.nextIndex);
+  });
+});
+
+// Tempo-synced Echo (spec 007 Goal 5, #560). What persists is the
+// subdivision, not a delay time — the seconds are derived from the track's
+// current tempo estimate wherever the echo is played or rendered.
+describe('SET_TRACK_ECHO_SYNC', () => {
+  it('sets the subdivision on the matching track only', () => {
+    const state = createState([track1, track2]);
+
+    const result = projectReducer(state, [
+      SET_TRACK_ECHO_SYNC,
+      { trackId: 'track-1', subdivision: 'dottedEighth' },
+    ]);
+
+    expect(result.tracks[0].echoSync).toBe('dottedEighth');
+    expect(result.tracks[1].echoSync).toBeUndefined();
+  });
+
+  it('clears the subdivision when sync is turned off', () => {
+    const state = createState([{ ...track1, echoSync: 'quarter' }]);
+
+    const result = projectReducer(state, [
+      SET_TRACK_ECHO_SYNC,
+      { trackId: 'track-1', subdivision: null },
+    ]);
+
+    expect(result.tracks[0].echoSync).toBeUndefined();
+  });
+
+  it('leaves the rest of the track untouched', () => {
+    const state = createState([
+      { ...track1, effects: { crush: 0, space: 0, echo: 60, tone: 0 } },
+    ]);
+
+    const result = projectReducer(state, [
+      SET_TRACK_ECHO_SYNC,
+      { trackId: 'track-1', subdivision: 'eighth' },
+    ]);
+
+    expect(result.tracks[0].effects).toEqual({
+      crush: 0,
+      space: 0,
+      echo: 60,
+      tone: 0,
+    });
+  });
+
+  it('reverses to the previously committed subdivision', () => {
+    const state = createState([{ ...track1, echoSync: 'quarter' }]);
+
+    const reverse = reverseProjectAction(state, [
+      SET_TRACK_ECHO_SYNC,
+      { trackId: 'track-1', subdivision: 'eighthTriplet' },
+    ]);
+
+    expect(reverse).toEqual([
+      SET_TRACK_ECHO_SYNC,
+      { trackId: 'track-1', subdivision: 'quarter' },
+    ]);
+  });
+
+  // Undoing the first-ever sync has to turn sync off, not leave the track
+  // synced to whatever it happened to be set to.
+  it('reverses to no sync when the track had none', () => {
+    const state = createState([track1]);
+
+    const reverse = reverseProjectAction(state, [
+      SET_TRACK_ECHO_SYNC,
+      { trackId: 'track-1', subdivision: 'eighth' },
+    ]);
+
+    expect(reverse).toEqual([
+      SET_TRACK_ECHO_SYNC,
+      { trackId: 'track-1', subdivision: null },
+    ]);
   });
 });

@@ -19,6 +19,7 @@ import {
   type EffectAmounts,
   type EffectId,
 } from './EffectsChain';
+import { type EchoSync } from './echoSync';
 import { LoudnessNormalizer } from './LoudnessNormalizer';
 import MixerService, { type AudioChannel } from './MixerService';
 import type WorkletAnalyser from '../spectrogram/WorkletAnalyser';
@@ -29,6 +30,10 @@ export type TrackSignals = {
   mute: Signal<boolean>;
   solo: Signal<boolean>;
   effects: Record<EffectId, Signal<number>>;
+  // Resolved subdivision + BPM, or null for the fixed delay (spec 007 M4,
+  // #560). Resolved rather than raw so the audio engine never has to know
+  // what a confident tempo is; `resolveEchoSync` owns that judgement.
+  echoSync: Signal<EchoSync | null>;
 };
 
 export type TrackCreationResult = {
@@ -57,6 +62,7 @@ type TrackCreatedCallback = (trackId: string, audioBuffer: AudioBuffer) => void;
 // defaults on page reload or undo-delete restore.
 export type TrackPersistedControls = {
   effects?: EffectAmounts;
+  echoSync?: EchoSync | null;
   volume?: number;
   mute?: boolean;
   solo?: boolean;
@@ -242,6 +248,7 @@ class TrackService {
       persisted?.effects,
       persisted?.mute,
       persisted?.solo,
+      persisted?.echoSync,
     );
     this.onTrackCreated?.(trackId, audioBuffer);
 
@@ -256,6 +263,7 @@ class TrackService {
     effects?: EffectAmounts,
     mute?: boolean,
     solo?: boolean,
+    echoSync?: EchoSync | null,
   ): TrackSignals {
     // A project persisted before a macro existed carries an effects object
     // without it — fill the gaps rather than seeding a signal with undefined.
@@ -270,6 +278,7 @@ class TrackService {
         echo: signal(initialEffects.echo),
         tone: signal(initialEffects.tone),
       },
+      echoSync: signal(echoSync ?? null),
     };
     this.signalStore.set(trackId, signals);
     this.storeVersion.value++;
@@ -440,6 +449,15 @@ class TrackService {
         }),
       );
     }
+
+    // Rides the same resync as the amounts do, so a recreated channel keeps
+    // the track's tempo sync instead of dropping back to the fixed delay
+    // (the #212 regression class).
+    disposers.push(
+      effect(() => {
+        channel.setEchoSync(signals.echoSync.value);
+      }),
+    );
 
     this.effectDisposers.set(trackId, disposers);
   }

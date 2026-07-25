@@ -27,11 +27,44 @@
   gap: 6px;
 }
 
+/* The third column is the Echo row's subdivision control (spec 007 M4,
+   #560) — `auto`, so it collapses to nothing on the other three rows and on
+   a track with no confident tempo. Deliberately a column rather than a new
+   row: see the small-snap fit note at the top of this file. */
 .effects-bottom-sheet__effect {
   display: grid;
-  grid-template-columns: 56px 1fr;
+  grid-template-columns: 56px 1fr auto;
   align-items: center;
   gap: 12px;
+}
+
+.effects-bottom-sheet__sync {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Height is capped by the slider row it shares, not by taste: at 24px the
+   Echo row grew the drawer to 161px of the 160px snap and clipped the Tone
+   row's bottom edge (measured, e2e/track-effects.spec.ts). Keep any future
+   restyling under the row height the sliders set. */
+.effects-bottom-sheet__sync-option {
+  min-width: 26px;
+  height: 20px;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.effects-bottom-sheet__sync-option[aria-pressed='true'] {
+  background: var(--muted);
+  border-color: var(--muted-foreground);
+  color: var(--foreground);
 }
 
 .effects-bottom-sheet__effect-label {

@@ -5,16 +5,32 @@ import {
   type EffectAmounts,
   type EffectId,
 } from '../tracks/EffectsChain';
+import { resolveEchoSync, type EchoSubdivision } from '../tracks/echoSync';
+import { type TrackTempo } from '../rhythm/tempo';
 import { type TrackId } from '../tracks/types';
 import { useTrackService } from '../tracks/useTrackService';
-import { SET_TRACK_EFFECT } from '../project/projectPageReducer';
+import {
+  SET_TRACK_ECHO_SYNC,
+  SET_TRACK_EFFECT,
+} from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
 import {
   clearTrackPreview,
   requestTrackPreview,
 } from '../spectrogram/previewOverlayRegistry';
 
-export function useEffectControls(trackId: TrackId) {
+// `tempo` and `echoSubdivision` come from the track record rather than being
+// read here, for two reasons: the drawer's BPM badge and the subdivision
+// control then resolve "does this track have a tempo" from the same
+// `selectConfidentTempo` call on the same data (#560's coordination note),
+// and the committed subdivision is plain project state — the signal this
+// hook writes is the audio engine's copy, not a second source of truth for
+// what the control should show.
+export function useEffectControls(
+  trackId: TrackId,
+  tempo?: TrackTempo | undefined,
+  echoSubdivision?: EchoSubdivision | undefined,
+) {
   const trackHook = useTrackService();
   const dispatch = useProjectDispatch();
   const trackSignals = trackHook.getSignals(trackId);
@@ -32,6 +48,8 @@ export function useEffectControls(trackId: TrackId) {
     tone: trackSignals?.effects.tone.value ?? MIN_EFFECT_AMOUNT,
   };
 
+  const echoSync = resolveEchoSync(echoSubdivision, tempo);
+
   // Live update for immediate audio feedback while dragging — not
   // persisted, so a drag that's abandoned mid-gesture never dirties
   // project state.
@@ -39,11 +57,35 @@ export function useEffectControls(trackId: TrackId) {
     if (trackSignals) {
       trackSignals.effects[effectId].value = amount;
       dirtyRef.current[effectId] = true;
-      requestTrackPreview(trackId, {
-        ...amounts,
-        [effectId]: amount,
-      });
+      requestTrackPreview(
+        trackId,
+        {
+          ...amounts,
+          [effectId]: amount,
+        },
+        echoSync,
+      );
     }
+  };
+
+  // One dispatch per tap (issue requirement 3): the control is discrete, so
+  // there is no live/commit split to make and no drag lifecycle to guard —
+  // the whole Radix-slider commit-event class of bug (CLAUDE.md) is absent
+  // here by construction. Tapping the active subdivision passes `null`,
+  // which turns sync off and restores the fixed delay.
+  //
+  // The signal write is what the audio engine follows; the dispatch is what
+  // persists and what undo reverses. Writing the signal here rather than
+  // waiting for `useTrackControlsSync` to mirror the dispatch keeps the
+  // echo's change on the same tick as the tap.
+  const setEchoSubdivision = (subdivision: EchoSubdivision | null) => {
+    if (trackSignals) {
+      trackSignals.echoSync.value = resolveEchoSync(
+        subdivision ?? undefined,
+        tempo,
+      );
+    }
+    dispatch([SET_TRACK_ECHO_SYNC, { trackId, subdivision }]);
   };
 
   // Persists once per gesture (slider release), like volume-style
@@ -101,5 +143,5 @@ export function useEffectControls(trackId: TrackId) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trackId]);
 
-  return { amounts, updateAmount, commitAmount, endDrag };
+  return { amounts, updateAmount, commitAmount, setEchoSubdivision, endDrag };
 }

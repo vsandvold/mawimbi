@@ -9,10 +9,11 @@
 // "does this track currently have a live preview showing" (AudioService.ts).
 
 import { type EffectAmounts } from '../tracks/EffectsChain';
+import { type EchoSync } from '../tracks/echoSync';
 import { type TrackId } from '../tracks/types';
 
 type PreviewTrigger = {
-  requestPreview: (amounts: EffectAmounts) => void;
+  requestPreview: (amounts: EffectAmounts, echoSync: EchoSync | null) => void;
   // Called directly from `commitAmount`/the unmount safety net
   // (`useEffectControls.ts`) the moment a drag ends — not just reactively
   // off the committed entry's hash changing. A commit that lands back at
@@ -39,8 +40,9 @@ export function registerPreviewTrigger(
 export function requestTrackPreview(
   trackId: TrackId,
   amounts: EffectAmounts,
+  echoSync: EchoSync | null = null,
 ): void {
-  triggers.get(trackId)?.requestPreview(amounts);
+  triggers.get(trackId)?.requestPreview(amounts, echoSync);
 }
 
 export function clearTrackPreview(trackId: TrackId): void {

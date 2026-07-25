@@ -1,7 +1,9 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mockTrack } from '../../../testUtils';
 import { MIN_TEMPO_CONFIDENCE } from '../../rhythm/tempo';
+import { SET_TRACK_ECHO_SYNC } from '../../project/projectPageReducer';
 import { type Track, type TrackId } from '../../tracks/types';
 import EffectsBottomSheet from '../EffectsBottomSheet';
 import { enterEditMode, exitEditMode } from '../editModeSignals';
@@ -80,5 +82,91 @@ describe('BPM badge', () => {
     );
 
     expect(screen.getByTitle('Estimated tempo')).toHaveTextContent('90 BPM');
+  });
+});
+
+// Tempo-synced Echo (spec 007 Goal 5, #560). Gated on the same
+// `selectConfidentTempo` call as the BPM badge above, so the two can never
+// disagree about whether this track has a tempo.
+describe('Echo subdivision control', () => {
+  function syncGroup() {
+    return screen.queryByRole('group', { name: 'Echo sync' });
+  }
+
+  it('offers the four subdivisions when the track has a confident tempo', () => {
+    renderDrawer([
+      mockTrack({ trackId: 'track-1', tempo: { bpm: 120, confidence: 3.77 } }),
+    ]);
+
+    const group = syncGroup();
+    expect(group).not.toBeNull();
+    expect(within(group!).getAllByRole('button')).toHaveLength(4);
+  });
+
+  // Absent, not disabled: there is nothing to sync to, and a dead control
+  // would read as something broken rather than something inapplicable.
+  it('is absent when the estimate is not confident enough', () => {
+    renderDrawer([
+      mockTrack({
+        trackId: 'track-1',
+        tempo: { bpm: 120, confidence: MIN_TEMPO_CONFIDENCE - 0.01 },
+      }),
+    ]);
+
+    expect(syncGroup()).toBeNull();
+  });
+
+  it('is absent while analysis has not produced an estimate yet', () => {
+    renderDrawer([mockTrack({ trackId: 'track-1' })]);
+
+    expect(syncGroup()).toBeNull();
+  });
+
+  it('marks the committed subdivision as pressed', () => {
+    renderDrawer([
+      mockTrack({
+        trackId: 'track-1',
+        tempo: { bpm: 120, confidence: 3.77 },
+        echoSync: 'dottedEighth',
+      }),
+    ]);
+
+    const pressed = within(syncGroup()!)
+      .getAllByRole('button')
+      .filter((button) => button.getAttribute('aria-pressed') === 'true');
+    expect(pressed).toHaveLength(1);
+    expect(pressed[0]).toHaveAttribute('title', 'Echo in dotted eighth notes');
+  });
+
+  it('commits the tapped subdivision', async () => {
+    const user = userEvent.setup();
+    renderDrawer([
+      mockTrack({ trackId: 'track-1', tempo: { bpm: 120, confidence: 3.77 } }),
+    ]);
+
+    await user.click(screen.getByTitle('Echo in eighth-note triplets'));
+
+    expect(mockDispatch).toHaveBeenCalledWith([
+      SET_TRACK_ECHO_SYNC,
+      { trackId: 'track-1', subdivision: 'eighthTriplet' },
+    ]);
+  });
+
+  it('turns sync off when the pressed subdivision is tapped again', async () => {
+    const user = userEvent.setup();
+    renderDrawer([
+      mockTrack({
+        trackId: 'track-1',
+        tempo: { bpm: 120, confidence: 3.77 },
+        echoSync: 'quarter',
+      }),
+    ]);
+
+    await user.click(screen.getByTitle('Echo in quarter notes'));
+
+    expect(mockDispatch).toHaveBeenCalledWith([
+      SET_TRACK_ECHO_SYNC,
+      { trackId: 'track-1', subdivision: null },
+    ]);
   });
 });
