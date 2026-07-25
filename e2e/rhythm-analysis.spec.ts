@@ -18,6 +18,9 @@ const EXPECTED_BPM = 120;
 const BPM_TOLERANCE = 2;
 const TICK_TOLERANCE_SECONDS = 0.07;
 const ONSET_TOLERANCE_SECONDS = 0.05;
+// Project auto-save debounce (250 ms) plus buffer, matching
+// persistence.spec.ts.
+const AUTO_SAVE_WAIT_MS = 500;
 
 function closestDistance(times: number[], target: number): number {
   return Math.min(...times.map((t) => Math.abs(t - target)));
@@ -61,5 +64,50 @@ test.describe('Rhythm analysis proof', () => {
         `no detected onset within ${ONSET_TOLERANCE_SECONDS}s of ground-truth click at ${truthTime}s (onsets: ${JSON.stringify(rhythm.onsets)})`,
       ).toBeLessThanOrEqual(ONSET_TOLERANCE_SECONDS);
     }
+  });
+
+  // Spec 008 milestone 2 (#568): the `rhythms` store. Re-analysis is
+  // deterministic, so identical values after a reload prove nothing on their
+  // own — the discriminator is *which path ran*, read from the two mutually
+  // exclusive logs the restore and extract branches emit.
+  test('rhythm data survives a reload and is restored, not re-analysed', async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    await page.goto('/project/test-id');
+    await uploadAudioFile(page, CLICK_120BPM_AUDIO);
+    await expect(page.locator('.timeline__track')).toBeVisible();
+
+    const trackId = await getFirstTrackId(page);
+    const analysed = await waitForRhythm(page, trackId);
+
+    // The rhythm row is written from the worker-completion callback and the
+    // project record by a debounced auto-save; both are already in flight by
+    // the time the bridge exposes rhythm data, so wait for the project's own
+    // save to settle before pulling the page out from under them.
+    await page.waitForTimeout(AUTO_SAVE_WAIT_MS);
+
+    const rhythmLogs: string[] = [];
+    page.on('console', (message) => {
+      const text = message.text();
+      if (text.startsWith('[rhythm]')) rhythmLogs.push(text);
+    });
+
+    await page.reload();
+    await expect(page.locator('.timeline__track')).toBeVisible({
+      timeout: 20_000,
+    });
+
+    const restored = await waitForRhythm(page, trackId);
+    expect(restored).toEqual(analysed);
+
+    expect(
+      rhythmLogs.filter((log) => log.includes('Restored cached rhythm')),
+      `expected a restore log after reload (saw: ${JSON.stringify(rhythmLogs)})`,
+    ).not.toHaveLength(0);
+    expect(
+      rhythmLogs.filter((log) => log.includes('Sending rhythm extraction')),
+      `rhythm was re-analysed after reload instead of restored (saw: ${JSON.stringify(rhythmLogs)})`,
+    ).toHaveLength(0);
   });
 });

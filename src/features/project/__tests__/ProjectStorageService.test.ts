@@ -15,14 +15,19 @@ import {
   saveMelodyData,
   loadMelodyData,
   deleteMelodyData,
+  saveRhythmData,
+  loadRhythmData,
+  deleteRhythmData,
   saveTranscription,
   loadTranscription,
   deleteTranscription,
   getStorageEstimate,
   resetDB,
+  TRACK_DATA_STORES,
   type StoredProject,
   type SpectrogramStoreData,
   type MelodyStoreData,
+  type RhythmStoreData,
   type TranscriptionStoreData,
 } from '../ProjectStorageService';
 
@@ -58,6 +63,16 @@ function createMelodyData(trackId: string): MelodyStoreData {
       { startTime: 0.6, endTime: 1.0, midiNote: 64, confidence: 0.85 },
     ],
     timeResolution: 0.0029,
+  };
+}
+
+function createRhythmData(trackId: string): RhythmStoreData {
+  return {
+    trackId,
+    bpm: 120.5,
+    confidence: 3.4,
+    ticks: [0.5, 1.0, 1.5],
+    onsets: [0.02, 0.51, 1.01, 1.49],
   };
 }
 
@@ -160,7 +175,7 @@ describe('ProjectStorageService', () => {
   });
 
   describe('deleteProject cleans up related data', () => {
-    it('deletes associated audio, spectrogram, melody, and transcription data', async () => {
+    it('deletes associated audio, spectrogram, melody, rhythm, and transcription data', async () => {
       const project = createProject({
         tracks: [
           {
@@ -184,6 +199,8 @@ describe('ProjectStorageService', () => {
       await saveSpectrogramData(createSpectrogramData('track-2'));
       await saveMelodyData(createMelodyData('track-1'));
       await saveMelodyData(createMelodyData('track-2'));
+      await saveRhythmData(createRhythmData('track-1'));
+      await saveRhythmData(createRhythmData('track-2'));
       await saveTranscription(createTranscriptionData('track-1'));
       await saveTranscription(createTranscriptionData('track-2'));
 
@@ -195,6 +212,8 @@ describe('ProjectStorageService', () => {
       expect(await loadSpectrogramData('track-2')).toBeNull();
       expect(await loadMelodyData('track-1')).toBeNull();
       expect(await loadMelodyData('track-2')).toBeNull();
+      expect(await loadRhythmData('track-1')).toBeNull();
+      expect(await loadRhythmData('track-2')).toBeNull();
       expect(await loadTranscription('track-1')).toBeNull();
       expect(await loadTranscription('track-2')).toBeNull();
     });
@@ -205,10 +224,11 @@ describe('ProjectStorageService', () => {
   // list instead of each hand-maintaining its own — this is the single-
   // track counterpart used by `useDeleteTrackAudio`.
   describe('deleteTrackData', () => {
-    it('deletes audio, spectrogram, melody, and transcription data for one track', async () => {
+    it('deletes audio, spectrogram, melody, rhythm, and transcription data for one track', async () => {
       await saveAudioData('track-1', new ArrayBuffer(100));
       await saveSpectrogramData(createSpectrogramData('track-1'));
       await saveMelodyData(createMelodyData('track-1'));
+      await saveRhythmData(createRhythmData('track-1'));
       await saveTranscription(createTranscriptionData('track-1'));
 
       await deleteTrackData('track-1');
@@ -216,7 +236,25 @@ describe('ProjectStorageService', () => {
       expect(await loadAudioData('track-1')).toBeNull();
       expect(await loadSpectrogramData('track-1')).toBeNull();
       expect(await loadMelodyData('track-1')).toBeNull();
+      expect(await loadRhythmData('track-1')).toBeNull();
       expect(await loadTranscription('track-1')).toBeNull();
+    });
+
+    // Store parity (spec 008 milestone 2, #568): a new per-track store is
+    // only safe once it is a member of the shared list *both* delete paths
+    // iterate. Asserting membership directly — not just that today's two
+    // call sites happen to clean it up — is what catches the failure mode
+    // mawimbi#540 actually shipped: a standalone delete added at one call
+    // site, leaving the other to drift.
+    it('sweeps every store in TRACK_DATA_STORES, rhythms included', () => {
+      expect(TRACK_DATA_STORES).toContain('rhythms');
+      expect([...TRACK_DATA_STORES]).toEqual([
+        'audioData',
+        'spectrograms',
+        'melodies',
+        'rhythms',
+        'transcriptions',
+      ]);
     });
 
     it('does not affect other tracks', async () => {
@@ -362,6 +400,44 @@ describe('ProjectStorageService', () => {
 
     it('deleting non-existent melody data does not throw', async () => {
       await expect(deleteMelodyData('does-not-exist')).resolves.toBeUndefined();
+    });
+  });
+
+  describe('rhythm data CRUD', () => {
+    it('saves and loads rhythm data', async () => {
+      const data = createRhythmData('track-1');
+      await saveRhythmData(data);
+
+      const loaded = await loadRhythmData('track-1');
+      expect(loaded).toEqual(data);
+    });
+
+    it('returns null for non-existent rhythm data', async () => {
+      expect(await loadRhythmData('does-not-exist')).toBeNull();
+    });
+
+    it('overwrites existing rhythm data', async () => {
+      await saveRhythmData(createRhythmData('track-1'));
+      await saveRhythmData({
+        ...createRhythmData('track-1'),
+        bpm: 90,
+        ticks: [0.66, 1.33],
+      });
+
+      const loaded = await loadRhythmData('track-1');
+      expect(loaded?.bpm).toBe(90);
+      expect(loaded?.ticks).toEqual([0.66, 1.33]);
+    });
+
+    it('deletes rhythm data', async () => {
+      await saveRhythmData(createRhythmData('track-1'));
+      await deleteRhythmData('track-1');
+
+      expect(await loadRhythmData('track-1')).toBeNull();
+    });
+
+    it('deleting non-existent rhythm data does not throw', async () => {
+      await expect(deleteRhythmData('does-not-exist')).resolves.toBeUndefined();
     });
   });
 

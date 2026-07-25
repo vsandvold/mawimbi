@@ -4,12 +4,16 @@ import { type MelodyData } from '../transcription/MelodyExtractor';
 import { type SpectrogramData } from './OfflineAnalyser';
 import {
   loadMelodyData,
+  loadRhythmData,
   loadSpectrogramData,
   saveMelodyData,
+  saveRhythmData,
   saveSpectrogramData,
   type MelodyStoreData,
+  type RhythmStoreData,
   type SpectrogramStoreData,
 } from '../project/ProjectStorageService';
+import { type RhythmData } from '../rhythm/RhythmAnalyser';
 import { type TrackSpectrogramEntry } from './SpectrogramCache';
 import { type TrackColor } from '../tracks/types';
 import {
@@ -72,6 +76,28 @@ export function fromMelodyStoreData(stored: MelodyStoreData): MelodyData {
   return {
     notes: stored.notes,
     timeResolution: stored.timeResolution,
+  };
+}
+
+export function toRhythmStoreData(
+  trackId: string,
+  rhythm: RhythmData,
+): RhythmStoreData {
+  return {
+    trackId,
+    bpm: rhythm.bpm,
+    confidence: rhythm.confidence,
+    ticks: rhythm.ticks,
+    onsets: rhythm.onsets,
+  };
+}
+
+export function fromRhythmStoreData(stored: RhythmStoreData): RhythmData {
+  return {
+    bpm: stored.bpm,
+    confidence: stored.confidence,
+    ticks: stored.ticks,
+    onsets: stored.onsets,
   };
 }
 
@@ -163,10 +189,13 @@ export function useSpectrogramCache(
 
     const loadOrAnalyse = async () => {
       // Check IndexedDB for previously stored spectrogram data
-      const [storedSpectrogram, storedMelody] = await Promise.all([
-        loadSpectrogramData(trackId),
-        loadMelodyData(trackId),
-      ]);
+      const [storedSpectrogram, storedMelody, storedRhythm] = await Promise.all(
+        [
+          loadSpectrogramData(trackId),
+          loadMelodyData(trackId),
+          loadRhythmData(trackId),
+        ],
+      );
 
       if (cancelled) return;
 
@@ -255,6 +284,25 @@ export function useSpectrogramCache(
           });
         }
 
+        if (storedRhythm) {
+          const rhythm = fromRhythmStoreData(storedRhythm);
+          audioService.spectrogramCache.setRhythm(trackId, rhythm);
+          console.log(
+            `[rhythm] Restored cached rhythm for track ${trackId} from IndexedDB: bpm=${rhythm.bpm.toFixed(1)}, ${rhythm.ticks.length} ticks, ${rhythm.onsets.length} onsets`,
+          );
+        } else {
+          // Same restore-when-absent rule as melody above: a missing row
+          // means the page closed before extraction finished, or its write
+          // failed on a prior load.
+          extractAndCacheRhythm(audioService, trackId, audioBuffer, () => {
+            if (cancelled) return;
+            const updated = audioService.spectrogramCache.getEntry(trackId);
+            if (updated) {
+              setEntry({ ...updated });
+            }
+          });
+        }
+
         setEntry(audioService.spectrogramCache.getEntry(trackId));
         return;
       }
@@ -311,10 +359,7 @@ export function useSpectrogramCache(
         }
       });
 
-      // Run rhythm extraction in the background (spec 008 milestone 1 — no
-      // persistence or restore-path yet, that's milestone 2's `rhythms`
-      // store; this proves the analysis→cache→bridge path end to end for a
-      // fresh upload).
+      // Run rhythm extraction in the background (spec 008 milestone 2)
       extractAndCacheRhythm(audioService, trackId, audioBuffer, () => {
         if (cancelled) return;
         const updated = audioService.spectrogramCache.getEntry(trackId);
@@ -382,9 +427,18 @@ function extractAndCacheRhythm(
         `[rhythm] Rhythm extraction complete for track ${trackId}: bpm=${rhythm.bpm.toFixed(1)}, ${rhythm.ticks.length} ticks, ${rhythm.onsets.length} onsets`,
       );
       // Same existence guard as melody's (mawimbi#540): the track may have
-      // been deleted while extraction was in flight.
+      // been deleted while extraction was in flight, and the cache entry's
+      // absence is the "still part of the project" signal — without this
+      // check, `saveRhythmData` would write a fresh orphaned `rhythms` row
+      // after `useDeleteTrackAudio`'s cleanup already ran.
       if (!audioService.spectrogramCache.getEntry(trackId)) return;
       audioService.spectrogramCache.setRhythm(trackId, rhythm);
+      saveRhythmData(toRhythmStoreData(trackId, rhythm)).catch((error) => {
+        const detail = error instanceof Error ? error.message : String(error);
+        console.warn(
+          `[rhythm] Failed to persist rhythm for track ${trackId}: ${detail}`,
+        );
+      });
       onComplete();
     })
     .catch((error) => {

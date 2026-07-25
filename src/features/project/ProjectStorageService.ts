@@ -4,18 +4,21 @@ import { type Track } from '../tracks/types';
 import { type TranscriptionSegment } from '../transcription/types';
 
 const DB_NAME = 'mawimbi-db';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 // Every IndexedDB store keyed by trackId — the single source of truth for
 // "what does a track own." `deleteProject` and `deleteTrackData` both build
 // their per-track cleanup from this list instead of each hand-maintaining
 // their own (mawimbi#540's IndexedDB orphan audit found these two lists had
 // already drifted once: `deleteTrackData`'s single-track path was missing
-// `melodies` while `deleteProject` already had it).
-const TRACK_DATA_STORES = [
+// `melodies` while `deleteProject` already had it). Exported so a test can
+// assert membership directly, not just that today's two call sites happen to
+// sweep a given store.
+export const TRACK_DATA_STORES = [
   'audioData',
   'spectrograms',
   'melodies',
+  'rhythms',
   'transcriptions',
 ] as const;
 
@@ -54,6 +57,29 @@ export type MelodyStoreData = {
   timeResolution: number;
 };
 
+// Rhythm analysis output for one track (spec 008 milestone 2, #568). `ticks`
+// (the tracked beat grid) and `onsets` (every detected attack) are
+// track-buffer-relative seconds — 0-based within the track's own audio, never
+// offset by the track's position in the project timeline, exactly like
+// `MelodyNote` times (kb/domain.md). They live in their own store rather than
+// on the track record because a dense 3-minute track's onsets run ~10–25 KB
+// of JSON — melody-size bulk, and the project record is loaded for every
+// project-list render (spec 008 Decision 1).
+//
+// `bpm`/`confidence` ride along even though spec 007's #559 plans to put them
+// on the track record for display: they're two numbers, and without them a
+// restored track would have arrays but no confidence, leaving anchor
+// selection (spec 008 Decision 3) unable to judge a track it just loaded.
+// When #559 lands, its track-record scalars are the display copy; this stays
+// the analysis round-trip.
+export type RhythmStoreData = {
+  trackId: string;
+  bpm: number;
+  confidence: number;
+  ticks: number[];
+  onsets: number[];
+};
+
 export type TranscriptionStoreData = {
   trackId: string;
   language: string;
@@ -77,6 +103,10 @@ interface MawimbiDB extends DBSchema {
   melodies: {
     key: string;
     value: MelodyStoreData;
+  };
+  rhythms: {
+    key: string;
+    value: RhythmStoreData;
   };
   transcriptions: {
     key: string;
@@ -104,6 +134,9 @@ function getDB(): Promise<IDBPDatabase<MawimbiDB>> {
         }
         if (oldVersion < 3) {
           db.createObjectStore('transcriptions', { keyPath: 'trackId' });
+        }
+        if (oldVersion < 4) {
+          db.createObjectStore('rhythms', { keyPath: 'trackId' });
         }
       },
       blocked() {
@@ -224,6 +257,24 @@ export async function loadMelodyData(
 export async function deleteMelodyData(trackId: string): Promise<void> {
   const db = await getDB();
   await db.delete('melodies', trackId);
+}
+
+export async function saveRhythmData(data: RhythmStoreData): Promise<void> {
+  const db = await getDB();
+  await db.put('rhythms', data);
+}
+
+export async function loadRhythmData(
+  trackId: string,
+): Promise<RhythmStoreData | null> {
+  const db = await getDB();
+  const entry = await db.get('rhythms', trackId);
+  return entry ?? null;
+}
+
+export async function deleteRhythmData(trackId: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('rhythms', trackId);
 }
 
 export async function saveTranscription(
