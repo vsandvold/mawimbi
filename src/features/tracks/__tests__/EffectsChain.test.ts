@@ -93,9 +93,10 @@ describe('EffectsChain wiring', () => {
     expect(source.chain).toHaveBeenLastCalledWith(delayInstance(), destination);
   });
 
-  // Crush sits first (spec 007 Decision 5): distortion before space is the
-  // conventional and better-sounding order.
-  it('inserts effects in fixed Crush → Space → Echo → Tone order regardless of activation order', () => {
+  // The conventional signal-chain order: distortion, then tone shaping,
+  // then the time-based effects with reverb last (Crush still first, spec
+  // 007 Decision 5).
+  it('inserts effects in fixed Crush → Tone → Echo → Space order regardless of activation order', () => {
     chain.setAmount('tone', 30);
     chain.setAmount('space', 40);
     chain.setAmount('crush', 60);
@@ -103,9 +104,9 @@ describe('EffectsChain wiring', () => {
 
     expect(source.chain).toHaveBeenLastCalledWith(
       crusherInstance(),
-      reverbInstance(),
-      delayInstance(),
       filterInstance(),
+      delayInstance(),
+      reverbInstance(),
       destination,
     );
   });
@@ -497,6 +498,21 @@ describe('hashEffectAmounts', () => {
       hashEffectAmounts({ ...DEFAULT_EFFECT_AMOUNTS, ...legacyAmounts }),
     );
   });
+
+  // The order the render passed through is part of the key, not just the
+  // amounts: two chains carrying equal amounts on effects whose order
+  // changed would otherwise hash alike, and the tiles from the old order
+  // would read as current forever. Only the *active* effects are listed —
+  // amount 0 is a bypass, so it isn't in the chain to be ordered.
+  it('leads with the active effects in chain order', () => {
+    expect(hashEffectAmounts(DEFAULT_EFFECT_AMOUNTS)).toMatch(/^\[\]:/);
+    expect(
+      hashEffectAmounts({ crush: 0, space: 50, echo: 0, tone: 50 }),
+    ).toMatch(/^\[tone>space\]:/);
+    expect(
+      hashEffectAmounts({ crush: 10, space: 20, echo: 30, tone: 40 }),
+    ).toMatch(/^\[crush>tone>echo>space\]:/);
+  });
 });
 
 // Spec 007 milestone 2 (#558). Adding Crush widens `hashEffectAmounts`'
@@ -513,8 +529,8 @@ describe('normalizeEffectsHash', () => {
     expect(normalizeEffectsHash('50:0:0')).toBe(
       hashEffectAmounts({ ...DEFAULT_EFFECT_AMOUNTS, space: 50 }),
     );
-    expect(normalizeEffectsHash('0:25:75')).toBe(
-      hashEffectAmounts({ ...DEFAULT_EFFECT_AMOUNTS, echo: 25, tone: 75 }),
+    expect(normalizeEffectsHash('0:25:0')).toBe(
+      hashEffectAmounts({ ...DEFAULT_EFFECT_AMOUNTS, echo: 25 }),
     );
   });
 
@@ -542,14 +558,13 @@ describe('normalizeEffectsHash', () => {
 
   // The lookup asks "does this hash carry a delay field?" before matching
   // remaining fields by count, so the next macro addition can't make a
-  // legacy macros-only hash collide with this build's macros-plus-delay one
+  // legacy macros-only hash collide with a macros-plus-delay one
   // (`/code-review` on PR #582). Simulated here by the shape a five-macro
-  // build's current hash would have.
-  it('leaves a hash that already carries a delay field alone, whatever its field count', () => {
-    expect(normalizeEffectsHash('0:0:40:0:0.500')).toBe('0:0:40:0:0.500');
+  // build's hash would have: no format claims it, so it is left alone.
+  it('leaves a hash whose field count no format claims alone, delay field or not', () => {
     expect(normalizeEffectsHash('0:0:0:0:0:0.375')).toBe('0:0:0:0:0:0.375');
     // A macro amount is never `toFixed`-formatted, so a four-field legacy
-    // hash ending in a plain integer still migrates.
+    // hash ending in a plain integer is read as macros-only and migrates.
     expect(normalizeEffectsHash('0:0:40:0')).not.toBe('0:0:40:0');
   });
 
@@ -562,7 +577,48 @@ describe('normalizeEffectsHash', () => {
     expect(normalizeEffectsHash('0:0:0:0')).toBe(
       hashEffectAmounts(DEFAULT_EFFECT_AMOUNTS),
     );
-    expect(normalizeEffectsHash('60:10:20:30')).toBe(
+    expect(normalizeEffectsHash('0:0:0:30')).toBe(
+      hashEffectAmounts({ ...DEFAULT_EFFECT_AMOUNTS, tone: 30 }),
+    );
+  });
+
+  // The format written between #560 and the chain reorder: four macros plus
+  // the delay, no chain field. Its delay is carried across as stored rather
+  // than recomputed — a render made under a tempo sync used that delay, and
+  // recomputing the unsynced default would mark it stale for nothing.
+  it('maps a four-field-plus-delay (pre-reorder) hash onto the current format, keeping its delay', () => {
+    expect(normalizeEffectsHash('0:0:0:0:0.250')).toBe(
+      hashEffectAmounts(DEFAULT_EFFECT_AMOUNTS),
+    );
+    expect(normalizeEffectsHash('0:0:40:0:0.500')).toBe(
+      hashEffectAmounts(
+        { ...DEFAULT_EFFECT_AMOUNTS, echo: 40 },
+        { subdivision: 'quarter', bpm: 120 },
+      ),
+    );
+  });
+
+  // The reorder half of the migration. A legacy hash's amounts move to
+  // today's layout, but the chain it rendered through doesn't change
+  // retroactively — so a render that passed through two or more effects
+  // whose order has since changed has to read as stale, while one that
+  // passed through fewer than two (nothing to reorder) keeps matching.
+  it('keeps a legacy dry or single-effect hash current across a chain reorder', () => {
+    expect(normalizeEffectsHash('0:0:0')).toBe(
+      hashEffectAmounts(DEFAULT_EFFECT_AMOUNTS),
+    );
+    expect(normalizeEffectsHash('0:0:75')).toBe(
+      hashEffectAmounts({ ...DEFAULT_EFFECT_AMOUNTS, tone: 75 }),
+    );
+  });
+
+  it('reads a legacy multi-effect hash as stale across a chain reorder', () => {
+    // Rendered space → echo → tone; this build plays tone → echo → space,
+    // so the persisted tiles describe audio it no longer produces.
+    expect(normalizeEffectsHash('0:25:75')).not.toBe(
+      hashEffectAmounts({ ...DEFAULT_EFFECT_AMOUNTS, echo: 25, tone: 75 }),
+    );
+    expect(normalizeEffectsHash('60:10:20:30')).not.toBe(
       hashEffectAmounts({ crush: 60, space: 10, echo: 20, tone: 30 }),
     );
   });
@@ -764,6 +820,31 @@ describe('offline render / live chain agreement', () => {
 
     expect(Tone.FeedbackDelay).toHaveBeenCalledWith(
       expect.objectContaining({ delayTime: ECHO_DELAY_SECONDS }),
+    );
+  });
+
+  // The offline render builds its chain from hand-ordered `if` branches, so
+  // it can silently drift from EFFECT_ORDER — and a drifted order draws
+  // tiles for audio the live chain never plays, which is the same class of
+  // lie as a mismatched delay time, one level up.
+  it('renders effects in the live chain’s order', async () => {
+    const everything: EffectAmounts = {
+      crush: 50,
+      space: 50,
+      echo: 50,
+      tone: 50,
+    };
+
+    await renderTrackOffline(audioBuffer(), everything);
+
+    const player = vi.mocked(Tone.Player).mock.results[0].value;
+    expect(player.chain).toHaveBeenCalledWith(
+      crusherInstance(),
+      filterInstance(),
+      delayInstance(),
+      reverbInstance(),
+      // The offline context's destination, whatever the mock made it.
+      expect.anything(),
     );
   });
 

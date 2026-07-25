@@ -65,17 +65,14 @@ async function buildEffectsChain(
     crusher.wet.value = wet;
     nodes.push(crusher);
   }
-  if (amounts.space > MIN_EFFECT_AMOUNT) {
-    const reverb = new Tone.Reverb({
-      decay: SPACE_DECAY_SECONDS,
-      wet: mapSpaceAmount(amounts.space).wet,
-      context,
-    });
-    // The impulse response generates asynchronously — skipping this
-    // await silently omits the reverb's contribution instead of failing
-    // (verified against real Tone 15.1.22, kb/verification.md, #489).
-    await reverb.ready;
-    nodes.push(reverb);
+  if (amounts.tone > MIN_EFFECT_AMOUNT) {
+    nodes.push(
+      new Tone.Filter({
+        frequency: mapToneAmount(amounts.tone).cutoffHz,
+        type: 'lowpass',
+        context,
+      }),
+    );
   }
   if (amounts.echo > MIN_EFFECT_AMOUNT) {
     const { wet, feedback } = mapEchoAmount(amounts.echo);
@@ -93,14 +90,17 @@ async function buildEffectsChain(
       }),
     );
   }
-  if (amounts.tone > MIN_EFFECT_AMOUNT) {
-    nodes.push(
-      new Tone.Filter({
-        frequency: mapToneAmount(amounts.tone).cutoffHz,
-        type: 'lowpass',
-        context,
-      }),
-    );
+  if (amounts.space > MIN_EFFECT_AMOUNT) {
+    const reverb = new Tone.Reverb({
+      decay: SPACE_DECAY_SECONDS,
+      wet: mapSpaceAmount(amounts.space).wet,
+      context,
+    });
+    // The impulse response generates asynchronously — skipping this
+    // await silently omits the reverb's contribution instead of failing
+    // (verified against real Tone 15.1.22, kb/verification.md, #489).
+    await reverb.ready;
+    nodes.push(reverb);
   }
 
   return nodes;

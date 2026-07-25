@@ -29,9 +29,10 @@ import {
 import type { RhythmData } from '../../rhythm/RhythmAnalyser';
 
 const COLOR: TrackColor = { r: 77, g: 238, b: 234 };
-// Four macro amounts plus the echo's resolved delay time — the fixed
-// default here, since none of these fixtures is tempo-synced (#560).
-const DRY_HASH = '0:0:0:0:0.250';
+// The active effects in chain order, then the four macro amounts in that
+// same order, then the echo's resolved delay time — the fixed default here,
+// since none of these fixtures is tempo-synced (#560).
+const DRY_HASH = '[]:0:0:0:0:0.250';
 // The three-field hash a pre-spec-007 build persisted (space:echo:tone),
 // before Crush joined EFFECT_ORDER ahead of them (#558).
 const LEGACY_DRY_HASH = '0:0:0';
@@ -39,7 +40,7 @@ const LEGACY_DRY_HASH = '0:0:0';
 // echo's delay time joined.
 const LEGACY_CRUSH_ERA_DRY_HASH = '0:0:0:0';
 const SPACE_50: EffectAmounts = { crush: 0, space: 50, echo: 0, tone: 0 };
-const SPACE_50_HASH = '0:50:0:0:0.250';
+const SPACE_50_HASH = '[space]:0:0:0:50:0.250';
 
 const MOCK_DATA: SpectrogramData = {
   frequencyFrames: [new Uint8Array([10, 20]), new Uint8Array([30, 40])],

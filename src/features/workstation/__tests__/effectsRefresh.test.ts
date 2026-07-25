@@ -179,9 +179,9 @@ describe('EffectsRefreshScheduler persistence', () => {
 
     const stored = await loadSpectrogramData(TRACK_ID);
     expect(stored).not.toBeNull();
-    // Five fields since spec 007 M4 (#560): the four macros plus the
-    // echo's resolved delay time, unsynced here.
-    expect(stored!.effectsParamsHash).toBe('0:10:0:0:0.250');
+    // The active effects in chain order, the four macro amounts in that
+    // same order, then the echo's resolved delay time (unsynced here).
+    expect(stored!.effectsParamsHash).toBe('[space]:0:0:0:10:0.250');
   });
 
   // mawimbi#540 (spec 006 M3) — the committed refresh's raw frames must
