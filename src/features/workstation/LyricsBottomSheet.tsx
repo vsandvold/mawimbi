@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { LoaderCircle } from 'lucide-react';
 import { useClassificationService } from '../classification/useClassificationService';
+import { resolveInstrument } from '../classification/resolveInstrument';
 import { usePlaybackService } from '../playback/usePlaybackService';
 import { useTrackService } from '../tracks/useTrackService';
 import { useTranscriptionService } from '../transcription/useTranscriptionService';
@@ -39,8 +40,12 @@ const LyricsBottomSheet = ({
   const transcription = useTranscriptionService();
   const vocalTracks = tracks.filter(
     (track) =>
-      classification.getClassification(track.trackId)?.label === VOCALS_LABEL,
+      resolveInstrument(
+        track,
+        classification.getClassification(track.trackId),
+      ) === VOCALS_LABEL,
   );
+  const vocalTrackIds = vocalTracks.map((track) => track.trackId).join(',');
 
   const handleTranscribe = useCallback(
     (trackId: TrackId) => {
@@ -54,7 +59,14 @@ const LyricsBottomSheet = ({
     [],
   );
 
-  // Load cached transcriptions from IndexedDB when the sheet opens
+  // Load cached transcriptions from IndexedDB for the tracks on screen.
+  //
+  // Keyed on which tracks are vocal, not just on `isOpen`: a track becomes
+  // vocal the moment its classification lands, which on a fresh load routinely
+  // happens *after* the sheet was opened. Loading only on open left those
+  // tracks showing a Transcribe button with their persisted lyrics still in
+  // IndexedDB. `vocalTrackIds` is a joined string so the dep is stable across
+  // the renders where the set hasn't changed.
   useEffect(() => {
     if (!isOpen) return;
     for (const track of vocalTracks) {
@@ -62,10 +74,9 @@ const LyricsBottomSheet = ({
         transcription.loadCachedTranscription(track.trackId);
       }
     }
-    // Fire once when opened; vocalTracks identity changes on every render
-    // but we only need to load on open, not on every track list change
+    // vocalTracks is derived from vocalTrackIds; transcription is a stable ref
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen]);
+  }, [isOpen, vocalTrackIds]);
 
   return (
     <BottomSheet

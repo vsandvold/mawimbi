@@ -3,20 +3,30 @@
 // The Jamendo instrument model outputs 40 sigmoid predictions (one per class).
 // This module maps the top prediction to one of 10 InstrumentLabel categories.
 
-export type InstrumentLabel =
-  | 'vocals'
-  | 'guitar'
-  | 'bass'
-  | 'drums'
-  | 'keyboard'
-  | 'strings'
-  | 'brass'
-  | 'woodwind'
-  | 'synth'
-  | 'percussion'
-  | 'unknown';
+export const INSTRUMENT_LABELS = [
+  'vocals',
+  'guitar',
+  'bass',
+  'drums',
+  'keyboard',
+  'strings',
+  'brass',
+  'woodwind',
+  'synth',
+  'percussion',
+  'unknown',
+] as const;
+
+export type InstrumentLabel = (typeof INSTRUMENT_LABELS)[number];
 
 export const FALLBACK_LABEL: InstrumentLabel = 'unknown';
+
+// A track's persisted `instrument` is a plain string (it round-trips through
+// IndexedDB and predates this list), so anything read back from storage has
+// to be narrowed before it can be treated as a label.
+export function isInstrumentLabel(value: string): value is InstrumentLabel {
+  return (INSTRUMENT_LABELS as readonly string[]).includes(value);
+}
 
 /**
  * The 40 Jamendo instrument classes, ordered to match the model's output

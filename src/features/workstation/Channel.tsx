@@ -16,6 +16,7 @@ import {
 import classNames from 'classnames';
 import { useClassificationService } from '../classification/useClassificationService';
 import { FALLBACK_LABEL } from '../classification/instrumentLabels';
+import { resolveInstrument } from '../classification/resolveInstrument';
 import { type Track } from '../tracks/types';
 import { SET_INSTRUMENT } from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
@@ -63,8 +64,7 @@ const Channel = ({
     useClassificationService();
   const classificationState = getClassificationState(trackId);
   const instrument =
-    getClassification(trackId)?.label ??
-    track.instrument ??
+    resolveInstrument(track, getClassification(trackId)) ??
     (classificationState === 'error' ? FALLBACK_LABEL : undefined);
   const isDownloading =
     classificationState === 'classifying' && downloadProgress !== null;
