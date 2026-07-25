@@ -20,6 +20,8 @@ import {
   withDefaultEffectAmounts,
   type EffectAmounts,
 } from '../tracks/EffectsChain';
+import { resolveEchoSync, type EchoSubdivision } from '../tracks/echoSync';
+import { type TrackTempo } from '../rhythm/tempo';
 import { type Track, type TrackId } from '../tracks/types';
 import {
   ADD_TRACK,
@@ -86,6 +88,7 @@ export const useTrackSideEffects = (tracks: Track[]) => {
             track.effects,
             track.mute,
             track.solo,
+            resolveEchoSync(track.echoSync, track.tempo),
           );
         }
         if (!trackHook.retrieveChannel(track.trackId)) {
@@ -109,6 +112,8 @@ export const useTrackSideEffects = (tracks: Track[]) => {
 
 type SyncedControls = {
   effects: EffectAmounts | undefined;
+  echoSync: EchoSubdivision | undefined;
+  tempo: TrackTempo | undefined;
   volume: number | undefined;
   mute: boolean | undefined;
   solo: boolean | undefined;
@@ -138,6 +143,8 @@ export const useTrackControlsSync = (tracks: Track[]) => {
     for (const track of tracks) {
       const current: SyncedControls = {
         effects: track.effects,
+        echoSync: track.echoSync,
+        tempo: track.tempo,
         volume: track.volume,
         mute: track.mute,
         solo: track.solo,
@@ -155,6 +162,20 @@ export const useTrackControlsSync = (tracks: Track[]) => {
         for (const effectId of EFFECT_ORDER) {
           signals.effects[effectId].value = effects[effectId];
         }
+      }
+      // Tempo is in this diff, not just the subdivision: the delay time is
+      // derived from the current estimate, so a re-estimate (an effects
+      // refresh, a re-record) has to move the live echo with it — otherwise
+      // the audio keeps the old delay while the drawer's badge shows the new
+      // BPM (spec 007 open question 3, #560).
+      if (
+        current.echoSync !== last?.echoSync ||
+        current.tempo !== last?.tempo
+      ) {
+        signals.echoSync.value = resolveEchoSync(
+          current.echoSync,
+          current.tempo,
+        );
       }
       if (current.volume !== undefined && current.volume !== last?.volume) {
         signals.volume.value = current.volume;
@@ -285,6 +306,7 @@ export const useRestoreAudio = (tracks: Track[]) => {
             track.startTime ?? 0,
             {
               effects: track.effects,
+              echoSync: resolveEchoSync(track.echoSync, track.tempo),
               volume: track.volume,
               mute: track.mute,
               solo: track.solo,

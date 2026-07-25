@@ -3,6 +3,7 @@ import {
   test,
   uploadAudioFile,
   BURST_TAIL_AUDIO,
+  CLICK_120BPM_AUDIO,
   LONG_AUDIO,
 } from './fixtures';
 import { meanLuminance } from './helpers/pixelDecode';
@@ -171,6 +172,108 @@ test.describe('Effects drawer fits the smallest sheet snap', () => {
     // positioned out of the visible area some other way, so assert the last
     // row's painted bottom edge is inside the sheet too.
     expect(fit.slidersBottom).toBeLessThanOrEqual(fit.contentBottom);
+  });
+});
+
+/**
+ * Tempo-synced Echo (spec 007 milestone 4, #560) — the drawer half of
+ * Goal 5: with a confident tempo the Echo row gains subdivision choices,
+ * and tapping one commits.
+ *
+ * Runs at the small-snap viewport on purpose. The subdivision control is the
+ * first thing added to the drawer since Crush took its content to 182px of
+ * the 160px snap (`/code-review` on PR #578), so "does the drawer still fit"
+ * is asserted in the same breath as "the control is there" — it shares the
+ * Echo row rather than taking a row of its own precisely because of that
+ * budget, and this is the only level that can see it (jsdom has no layout).
+ *
+ * The audible half — that a synced delay reaches the rendered audio — is
+ * asserted at unit level instead (`EffectsChain.test.ts`, offline/live
+ * agreement on the shared param source). The issue asked for a tail-energy
+ * pixel assertion on the burst fixture using the pattern above, but that
+ * fixture scores exactly 0.00 tempo confidence (`RhythmAnalyser.fixtures.
+ * test.ts`), so by this feature's own design it can never show a
+ * subdivision control to click: the two requirements are mutually
+ * exclusive on one fixture. The fixtures that *do* clear the threshold are
+ * ~17s click tracks whose only silent region sits far past the visible
+ * runway at any usable zoom, with clicks smearing ~0.42s into every gap in
+ * between (see DRY_WINDOW_START_SEC above).
+ */
+const BADGE_TIMEOUT_MS = 60_000;
+const DOTTED_EIGHTH_TITLE = 'Echo in dotted eighth notes';
+
+test.describe('Tempo-synced Echo', () => {
+  test.use({ viewport: SMALL_SNAP_VIEWPORT });
+
+  test('a confident tempo adds a subdivision control that commits, and the drawer still fits the smallest snap', async ({
+    page,
+  }) => {
+    test.setTimeout(BADGE_TIMEOUT_MS + 30_000);
+
+    // Melody extraction contributes nothing here and is the expensive job
+    // on the shared spectrogram worker, delaying the rhythm result this
+    // test waits for by tens of seconds on a 17s fixture (same reason and
+    // mechanism as `track-tempo.spec.ts`).
+    await page.route('**/basic-pitch-model/**', (route) =>
+      route.fulfill({ status: 404, body: '' }),
+    );
+
+    await page.goto('/project/test-id');
+    await uploadAudioFile(page, CLICK_120BPM_AUDIO);
+    await expect(page.locator('.timeline__track')).toHaveCount(1);
+    await openEffectsDrawer(page);
+
+    // The badge is the visible proof the estimate has landed; the
+    // subdivision control is gated on the same call, so waiting for one is
+    // waiting for both.
+    await expect(page.getByTitle('Estimated tempo')).toBeVisible({
+      timeout: BADGE_TIMEOUT_MS,
+    });
+    const subdivisions = page.getByRole('group', { name: 'Echo sync' });
+    await expect(subdivisions).toBeVisible();
+    await expect(subdivisions.getByRole('button')).toHaveCount(4);
+
+    const fit = await page.evaluate(() => {
+      const content = document.querySelector('.bottom-sheet__content')!;
+      const inner = document.querySelector('.effects-bottom-sheet')!;
+      return {
+        available: content.clientHeight,
+        needed: inner.scrollHeight,
+        slidersBottom: document
+          .querySelector('.effects-bottom-sheet__sliders')!
+          .getBoundingClientRect().bottom,
+        contentBottom: content.getBoundingClientRect().bottom,
+      };
+    });
+    expect(fit.needed).toBeLessThanOrEqual(fit.available);
+    expect(fit.slidersBottom).toBeLessThanOrEqual(fit.contentBottom);
+
+    // Dragging the Echo fader must not touch the sync state. It did: the row
+    // was a `<label>`, a `<button>` is labelable, so the label's control
+    // resolved to the first subdivision button and Radix's non-interactive
+    // `<span role="slider">` forwarded every click to it — silently toggling
+    // sync, adding an undo entry and kicking off an offline re-render on each
+    // drag (`/code-review` on PR #582). jsdom does not model label click
+    // forwarding, so this half of the regression lives here.
+    const quarter = page.getByTitle('Echo in quarter notes');
+    const echoSlider = page.getByRole('slider', { name: 'Echo amount' });
+    await echoSlider.click();
+    await expect(echoSlider).toHaveAttribute('aria-valuenow', /\d+/);
+    await expect(quarter).toHaveAttribute('aria-pressed', 'false');
+
+    await page.getByTitle(DOTTED_EIGHTH_TITLE).click();
+    await expect(page.getByTitle(DOTTED_EIGHTH_TITLE)).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    // Tapping the selected subdivision again turns sync off — the control
+    // is its own on/off switch, with no separate toggle to disagree with.
+    await page.getByTitle(DOTTED_EIGHTH_TITLE).click();
+    await expect(page.getByTitle(DOTTED_EIGHTH_TITLE)).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
   });
 });
 

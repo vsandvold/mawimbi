@@ -90,12 +90,20 @@ vi.mock('tone', () => {
       generate: vi.fn().mockResolvedValue(undefined),
     };
   }
-  function makeFeedbackDelayNode() {
+  // Forwards what the constructor was given for the same reason
+  // makeBitCrusherNode does (kb/verification.md, #524's makeGainNode
+  // lesson): tempo-synced Echo (#560) sets `delayTime` at construction, so a
+  // node reporting a hardcoded default would let a test assert the synced
+  // delay and pass no matter what the code actually built. Real Tone
+  // defaults: delayTime 0.25, feedback 0.125, wet 1.
+  function makeFeedbackDelayNode(
+    options: { delayTime?: number; feedback?: number; wet?: number } = {},
+  ) {
     return {
       ...makeNode(),
-      wet: makeRampableParam(1),
-      feedback: makeRampableParam(0.125),
-      delayTime: makeRampableParam(0.25),
+      wet: makeRampableParam(options.wet ?? 1),
+      feedback: makeRampableParam(options.feedback ?? 0.125),
+      delayTime: makeRampableParam(options.delayTime ?? 0.25),
     };
   }
   function makeFilterNode() {
@@ -170,6 +178,22 @@ vi.mock('tone', () => {
       })),
     },
   };
+  // Enough of an offline context for renderTrackOffline's shape: it builds
+  // its own (never touching the process-global context), chains nodes into
+  // `destination`, and awaits `render()`. The rendered result only has to
+  // answer `get()` — the buffer's contents are the CQT pipeline's business,
+  // asserted at e2e level against real audio, not here.
+  function makeOfflineContext() {
+    return {
+      destination: makeNode(),
+      render: vi.fn().mockResolvedValue({ get: () => ({}) }),
+    };
+  }
+  // Regular function, not an arrow: it is constructed with `new` (same
+  // reason as `Context` at the bottom of this mock).
+  function makeToneAudioBuffer(buffer: unknown) {
+    return { buffer, get: () => buffer };
+  }
   function makeAnalyserNode() {
     return {
       ...makeNode(),
@@ -203,6 +227,8 @@ vi.mock('tone', () => {
     setContext: vi.fn(),
     // Must be a regular function (not arrow) to support `new`
     Context: vi.fn().mockImplementation(function () {}),
+    OfflineContext: vi.fn().mockImplementation(makeOfflineContext),
+    ToneAudioBuffer: vi.fn().mockImplementation(makeToneAudioBuffer),
   };
 });
 

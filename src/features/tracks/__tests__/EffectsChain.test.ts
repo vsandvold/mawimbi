@@ -12,6 +12,16 @@ import EffectsChain, {
   MIN_EFFECT_AMOUNT,
   type EffectAmounts,
 } from '../EffectsChain';
+import {
+  ECHO_DELAY_SECONDS,
+  ECHO_MAX_DELAY_SECONDS,
+  resolveEchoSync,
+  selectEchoDelaySeconds,
+} from '../echoSync';
+import renderTrackOffline, {
+  renderTrackOfflineWindow,
+} from '../renderTrackOffline';
+import { MIN_TEMPO_CONFIDENCE } from '../../rhythm/tempo';
 import MixerService from '../MixerService';
 
 type MockNode = {
@@ -528,5 +538,290 @@ describe('normalizeEffectsHash', () => {
   it('leaves an unrecognized hash shape alone rather than guessing at it', () => {
     expect(normalizeEffectsHash('1:2')).toBe('1:2');
     expect(normalizeEffectsHash('a:b:c')).toBe('a:b:c');
+  });
+
+  // The lookup asks "does this hash carry a delay field?" before matching
+  // remaining fields by count, so the next macro addition can't make a
+  // legacy macros-only hash collide with this build's macros-plus-delay one
+  // (`/code-review` on PR #582). Simulated here by the shape a five-macro
+  // build's current hash would have.
+  it('leaves a hash that already carries a delay field alone, whatever its field count', () => {
+    expect(normalizeEffectsHash('0:0:40:0:0.500')).toBe('0:0:40:0:0.500');
+    expect(normalizeEffectsHash('0:0:0:0:0:0.375')).toBe('0:0:0:0:0:0.375');
+    // A macro amount is never `toFixed`-formatted, so a four-field legacy
+    // hash ending in a plain integer still migrates.
+    expect(normalizeEffectsHash('0:0:40:0')).not.toBe('0:0:40:0');
+  });
+
+  // Spec 007 milestone 4 (#560) widens the hash a second time, with the
+  // echo's delay time. Projects persisted between #558 and #560 carry the
+  // four-field form; both legacy shapes have to normalize, or the same
+  // mass-re-analysis this suite exists to prevent happens to every project
+  // saved in that window.
+  it('maps a four-field (pre-echo-sync) hash onto the current format', () => {
+    expect(normalizeEffectsHash('0:0:0:0')).toBe(
+      hashEffectAmounts(DEFAULT_EFFECT_AMOUNTS),
+    );
+    expect(normalizeEffectsHash('60:10:20:30')).toBe(
+      hashEffectAmounts({ crush: 60, space: 10, echo: 20, tone: 30 }),
+    );
+  });
+
+  it('normalizes a four-field hash to the unsynced delay time, not to some synced one', () => {
+    expect(normalizeEffectsHash('0:0:40:0')).toBe(
+      hashEffectAmounts({ ...DEFAULT_EFFECT_AMOUNTS, echo: 40 }, null),
+    );
+    expect(normalizeEffectsHash('0:0:40:0')).not.toBe(
+      hashEffectAmounts(
+        { ...DEFAULT_EFFECT_AMOUNTS, echo: 40 },
+        { subdivision: 'quarter', bpm: 120 },
+      ),
+    );
+  });
+});
+
+/**
+ * Tempo-synced Echo — spec 007 Goal 5 / milestone 4 (#560).
+ *
+ * Delay time is `subdivision × 60/BPM`, resolved through one shared
+ * function so the live chain, the offline tile render and the params hash
+ * cannot drift apart (issue requirement 2).
+ */
+describe('tempo-synced echo delay time', () => {
+  const BPM = 120;
+  const BEAT_SECONDS = 60 / BPM;
+
+  it.each([
+    ['quarter' as const, BEAT_SECONDS],
+    ['dottedEighth' as const, 0.75 * BEAT_SECONDS],
+    ['eighth' as const, 0.5 * BEAT_SECONDS],
+    ['eighthTriplet' as const, BEAT_SECONDS / 3],
+  ])('resolves %s to k·60/BPM', (subdivision, expected) => {
+    expect(selectEchoDelaySeconds({ subdivision, bpm: BPM })).toBeCloseTo(
+      expected,
+      10,
+    );
+  });
+
+  it('falls back to the fixed default with no sync', () => {
+    expect(selectEchoDelaySeconds(null)).toBe(ECHO_DELAY_SECONDS);
+  });
+
+  // The native DelayNode clamps `delayTime` to the node's `maxDelay` instead
+  // of erroring, so a delay longer than the node can hold is a silent wrong
+  // answer. Tone's own default maxDelay is 1s — a quarter note anywhere
+  // below 60 BPM exceeds it, and essentia estimates down to 40 BPM.
+  it('never resolves a delay longer than the node is built to hold', () => {
+    expect(selectEchoDelaySeconds({ subdivision: 'quarter', bpm: 40 })).toBe(
+      1.5,
+    );
+    expect(
+      selectEchoDelaySeconds({ subdivision: 'quarter', bpm: 1 }),
+    ).toBeLessThanOrEqual(ECHO_MAX_DELAY_SECONDS);
+  });
+
+  it('falls back to the default rather than propagating a nonsense tempo', () => {
+    expect(selectEchoDelaySeconds({ subdivision: 'quarter', bpm: 0 })).toBe(
+      ECHO_DELAY_SECONDS,
+    );
+    expect(selectEchoDelaySeconds({ subdivision: 'quarter', bpm: NaN })).toBe(
+      ECHO_DELAY_SECONDS,
+    );
+  });
+
+  describe('resolveEchoSync', () => {
+    const CONFIDENT = { bpm: 120, confidence: 3.5 };
+
+    it('pairs the subdivision with a confident estimate', () => {
+      expect(resolveEchoSync('eighth', CONFIDENT)).toEqual({
+        subdivision: 'eighth',
+        bpm: 120,
+      });
+    });
+
+    it('is null with no subdivision committed', () => {
+      expect(resolveEchoSync(undefined, CONFIDENT)).toBeNull();
+    });
+
+    // Gated on the same `selectConfidentTempo` the drawer's BPM badge uses,
+    // so the badge and the echo can never disagree about whether this track
+    // has a tempo (kb/decisions.md 2026-07-25, one product-wide threshold).
+    it('is null when the estimate is not confident enough to act on', () => {
+      expect(
+        resolveEchoSync('eighth', {
+          bpm: 120,
+          confidence: MIN_TEMPO_CONFIDENCE - 0.01,
+        }),
+      ).toBeNull();
+      expect(resolveEchoSync('eighth', undefined)).toBeNull();
+    });
+  });
+});
+
+describe('tempo-synced echo in the live chain', () => {
+  let source: MockNode;
+  let chain: EffectsChain;
+
+  beforeEach(() => {
+    source = makeMockNode();
+    chain = new EffectsChain(asToneNode(source), asToneNode(makeMockNode()));
+  });
+
+  it('builds the delay node with the synced delay time', () => {
+    chain.setEchoSync({ subdivision: 'dottedEighth', bpm: 120 });
+    chain.setAmount('echo', 50);
+
+    expect(delayInstance().delayTime.value).toBeCloseTo(0.375, 10);
+  });
+
+  // Room for a quarter note at any tempo the estimator produces — see
+  // ECHO_MAX_DELAY_SECONDS. Asserted on the constructor because `maxDelay`
+  // is fixed when the native node is created and cannot be raised later.
+  it('builds the delay node with headroom for the longest synced delay', () => {
+    chain.setAmount('echo', 50);
+
+    expect(Tone.FeedbackDelay).toHaveBeenCalledWith(
+      expect.objectContaining({ maxDelay: ECHO_MAX_DELAY_SECONDS }),
+    );
+  });
+
+  // Spec 007 Decision 5: a delay-time *ramp* pitch-warps the echoes (#492's
+  // reason for fixing the constant), but a discrete subdivision commit may
+  // snap it — "character params are fixed *during* interaction; discrete
+  // commits may snap them".
+  it('snaps the delay time on a later sync change, never ramps it', () => {
+    chain.setAmount('echo', 50);
+
+    chain.setEchoSync({ subdivision: 'eighth', bpm: 120 });
+
+    expect(delayInstance().delayTime.value).toBeCloseTo(0.25, 10);
+    expect(delayInstance().delayTime.rampTo).not.toHaveBeenCalled();
+  });
+
+  it('restores the fixed default when sync is turned off', () => {
+    chain.setAmount('echo', 50);
+    chain.setEchoSync({ subdivision: 'eighthTriplet', bpm: 90 });
+
+    chain.setEchoSync(null);
+
+    expect(delayInstance().delayTime.value).toBe(ECHO_DELAY_SECONDS);
+  });
+
+  it('does not create the delay node just to record a sync', () => {
+    chain.setEchoSync({ subdivision: 'quarter', bpm: 120 });
+
+    expect(Tone.FeedbackDelay).not.toHaveBeenCalled();
+  });
+
+  it('leaves the delay time alone when the resolved delay has not changed', () => {
+    chain.setAmount('echo', 50);
+    chain.setEchoSync({ subdivision: 'quarter', bpm: 120 });
+    const delay = delayInstance();
+    const sentinel = -1;
+    delay.delayTime.value = sentinel;
+
+    chain.setEchoSync({ subdivision: 'quarter', bpm: 120 });
+
+    expect(delay.delayTime.value).toBe(sentinel);
+  });
+});
+
+/**
+ * The offline render and the live chain must agree on the delay time — the
+ * spectrogram is a claim about what the track sounds like, and a tile drawn
+ * from a different delay than the audio uses is a lie the user can hear but
+ * not see (issue requirement 2, "a single shared param source, not
+ * duplicated math").
+ */
+describe('offline render / live chain agreement', () => {
+  const AMOUNTS: EffectAmounts = { crush: 0, space: 0, echo: 60, tone: 0 };
+  const SYNC = { subdivision: 'dottedEighth' as const, bpm: 96 };
+
+  function audioBuffer(): AudioBuffer {
+    return { duration: 1, sampleRate: 44100 } as AudioBuffer;
+  }
+
+  it('renders the same delay time the live chain plays', async () => {
+    const chain = new EffectsChain(
+      asToneNode(makeMockNode()),
+      asToneNode(makeMockNode()),
+    );
+    chain.setEchoSync(SYNC);
+    chain.setAmount('echo', AMOUNTS.echo);
+    const liveDelay = delayInstance().delayTime.value;
+
+    vi.mocked(Tone.FeedbackDelay).mockClear();
+    await renderTrackOffline(audioBuffer(), AMOUNTS, SYNC);
+
+    expect(Tone.FeedbackDelay).toHaveBeenCalledWith(
+      expect.objectContaining({ delayTime: liveDelay }),
+    );
+    expect(liveDelay).toBeCloseTo(0.75 * (60 / 96), 10);
+  });
+
+  it('renders the fixed default when the track has no sync', async () => {
+    await renderTrackOffline(audioBuffer(), AMOUNTS);
+
+    expect(Tone.FeedbackDelay).toHaveBeenCalledWith(
+      expect.objectContaining({ delayTime: ECHO_DELAY_SECONDS }),
+    );
+  });
+
+  it('renders the preview window through the same delay time', async () => {
+    await renderTrackOfflineWindow(
+      audioBuffer(),
+      AMOUNTS,
+      {
+        renderStartSeconds: 0,
+        renderDurationSeconds: 1,
+        prerollSeconds: 0,
+      },
+      SYNC,
+    );
+
+    expect(Tone.FeedbackDelay).toHaveBeenCalledWith(
+      expect.objectContaining({
+        delayTime: selectEchoDelaySeconds(SYNC),
+      }),
+    );
+  });
+});
+
+describe('hashEffectAmounts with echo sync', () => {
+  const ECHOING: EffectAmounts = { crush: 0, space: 0, echo: 40, tone: 0 };
+
+  it('differs when the subdivision differs', () => {
+    const quarter = hashEffectAmounts(ECHOING, {
+      subdivision: 'quarter',
+      bpm: 120,
+    });
+    const eighth = hashEffectAmounts(ECHOING, {
+      subdivision: 'eighth',
+      bpm: 120,
+    });
+
+    expect(quarter).not.toBe(eighth);
+    expect(quarter).not.toBe(hashEffectAmounts(ECHOING));
+  });
+
+  // The delay time follows the current estimate, so a re-estimate has to
+  // read as stale — the persisted tiles were rendered at the old delay.
+  it('differs when the same subdivision resolves against a new tempo estimate', () => {
+    expect(
+      hashEffectAmounts(ECHOING, { subdivision: 'quarter', bpm: 120 }),
+    ).not.toBe(hashEffectAmounts(ECHOING, { subdivision: 'quarter', bpm: 90 }));
+  });
+
+  // A bypassed echo isn't in the chain at all (amount 0 disconnects the
+  // node, spec 004 Decision 3), so its delay time changes nothing about the
+  // rendered audio. Hashing it anyway would re-render and re-analyse every
+  // track the moment its tempo estimate lands, for no visual difference.
+  it('ignores the sync while the echo is bypassed', () => {
+    expect(
+      hashEffectAmounts(DEFAULT_EFFECT_AMOUNTS, {
+        subdivision: 'quarter',
+        bpm: 120,
+      }),
+    ).toBe(hashEffectAmounts(DEFAULT_EFFECT_AMOUNTS));
   });
 });

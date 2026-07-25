@@ -11,6 +11,7 @@ import { throttle } from 'throttle-debounce';
 import { type SpectrogramResult } from '../spectrogram/SpectrogramCache';
 import { spectrogramStats } from '../spectrogram/SpectrogramStats';
 import { type EffectAmounts } from '../tracks/EffectsChain';
+import { type EchoSync } from '../tracks/echoSync';
 import { type TrackColor, type TrackId } from '../tracks/types';
 
 export const PREVIEW_THROTTLE_MS = 150;
@@ -101,6 +102,7 @@ export type PreviewDeps = {
     audioBuffer: AudioBuffer,
     amounts: EffectAmounts,
     plan: PreviewWindowPlan,
+    echoSync: EchoSync | null,
   ) => Promise<AudioBuffer>;
   analyseToResult: (
     audioBuffer: AudioBuffer,
@@ -115,6 +117,7 @@ type Throttled = ((
   color: TrackColor,
   amounts: EffectAmounts,
   request: PreviewWindowRequest,
+  echoSync: EchoSync | null,
 ) => void) & { cancel: (options?: { upcomingOnly?: boolean }) => void };
 
 export class PreviewScheduler {
@@ -138,6 +141,7 @@ export class PreviewScheduler {
     color: TrackColor,
     amounts: EffectAmounts,
     request: PreviewWindowRequest,
+    echoSync: EchoSync | null = null,
   ): void {
     if (this.disposed) return;
     let fn = this.throttled.get(trackId);
@@ -149,13 +153,14 @@ export class PreviewScheduler {
           col: TrackColor,
           amt: EffectAmounts,
           req: PreviewWindowRequest,
+          sync: EchoSync | null,
         ) => {
-          this.run(trackId, buffer, col, amt, req);
+          this.run(trackId, buffer, col, amt, req, sync);
         },
       ) as Throttled;
       this.throttled.set(trackId, fn);
     }
-    fn(audioBuffer, color, amounts, request);
+    fn(audioBuffer, color, amounts, request, echoSync);
   }
 
   // Drops any pending throttled tick for `trackId`, invalidates any
@@ -188,6 +193,7 @@ export class PreviewScheduler {
     color: TrackColor,
     amounts: EffectAmounts,
     request: PreviewWindowRequest,
+    echoSync: EchoSync | null,
   ): Promise<void> {
     const plan = computePreviewWindowPlan(request, audioBuffer.duration);
     if (!plan) return;
@@ -200,6 +206,7 @@ export class PreviewScheduler {
       audioBuffer,
       amounts,
       plan,
+      echoSync,
     );
     if (this.isStale(trackId, requestId)) return;
 

@@ -29,12 +29,17 @@ import {
 import type { RhythmData } from '../../rhythm/RhythmAnalyser';
 
 const COLOR: TrackColor = { r: 77, g: 238, b: 234 };
-const DRY_HASH = '0:0:0:0';
+// Four macro amounts plus the echo's resolved delay time — the fixed
+// default here, since none of these fixtures is tempo-synced (#560).
+const DRY_HASH = '0:0:0:0:0.250';
 // The three-field hash a pre-spec-007 build persisted (space:echo:tone),
 // before Crush joined EFFECT_ORDER ahead of them (#558).
 const LEGACY_DRY_HASH = '0:0:0';
+// The four-field hash the build between #558 and #560 persisted, before the
+// echo's delay time joined.
+const LEGACY_CRUSH_ERA_DRY_HASH = '0:0:0:0';
 const SPACE_50: EffectAmounts = { crush: 0, space: 50, echo: 0, tone: 0 };
-const SPACE_50_HASH = '0:50:0:0';
+const SPACE_50_HASH = '0:50:0:0:0.250';
 
 const MOCK_DATA: SpectrogramData = {
   frequencyFrames: [new Uint8Array([10, 20]), new Uint8Array([30, 40])],
@@ -877,7 +882,11 @@ describe('useSpectrogramCache', () => {
         expect(result.current).toEqual(MOCK_ENTRY);
       });
 
-      expect(mockRenderTrackOffline).toHaveBeenCalledWith(dryBuffer, SPACE_50);
+      expect(mockRenderTrackOffline).toHaveBeenCalledWith(
+        dryBuffer,
+        SPACE_50,
+        null,
+      );
       expect(mockAnalyse).toHaveBeenCalledWith(
         'track-1',
         renderedBuffer,
@@ -914,7 +923,11 @@ describe('useSpectrogramCache', () => {
         expect(stored).not.toBeNull();
       });
 
-      expect(mockRenderTrackOffline).toHaveBeenCalledWith(dryBuffer, SPACE_50);
+      expect(mockRenderTrackOffline).toHaveBeenCalledWith(
+        dryBuffer,
+        SPACE_50,
+        null,
+      );
       expect(mockAnalyse).toHaveBeenCalledWith(
         'track-1',
         renderedBuffer,
@@ -991,6 +1004,36 @@ describe('useSpectrogramCache', () => {
       expect(mockAnalyse).not.toHaveBeenCalled();
     });
 
+    // The same migration, one format later: spec 007 M4 (#560) widened the
+    // hash again with the echo's delay time, so a project saved between
+    // #558 and #560 carries a four-field hash. Both legacy shapes have to
+    // normalize, not just the most recent one.
+    it('restores a pre-echo-sync project without re-analysis: the four-field hash matches the current one', async () => {
+      mockGetEntry.mockReturnValueOnce(undefined).mockReturnValue(MOCK_ENTRY);
+
+      const storeData = toSpectrogramStoreData('track-1', MOCK_DATA);
+      storeData.effectsParamsHash = LEGACY_CRUSH_ERA_DRY_HASH;
+      await saveSpectrogramData(storeData);
+
+      const buffer = mockAudioBuffer();
+      const { result } = renderHook(() =>
+        useSpectrogramCache('track-1', buffer, COLOR),
+      );
+
+      await waitFor(() => {
+        expect(result.current).toEqual(MOCK_ENTRY);
+      });
+
+      expect(mockRestore).toHaveBeenCalledWith(
+        'track-1',
+        expect.objectContaining({ frequencyBinCount: 2 }),
+        COLOR,
+        DRY_HASH,
+      );
+      expect(mockRenderTrackOffline).not.toHaveBeenCalled();
+      expect(mockAnalyse).not.toHaveBeenCalled();
+    });
+
     it('still re-analyses when a legacy hash is stale against a non-default newer macro', async () => {
       mockGetEntry.mockReturnValueOnce(undefined).mockReturnValue(MOCK_ENTRY);
 
@@ -1012,7 +1055,11 @@ describe('useSpectrogramCache', () => {
       renderHook(() => useSpectrogramCache('track-1', buffer, COLOR, crushed));
 
       await waitFor(() => {
-        expect(mockRenderTrackOffline).toHaveBeenCalledWith(buffer, crushed);
+        expect(mockRenderTrackOffline).toHaveBeenCalledWith(
+          buffer,
+          crushed,
+          null,
+        );
       });
       expect(mockRestore).not.toHaveBeenCalled();
     });
@@ -1033,7 +1080,11 @@ describe('useSpectrogramCache', () => {
 
       await waitFor(
         () => {
-          expect(mockRenderTrackOffline).toHaveBeenCalledWith(buffer, SPACE_50);
+          expect(mockRenderTrackOffline).toHaveBeenCalledWith(
+            buffer,
+            SPACE_50,
+            null,
+          );
         },
         { timeout: 2000 },
       );

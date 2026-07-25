@@ -1,6 +1,7 @@
 import { renderHook } from '@testing-library/react';
 import AudioService from '../../audio/AudioService';
 import { resetAllSignals } from '../../tracks/__tests__/testUtils';
+import { MIN_TEMPO_CONFIDENCE } from '../../rhythm/tempo';
 import { type Track } from '../../tracks/types';
 import { useTrackControlsSync } from '../projectPageEffects';
 
@@ -160,6 +161,100 @@ describe('useTrackControlsSync', () => {
       renderHook(() => useTrackControlsSync(tracks));
 
       expect(trackService.getSignals('track-1')!.solo.value).toBe(true);
+    });
+  });
+
+  // Tempo-synced Echo (spec 007 M4, #560). The subdivision is what the user
+  // committed; the delay time is derived from the track's *current* tempo,
+  // so both fields have to reach the live signal.
+  describe('echo sync', () => {
+    const tempo = { bpm: 120, confidence: 3.77 };
+
+    it('pushes a committed subdivision into the live signal', () => {
+      trackService.createSignals('track-1');
+      const { rerender } = renderHook(
+        ({ tracks }) => useTrackControlsSync(tracks),
+        { initialProps: { tracks: [createTrack({ tempo })] } },
+      );
+
+      rerender({ tracks: [createTrack({ echoSync: 'eighth', tempo })] });
+
+      expect(trackService.getSignals('track-1')!.echoSync.value).toEqual({
+        subdivision: 'eighth',
+        bpm: 120,
+      });
+    });
+
+    it('reverts to no sync when an undo clears the subdivision', () => {
+      trackService.createSignals('track-1');
+      const { rerender } = renderHook(
+        ({ tracks }) => useTrackControlsSync(tracks),
+        {
+          initialProps: {
+            tracks: [createTrack({ echoSync: 'eighth', tempo })],
+          },
+        },
+      );
+
+      rerender({ tracks: [createTrack({ tempo })] });
+
+      expect(trackService.getSignals('track-1')!.echoSync.value).toBeNull();
+    });
+
+    // The decision behind this test (spec 007 open question 3): a committed
+    // sync follows the current estimate rather than freezing the delay it
+    // was committed with, so the echo can never disagree with the BPM the
+    // drawer displays after a re-analysis.
+    it('re-resolves the delay against a re-estimated tempo', () => {
+      trackService.createSignals('track-1');
+      const { rerender } = renderHook(
+        ({ tracks }) => useTrackControlsSync(tracks),
+        {
+          initialProps: {
+            tracks: [createTrack({ echoSync: 'quarter', tempo })],
+          },
+        },
+      );
+
+      rerender({
+        tracks: [
+          createTrack({
+            echoSync: 'quarter',
+            tempo: { bpm: 90, confidence: 3.4 },
+          }),
+        ],
+      });
+
+      expect(trackService.getSignals('track-1')!.echoSync.value).toEqual({
+        subdivision: 'quarter',
+        bpm: 90,
+      });
+    });
+
+    // A re-estimate that drops below the confidence threshold takes the sync
+    // with it — the badge disappears, and the echo returns to the fixed
+    // delay rather than staying synced to a number nothing displays.
+    it('drops the sync when a re-estimate is no longer confident', () => {
+      trackService.createSignals('track-1');
+      const { rerender } = renderHook(
+        ({ tracks }) => useTrackControlsSync(tracks),
+        {
+          initialProps: {
+            tracks: [createTrack({ echoSync: 'quarter', tempo })],
+          },
+        },
+      );
+
+      rerender({
+        tracks: [
+          createTrack({
+            echoSync: 'quarter',
+            tempo: { bpm: 90, confidence: MIN_TEMPO_CONFIDENCE - 0.01 },
+          }),
+        ],
+      });
+
+      expect(trackService.getSignals('track-1')!.echoSync.value).toBeNull();
     });
   });
 

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { usePlaybackService } from '../playback/usePlaybackService';
 import { useRecordingService } from '../recording/useRecordingService';
 import { useTrackService } from '../tracks/useTrackService';
+import { resolveEchoSync } from '../tracks/echoSync';
 import { useTrackVolume } from '../../shared/hooks/useTrackVolume';
 import FrequencyVisualizer from './FrequencyVisualizer';
 import { type MelodyNote } from '../transcription/MelodyExtractor';
@@ -76,7 +77,16 @@ const Spectrogram = ({
     ? undefined
     : trackHook.retrieveAudioBuffer(trackId);
 
-  const entry = useSpectrogramCache(trackId, audioBuffer, color, effects);
+  // Resolved from the same two track fields the drawer reads, so the tiles
+  // are rendered through the delay time the live chain is playing (spec 007
+  // Goal 5, #560).
+  const entry = useSpectrogramCache(
+    trackId,
+    audioBuffer,
+    color,
+    effects,
+    resolveEchoSync(track.echoSync, track.tempo),
+  );
   const { previewOverlay, reportVisibleWindow } = usePreviewOverlay(
     trackId,
     audioBuffer,

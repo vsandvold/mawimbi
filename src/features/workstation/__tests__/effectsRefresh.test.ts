@@ -93,7 +93,7 @@ describe('EffectsRefreshScheduler debounce', () => {
     );
 
     expect(renderOffline).toHaveBeenCalledTimes(1);
-    expect(renderOffline).toHaveBeenCalledWith(buffer, AMOUNTS_C);
+    expect(renderOffline).toHaveBeenCalledWith(buffer, AMOUNTS_C, null);
     expect(setEntry).toHaveBeenCalledTimes(1);
   });
 });
@@ -179,7 +179,9 @@ describe('EffectsRefreshScheduler persistence', () => {
 
     const stored = await loadSpectrogramData(TRACK_ID);
     expect(stored).not.toBeNull();
-    expect(stored!.effectsParamsHash).toBe('0:10:0:0');
+    // Five fields since spec 007 M4 (#560): the four macros plus the
+    // echo's resolved delay time, unsynced here.
+    expect(stored!.effectsParamsHash).toBe('0:10:0:0:0.250');
   });
 
   // mawimbi#540 (spec 006 M3) — the committed refresh's raw frames must

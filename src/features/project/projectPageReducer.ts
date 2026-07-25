@@ -2,6 +2,7 @@ import {
   withDefaultEffectAmounts,
   type EffectId,
 } from '../tracks/EffectsChain';
+import { type EchoSubdivision } from '../tracks/echoSync';
 import { type TrackTempo } from '../rhythm/tempo';
 import {
   DEFAULT_VOLUME,
@@ -56,6 +57,14 @@ type SetTrackEffectPayload = {
   amount: number;
 };
 
+// Tempo-synced Echo (spec 007 Goal 5, #560). `null` turns sync off — back
+// to the fixed delay. One dispatch per tap of the subdivision control, so a
+// gesture is one undo step.
+type SetTrackEchoSyncPayload = {
+  trackId: TrackId;
+  subdivision: EchoSubdivision | null;
+};
+
 type SetTrackVolumePayload = {
   trackId: TrackId;
   volume: number;
@@ -81,6 +90,7 @@ export type ProjectAction =
   | [typeof SET_INSTRUMENT, SetInstrumentPayload]
   | [typeof SET_TRACK_TEMPO, SetTrackTempoPayload]
   | [typeof SET_TRACK_EFFECT, SetTrackEffectPayload]
+  | [typeof SET_TRACK_ECHO_SYNC, SetTrackEchoSyncPayload]
   | [typeof SET_TRACK_VOLUME, SetTrackVolumePayload]
   | [typeof SET_TRACK_MUTE_SOLO, SetTrackMuteSoloPayload]
   | [typeof RENAME_PROJECT, RenameProjectPayload];
@@ -99,6 +109,7 @@ export const MOVE_TRACK = 'MOVE_TRACK';
 export const SET_INSTRUMENT = 'SET_INSTRUMENT';
 export const SET_TRACK_TEMPO = 'SET_TRACK_TEMPO';
 export const SET_TRACK_EFFECT = 'SET_TRACK_EFFECT';
+export const SET_TRACK_ECHO_SYNC = 'SET_TRACK_ECHO_SYNC';
 export const SET_TRACK_VOLUME = 'SET_TRACK_VOLUME';
 export const SET_TRACK_MUTE_SOLO = 'SET_TRACK_MUTE_SOLO';
 export const RENAME_PROJECT = 'RENAME_PROJECT';
@@ -120,6 +131,8 @@ export function projectReducer(
       return setTrackTempo(state, action[1]);
     case SET_TRACK_EFFECT:
       return setTrackEffect(state, action[1]);
+    case SET_TRACK_ECHO_SYNC:
+      return setTrackEchoSync(state, action[1]);
     case SET_TRACK_VOLUME:
       return setTrackVolume(state, action[1]);
     case SET_TRACK_MUTE_SOLO:
@@ -154,6 +167,15 @@ export function reverseProjectAction(
       if (!track) return null;
       const previousAmount = withDefaultEffectAmounts(track.effects)[effectId];
       return [SET_TRACK_EFFECT, { trackId, effectId, amount: previousAmount }];
+    }
+    case SET_TRACK_ECHO_SYNC: {
+      const { trackId } = action[1];
+      const track = state.tracks.find((t) => t.trackId === trackId);
+      if (!track) return null;
+      return [
+        SET_TRACK_ECHO_SYNC,
+        { trackId, subdivision: track.echoSync ?? null },
+      ];
     }
     case SET_TRACK_VOLUME: {
       const { trackId } = action[1];
@@ -291,6 +313,20 @@ function setTrackEffect(
               [effectId]: amount,
             },
           }
+        : track,
+    ),
+  };
+}
+
+function setTrackEchoSync(
+  state: ProjectState,
+  { trackId, subdivision }: SetTrackEchoSyncPayload,
+): ProjectState {
+  return {
+    ...state,
+    tracks: state.tracks.map((track) =>
+      track.trackId === trackId
+        ? { ...track, echoSync: subdivision ?? undefined }
         : track,
     ),
   };

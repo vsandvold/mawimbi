@@ -8,6 +8,11 @@
 // bypass so re-activation is instant.
 
 import * as Tone from 'tone';
+import {
+  ECHO_MAX_DELAY_SECONDS,
+  selectEchoDelaySeconds,
+  type EchoSync,
+} from './echoSync';
 
 // Crush first: distortion before space is the conventional and
 // better-sounding order (spec 007 Decision 5).
@@ -29,10 +34,36 @@ export const DEFAULT_EFFECT_AMOUNTS: EffectAmounts = {
 // `normalizeEffectsHash` splits a stored hash on.
 const HASH_SEPARATOR = ':';
 
-// The macros `hashEffectAmounts` joined, in the order it joined them,
-// before Crush shipped (spec 007 milestone 2, #558). Every spectrogram
-// persisted by an earlier build carries a hash of exactly this shape.
-const LEGACY_EFFECT_ORDER: EffectId[] = ['space', 'echo', 'tone'];
+// Every macro set `hashEffectAmounts` has joined before the delay field
+// existed, oldest first:
+//
+// - 3 fields: before Crush shipped (spec 007 M2, #558)
+// - 4 fields: before the echo's delay time joined the hash (M4, #560)
+//
+// Every spectrogram persisted by one of those builds carries a hash of
+// exactly that shape — macro amounts only, no trailing delay.
+//
+// **Adding a macro means adding an entry here _and_ nothing else** — the
+// lookup below asks "does this hash carry a delay field?" first, and only
+// then matches the remaining fields by count. Keying purely on total field
+// count would have been enough today but breaks on the very next widening:
+// a fifth macro makes the legacy 5-macro form the same length as this
+// build's 4-macros-plus-delay, and the delay would be parsed as a macro
+// amount and dropped (`/code-review` on PR #582).
+const LEGACY_EFFECT_ORDERS: EffectId[][] = [
+  ['space', 'echo', 'tone'],
+  ['crush', 'space', 'echo', 'tone'],
+];
+
+// Decimal places the echo's delay time contributes to the hash. Three is
+// millisecond resolution — finer than any visible difference in a tile, and
+// enough that two subdivisions can never round together.
+const ECHO_DELAY_HASH_DIGITS = 3;
+
+// What a delay field looks like: `toFixed(ECHO_DELAY_HASH_DIGITS)` output.
+// A macro amount is plain `String(number)`, which never produces trailing
+// zeros after the point, so the two shapes can't be confused.
+const ECHO_DELAY_FIELD = new RegExp(`^\\d+\\.\\d{${ECHO_DELAY_HASH_DIGITS}}$`);
 
 // Fills in macros a persisted object predates. A project written by an
 // older build stores an `effects` object with only that build's macros —
@@ -49,11 +80,34 @@ export function withDefaultEffectAmounts(
 // Stable string key for a set of amounts, not a cryptographic hash — spec
 // 004 M6 stores this alongside a track's persisted spectrogram to detect
 // whether a re-render is needed against the *current* effect settings.
-export function hashEffectAmounts(amounts: EffectAmounts): string {
+//
+// `echoSync` contributes the resolved delay time rather than the
+// subdivision name, because the delay is what the render actually used: the
+// same subdivision against a re-estimated tempo is a different sound, and
+// the persisted tiles have to read as stale for it (spec 007 M4, #560).
+export function hashEffectAmounts(
+  amounts: EffectAmounts,
+  echoSync: EchoSync | null = null,
+): string {
   const complete = withDefaultEffectAmounts(amounts);
-  return EFFECT_ORDER.map((effectId) => complete[effectId]).join(
-    HASH_SEPARATOR,
+  const fields: Array<number | string> = EFFECT_ORDER.map(
+    (effectId) => complete[effectId],
   );
+  fields.push(hashEchoDelayField(complete, echoSync));
+  return fields.join(HASH_SEPARATOR);
+}
+
+// A bypassed echo is disconnected from the chain entirely (amount 0 means
+// bypass, not wet=0), so its delay time cannot change what the render
+// sounds like. Hashing it regardless would mark every track stale the
+// moment its tempo estimate lands, re-rendering and re-analysing for no
+// visible difference.
+function hashEchoDelayField(
+  amounts: EffectAmounts,
+  echoSync: EchoSync | null,
+): string {
+  const audible = amounts.echo > MIN_EFFECT_AMOUNT ? echoSync : null;
+  return selectEchoDelaySeconds(audible).toFixed(ECHO_DELAY_HASH_DIGITS);
 }
 
 // Migrates a stored hash to the current field set so an existing project's
@@ -68,15 +122,23 @@ export function hashEffectAmounts(amounts: EffectAmounts): string {
 // what an unknown format meant would show the wrong pixels indefinitely.
 export function normalizeEffectsHash(hash: string): string {
   const fields = hash.split(HASH_SEPARATOR);
-  if (fields.length !== LEGACY_EFFECT_ORDER.length) return hash;
+  // A hash with a delay field is this format or a later one — either way
+  // there is nothing here that can safely rewrite it, so leave it alone.
+  if (ECHO_DELAY_FIELD.test(fields[fields.length - 1] ?? '')) return hash;
+
+  const legacyOrder = LEGACY_EFFECT_ORDERS.find(
+    (order) => order.length === fields.length,
+  );
+  if (!legacyOrder) return hash;
 
   const amounts = { ...DEFAULT_EFFECT_AMOUNTS };
-  for (const [index, effectId] of LEGACY_EFFECT_ORDER.entries()) {
+  for (const [index, effectId] of legacyOrder.entries()) {
     const amount = Number(fields[index]);
     if (!Number.isFinite(amount)) return hash;
     amounts[effectId] = amount;
   }
-  return hashEffectAmounts(amounts);
+  // No sync: every build that wrote a legacy hash played the fixed delay.
+  return hashEffectAmounts(amounts, null);
 }
 
 // Macro curves (spec 004 open question 2). Amount maps to wet/feedback/
@@ -111,7 +173,6 @@ const CRUSH_MIN_BITS = 3;
 const CRUSH_MAX_WET = 0.8;
 export const SPACE_DECAY_SECONDS = 4;
 const SPACE_MAX_WET = 0.8;
-export const ECHO_DELAY_SECONDS = 0.25;
 const ECHO_MAX_WET = 0.5;
 const ECHO_MIN_FEEDBACK = 0.1;
 const ECHO_MAX_FEEDBACK = 0.6;
@@ -138,6 +199,7 @@ class EffectsChain {
   private source: Tone.ToneAudioNode;
   private destination: Tone.ToneAudioNode;
   private amounts: EffectAmounts = { ...DEFAULT_EFFECT_AMOUNTS };
+  private echoSync: EchoSync | null = null;
   private nodes: EffectNodes = {};
 
   constructor(source: Tone.ToneAudioNode, destination: Tone.ToneAudioNode) {
@@ -170,6 +232,31 @@ class EffectsChain {
 
   getAmount(effectId: EffectId): number {
     return this.amounts[effectId];
+  }
+
+  // Tempo-synced Echo (spec 007 Goal 5, #560). The delay time is **snapped**,
+  // never ramped: ramping it sweeps the delay line and pitch-warps the
+  // echoes on the way, which is why spec 004 fixed it as a constant (#492).
+  // A subdivision commit is a discrete, explicit user action rather than a
+  // continuous drag, so the momentary discontinuity is licensed — the same
+  // license as the snap on reactivation above (spec 007 Decision 5: character
+  // params are fixed *during* interaction; discrete commits may snap them).
+  //
+  // No node is created here: a track can carry a sync while its Echo sits at
+  // 0, and `ensureNode` picks the current sync up when the macro is first
+  // turned on.
+  setEchoSync(echoSync: EchoSync | null): void {
+    const previous = selectEchoDelaySeconds(this.echoSync);
+    this.echoSync = echoSync;
+    const delaySeconds = selectEchoDelaySeconds(echoSync);
+    if (delaySeconds === previous) return;
+    if (this.nodes.echo) {
+      this.nodes.echo.delayTime.value = delaySeconds;
+    }
+  }
+
+  getEchoSync(): EchoSync | null {
+    return this.echoSync;
   }
 
   dispose(): void {
@@ -240,8 +327,15 @@ class EffectsChain {
         });
         break;
       case 'echo':
+        // `maxDelay` is required, not cosmetic: it fixes the size of the
+        // underlying native delay line at construction and cannot be raised
+        // afterwards, and Tone's own default is 1s — a quarter note below
+        // 60 BPM exceeds that, and the native DelayNode *clamps* rather than
+        // erroring, so a slow track's synced echo would silently play at the
+        // wrong time (spec 007 M4, #560).
         this.nodes.echo = new Tone.FeedbackDelay({
-          delayTime: ECHO_DELAY_SECONDS,
+          delayTime: selectEchoDelaySeconds(this.echoSync),
+          maxDelay: ECHO_MAX_DELAY_SECONDS,
           feedback: ECHO_MIN_FEEDBACK,
           wet: 0,
           context,

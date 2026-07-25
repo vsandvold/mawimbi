@@ -12,6 +12,7 @@ import {
   unfocusTrack,
 } from './focusSignals';
 import { type EffectAmounts } from './EffectsChain';
+import { type EchoSync } from './echoSync';
 import { type TrackPersistedControls } from './TrackService';
 import { type TrackId } from './types';
 
@@ -62,7 +63,16 @@ export function useTrackService() {
       effects?: EffectAmounts,
       mute?: boolean,
       solo?: boolean,
-    ) => service.createSignals(trackId, initialVolume, effects, mute, solo),
+      echoSync?: EchoSync | null,
+    ) =>
+      service.createSignals(
+        trackId,
+        initialVolume,
+        effects,
+        mute,
+        solo,
+        echoSync,
+      ),
     disposeSignals: (trackId: TrackId) => service.disposeSignals(trackId),
 
     // --- Track data retrieval ---

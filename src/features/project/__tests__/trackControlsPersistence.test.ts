@@ -119,6 +119,65 @@ describe('effect settings persistence (spec 004 M5)', () => {
   });
 });
 
+describe('echo sync persistence (spec 007 M4, #560)', () => {
+  it("round-trips a track's echo subdivision through project save/load", async () => {
+    const stored = createStoredProject({
+      tracks: [createTrack({ echoSync: 'dottedEighth' })],
+    });
+
+    await saveProject(stored);
+    const loaded = await loadProject('project-1');
+
+    expect(loaded!.tracks[0].echoSync).toBe('dottedEighth');
+  });
+
+  // What persists is the subdivision, never a delay time: the seconds are
+  // derived from the track's tempo estimate at play/render time, so a
+  // re-estimate moves the echo with the BPM the drawer shows.
+  it('persists the subdivision alongside the tempo it will be resolved against', async () => {
+    const tempo = { bpm: 119.84, confidence: 3.77 };
+    const stored = createStoredProject({
+      tracks: [createTrack({ echoSync: 'quarter', tempo })],
+    });
+
+    await saveProject(stored);
+    const loaded = await loadProject('project-1');
+
+    expect(loaded!.tracks[0]).toMatchObject({ echoSync: 'quarter', tempo });
+  });
+
+  it('leaves an unsynced track undefined rather than storing a default', async () => {
+    await saveProject(createStoredProject());
+    const loaded = await loadProject('project-1');
+
+    expect(loaded!.tracks[0].echoSync).toBeUndefined();
+  });
+
+  it("round-trips a synced spectrogram's params hash and detects a tempo re-estimate as stale", async () => {
+    const effects = { crush: 0, space: 0, echo: 60, tone: 0 };
+    const hash = hashEffectAmounts(effects, {
+      subdivision: 'quarter',
+      bpm: 120,
+    });
+    await saveSpectrogramData({
+      trackId: 'track-1',
+      frequencyFrames: [new ArrayBuffer(4)],
+      timeResolution: 0.025,
+      frequencyBinCount: 2,
+      sampleRate: 44100,
+      duration: 0.05,
+      effectsParamsHash: hash,
+    });
+
+    const loaded = await loadSpectrogramData('track-1');
+
+    expect(loaded!.effectsParamsHash).toBe(hash);
+    expect(loaded!.effectsParamsHash).not.toBe(
+      hashEffectAmounts(effects, { subdivision: 'quarter', bpm: 90 }),
+    );
+  });
+});
+
 describe('volume/mute/solo persistence (follow-up to spec 004 M5)', () => {
   it("round-trips a track's volume/mute/solo through project save/load", async () => {
     const stored = createStoredProject({

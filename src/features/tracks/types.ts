@@ -1,5 +1,6 @@
 import { type TrackTempo } from '../rhythm/tempo';
 import { type EffectAmounts } from './EffectsChain';
+import { type EchoSubdivision } from './echoSync';
 
 export type TrackId = string;
 
@@ -25,6 +26,12 @@ export type Track = {
   tempo?: TrackTempo;
   startTime?: number;
   effects?: EffectAmounts;
+  // Committed Echo subdivision (spec 007 Goal 5, #560). The *subdivision* is
+  // what persists, not a delay time: the seconds are derived from whatever
+  // tempo estimate the track has when the echo is played or rendered, so a
+  // later re-estimate moves the echo with the BPM the drawer shows instead
+  // of leaving the two disagreeing. Absent means the fixed default delay.
+  echoSync?: EchoSubdivision;
   volume?: number;
   mute?: boolean;
   solo?: boolean;

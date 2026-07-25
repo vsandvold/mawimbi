@@ -22,6 +22,7 @@ import {
   normalizeEffectsHash,
   type EffectAmounts,
 } from '../tracks/EffectsChain';
+import { type EchoSync } from '../tracks/echoSync';
 import renderTrackOffline from '../tracks/renderTrackOffline';
 import { EffectsRefreshScheduler } from '../workstation/effectsRefresh';
 
@@ -107,11 +108,12 @@ export function useSpectrogramCache(
   audioBuffer: AudioBuffer | undefined,
   color: TrackColor,
   effects: EffectAmounts = DEFAULT_EFFECT_AMOUNTS,
+  echoSync: EchoSync | null = null,
 ) {
   const audioService = useAudioService();
   const [entry, setEntry] = useState<TrackSpectrogramEntry | undefined>();
   const schedulerRef = useRef<EffectsRefreshScheduler | null>(null);
-  const effectsHash = hashEffectAmounts(effects);
+  const effectsHash = hashEffectAmounts(effects, echoSync);
 
   // The scheduler is per-hook-instance (one per rendered track), so its
   // debounce naturally scopes per track with no cross-track bookkeeping.
@@ -176,7 +178,13 @@ export function useSpectrogramCache(
             setEntry(audioService.spectrogramCache.getEntry(id)),
         });
       }
-      schedulerRef.current.schedule(trackId, audioBuffer, color, effects);
+      schedulerRef.current.schedule(
+        trackId,
+        audioBuffer,
+        color,
+        effects,
+        echoSync,
+      );
       return;
     }
 
@@ -186,7 +194,7 @@ export function useSpectrogramCache(
     const renderForAnalysis = (): Promise<AudioBuffer> =>
       effectsHash === DRY_EFFECTS_HASH
         ? Promise.resolve(audioBuffer)
-        : renderTrackOffline(audioBuffer, effects);
+        : renderTrackOffline(audioBuffer, effects, echoSync);
 
     const loadOrAnalyse = async () => {
       // Check IndexedDB for previously stored spectrogram data

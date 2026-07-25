@@ -3,7 +3,13 @@ import { vi } from 'vitest';
 import React from 'react';
 import AudioService from '../../audio/AudioService';
 import { resetAllSignals } from '../../tracks/__tests__/testUtils';
-import { SET_TRACK_EFFECT } from '../../project/projectPageReducer';
+import {
+  SET_TRACK_ECHO_SYNC,
+  SET_TRACK_EFFECT,
+  type ProjectAction,
+} from '../../project/projectPageReducer';
+import { MIN_TEMPO_CONFIDENCE } from '../../rhythm/tempo';
+import { type EchoSubdivision } from '../../tracks/echoSync';
 import { ProjectDispatch } from '../../project/useProjectDispatch';
 import { useEffectControls } from '../useEffectControls';
 import * as previewOverlayRegistry from '../../spectrogram/previewOverlayRegistry';
@@ -221,5 +227,98 @@ describe('useEffectControls', () => {
       expect(clearSpy).not.toHaveBeenCalled();
       clearSpy.mockRestore();
     });
+  });
+});
+
+// Tempo-synced Echo (spec 007 Goal 5, #560). Discrete taps, not a drag —
+// there is no live/commit split and none of the Radix slider lifecycle
+// above applies.
+describe('useEffectControls echo sync', () => {
+  const CONFIDENT_TEMPO = { bpm: 120, confidence: 3.77 };
+
+  function renderWithDispatch(
+    dispatch: React.Dispatch<ProjectAction>,
+    tempo?: { bpm: number; confidence: number },
+    subdivision?: EchoSubdivision,
+  ) {
+    const wrapper = ({ children }: { children: React.ReactNode }) =>
+      React.createElement(
+        ProjectDispatch.Provider,
+        { value: dispatch },
+        children,
+      );
+    return renderHook(() => useEffectControls('track-1', tempo, subdivision), {
+      wrapper,
+    });
+  }
+
+  it('dispatches exactly once per tap', () => {
+    const dispatch = vi.fn();
+    const { result } = renderWithDispatch(dispatch, CONFIDENT_TEMPO);
+
+    result.current.setEchoSubdivision('dottedEighth');
+
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith([
+      SET_TRACK_ECHO_SYNC,
+      { trackId: 'track-1', subdivision: 'dottedEighth' },
+    ]);
+  });
+
+  it('resolves the tap against the track tempo for the live chain', () => {
+    const dispatch = vi.fn();
+    const { result } = renderWithDispatch(dispatch, CONFIDENT_TEMPO);
+
+    result.current.setEchoSubdivision('eighth');
+
+    expect(trackService.getSignals('track-1')!.echoSync.value).toEqual({
+      subdivision: 'eighth',
+      bpm: 120,
+    });
+  });
+
+  it('turns sync off, restoring the fixed delay', () => {
+    const dispatch = vi.fn();
+    const { result } = renderWithDispatch(dispatch, CONFIDENT_TEMPO, 'quarter');
+
+    result.current.setEchoSubdivision(null);
+
+    expect(trackService.getSignals('track-1')!.echoSync.value).toBeNull();
+    expect(dispatch).toHaveBeenCalledWith([
+      SET_TRACK_ECHO_SYNC,
+      { trackId: 'track-1', subdivision: null },
+    ]);
+  });
+
+  // The drawer hides the control without a confident tempo, but the state
+  // has to agree: nothing reaches the audio engine that the badge above it
+  // would deny exists (one gate, kb/decisions.md 2026-07-25).
+  it('resolves to no sync when the tempo is not confident enough', () => {
+    const dispatch = vi.fn();
+    const { result } = renderWithDispatch(dispatch, {
+      bpm: 120,
+      confidence: MIN_TEMPO_CONFIDENCE - 0.01,
+    });
+
+    result.current.setEchoSubdivision('quarter');
+
+    expect(trackService.getSignals('track-1')!.echoSync.value).toBeNull();
+  });
+
+  // The preview render has to hear what the live chain hears, or a drag
+  // previews tiles from a delay time the track isn't playing.
+  it('passes the current sync to the live preview during an echo drag', () => {
+    const requestSpy = vi.spyOn(previewOverlayRegistry, 'requestTrackPreview');
+    const dispatch = vi.fn();
+    const { result } = renderWithDispatch(dispatch, CONFIDENT_TEMPO, 'quarter');
+
+    result.current.updateAmount('echo', 70);
+
+    expect(requestSpy).toHaveBeenLastCalledWith(
+      'track-1',
+      expect.objectContaining({ echo: 70 }),
+      { subdivision: 'quarter', bpm: 120 },
+    );
+    requestSpy.mockRestore();
   });
 });
