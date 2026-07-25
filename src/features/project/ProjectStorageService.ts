@@ -186,11 +186,13 @@ export async function deleteProject(id: string): Promise<void> {
   }
 }
 
-// Deletes every store a single track owns (audioData/spectrograms/melodies/
-// transcriptions) in one transaction. The per-track counterpart to
-// `deleteProject`'s cleanup, sharing the same `TRACK_DATA_STORES` list so
-// the two can't drift the way they did before mawimbi#540 (single-track
-// deletion — most commonly undoing an upload — was missing `melodies`).
+// Deletes every store a single track owns — whatever `TRACK_DATA_STORES`
+// currently lists — in one transaction. The per-track counterpart to
+// `deleteProject`'s cleanup, sharing that one list so the two can't drift
+// the way they did before mawimbi#540 (single-track deletion — most commonly
+// undoing an upload — was missing `melodies`). Deliberately not enumerating
+// the store names here: this comment drifted on the very first store added
+// after the invariant it documents (`rhythms`, mawimbi#568).
 export async function deleteTrackData(trackId: string): Promise<void> {
   const db = await getDB();
   const tx = db.transaction(TRACK_DATA_STORES, 'readwrite');

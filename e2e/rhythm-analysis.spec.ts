@@ -10,6 +10,7 @@
  * last one, so this asserts "every real click but the first has a close
  * detected tick" rather than a literal one-to-one match.
  */
+import type { Page } from '@playwright/test';
 import { expect, test, uploadAudioFile, CLICK_120BPM_AUDIO } from './fixtures';
 import { getFirstTrackId, waitForRhythm } from './helpers/mawimbiBridge';
 import { CLICK_120BPM_TIMES } from './fixtures/rhythmGroundTruth.mjs';
@@ -18,9 +19,60 @@ const EXPECTED_BPM = 120;
 const BPM_TOLERANCE = 2;
 const TICK_TOLERANCE_SECONDS = 0.07;
 const ONSET_TOLERANCE_SECONDS = 0.05;
-// Project auto-save debounce (250 ms) plus buffer, matching
-// persistence.spec.ts.
-const AUTO_SAVE_WAIT_MS = 500;
+const PERSIST_POLL_TIMEOUT_MS = 20_000;
+const PERSIST_POLL_INTERVAL_MS = 250;
+
+/**
+ * Reads which of a track's IndexedDB rows have actually been committed —
+ * the project record (debounced auto-save), the spectrogram, and the rhythm.
+ * Polling this replaces a fixed wait before the reload below: the three
+ * writes are independent and none of them is what the auto-save debounce
+ * times, so a duration calibrated to that debounce is a blind wait
+ * (CLAUDE.md's e2e rules, #367/#386) that inverts *both* restore assertions
+ * on a slow machine — failing as "rhythm was re-analysed", indistinguishable
+ * from a real regression (code review on PR #577).
+ */
+function readPersistedRows(page: Page, trackId: string) {
+  return page.evaluate(
+    (id) =>
+      new Promise<{ project: boolean; spectrogram: boolean; rhythm: boolean }>(
+        (resolve, reject) => {
+          const request = indexedDB.open('mawimbi-db');
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => {
+            const db = request.result;
+            const stores = ['projects', 'spectrograms', 'rhythms'];
+            if (!stores.every((store) => db.objectStoreNames.contains(store))) {
+              db.close();
+              resolve({ project: false, spectrogram: false, rhythm: false });
+              return;
+            }
+            const tx = db.transaction(stores, 'readonly');
+            const projects = tx.objectStore('projects').getAll();
+            const spectrogram = tx.objectStore('spectrograms').get(id);
+            const rhythm = tx.objectStore('rhythms').get(id);
+            tx.oncomplete = () => {
+              db.close();
+              resolve({
+                project: (
+                  projects.result as { tracks: { trackId: string }[] }[]
+                ).some((saved) =>
+                  saved.tracks.some((track) => track.trackId === id),
+                ),
+                spectrogram: Boolean(spectrogram.result),
+                rhythm: Boolean(rhythm.result),
+              });
+            };
+            tx.onerror = () => {
+              db.close();
+              reject(tx.error);
+            };
+          };
+        },
+      ),
+    trackId,
+  );
+}
 
 function closestDistance(times: number[], target: number): number {
   return Math.min(...times.map((t) => Math.abs(t - target)));
@@ -81,11 +133,14 @@ test.describe('Rhythm analysis proof', () => {
     const trackId = await getFirstTrackId(page);
     const analysed = await waitForRhythm(page, trackId);
 
-    // The rhythm row is written from the worker-completion callback and the
-    // project record by a debounced auto-save; both are already in flight by
-    // the time the bridge exposes rhythm data, so wait for the project's own
-    // save to settle before pulling the page out from under them.
-    await page.waitForTimeout(AUTO_SAVE_WAIT_MS);
+    // Reload only once every row the restore path reads is actually
+    // committed — observed directly, not waited out.
+    await expect
+      .poll(() => readPersistedRows(page, trackId), {
+        timeout: PERSIST_POLL_TIMEOUT_MS,
+        intervals: [PERSIST_POLL_INTERVAL_MS],
+      })
+      .toEqual({ project: true, spectrogram: true, rhythm: true });
 
     const rhythmLogs: string[] = [];
     page.on('console', (message) => {

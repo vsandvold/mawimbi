@@ -213,6 +213,38 @@ export function useSpectrogramCache(
         }
       };
 
+      // Called from both branches below, because a stored rhythm row is
+      // independent of whether the *spectrogram* row survived: the two are
+      // written separately, and the megabyte-scale spectrogram write is far
+      // likelier to fail (quota) than the kilobyte rhythm one. Reading
+      // `storedRhythm` only inside the restore branch would discard a
+      // perfectly good row and re-run the multi-second essentia pass on
+      // every single load, forever (code review on PR #577). Must run after
+      // the cache entry for this track exists — `setRhythm` writes onto it.
+      //
+      // (`storedMelody` still has this shape: the no-spectrogram branch
+      // always re-extracts. Pre-existing, left alone here rather than
+      // silently widening this milestone's diff into melody's behavior.)
+      const restoreOrExtractRhythm = () => {
+        if (storedRhythm) {
+          const rhythm = fromRhythmStoreData(storedRhythm);
+          audioService.spectrogramCache.setRhythm(trackId, rhythm);
+          console.log(
+            `[rhythm] Restored cached rhythm for track ${trackId} from IndexedDB: bpm=${rhythm.bpm.toFixed(1)}, ${rhythm.ticks.length} ticks, ${rhythm.onsets.length} onsets`,
+          );
+          return;
+        }
+        // No stored row — the track is new, the page closed before
+        // extraction finished, or its write failed on a prior load.
+        extractAndCacheRhythm(audioService, trackId, audioBuffer, () => {
+          if (cancelled) return;
+          const updated = audioService.spectrogramCache.getEntry(trackId);
+          if (updated) {
+            setEntry({ ...updated });
+          }
+        });
+      };
+
       if (storedSpectrogram) {
         const storedHash =
           storedSpectrogram.effectsParamsHash ?? DRY_EFFECTS_HASH;
@@ -284,24 +316,7 @@ export function useSpectrogramCache(
           });
         }
 
-        if (storedRhythm) {
-          const rhythm = fromRhythmStoreData(storedRhythm);
-          audioService.spectrogramCache.setRhythm(trackId, rhythm);
-          console.log(
-            `[rhythm] Restored cached rhythm for track ${trackId} from IndexedDB: bpm=${rhythm.bpm.toFixed(1)}, ${rhythm.ticks.length} ticks, ${rhythm.onsets.length} onsets`,
-          );
-        } else {
-          // Same restore-when-absent rule as melody above: a missing row
-          // means the page closed before extraction finished, or its write
-          // failed on a prior load.
-          extractAndCacheRhythm(audioService, trackId, audioBuffer, () => {
-            if (cancelled) return;
-            const updated = audioService.spectrogramCache.getEntry(trackId);
-            if (updated) {
-              setEntry({ ...updated });
-            }
-          });
-        }
+        restoreOrExtractRhythm();
 
         setEntry(audioService.spectrogramCache.getEntry(trackId));
         return;
@@ -359,14 +374,8 @@ export function useSpectrogramCache(
         }
       });
 
-      // Run rhythm extraction in the background (spec 008 milestone 2)
-      extractAndCacheRhythm(audioService, trackId, audioBuffer, () => {
-        if (cancelled) return;
-        const updated = audioService.spectrogramCache.getEntry(trackId);
-        if (updated) {
-          setEntry({ ...updated });
-        }
-      });
+      // Restore or extract rhythm in the background (spec 008 milestone 2)
+      restoreOrExtractRhythm();
     };
 
     loadOrAnalyse();
