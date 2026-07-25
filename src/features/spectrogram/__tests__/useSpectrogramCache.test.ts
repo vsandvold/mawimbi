@@ -581,6 +581,31 @@ describe('useSpectrogramCache', () => {
     expect(stored!.trackId).toBe('track-1');
   });
 
+  // Same finding as the rhythm case below (code review on PR #577), applied
+  // to melody: the two rows are written separately, and the megabyte-scale
+  // spectrogram write is far likelier to fail (quota) than the kilobyte
+  // melody one. Reading the stored melody only on the restore branch
+  // discarded a good row and re-ran Basic Pitch on every load, forever.
+  it('restores melody from IndexedDB even when the spectrogram row is missing', async () => {
+    mockGetEntry
+      .mockReturnValueOnce(undefined)
+      .mockReturnValue(MOCK_ENTRY_WITH_MELODY);
+    mockAnalyse.mockResolvedValue(undefined);
+
+    // Melody persisted; spectrogram did not.
+    await saveMelodyData(toMelodyStoreData('track-1', MOCK_MELODY));
+
+    renderHook(() => useSpectrogramCache('track-1', mockAudioBuffer(), COLOR));
+
+    await waitFor(() => {
+      expect(mockSetMelody).toHaveBeenCalledWith('track-1', MOCK_MELODY);
+    });
+    expect(mockExtractMelodyInWorker).not.toHaveBeenCalled();
+    // The spectrogram itself is still re-analysed — only the melody is
+    // spared.
+    expect(mockAnalyse).toHaveBeenCalled();
+  });
+
   // --- Rhythm (spec 008 milestone 2, #568) -------------------------------
   //
   // Rhythm mirrors melody's lifecycle exactly: extract on fresh analysis,
