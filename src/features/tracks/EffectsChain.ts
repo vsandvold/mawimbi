@@ -48,29 +48,53 @@ const CHAIN_FIELD_OPEN = '[';
 const CHAIN_FIELD_CLOSE = ']';
 const CHAIN_FIELD = /^\[.*\]$/;
 
-// Every hash format written before the chain field existed, oldest first.
-// Each entry's `order` is both the field layout that build joined *and* the
-// chain order it rendered through — the two were the same constant.
+// Layout of the hash's amount fields — append-only, and deliberately *not*
+// `EFFECT_ORDER`. A reorder must change the chain field and nothing else:
+// permuting the amount fields as well would also invalidate every
+// single-effect render, which no reorder can audibly change. A new macro
+// appends here and takes its own place in `EFFECT_ORDER`, independently.
+const HASH_FIELD_ORDER: EffectId[] = ['crush', 'space', 'echo', 'tone'];
+
+// Every shape `hashEffectAmounts` has produced, oldest last-but-one — the
+// **current** format is listed too, and migrates to itself. `layout` is the
+// amount-field layout; in the formats written before the chain field
+// existed it doubles as the chain order that build rendered through, since
+// the two were one constant then.
 //
 // - 3 fields: before Crush shipped (spec 007 M2, #558)
 // - 4 fields: before the echo's delay time joined the hash (M4, #560)
-// - 4 fields + delay: before the chain field joined (this change)
+// - 4 fields + delay: before the chain field joined (the chain reorder)
+// - chain + 4 fields + delay: this build
 //
-// **Adding a macro means adding an entry here _and_ nothing else** — the
-// lookup below asks "does this hash carry a delay field?" first, and only
-// then matches the remaining fields by count. Keying purely on total field
-// count would have been enough today but breaks on the very next widening:
-// a fifth macro makes the legacy 5-macro form the same length as this
-// build's 4-macros-plus-delay, and the delay would be parsed as a macro
-// amount and dropped (`/code-review` on PR #582). A *reorder* needs no new
-// entry: the chain field an entry migrates to is built from that entry's
-// own order, so a render made under a different one stops matching by
-// itself.
-type LegacyHashFormat = { order: EffectId[]; hasDelay: boolean };
-const LEGACY_HASH_FORMATS: LegacyHashFormat[] = [
-  { order: ['space', 'echo', 'tone'], hasDelay: false },
-  { order: ['crush', 'space', 'echo', 'tone'], hasDelay: false },
-  { order: ['crush', 'space', 'echo', 'tone'], hasDelay: true },
+// **Adding a macro means appending it to `HASH_FIELD_ORDER` and adding an
+// entry here — and nothing else.** That recipe only works because this
+// build's own format is in the list: a lookup that short-circuited on "it
+// has a chain field, so it must be current" would leave every hash this
+// build writes unmigratable, and the next widening would re-analyse every
+// track in every project — the exact failure this function exists to
+// prevent, one level up from the delay-field version of it (`/code-review`
+// on PR #582, then on this change). The lookup keys on (chain field?,
+// delay field?, amount count), so a wider current format can never collide
+// with a narrower legacy one. A *reorder* needs no entry at all: the
+// layout doesn't move, only the chain field does.
+type HashFormat = {
+  layout: EffectId[];
+  hasDelay: boolean;
+  hasChain: boolean;
+};
+const HASH_FORMATS: HashFormat[] = [
+  { layout: ['space', 'echo', 'tone'], hasDelay: false, hasChain: false },
+  {
+    layout: ['crush', 'space', 'echo', 'tone'],
+    hasDelay: false,
+    hasChain: false,
+  },
+  {
+    layout: ['crush', 'space', 'echo', 'tone'],
+    hasDelay: true,
+    hasChain: false,
+  },
+  { layout: HASH_FIELD_ORDER, hasDelay: true, hasChain: true },
 ];
 
 // Decimal places the echo's delay time contributes to the hash. Three is
@@ -104,10 +128,11 @@ export function withDefaultEffectAmounts(
 // same subdivision against a re-estimated tempo is a different sound, and
 // the persisted tiles have to read as stale for it (spec 007 M4, #560).
 //
-// Shape: `[chain]:crush:tone:echo:space:delay` — the leading chain field
+// Shape: `[chain]:crush:space:echo:tone:delay` — the leading chain field
 // (see `hashChainField`) makes the *order* part of the key, so reordering
-// `EFFECT_ORDER` invalidates the renders it changes without touching
-// anything here.
+// `EFFECT_ORDER` invalidates the renders it changes and only those, without
+// touching anything here. The amount fields follow `HASH_FIELD_ORDER`,
+// which a reorder deliberately does not move.
 export function hashEffectAmounts(
   amounts: EffectAmounts,
   echoSync: EchoSync | null = null,
@@ -126,7 +151,7 @@ function joinEffectsHash(
   chainField: string,
 ): string {
   const fields: Array<number | string> = [chainField];
-  for (const effectId of EFFECT_ORDER) {
+  for (const effectId of HASH_FIELD_ORDER) {
     fields.push(amounts[effectId]);
   }
   fields.push(delayField);
@@ -179,21 +204,21 @@ function hashEchoDelayField(
 // what an unknown format meant would show the wrong pixels indefinitely.
 export function normalizeEffectsHash(hash: string): string {
   const fields = hash.split(HASH_SEPARATOR);
-  // A hash with a chain field is this format or a later one — either way
-  // there is nothing here that can safely rewrite it, so leave it alone.
-  if (CHAIN_FIELD.test(fields[0] ?? '')) return hash;
+  const chainField = CHAIN_FIELD.test(fields[0] ?? '') ? fields[0]! : null;
+  const rest = chainField === null ? fields : fields.slice(1);
+  const hasDelay = ECHO_DELAY_FIELD.test(rest[rest.length - 1] ?? '');
+  const amountFields = hasDelay ? rest.slice(0, -1) : rest;
 
-  const hasDelay = ECHO_DELAY_FIELD.test(fields[fields.length - 1] ?? '');
-  const amountFields = hasDelay ? fields.slice(0, -1) : fields;
-  const format = LEGACY_HASH_FORMATS.find(
+  const format = HASH_FORMATS.find(
     (candidate) =>
+      candidate.hasChain === (chainField !== null) &&
       candidate.hasDelay === hasDelay &&
-      candidate.order.length === amountFields.length,
+      candidate.layout.length === amountFields.length,
   );
   if (!format) return hash;
 
   const amounts = { ...DEFAULT_EFFECT_AMOUNTS };
-  for (const [index, effectId] of format.order.entries()) {
+  for (const [index, effectId] of format.layout.entries()) {
     const amount = Number(amountFields[index]);
     if (!Number.isFinite(amount)) return hash;
     amounts[effectId] = amount;
@@ -201,17 +226,20 @@ export function normalizeEffectsHash(hash: string): string {
   // The stored delay is what that render actually used; a format without
   // one predates tempo sync entirely, so it played the fixed default.
   const delayField = hasDelay
-    ? fields[fields.length - 1]!
+    ? rest[rest.length - 1]!
     : hashEchoDelayField(amounts, null);
-  // Built from the *legacy* order, not the current one: the amounts migrate
-  // to today's layout, but the chain they were rendered through doesn't
-  // change retroactively. A legacy render of two or more active effects
-  // therefore reads as stale under a reordered chain — which it is — while a
-  // dry or single-effect one still matches.
   return joinEffectsHash(
     amounts,
     delayField,
-    hashChainField(amounts, format.order),
+    // A stored chain field is that render's own record of the chain it
+    // passed through — carried across verbatim, never recomputed. Only a
+    // format that predates the field needs one derived, from the order that
+    // build rendered through (which its layout doubles as): the amounts
+    // migrate to today's layout, but the chain doesn't change
+    // retroactively, so a legacy render of two or more active effects reads
+    // as stale under a reordered chain — which it is — while a dry or
+    // single-effect one still matches.
+    chainField ?? hashChainField(amounts, format.layout),
   );
 }
 

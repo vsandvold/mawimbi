@@ -40,7 +40,7 @@ const LEGACY_DRY_HASH = '0:0:0';
 // echo's delay time joined.
 const LEGACY_CRUSH_ERA_DRY_HASH = '0:0:0:0';
 const SPACE_50: EffectAmounts = { crush: 0, space: 50, echo: 0, tone: 0 };
-const SPACE_50_HASH = '[space]:0:0:0:50:0.250';
+const SPACE_50_HASH = '[space]:0:50:0:0:0.250';
 
 const MOCK_DATA: SpectrogramData = {
   frequencyFrames: [new Uint8Array([10, 20]), new Uint8Array([30, 40])],

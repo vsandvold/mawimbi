@@ -513,6 +513,17 @@ describe('hashEffectAmounts', () => {
       hashEffectAmounts({ crush: 10, space: 20, echo: 30, tone: 40 }),
     ).toMatch(/^\[crush>tone>echo>space\]:/);
   });
+
+  // The amount fields keep their own append-only layout, which the chain
+  // order deliberately does not move — note Tone's amount sits in the last
+  // slot while Tone sits second in the chain. If a reorder permuted these
+  // too, it would invalidate every single-effect render as well, and those
+  // are exactly the renders a reorder cannot change.
+  it('lays out the amount fields independently of the chain order', () => {
+    expect(
+      hashEffectAmounts({ crush: 10, space: 20, echo: 30, tone: 40 }),
+    ).toBe('[crush>tone>echo>space]:10:20:30:40:0.250');
+  });
 });
 
 // Spec 007 milestone 2 (#558). Adding Crush widens `hashEffectAmounts`'
@@ -543,6 +554,21 @@ describe('normalizeEffectsHash', () => {
     });
 
     expect(normalizeEffectsHash(current)).toBe(current);
+  });
+
+  // ...but by *migrating it to itself*, not by short-circuiting on "it has
+  // a chain field, so it must be current". That distinction is invisible
+  // today and decides the next widening: a lookup that returned early on
+  // the chain field would leave every hash this build writes unmigratable,
+  // so adding a format entry — the whole documented recipe — wouldn't help
+  // and every project would re-analyse on first load under the wider
+  // format. Observable only through a field this build would never write:
+  // a trailing-zero amount survives an early return and is re-joined as a
+  // plain number by the parser (`/code-review` on the chain-order change).
+  it('recognizes the current format through the same lookup as the legacy ones', () => {
+    expect(normalizeEffectsHash('[space]:0:50.0:0:0:0.250')).toBe(
+      hashEffectAmounts({ ...DEFAULT_EFFECT_AMOUNTS, space: 50 }),
+    );
   });
 
   it('does not make a legacy hash match a non-default value of a newer macro', () => {
