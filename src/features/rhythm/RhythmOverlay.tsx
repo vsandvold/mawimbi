@@ -72,6 +72,16 @@ const RhythmOverlay = ({ pixelsPerSecond, tracks }: RhythmOverlayProps) => {
       peekDirty: () => {
         const last = lastDrawnRef.current;
         const { gridTimes, pixelsPerSecond, startTime } = latestRef.current;
+        // Nothing on the canvas and nothing to put there: never dirty. This
+        // has to match `write`'s own early return exactly, because the
+        // comparisons below are against sentinels that only `write` clears
+        // — so any state `write` declines to handle would report a change
+        // on every frame forever, holding the *whole* loop out of its idle
+        // short-circuit (every mounted track pays, not just this canvas).
+        // A project with no confident anchor did exactly that
+        // (`e2e/spectrogram-render-loop.spec.ts`); same trap the
+        // zero-melody-note comment in `Spectrogram.tsx` documents.
+        if (gridTimes.length === 0 && !hasPaintedRef.current) return false;
         return (
           gridTimes !== last.gridTimes ||
           pixelsPerSecond !== last.pps ||
