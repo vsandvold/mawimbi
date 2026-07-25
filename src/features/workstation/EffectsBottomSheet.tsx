@@ -1,5 +1,6 @@
+import classNames from 'classnames';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../../shared/ui/button';
 import { Slider } from '../../shared/ui/slider';
 import {
@@ -168,7 +169,37 @@ const EffectSliders = ({
   // subdivision control is *absent*, not disabled: there is nothing to sync
   // to, and a dead control would be a mystery rather than an explanation
   // (spec 007 Goal 5).
-  const canSync = selectConfidentTempo(tempo) !== null;
+  const isConfident = selectConfidentTempo(tempo) !== null;
+  const [isDragging, setIsDragging] = useState(false);
+  const [canSync, setCanSync] = useState(isConfident);
+
+  // Mounting the control narrows the Echo slider, and Radix caches the
+  // slider's bounding rect at slide *start*, clearing it only at slide end —
+  // so an estimate landing mid-drag would leave the rest of that gesture
+  // mapping pointer→value through the stale, wider rect, committing ~66 when
+  // the user releases at the visible right end. Analysis takes tens of
+  // seconds after upload, so "the estimate arrives while the user is already
+  // fiddling with Echo" is an ordinary first-minute sequence rather than a
+  // contrived one. Holding the layout until the gesture ends costs nothing:
+  // the control appears a fraction of a second later than it could have
+  // (`/code-review` on PR #582).
+  useEffect(() => {
+    if (!isDragging) setCanSync(isConfident);
+  }, [isConfident, isDragging]);
+
+  const isSyncRow = (effectId: EffectId) => effectId === 'echo' && canSync;
+
+  // Primary button only: a right-click's pointerup is swallowed by the
+  // context menu, so the drag would never be marked finished (CLAUDE.md's
+  // pointer-lifecycle pattern, as in useChannelControls).
+  const startDrag = (event: React.PointerEvent) => {
+    if (event.button === 0) setIsDragging(true);
+  };
+
+  const finishDrag = () => {
+    setIsDragging(false);
+    endDrag();
+  };
 
   return (
     // Preview-overlay teardown follows the pointer lifecycle, not slider
@@ -179,12 +210,28 @@ const EffectSliders = ({
     // pointer at a time.
     <div
       className="effects-bottom-sheet__sliders"
-      onPointerUp={endDrag}
-      onPointerCancel={endDrag}
-      onLostPointerCapture={endDrag}
+      onPointerDown={startDrag}
+      onPointerUp={finishDrag}
+      onPointerCancel={finishDrag}
+      onLostPointerCapture={finishDrag}
     >
       {EFFECT_ORDER.map((effectId) => (
-        <label key={effectId} className="effects-bottom-sheet__effect">
+        // A `<div>`, not a `<label>`: a `<button>` is labelable, so a label
+        // wrapping this row resolves its *control* to the first subdivision
+        // button, and a click anywhere in the label that isn't interactive
+        // content then fires a synthetic click on it. Radix's slider root is
+        // a `<span role="slider">` — not interactive content — so every Echo
+        // slider click and drag toggled sync (`/code-review` on PR #582,
+        // reproduced in Chromium). Nothing is lost: a label never associated
+        // with the slider either, for the same reason a span isn't labelable,
+        // so it was decorative before it was harmful. Each Slider carries its
+        // own `aria-label`.
+        <div
+          key={effectId}
+          className={classNames('effects-bottom-sheet__effect', {
+            'effects-bottom-sheet__effect--synced': isSyncRow(effectId),
+          })}
+        >
           <span className="effects-bottom-sheet__effect-label">
             {EFFECT_LABELS[effectId]}
           </span>
@@ -196,13 +243,13 @@ const EffectSliders = ({
             onValueChange={(values) => updateAmount(effectId, values[0])}
             onValueCommit={(values) => commitAmount(effectId, values[0])}
           />
-          {effectId === 'echo' && canSync && (
+          {isSyncRow(effectId) && (
             <EchoSubdivisions
               selected={echoSubdivision ?? null}
               onSelect={setEchoSubdivision}
             />
           )}
-        </label>
+        </div>
       ))}
     </div>
   );

@@ -540,6 +540,19 @@ describe('normalizeEffectsHash', () => {
     expect(normalizeEffectsHash('a:b:c')).toBe('a:b:c');
   });
 
+  // The lookup asks "does this hash carry a delay field?" before matching
+  // remaining fields by count, so the next macro addition can't make a
+  // legacy macros-only hash collide with this build's macros-plus-delay one
+  // (`/code-review` on PR #582). Simulated here by the shape a five-macro
+  // build's current hash would have.
+  it('leaves a hash that already carries a delay field alone, whatever its field count', () => {
+    expect(normalizeEffectsHash('0:0:40:0:0.500')).toBe('0:0:40:0:0.500');
+    expect(normalizeEffectsHash('0:0:0:0:0:0.375')).toBe('0:0:0:0:0:0.375');
+    // A macro amount is never `toFixed`-formatted, so a four-field legacy
+    // hash ending in a plain integer still migrates.
+    expect(normalizeEffectsHash('0:0:40:0')).not.toBe('0:0:40:0');
+  });
+
   // Spec 007 milestone 4 (#560) widens the hash a second time, with the
   // echo's delay time. Projects persisted between #558 and #560 carry the
   // four-field form; both legacy shapes have to normalize, or the same

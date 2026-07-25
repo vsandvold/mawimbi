@@ -248,6 +248,19 @@ test.describe('Tempo-synced Echo', () => {
     expect(fit.needed).toBeLessThanOrEqual(fit.available);
     expect(fit.slidersBottom).toBeLessThanOrEqual(fit.contentBottom);
 
+    // Dragging the Echo fader must not touch the sync state. It did: the row
+    // was a `<label>`, a `<button>` is labelable, so the label's control
+    // resolved to the first subdivision button and Radix's non-interactive
+    // `<span role="slider">` forwarded every click to it — silently toggling
+    // sync, adding an undo entry and kicking off an offline re-render on each
+    // drag (`/code-review` on PR #582). jsdom does not model label click
+    // forwarding, so this half of the regression lives here.
+    const quarter = page.getByTitle('Echo in quarter notes');
+    const echoSlider = page.getByRole('slider', { name: 'Echo amount' });
+    await echoSlider.click();
+    await expect(echoSlider).toHaveAttribute('aria-valuenow', /\d+/);
+    await expect(quarter).toHaveAttribute('aria-pressed', 'false');
+
     await page.getByTitle(DOTTED_EIGHTH_TITLE).click();
     await expect(page.getByTitle(DOTTED_EIGHTH_TITLE)).toHaveAttribute(
       'aria-pressed',

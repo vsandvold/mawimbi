@@ -27,15 +27,28 @@
   gap: 6px;
 }
 
-/* The third column is the Echo row's subdivision control (spec 007 M4,
-   #560) — `auto`, so it collapses to nothing on the other three rows and on
-   a track with no confident tempo. Deliberately a column rather than a new
-   row: see the small-snap fit note at the top of this file. */
 .effects-bottom-sheet__effect {
   display: grid;
-  grid-template-columns: 56px 1fr auto;
+  grid-template-columns: 56px 1fr;
   align-items: center;
   gap: 12px;
+}
+
+/* Only the row that actually carries the subdivision control gets the third
+   column (spec 007 M4, #560). An `auto` track does *not* collapse away when
+   empty — the 12px gap before it still applies — so declaring it on the base
+   rule shortened all four sliders and left the other three rows' right edges
+   12px inside the Echo row's (measured in Chromium: 280px ending at x=356,
+   versus 292px ending at x=368 with two columns). `/code-review` on PR #582.
+
+   The Echo slider is still the short one when a track is synced (170px of
+   292px at a 360px content width) — the accepted cost of sharing the row
+   rather than adding one, which does not fit the small snap at all (see the
+   note at the top of this file). Flagged for the spec's human-QA pass:
+   whether one macro having ~40% less drag travel than its neighbours reads
+   as deliberate. */
+.effects-bottom-sheet__effect--synced {
+  grid-template-columns: 56px 1fr auto;
 }
 
 .effects-bottom-sheet__sync {

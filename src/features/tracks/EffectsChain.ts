@@ -34,16 +34,22 @@ export const DEFAULT_EFFECT_AMOUNTS: EffectAmounts = {
 // `normalizeEffectsHash` splits a stored hash on.
 const HASH_SEPARATOR = ':';
 
-// Every macro set `hashEffectAmounts` has ever joined, oldest first, and
-// each is identified by its field count — the one place a widening teaches
-// the next format:
+// Every macro set `hashEffectAmounts` has joined before the delay field
+// existed, oldest first:
 //
 // - 3 fields: before Crush shipped (spec 007 M2, #558)
 // - 4 fields: before the echo's delay time joined the hash (M4, #560)
 //
 // Every spectrogram persisted by one of those builds carries a hash of
-// exactly that shape. The current format is `EFFECT_ORDER` plus the delay
-// field, so it can never collide with either count.
+// exactly that shape — macro amounts only, no trailing delay.
+//
+// **Adding a macro means adding an entry here _and_ nothing else** — the
+// lookup below asks "does this hash carry a delay field?" first, and only
+// then matches the remaining fields by count. Keying purely on total field
+// count would have been enough today but breaks on the very next widening:
+// a fifth macro makes the legacy 5-macro form the same length as this
+// build's 4-macros-plus-delay, and the delay would be parsed as a macro
+// amount and dropped (`/code-review` on PR #582).
 const LEGACY_EFFECT_ORDERS: EffectId[][] = [
   ['space', 'echo', 'tone'],
   ['crush', 'space', 'echo', 'tone'],
@@ -53,6 +59,11 @@ const LEGACY_EFFECT_ORDERS: EffectId[][] = [
 // millisecond resolution — finer than any visible difference in a tile, and
 // enough that two subdivisions can never round together.
 const ECHO_DELAY_HASH_DIGITS = 3;
+
+// What a delay field looks like: `toFixed(ECHO_DELAY_HASH_DIGITS)` output.
+// A macro amount is plain `String(number)`, which never produces trailing
+// zeros after the point, so the two shapes can't be confused.
+const ECHO_DELAY_FIELD = new RegExp(`^\\d+\\.\\d{${ECHO_DELAY_HASH_DIGITS}}$`);
 
 // Fills in macros a persisted object predates. A project written by an
 // older build stores an `effects` object with only that build's macros —
@@ -111,6 +122,10 @@ function hashEchoDelayField(
 // what an unknown format meant would show the wrong pixels indefinitely.
 export function normalizeEffectsHash(hash: string): string {
   const fields = hash.split(HASH_SEPARATOR);
+  // A hash with a delay field is this format or a later one — either way
+  // there is nothing here that can safely rewrite it, so leave it alone.
+  if (ECHO_DELAY_FIELD.test(fields[fields.length - 1] ?? '')) return hash;
+
   const legacyOrder = LEGACY_EFFECT_ORDERS.find(
     (order) => order.length === fields.length,
   );

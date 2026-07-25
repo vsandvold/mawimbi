@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { mockTrack } from '../../../testUtils';
@@ -136,6 +136,58 @@ describe('Echo subdivision control', () => {
       .filter((button) => button.getAttribute('aria-pressed') === 'true');
     expect(pressed).toHaveLength(1);
     expect(pressed[0]).toHaveAttribute('title', 'Echo in dotted eighth notes');
+  });
+
+  // A `<button>` is labelable, so a `<label>` wrapping the row resolves its
+  // *control* to the first subdivision button — and clicking anywhere in the
+  // label that isn't interactive content then fires a synthetic click on it.
+  // Radix's slider root is a `<span role="slider">`, which is not
+  // interactive content, so every Echo slider click and drag silently
+  // toggled sync: changing the audible delay, adding an undo entry and
+  // kicking off an offline re-render. Verified in real Chromium
+  // (`label.control` → the quarter button; a click on the slider span
+  // delivered `quarter-click`), where jsdom's `.click()` does not model the
+  // forwarding — hence the structural assertion here and the behavioural one
+  // in `e2e/track-effects.spec.ts`. `/code-review` on PR #582.
+  it('keeps the subdivision buttons out of any label, so a slider click cannot forward to one', () => {
+    renderDrawer([
+      mockTrack({ trackId: 'track-1', tempo: { bpm: 120, confidence: 3.77 } }),
+    ]);
+
+    expect(syncGroup()!.closest('label')).toBeNull();
+  });
+
+  // Radix caches the slider's bounding rect at slide start and clears it
+  // only at slide end, so mounting the control mid-drag leaves the rest of
+  // that gesture mapping pointer→value through the stale, wider rect — a
+  // release at the visible right end commits ~66 instead of 100. The
+  // estimate landing while the user is already dragging Echo is an ordinary
+  // first-minute sequence, since analysis takes tens of seconds
+  // (`/code-review` on PR #582).
+  it('does not appear mid-drag when the tempo estimate lands, only once the drag ends', () => {
+    const { rerender } = renderDrawer([mockTrack({ trackId: 'track-1' })]);
+    const sliders = document.querySelector('.effects-bottom-sheet__sliders')!;
+
+    fireEvent.pointerDown(sliders, { button: 0 });
+    rerender(
+      <EffectsBottomSheet
+        isOpen
+        onOpenChange={vi.fn()}
+        onHeightChange={vi.fn()}
+        tracks={[
+          mockTrack({
+            trackId: 'track-1',
+            tempo: { bpm: 120, confidence: 3.77 },
+          }),
+        ]}
+      />,
+    );
+
+    expect(syncGroup()).toBeNull();
+
+    fireEvent.pointerUp(sliders);
+
+    expect(syncGroup()).not.toBeNull();
   });
 
   it('commits the tapped subdivision', async () => {
