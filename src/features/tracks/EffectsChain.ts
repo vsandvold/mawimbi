@@ -1,7 +1,7 @@
 // EffectsChain — per-track insert effects between Tone.Player and Tone.Channel.
 //
-// Four one-knob macros in fixed order: Crush (bit-depth reduction) → Space
-// (reverb) → Echo (feedback delay) → Tone (lowpass filter), each a 0–100
+// Four one-knob macros in fixed order: Crush (bit-depth reduction) → Tone
+// (lowpass filter) → Echo (feedback delay) → Space (reverb), each a 0–100
 // amount. Amount 0 means the node is fully disconnected — bypass, not
 // wet=0 — so idle tracks pay no DSP cost (#167, spec 004 Decision 3). Nodes
 // are created lazily on first activation and kept (disconnected) across
@@ -14,9 +14,14 @@ import {
   type EchoSync,
 } from './echoSync';
 
-// Crush first: distortion before space is the conventional and
-// better-sounding order (spec 007 Decision 5).
-export const EFFECT_ORDER = ['crush', 'space', 'echo', 'tone'] as const;
+// The conventional signal-chain order: distortion, then tone shaping, then
+// the time-based effects with reverb last. Crush stays first (spec 007
+// Decision 5 — distortion before space); Tone now sits between it and the
+// time-based pair, so the lowpass tames the harmonics Crush adds *before*
+// Echo and Space repeat them, rather than filtering an already-reverberant
+// signal. This ordering is also what the drawer lists, since the sliders are
+// rendered straight off this constant.
+export const EFFECT_ORDER = ['crush', 'tone', 'echo', 'space'] as const;
 export type EffectId = (typeof EFFECT_ORDER)[number];
 export type EffectAmounts = Record<EffectId, number>;
 
@@ -34,25 +39,62 @@ export const DEFAULT_EFFECT_AMOUNTS: EffectAmounts = {
 // `normalizeEffectsHash` splits a stored hash on.
 const HASH_SEPARATOR = ':';
 
-// Every macro set `hashEffectAmounts` has joined before the delay field
-// existed, oldest first:
+// Separator between the effect names inside the chain field, and the
+// brackets that make that field recognizable as one — a macro amount is a
+// plain number, so it can never be mistaken for a bracketed list (and an
+// all-bypass chain's empty list is still `[]`, not an empty field).
+const CHAIN_SEPARATOR = '>';
+const CHAIN_FIELD_OPEN = '[';
+const CHAIN_FIELD_CLOSE = ']';
+const CHAIN_FIELD = /^\[.*\]$/;
+
+// Layout of the hash's amount fields — append-only, and deliberately *not*
+// `EFFECT_ORDER`. A reorder must change the chain field and nothing else:
+// permuting the amount fields as well would also invalidate every
+// single-effect render, which no reorder can audibly change. A new macro
+// appends here and takes its own place in `EFFECT_ORDER`, independently.
+const HASH_FIELD_ORDER: EffectId[] = ['crush', 'space', 'echo', 'tone'];
+
+// Every shape `hashEffectAmounts` has produced, oldest last-but-one — the
+// **current** format is listed too, and migrates to itself. `layout` is the
+// amount-field layout; in the formats written before the chain field
+// existed it doubles as the chain order that build rendered through, since
+// the two were one constant then.
 //
 // - 3 fields: before Crush shipped (spec 007 M2, #558)
 // - 4 fields: before the echo's delay time joined the hash (M4, #560)
+// - 4 fields + delay: before the chain field joined (the chain reorder)
+// - chain + 4 fields + delay: this build
 //
-// Every spectrogram persisted by one of those builds carries a hash of
-// exactly that shape — macro amounts only, no trailing delay.
-//
-// **Adding a macro means adding an entry here _and_ nothing else** — the
-// lookup below asks "does this hash carry a delay field?" first, and only
-// then matches the remaining fields by count. Keying purely on total field
-// count would have been enough today but breaks on the very next widening:
-// a fifth macro makes the legacy 5-macro form the same length as this
-// build's 4-macros-plus-delay, and the delay would be parsed as a macro
-// amount and dropped (`/code-review` on PR #582).
-const LEGACY_EFFECT_ORDERS: EffectId[][] = [
-  ['space', 'echo', 'tone'],
-  ['crush', 'space', 'echo', 'tone'],
+// **Adding a macro means appending it to `HASH_FIELD_ORDER` and adding an
+// entry here — and nothing else.** That recipe only works because this
+// build's own format is in the list: a lookup that short-circuited on "it
+// has a chain field, so it must be current" would leave every hash this
+// build writes unmigratable, and the next widening would re-analyse every
+// track in every project — the exact failure this function exists to
+// prevent, one level up from the delay-field version of it (`/code-review`
+// on PR #582, then on this change). The lookup keys on (chain field?,
+// delay field?, amount count), so a wider current format can never collide
+// with a narrower legacy one. A *reorder* needs no entry at all: the
+// layout doesn't move, only the chain field does.
+type HashFormat = {
+  layout: EffectId[];
+  hasDelay: boolean;
+  hasChain: boolean;
+};
+const HASH_FORMATS: HashFormat[] = [
+  { layout: ['space', 'echo', 'tone'], hasDelay: false, hasChain: false },
+  {
+    layout: ['crush', 'space', 'echo', 'tone'],
+    hasDelay: false,
+    hasChain: false,
+  },
+  {
+    layout: ['crush', 'space', 'echo', 'tone'],
+    hasDelay: true,
+    hasChain: false,
+  },
+  { layout: HASH_FIELD_ORDER, hasDelay: true, hasChain: true },
 ];
 
 // Decimal places the echo's delay time contributes to the hash. Three is
@@ -85,16 +127,56 @@ export function withDefaultEffectAmounts(
 // subdivision name, because the delay is what the render actually used: the
 // same subdivision against a re-estimated tempo is a different sound, and
 // the persisted tiles have to read as stale for it (spec 007 M4, #560).
+//
+// Shape: `[chain]:crush:space:echo:tone:delay` — the leading chain field
+// (see `hashChainField`) makes the *order* part of the key, so reordering
+// `EFFECT_ORDER` invalidates the renders it changes and only those, without
+// touching anything here. The amount fields follow `HASH_FIELD_ORDER`,
+// which a reorder deliberately does not move.
 export function hashEffectAmounts(
   amounts: EffectAmounts,
   echoSync: EchoSync | null = null,
 ): string {
   const complete = withDefaultEffectAmounts(amounts);
-  const fields: Array<number | string> = EFFECT_ORDER.map(
-    (effectId) => complete[effectId],
+  return joinEffectsHash(
+    complete,
+    hashEchoDelayField(complete, echoSync),
+    hashChainField(complete, EFFECT_ORDER),
   );
-  fields.push(hashEchoDelayField(complete, echoSync));
+}
+
+function joinEffectsHash(
+  amounts: EffectAmounts,
+  delayField: string,
+  chainField: string,
+): string {
+  const fields: Array<number | string> = [chainField];
+  for (const effectId of HASH_FIELD_ORDER) {
+    fields.push(amounts[effectId]);
+  }
+  fields.push(delayField);
   return fields.join(HASH_SEPARATOR);
+}
+
+// The effects the render actually passed through, in chain order. Order is
+// part of what a render *sounds* like — a filter into a reverb is not a
+// reverb into a filter — so amounts alone can't answer "are these tiles
+// still current?": two renders with the same amounts under different orders
+// would hash alike whenever the reordered amounts happen to be equal.
+//
+// Only the *active* effects are listed, because amount 0 disconnects the
+// node entirely (bypass, not wet=0): a dry or single-effect render sounds
+// identical whatever the order around it is, and listing the bypassed ones
+// would re-analyse every track in every existing project for a change none
+// of them can hear.
+function hashChainField(
+  amounts: EffectAmounts,
+  order: readonly EffectId[],
+): string {
+  const active = order.filter(
+    (effectId) => amounts[effectId] > MIN_EFFECT_AMOUNT,
+  );
+  return `${CHAIN_FIELD_OPEN}${active.join(CHAIN_SEPARATOR)}${CHAIN_FIELD_CLOSE}`;
 }
 
 // A bypassed echo is disconnected from the chain entirely (amount 0 means
@@ -122,23 +204,43 @@ function hashEchoDelayField(
 // what an unknown format meant would show the wrong pixels indefinitely.
 export function normalizeEffectsHash(hash: string): string {
   const fields = hash.split(HASH_SEPARATOR);
-  // A hash with a delay field is this format or a later one — either way
-  // there is nothing here that can safely rewrite it, so leave it alone.
-  if (ECHO_DELAY_FIELD.test(fields[fields.length - 1] ?? '')) return hash;
+  const chainField = CHAIN_FIELD.test(fields[0] ?? '') ? fields[0]! : null;
+  const rest = chainField === null ? fields : fields.slice(1);
+  const hasDelay = ECHO_DELAY_FIELD.test(rest[rest.length - 1] ?? '');
+  const amountFields = hasDelay ? rest.slice(0, -1) : rest;
 
-  const legacyOrder = LEGACY_EFFECT_ORDERS.find(
-    (order) => order.length === fields.length,
+  const format = HASH_FORMATS.find(
+    (candidate) =>
+      candidate.hasChain === (chainField !== null) &&
+      candidate.hasDelay === hasDelay &&
+      candidate.layout.length === amountFields.length,
   );
-  if (!legacyOrder) return hash;
+  if (!format) return hash;
 
   const amounts = { ...DEFAULT_EFFECT_AMOUNTS };
-  for (const [index, effectId] of legacyOrder.entries()) {
-    const amount = Number(fields[index]);
+  for (const [index, effectId] of format.layout.entries()) {
+    const amount = Number(amountFields[index]);
     if (!Number.isFinite(amount)) return hash;
     amounts[effectId] = amount;
   }
-  // No sync: every build that wrote a legacy hash played the fixed delay.
-  return hashEffectAmounts(amounts, null);
+  // The stored delay is what that render actually used; a format without
+  // one predates tempo sync entirely, so it played the fixed default.
+  const delayField = hasDelay
+    ? rest[rest.length - 1]!
+    : hashEchoDelayField(amounts, null);
+  return joinEffectsHash(
+    amounts,
+    delayField,
+    // A stored chain field is that render's own record of the chain it
+    // passed through — carried across verbatim, never recomputed. Only a
+    // format that predates the field needs one derived, from the order that
+    // build rendered through (which its layout doubles as): the amounts
+    // migrate to today's layout, but the chain doesn't change
+    // retroactively, so a legacy render of two or more active effects reads
+    // as stale under a reordered chain — which it is — while a dry or
+    // single-effect one still matches.
+    chainField ?? hashChainField(amounts, format.layout),
+  );
 }
 
 // Macro curves (spec 004 open question 2). Amount maps to wet/feedback/
