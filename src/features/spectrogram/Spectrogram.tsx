@@ -18,6 +18,7 @@ import './Spectrogram.css';
 import { spectrogramStats } from './SpectrogramStats';
 import { TILE_FRAMES } from './tileConstants';
 import {
+  getContentOffsetTop,
   timelineRenderLoop,
   type SharedCanvasWindow,
 } from './TimelineRenderLoop';
@@ -33,8 +34,6 @@ type SpectrogramProps = {
   track: Track;
   isRecordingTrack?: boolean;
 };
-
-const SCRUBBER_CLASS = 'scrubber';
 
 const Spectrogram = ({
   pixelsPerSecond,
@@ -346,25 +345,6 @@ type CanvasWindow = SharedCanvasWindow & {
   /** Scroll-content Y of this track container's top edge. */
   containerTop: number;
 };
-
-/**
- * Layout position of an element within the scrubber's scroll content.
- * Walks offsetParents up to the scrubber; `offsetTop` ignores transforms,
- * so this measures the untranslated content position regardless of the
- * offset stage's current translateY. This is the one per-track DOM read
- * `TimelineRenderLoop` can't hoist into its once-per-frame shared window —
- * every mounted track has its own container position — so it stays here,
- * confined to each registration's `measure` phase.
- */
-function getContentOffsetTop(container: HTMLElement): number {
-  let top = 0;
-  let el: HTMLElement | null = container;
-  while (el && !el.classList.contains(SCRUBBER_CLASS)) {
-    top += el.offsetTop;
-    el = el.offsetParent as HTMLElement | null;
-  }
-  return top;
-}
 
 /**
  * Places the canvas over the window. The canvas is laid out at its

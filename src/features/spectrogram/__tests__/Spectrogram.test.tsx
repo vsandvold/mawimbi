@@ -15,7 +15,13 @@ const { mockRegister } = vi.hoisted(() => ({
   mockRegister: vi.fn().mockReturnValue(() => {}),
 }));
 
-vi.mock('../TimelineRenderLoop', () => ({
+// Only the loop singleton is replaced — `getContentOffsetTop` is a real
+// DOM walk `Spectrogram`'s measure phase calls directly (it moved into this
+// module in spec 008 M3 so the rhythm overlay shares one implementation),
+// and stubbing it would quietly zero out every container offset these
+// tests' draw assertions depend on.
+vi.mock('../TimelineRenderLoop', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../TimelineRenderLoop')>()),
   timelineRenderLoop: { register: mockRegister },
 }));
 

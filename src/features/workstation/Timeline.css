@@ -34,12 +34,16 @@
  * theme, inverting the glow into a dark smudge) — matches the established
  * runway-accent color already used regardless of theme by the loudness
  * meter that sits on this same runway (loudnessMeterRenderer.ts's
- * BORDER_COLOR). z-index above every track lift tier (highest is
- * `.timeline__track--foreground`/`--edit-active` at 2) so both rails
- * paint consistently on top of every track, focused or not — without it
- * they'd default to z-index:auto and paint in DOM order interleaved with
- * the tracks' own z-index:0 grid-item stacking contexts, hiding the left
- * rail behind track content while the right rail floats above it.
+ * BORDER_COLOR). z-index above every other layer on the runway — the track
+ * lift tiers (0-2, below) and the beat-rung overlay (3,
+ * `RhythmOverlay.css`) — so both rails paint consistently on top of
+ * everything, focused or not. Without it they'd default to z-index:auto and
+ * paint in DOM order interleaved with the tracks' own z-index:0 grid-item
+ * stacking contexts, hiding the left rail behind track content while the
+ * right rail floats above it. Equal-z-index siblings would reintroduce
+ * exactly that asymmetry — the ::before pseudo-element paints before the
+ * element's children and ::after paints after them — which is why the
+ * rung overlay gets its own layer *below* this one rather than sharing it.
  */
 .timeline::before,
 .timeline::after {
@@ -48,7 +52,7 @@
   top: 0;
   bottom: 0;
   width: 0;
-  z-index: 3;
+  z-index: 4;
   box-shadow: 0 0 12px 1px rgba(255, 255, 255, 0.8);
   pointer-events: none;
 }

@@ -45,6 +45,30 @@ export type TimelineRenderCallback = {
 };
 
 /**
+ * Layout position of an element within the scrubber's scroll content.
+ * Walks offsetParents up to the scrubber; `offsetTop` ignores transforms,
+ * so this measures the untranslated content position regardless of the
+ * offset stage's current translateY.
+ *
+ * This is the one DOM read the shared window can't hoist — every
+ * registered element has its own container position — so it stays a
+ * per-callback read, confined to each registration's `measure` phase. It
+ * lives here rather than in `Spectrogram.tsx` because the rhythm overlay
+ * (spec 008 M3) needs the identical measurement against the identical
+ * scroll-content coordinate space; two copies of this walk drifting apart
+ * would misalign the beat rungs from the tiles they annotate.
+ */
+export function getContentOffsetTop(container: HTMLElement): number {
+  let top = 0;
+  let el: HTMLElement | null = container;
+  while (el && !el.classList.contains(SCRUBBER_CLASS)) {
+    top += el.offsetTop;
+    el = el.offsetParent as HTMLElement | null;
+  }
+  return top;
+}
+
+/**
  * Reads the phantom scroller's `scrollTop` — the cheapest possible signal
  * that "something moved" (no `getComputedStyle`, no layout). Doesn't force
  * layout, so this is safe to read every frame even when otherwise idle.
