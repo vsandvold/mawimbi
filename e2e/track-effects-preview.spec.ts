@@ -1,6 +1,9 @@
 import { expect, test, uploadAudioFile, BURST_TAIL_AUDIO } from './fixtures';
 import { meanLuminance } from './helpers/pixelDecode';
-import { getFirstTrackId } from './helpers/mawimbiBridge';
+import {
+  getFirstTrackId,
+  waitForBackgroundAnalysis,
+} from './helpers/mawimbiBridge';
 
 /**
  * Live effects preview while dragging (spec 006, milestone 6, mawimbi#543):
@@ -16,7 +19,6 @@ import { getFirstTrackId } from './helpers/mawimbiBridge';
  * tuned against `test-burst-tail.wav`'s decaying noise burst.
  */
 
-const CONTENT_SETTLE_WAIT_MS = 3000;
 const DRAWER_ANIMATION_MS = 350;
 const DEFAULT_PIXELS_PER_SECOND = 200;
 const DRY_WINDOW_START_SEC = 0.45;
@@ -185,7 +187,13 @@ test.describe('Live effects preview while dragging', () => {
     await page.goto('/project/test-id');
     await uploadAudioFile(page, BURST_TAIL_AUDIO);
     await expect(page.locator('.timeline__track')).toHaveCount(1);
-    await page.waitForTimeout(CONTENT_SETTLE_WAIT_MS);
+    // Every preview assertion below polls for at most 15 s, and a preview
+    // tick needs the same worker that melody and rhythm extraction are
+    // still occupying right after an upload — so start once they're
+    // actually done, rather than after a fixed wait that was only ever
+    // long enough for the spectrogram (mawimbi#577: this test failed 2 of
+    // 4 runs on master with the old 3 s wait).
+    await waitForBackgroundAnalysis(page, await getFirstTrackId(page));
     await rewindToStart(page);
   });
 

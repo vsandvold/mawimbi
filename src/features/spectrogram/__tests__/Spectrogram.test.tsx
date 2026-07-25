@@ -88,6 +88,8 @@ vi.mock('../../project/ProjectStorageService', () => ({
   saveSpectrogramData: vi.fn().mockResolvedValue(undefined),
   loadMelodyData: vi.fn().mockResolvedValue(null),
   saveMelodyData: vi.fn().mockResolvedValue(undefined),
+  loadRhythmData: vi.fn().mockResolvedValue(null),
+  saveRhythmData: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../../audio/useAudioService', () => ({

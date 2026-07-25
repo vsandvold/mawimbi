@@ -6,9 +6,11 @@ import type { MelodyData } from '../../transcription/MelodyExtractor';
 import type { SpectrogramData } from '../OfflineAnalyser';
 import {
   loadMelodyData,
+  loadRhythmData,
   loadSpectrogramData,
   resetDB,
   saveMelodyData,
+  saveRhythmData,
   saveSpectrogramData,
   type MelodyStoreData,
   type SpectrogramStoreData,
@@ -20,9 +22,11 @@ import {
   fromMelodyStoreData,
   fromSpectrogramStoreData,
   toMelodyStoreData,
+  toRhythmStoreData,
   toSpectrogramStoreData,
   useSpectrogramCache,
 } from '../useSpectrogramCache';
+import type { RhythmData } from '../../rhythm/RhythmAnalyser';
 
 const COLOR: TrackColor = { r: 77, g: 238, b: 234 };
 const DRY_HASH = '0:0:0';
@@ -60,6 +64,7 @@ const mockAnalyse = vi.fn();
 const mockRestore = vi.fn();
 const mockGetMelody = vi.fn();
 const mockSetMelody = vi.fn();
+const mockGetRhythm = vi.fn();
 const mockSetRhythm = vi.fn();
 const mockExtractMelodyInWorker = vi.fn();
 const mockExtractRhythmInWorker = vi.fn();
@@ -68,17 +73,12 @@ const mockSetEntry = vi.fn();
 const mockSubscribeToEntry = vi.fn();
 const mockReleaseFrames = vi.fn();
 
-// Rhythm extraction (spec 008 milestone 1) isn't the subject of any test in
-// this file — give it a stable default resolution so every test's
-// fresh-analysis branch (which fires it fire-and-forget, like melody) never
-// throws an unhandled rejection, without needing every test to set it like
-// melody's success/failure paths intentionally do.
-mockExtractRhythmInWorker.mockResolvedValue({
+const MOCK_RHYTHM: RhythmData = {
   bpm: 120,
   confidence: 3,
-  ticks: [0.5],
-  onsets: [0.5],
-});
+  ticks: [0.5, 1.0],
+  onsets: [0.02, 0.51, 1.01],
+};
 
 // A stable object identity, matching the real useAudioService() (a
 // singleton context value) — a fresh `{ spectrogramCache: {...} }` literal
@@ -93,6 +93,7 @@ const mockSpectrogramCache = {
   restore: mockRestore,
   getMelody: mockGetMelody,
   setMelody: mockSetMelody,
+  getRhythm: mockGetRhythm,
   setRhythm: mockSetRhythm,
   extractMelodyInWorker: mockExtractMelodyInWorker,
   extractRhythmInWorker: mockExtractRhythmInWorker,
@@ -130,6 +131,18 @@ beforeEach(() => {
   resetDB();
   vi.clearAllMocks();
   mockSubscribeToEntry.mockReturnValue(() => {});
+  // Both background extractions get a stable default resolution here, per
+  // test, so no test depends on an implementation another test happened to
+  // leave behind (`vi.clearAllMocks()` clears calls but not
+  // implementations). This is load-bearing, not tidiness: `loadOrAnalyse`
+  // calls `extractAndCacheMelody` *before* `extractAndCacheRhythm`, and an
+  // undefined return from the melody mock throws synchronously on `.then`,
+  // aborting the rest of `loadOrAnalyse` — so a rhythm test running without
+  // a melody default never reaches the code it is testing, and passes only
+  // when an earlier test in the same file left a melody resolution behind
+  // (code review on PR #577 reproduced exactly that with `-t rhythm`).
+  mockExtractMelodyInWorker.mockResolvedValue(MOCK_MELODY);
+  mockExtractRhythmInWorker.mockResolvedValue(MOCK_RHYTHM);
 });
 
 describe('toSpectrogramStoreData', () => {
@@ -566,6 +579,143 @@ describe('useSpectrogramCache', () => {
     const stored = await loadMelodyData('track-1');
     expect(stored).not.toBeNull();
     expect(stored!.trackId).toBe('track-1');
+  });
+
+  // --- Rhythm (spec 008 milestone 2, #568) -------------------------------
+  //
+  // Rhythm mirrors melody's lifecycle exactly: extract on fresh analysis,
+  // restore from IndexedDB when present, re-extract when the row is missing
+  // (page closed mid-extraction, or a failed write), and never write back
+  // for a track that was deleted while the worker was still running.
+
+  it('saves rhythm data to IndexedDB after a fresh analysis', async () => {
+    mockGetEntry.mockReturnValueOnce(undefined).mockReturnValue(MOCK_ENTRY);
+    mockAnalyse.mockResolvedValue(undefined);
+    mockExtractRhythmInWorker.mockResolvedValue(MOCK_RHYTHM);
+
+    const buffer = mockAudioBuffer();
+    renderHook(() => useSpectrogramCache('track-1', buffer, COLOR));
+
+    await waitFor(() => {
+      expect(mockSetRhythm).toHaveBeenCalledWith('track-1', MOCK_RHYTHM);
+    });
+
+    await waitFor(async () => {
+      expect(await loadRhythmData('track-1')).not.toBeNull();
+    });
+    const stored = await loadRhythmData('track-1');
+    expect(stored).toEqual({ trackId: 'track-1', ...MOCK_RHYTHM });
+  });
+
+  it('restores rhythm from IndexedDB instead of re-extracting it', async () => {
+    mockGetEntry.mockReturnValueOnce(undefined).mockReturnValue(MOCK_ENTRY);
+
+    await saveSpectrogramData(toSpectrogramStoreData('track-1', MOCK_DATA));
+    await saveMelodyData(toMelodyStoreData('track-1', MOCK_MELODY));
+    await saveRhythmData(toRhythmStoreData('track-1', MOCK_RHYTHM));
+
+    renderHook(() => useSpectrogramCache('track-1', mockAudioBuffer(), COLOR));
+
+    await waitFor(() => {
+      expect(mockSetRhythm).toHaveBeenCalledWith('track-1', MOCK_RHYTHM);
+    });
+    expect(mockExtractRhythmInWorker).not.toHaveBeenCalled();
+  });
+
+  // Code review finding (PR #577): the two rows are written separately, and
+  // the megabyte-scale spectrogram write is far likelier to fail (quota)
+  // than the kilobyte rhythm one. Reading the stored rhythm only on the
+  // restore branch discarded a good row and re-ran the multi-second essentia
+  // pass on every load, forever.
+  it('restores rhythm from IndexedDB even when the spectrogram row is missing', async () => {
+    mockGetEntry.mockReturnValueOnce(undefined).mockReturnValue(MOCK_ENTRY);
+    mockAnalyse.mockResolvedValue(undefined);
+
+    // Rhythm persisted; spectrogram did not.
+    await saveRhythmData(toRhythmStoreData('track-1', MOCK_RHYTHM));
+
+    renderHook(() => useSpectrogramCache('track-1', mockAudioBuffer(), COLOR));
+
+    await waitFor(() => {
+      expect(mockSetRhythm).toHaveBeenCalledWith('track-1', MOCK_RHYTHM);
+    });
+    expect(mockExtractRhythmInWorker).not.toHaveBeenCalled();
+    // The spectrogram itself is still re-analysed — only the rhythm is
+    // spared.
+    expect(mockAnalyse).toHaveBeenCalled();
+  });
+
+  it('runs rhythm extraction when the spectrogram is in IndexedDB but the rhythm is not', async () => {
+    mockGetEntry.mockReturnValueOnce(undefined).mockReturnValue(MOCK_ENTRY);
+
+    // Only the spectrogram is stored — the rhythm row is missing, as it
+    // would be if the page closed before extraction finished.
+    await saveSpectrogramData(toSpectrogramStoreData('track-1', MOCK_DATA));
+    mockExtractRhythmInWorker.mockResolvedValue(MOCK_RHYTHM);
+
+    const buffer = mockAudioBuffer();
+    renderHook(() => useSpectrogramCache('track-1', buffer, COLOR));
+
+    await waitFor(() => {
+      expect(mockExtractRhythmInWorker).toHaveBeenCalledWith(buffer);
+    });
+    await waitFor(async () => {
+      expect(await loadRhythmData('track-1')).not.toBeNull();
+    });
+  });
+
+  // Same shape as the melody guard above (mawimbi#540 follow-up): a track
+  // deleted while extraction is in flight must not get a fresh orphaned
+  // `rhythms` row written after useDeleteTrackAudio's cleanup already ran.
+  it('does not save rhythm data for a track deleted mid-extraction', async () => {
+    mockGetEntry.mockReturnValueOnce(undefined).mockReturnValue(MOCK_ENTRY);
+    mockAnalyse.mockResolvedValue(undefined);
+
+    let resolveRhythm!: (rhythm: RhythmData) => void;
+    mockExtractRhythmInWorker.mockReturnValue(
+      new Promise<RhythmData>((resolve) => {
+        resolveRhythm = resolve;
+      }),
+    );
+
+    const buffer = mockAudioBuffer();
+    renderHook(() => useSpectrogramCache('track-1', buffer, COLOR));
+
+    await waitFor(() => {
+      expect(mockExtractRhythmInWorker).toHaveBeenCalledWith(buffer);
+    });
+
+    // Simulate the track being deleted (useDeleteTrackAudio's
+    // spectrogramCache.invalidate) while extraction is still pending.
+    mockGetEntry.mockReturnValue(undefined);
+    resolveRhythm(MOCK_RHYTHM);
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    expect(mockSetRhythm).not.toHaveBeenCalled();
+    expect(await loadRhythmData('track-1')).toBeNull();
+  });
+
+  it('does not fail when rhythm extraction errors', async () => {
+    mockGetEntry.mockReturnValueOnce(undefined).mockReturnValue(MOCK_ENTRY);
+    mockAnalyse.mockResolvedValue(undefined);
+    mockExtractRhythmInWorker.mockRejectedValue(
+      new Error('essentia.js unavailable'),
+    );
+
+    const buffer = mockAudioBuffer();
+    const { result } = renderHook(() =>
+      useSpectrogramCache('track-1', buffer, COLOR),
+    );
+
+    await waitFor(() => {
+      expect(result.current).toBe(MOCK_ENTRY);
+    });
+    // Positive precondition first: without it, every assertion below stays
+    // green when extraction never ran at all (code review on PR #577).
+    expect(mockExtractRhythmInWorker).toHaveBeenCalledWith(buffer);
+    expect(mockSetRhythm).not.toHaveBeenCalled();
+    expect(await loadRhythmData('track-1')).toBeNull();
   });
 
   it('does not fail when melody extraction errors', async () => {
