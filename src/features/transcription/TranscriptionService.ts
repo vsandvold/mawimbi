@@ -149,12 +149,28 @@ class TranscriptionService {
       return cached.result;
     }
 
+    // Claim the track before the first await: the storage read below is short
+    // but the row it guards renders a Transcribe button until the state moves
+    // off idle, and a second click would start a second Whisper run.
+    this.setEntry(trackId, { state: 'transcribing' });
+
+    // The in-memory cache is empty after a reload while the persisted row
+    // survives, so an idle-looking track may already have lyrics. Whisper is
+    // minutes of work and `applyResult` would overwrite the stored result, so
+    // check storage before treating this as a fresh transcription.
+    const persisted = await this.loadCachedTranscription(trackId);
+    if (persisted) {
+      console.debug(
+        `[transcription] Track ${trackId} restored from storage (${persisted.segments.length} segments)`,
+      );
+      return persisted;
+    }
+
     const durationSeconds = audioBuffer.length / audioBuffer.sampleRate;
     console.debug(
       `[transcription] Track ${trackId}: ${audioBuffer.numberOfChannels}ch, ${audioBuffer.length} samples, ${audioBuffer.sampleRate} Hz, ${durationSeconds.toFixed(2)}s`,
     );
 
-    this.setEntry(trackId, { state: 'transcribing' });
     console.log(`[transcription] Transcribing track ${trackId}`);
 
     try {

@@ -28,12 +28,16 @@ import { type Track } from '../../tracks/types';
 
 const mockInvalidate = vi.fn();
 const mockInvalidateAll = vi.fn();
+const mockHydrate = vi.fn();
 
 vi.mock('../../audio/useAudioService', () => ({
   useAudioService: () => ({
     spectrogramCache: {
       invalidate: mockInvalidate,
       invalidateAll: mockInvalidateAll,
+    },
+    classificationService: {
+      hydrate: mockHydrate,
     },
   }),
 }));
@@ -286,6 +290,38 @@ describe('useRestoreAudio', () => {
       0,
       emptyPersisted,
     );
+  });
+
+  it('hydrates the classification service from the persisted instrument', async () => {
+    const tracks = [createTrack({ trackId: 'track-1', instrument: 'drums' })];
+    await saveAudioData('track-1', new ArrayBuffer(16));
+
+    const { result } = renderHook(() => useRestoreAudio(tracks));
+
+    await waitFor(() => {
+      expect(result.current).toBe(false);
+    });
+
+    expect(mockHydrate).toHaveBeenCalledWith('track-1', 'drums');
+    // Must land before restoreTrack: restoring fires AudioService's
+    // onTrackCreated hook, and only an already-hydrated entry makes
+    // classify() short-circuit instead of re-running inference.
+    expect(mockHydrate.mock.invocationCallOrder[0]).toBeLessThan(
+      mockRestoreTrack.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('does not hydrate a track with no persisted instrument', async () => {
+    const tracks = [createTrack({ trackId: 'track-1' })];
+    await saveAudioData('track-1', new ArrayBuffer(16));
+
+    const { result } = renderHook(() => useRestoreAudio(tracks));
+
+    await waitFor(() => {
+      expect(result.current).toBe(false);
+    });
+
+    expect(mockHydrate).not.toHaveBeenCalled();
   });
 
   it('uses startTime from track metadata', async () => {

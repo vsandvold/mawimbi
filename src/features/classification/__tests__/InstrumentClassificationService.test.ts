@@ -829,4 +829,38 @@ describe('InstrumentClassificationService', () => {
       expect(service.classifications.size).toBe(0);
     });
   });
+
+  describe('hydrate', () => {
+    it('restores a persisted label as a completed classification', () => {
+      service.hydrate('track-1', 'drums');
+
+      expect(service.getClassificationState('track-1')).toBe('done');
+      expect(service.getClassification('track-1')?.label).toBe('drums');
+    });
+
+    it('skips inference for a hydrated track', async () => {
+      service.hydrate('track-1', 'drums');
+
+      const label = await service.classify('track-1', createAudioBuffer());
+
+      expect(label).toBe('drums');
+      expect(mockWorker?.postMessage).not.toHaveBeenCalled();
+    });
+
+    it('ignores a label that is not a known instrument', () => {
+      service.hydrate('track-1', 'kazoo');
+
+      expect(service.getClassificationState('track-1')).toBe('idle');
+    });
+
+    it('does not overwrite an existing entry', async () => {
+      const promise = service.classify('track-1', createAudioBuffer());
+      simulateWorkerResult('electricguitar', 0.85);
+      await promise;
+
+      service.hydrate('track-1', 'drums');
+
+      expect(service.getClassification('track-1')?.label).toBe('guitar');
+    });
+  });
 });
