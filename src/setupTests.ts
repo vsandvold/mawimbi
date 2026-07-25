@@ -68,6 +68,18 @@ vi.mock('tone', () => {
   // browser (#489): Reverb/FeedbackDelay are Effect subclasses with a `wet`
   // signal; Reverb's IR generates asynchronously (`ready` resolves when
   // audible); Filter is a plain ToneAudioNode — frequency/Q signals, no `wet`.
+  // BitCrusher is an Effect subclass (hence `wet`) whose `bits` is a plain
+  // Param — both are driven by the Crush macro, so both must forward what
+  // the constructor was given rather than reading back a hardcoded default
+  // (kb/verification.md, #524's makeGainNode lesson). Real Tone defaults:
+  // bits 4, wet 1.
+  function makeBitCrusherNode(options: { bits?: number; wet?: number } = {}) {
+    return {
+      ...makeNode(),
+      bits: makeRampableParam(options.bits ?? 4),
+      wet: makeRampableParam(options.wet ?? 1),
+    };
+  }
   function makeReverbNode() {
     return {
       ...makeNode(),
@@ -171,6 +183,7 @@ vi.mock('tone', () => {
     Player: vi.fn().mockImplementation(makeNode),
     Channel: vi.fn().mockImplementation(makeNode),
     Recorder: vi.fn().mockImplementation(makeRecorderNode),
+    BitCrusher: vi.fn().mockImplementation(makeBitCrusherNode),
     Reverb: vi.fn().mockImplementation(makeReverbNode),
     FeedbackDelay: vi.fn().mockImplementation(makeFeedbackDelayNode),
     Filter: vi.fn().mockImplementation(makeFilterNode),

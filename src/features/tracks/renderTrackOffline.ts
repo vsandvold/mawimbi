@@ -31,6 +31,7 @@ import {
   ECHO_DELAY_SECONDS,
   MIN_EFFECT_AMOUNT,
   SPACE_DECAY_SECONDS,
+  mapCrushAmount,
   mapEchoAmount,
   mapSpaceAmount,
   mapToneAmount,
@@ -45,6 +46,20 @@ async function buildEffectsChain(
 ): Promise<Tone.ToneAudioNode[]> {
   const nodes: Tone.ToneAudioNode[] = [];
 
+  // Same node as the live chain: Tone.BitCrusher is worklet-backed, and
+  // worklets were confirmed to process correctly during offline rendering
+  // on exactly this kind of freshly-built context (spec 007 M1,
+  // kb/decisions.md 2026-07-24) — so the documented pure-math/Chebyshev
+  // fallbacks aren't needed and there is only one crush implementation.
+  if (amounts.crush > MIN_EFFECT_AMOUNT) {
+    const { bits, wet } = mapCrushAmount(amounts.crush);
+    // `wet` set on the param, not passed in — Tone types this constructor's
+    // options from BitCrusher's worklet options, which omit the `wet` every
+    // Effect subclass has (same as EffectsChain.ensureNode).
+    const crusher = new Tone.BitCrusher({ bits, context });
+    crusher.wet.value = wet;
+    nodes.push(crusher);
+  }
   if (amounts.space > MIN_EFFECT_AMOUNT) {
     const reverb = new Tone.Reverb({
       decay: SPACE_DECAY_SECONDS,

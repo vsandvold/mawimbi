@@ -15,9 +15,9 @@ import {
 const COLOR: TrackColor = { r: 1, g: 2, b: 3 };
 const TRACK_ID = 'track-1';
 
-const AMOUNTS_A: EffectAmounts = { space: 10, echo: 0, tone: 0 };
-const AMOUNTS_B: EffectAmounts = { space: 50, echo: 0, tone: 0 };
-const AMOUNTS_C: EffectAmounts = { space: 90, echo: 0, tone: 0 };
+const AMOUNTS_A: EffectAmounts = { crush: 0, space: 10, echo: 0, tone: 0 };
+const AMOUNTS_B: EffectAmounts = { crush: 0, space: 50, echo: 0, tone: 0 };
+const AMOUNTS_C: EffectAmounts = { crush: 0, space: 90, echo: 0, tone: 0 };
 
 function mockAudioBuffer(duration: number): AudioBuffer {
   return { duration } as unknown as AudioBuffer;

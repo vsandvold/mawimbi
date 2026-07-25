@@ -29,8 +29,12 @@ import {
 import type { RhythmData } from '../../rhythm/RhythmAnalyser';
 
 const COLOR: TrackColor = { r: 77, g: 238, b: 234 };
-const DRY_HASH = '0:0:0';
-const SPACE_50: EffectAmounts = { space: 50, echo: 0, tone: 0 };
+const DRY_HASH = '0:0:0:0';
+// The three-field hash a pre-spec-007 build persisted (space:echo:tone),
+// before Crush joined EFFECT_ORDER ahead of them (#558).
+const LEGACY_DRY_HASH = '0:0:0';
+const SPACE_50: EffectAmounts = { crush: 0, space: 50, echo: 0, tone: 0 };
+const SPACE_50_HASH = '0:50:0:0';
 
 const MOCK_DATA: SpectrogramData = {
   frequencyFrames: [new Uint8Array([10, 20]), new Uint8Array([30, 40])],
@@ -372,7 +376,7 @@ describe('useSpectrogramCache', () => {
         duration: 0.05,
       }),
       COLOR,
-      '0:0:0',
+      DRY_HASH,
     );
     expect(mockAnalyse).not.toHaveBeenCalled();
   });
@@ -419,7 +423,7 @@ describe('useSpectrogramCache', () => {
       'track-1',
       buffer,
       COLOR,
-      '0:0:0',
+      DRY_HASH,
       expect.any(Function),
     );
 
@@ -744,7 +748,7 @@ describe('useSpectrogramCache', () => {
       mockGetEntry.mockReturnValueOnce(undefined).mockReturnValue(MOCK_ENTRY);
 
       const storeData = toSpectrogramStoreData('track-1', MOCK_DATA);
-      storeData.effectsParamsHash = '50:0:0';
+      storeData.effectsParamsHash = SPACE_50_HASH;
       await saveSpectrogramData(storeData);
       mockExtractMelodyInWorker.mockResolvedValue(MOCK_MELODY);
 
@@ -767,7 +771,7 @@ describe('useSpectrogramCache', () => {
         'track-1',
         expect.objectContaining({ frequencyBinCount: 2 }),
         COLOR,
-        '50:0:0',
+        SPACE_50_HASH,
       );
       expect(mockRenderTrackOffline).not.toHaveBeenCalled();
       expect(mockAnalyse).not.toHaveBeenCalled();
@@ -800,13 +804,13 @@ describe('useSpectrogramCache', () => {
         'track-1',
         renderedBuffer,
         COLOR,
-        '50:0:0',
+        SPACE_50_HASH,
         expect.any(Function),
       );
       expect(mockRestore).not.toHaveBeenCalled();
 
       const stored = await loadSpectrogramData('track-1');
-      expect(stored!.effectsParamsHash).toBe('50:0:0');
+      expect(stored!.effectsParamsHash).toBe(SPACE_50_HASH);
     });
 
     it('renders through the current effects for the very first analysis when no cached data exists at all and effects are already non-default', async () => {
@@ -837,12 +841,12 @@ describe('useSpectrogramCache', () => {
         'track-1',
         renderedBuffer,
         COLOR,
-        '50:0:0',
+        SPACE_50_HASH,
         expect.any(Function),
       );
 
       const stored = await loadSpectrogramData('track-1');
-      expect(stored!.effectsParamsHash).toBe('50:0:0');
+      expect(stored!.effectsParamsHash).toBe(SPACE_50_HASH);
     });
 
     it('treats a missing stored hash as dry, matching default (all-bypass) effects', async () => {
@@ -871,6 +875,70 @@ describe('useSpectrogramCache', () => {
       expect(mockRenderTrackOffline).not.toHaveBeenCalled();
     });
 
+    // Spec 007 milestone 2 (#558) — the legacy-hash migration. Every
+    // spectrogram persisted before Crush joined EFFECT_ORDER carries a
+    // three-field hash; a project loaded under the wider format must still
+    // recognize it as current, or every track in every existing project
+    // re-renders and re-analyses on first load, silently, for no visual
+    // change. The stored *effects object* is equally legacy-shaped (no
+    // `crush` key at all), so both halves of the comparison are exercised
+    // here, exactly as an existing project would present them.
+    it('restores a pre-crush project without re-analysis: the legacy three-field hash matches the defaults-extended current one', async () => {
+      mockGetEntry.mockReturnValueOnce(undefined).mockReturnValue(MOCK_ENTRY);
+
+      const storeData = toSpectrogramStoreData('track-1', MOCK_DATA);
+      storeData.effectsParamsHash = LEGACY_DRY_HASH;
+      await saveSpectrogramData(storeData);
+
+      const legacyEffects = { space: 0, echo: 0, tone: 0 } as EffectAmounts;
+      const buffer = mockAudioBuffer();
+      const { result } = renderHook(() =>
+        useSpectrogramCache('track-1', buffer, COLOR, legacyEffects),
+      );
+
+      await waitFor(() => {
+        expect(result.current).toEqual(MOCK_ENTRY);
+      });
+
+      // Restored under the *normalized* hash, so a later in-memory
+      // comparison against the current format matches too — otherwise the
+      // re-analysis is merely deferred to the next mount.
+      expect(mockRestore).toHaveBeenCalledWith(
+        'track-1',
+        expect.objectContaining({ frequencyBinCount: 2 }),
+        COLOR,
+        DRY_HASH,
+      );
+      expect(mockRenderTrackOffline).not.toHaveBeenCalled();
+      expect(mockAnalyse).not.toHaveBeenCalled();
+    });
+
+    it('still re-analyses when a legacy hash is stale against a non-default newer macro', async () => {
+      mockGetEntry.mockReturnValueOnce(undefined).mockReturnValue(MOCK_ENTRY);
+
+      const storeData = toSpectrogramStoreData('track-1', MOCK_DATA);
+      storeData.effectsParamsHash = LEGACY_DRY_HASH;
+      await saveSpectrogramData(storeData);
+
+      const renderedBuffer = mockAudioBuffer();
+      mockRenderTrackOffline.mockResolvedValue(renderedBuffer);
+      mockAnalyse.mockResolvedValue(undefined);
+
+      const crushed: EffectAmounts = {
+        crush: 80,
+        space: 0,
+        echo: 0,
+        tone: 0,
+      };
+      const buffer = mockAudioBuffer();
+      renderHook(() => useSpectrogramCache('track-1', buffer, COLOR, crushed));
+
+      await waitFor(() => {
+        expect(mockRenderTrackOffline).toHaveBeenCalledWith(buffer, crushed);
+      });
+      expect(mockRestore).not.toHaveBeenCalled();
+    });
+
     it('schedules a debounced refresh when an in-memory cached entry has a different effects hash than the current commit', async () => {
       mockGetEntry.mockReturnValue({
         ...MOCK_ENTRY,
@@ -896,7 +964,7 @@ describe('useSpectrogramCache', () => {
           'track-1',
           MOCK_DATA,
           [],
-          '50:0:0',
+          SPACE_50_HASH,
         );
       });
     });
@@ -904,7 +972,7 @@ describe('useSpectrogramCache', () => {
     it('does not schedule a refresh when the in-memory cached entry already matches the current commit', () => {
       mockGetEntry.mockReturnValue({
         ...MOCK_ENTRY,
-        effectsParamsHash: '50:0:0',
+        effectsParamsHash: SPACE_50_HASH,
       });
 
       renderHook(() =>

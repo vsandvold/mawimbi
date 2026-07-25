@@ -304,7 +304,7 @@ describe('useRestoreAudio', () => {
   });
 
   it('passes persisted effect amounts from track metadata (spec 004 M5)', async () => {
-    const effects = { space: 40, echo: 0, tone: 60 };
+    const effects = { crush: 0, space: 40, echo: 0, tone: 60 };
     const tracks = [createTrack({ trackId: 'track-1', effects })];
     await saveAudioData('track-1', new ArrayBuffer(16));
 

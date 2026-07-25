@@ -15,7 +15,11 @@ import {
   useFullScreenHandle,
 } from '../../shared/fullscreen/Fullscreen';
 import useMessage from '../../shared/message';
-import { EFFECT_ORDER, type EffectAmounts } from '../tracks/EffectsChain';
+import {
+  EFFECT_ORDER,
+  withDefaultEffectAmounts,
+  type EffectAmounts,
+} from '../tracks/EffectsChain';
 import { type Track, type TrackId } from '../tracks/types';
 import {
   ADD_TRACK,
@@ -145,8 +149,11 @@ export const useTrackControlsSync = (tracks: Track[]) => {
       if (!signals) continue;
 
       if (current.effects !== undefined && current.effects !== last?.effects) {
+        // Defaults fill in macros an older build's persisted object predates,
+        // so undo/redo of a legacy track never writes undefined into a signal.
+        const effects = withDefaultEffectAmounts(current.effects);
         for (const effectId of EFFECT_ORDER) {
-          signals.effects[effectId].value = current.effects[effectId];
+          signals.effects[effectId].value = effects[effectId];
         }
       }
       if (current.volume !== undefined && current.volume !== last?.volume) {

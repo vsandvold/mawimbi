@@ -177,7 +177,7 @@ describe('reverseProjectAction', () => {
   it('reverses SET_TRACK_EFFECT to the previous amount', () => {
     const trackWithEffects: Track = {
       ...track1,
-      effects: { space: 10, echo: 0, tone: 0 },
+      effects: { crush: 0, space: 10, echo: 0, tone: 0 },
     };
     const state = createState([trackWithEffects]);
     const action: ProjectAction = [
@@ -223,7 +223,7 @@ describe('reverseProjectAction', () => {
   it('undo → redo round-trips through the undo reducer', () => {
     const trackWithEffects: Track = {
       ...track1,
-      effects: { space: 10, echo: 0, tone: 0 },
+      effects: { crush: 0, space: 10, echo: 0, tone: 0 },
     };
     const state = createState([trackWithEffects]);
     const action: ProjectAction = [
@@ -401,14 +401,23 @@ describe('SET_TRACK_EFFECT', () => {
       { trackId: 'track-1', effectId: 'space', amount: 40 },
     ]);
 
-    expect(result.tracks[0].effects).toEqual({ space: 40, echo: 0, tone: 0 });
+    expect(result.tracks[0].effects).toEqual({
+      crush: 0,
+      space: 40,
+      echo: 0,
+      tone: 0,
+    });
     expect(result.tracks[1].effects).toBeUndefined();
   });
 
-  it('preserves other effect amounts on the same track', () => {
+  // The track's stored `effects` here is deliberately the pre-Crush,
+  // three-field shape a persisted project can still carry — committing one
+  // macro fills in the ones that build predated (spec 007 M2, #558) instead
+  // of leaving them undefined.
+  it('preserves other effect amounts on the same track, filling in macros a stored object predates', () => {
     const trackWithEffects: Track = {
       ...track1,
-      effects: { space: 10, echo: 20, tone: 30 },
+      effects: { crush: 0, space: 10, echo: 20, tone: 30 } as Track['effects'],
     };
     const state = createState([trackWithEffects]);
 
@@ -418,6 +427,7 @@ describe('SET_TRACK_EFFECT', () => {
     ]);
 
     expect(result.tracks[0].effects).toEqual({
+      crush: 0,
       space: 10,
       echo: 99,
       tone: 30,

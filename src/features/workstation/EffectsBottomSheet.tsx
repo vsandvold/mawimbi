@@ -16,6 +16,7 @@ import { useEffectControls } from './useEffectControls';
 import './EffectsBottomSheet.css';
 
 const EFFECT_LABELS: Record<EffectId, string> = {
+  crush: 'Crush',
   space: 'Space',
   echo: 'Echo',
   tone: 'Tone',

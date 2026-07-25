@@ -1,5 +1,15 @@
-import { expect, test, uploadAudioFile, BURST_TAIL_AUDIO } from './fixtures';
+import {
+  expect,
+  test,
+  uploadAudioFile,
+  BURST_TAIL_AUDIO,
+  LONG_AUDIO,
+} from './fixtures';
 import { meanLuminance } from './helpers/pixelDecode';
+import {
+  getFirstTrackId,
+  waitForBackgroundAnalysis,
+} from './helpers/mawimbiBridge';
 
 /**
  * Spectrogram refresh from the post-effect render (spec 004, milestone 6,
@@ -115,5 +125,100 @@ test.describe('Spectrogram refresh from the post-effect render', () => {
       const luminance = await meanLuminance(page, await dryWindowClip(page));
       expect(luminance).toBeLessThan(dryLuminance + TAIL_ENERGY_MARGIN);
     }).toPass({ timeout: 15_000 });
+  });
+});
+
+/**
+ * Crush macro (spec 007 milestone 2, #558) — bit-depth reduction is
+ * broadband distortion, so its falsifiable visual signature is energy
+ * appearing *above* a pure tone's fundamental, where the dry render is
+ * near-black.
+ *
+ * `test-tone-long.wav` is a 2.0 s 440 Hz sine. Tiles are transposed for the
+ * vertical timeline (`SpectrogramTileRenderer`: bin 0 = leftmost column)
+ * and drawn stretched across the track's full width, so a CQT bin maps to a
+ * fixed fraction of that width. At 24 bins/octave from C1 (32.7 Hz) the
+ * 440 Hz fundamental sits at bin ~90 of ~225, i.e. ~40% across; the right
+ * half of the track therefore starts just below the second harmonic
+ * (880 Hz, bin ~114) and contains nothing at all in the dry render.
+ */
+const HARMONIC_BAND_START_FRACTION = 0.5;
+// Same time window as the tail assertion above: proven to sit inside the
+// scrubber's canvas window at the default zoom (kb/verification.md — a
+// window computed from playhead − elapsed × pps can silently fall outside
+// the drawn content and sample inert background instead).
+const TONE_WINDOW_START_SEC = 0.45;
+const TONE_WINDOW_END_SEC = 0.75;
+// Quantization distortion at full crush is a gross, broadband change, not
+// the ~0.17–6.5 luminance whisper a randomly-seeded reverb tail produces —
+// but the margin only has to clear zero to be falsifiable, and staying well
+// under the real signal keeps this from re-tuning on every palette tweak.
+const HARMONIC_ENERGY_MARGIN = 0.1;
+
+async function harmonicBandClip(page: import('@playwright/test').Page) {
+  const playheadLineY = await page
+    .locator('.scrubber__playhead')
+    .evaluate((el) => el.getBoundingClientRect().bottom);
+  const track = await page
+    .locator('.timeline__track')
+    .first()
+    .evaluate((el) => {
+      const { left, width } = el.getBoundingClientRect();
+      return { left, width };
+    });
+
+  return {
+    x: Math.round(track.left + track.width * HARMONIC_BAND_START_FRACTION),
+    y: Math.round(
+      playheadLineY - TONE_WINDOW_END_SEC * DEFAULT_PIXELS_PER_SECOND,
+    ),
+    width: Math.round(track.width * (1 - HARMONIC_BAND_START_FRACTION)),
+    height: Math.round(
+      (TONE_WINDOW_END_SEC - TONE_WINDOW_START_SEC) * DEFAULT_PIXELS_PER_SECOND,
+    ),
+  };
+}
+
+test.describe('Crush macro', () => {
+  test.beforeEach(async ({ page }) => {
+    // Flattens the tilt so elapsed time maps linearly to on-screen Y — same
+    // reason as the tail suite above.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/project/test-id');
+    await uploadAudioFile(page, LONG_AUDIO);
+    await expect(page.locator('.timeline__track')).toHaveCount(1);
+    // Melody and rhythm extraction share the spectrogram worker; a preview
+    // or refresh render queues behind them, so wait for the upload's
+    // background jobs rather than a fixed settle (kb/verification.md, #577).
+    await waitForBackgroundAnalysis(page, await getFirstTrackId(page));
+    await rewindToStart(page);
+  });
+
+  test('turning Crush up adds harmonic energy above the fundamental; turning it back down restores near-black', async ({
+    page,
+  }) => {
+    // Measured after the drawer opens: opening it changes the runway
+    // geometry, which moves the playhead line the window is derived from.
+    await openEffectsDrawer(page);
+    const dryLuminance = await meanLuminance(page, await harmonicBandClip(page));
+
+    const crushThumb = page.getByRole('slider', { name: 'Crush amount' });
+    await crushThumb.focus();
+    await crushThumb.press('End');
+    await expect(crushThumb).toHaveAttribute('aria-valuenow', '100');
+
+    await expect(async () => {
+      const luminance = await meanLuminance(page, await harmonicBandClip(page));
+      expect(luminance).toBeGreaterThan(dryLuminance + HARMONIC_ENERGY_MARGIN);
+    }).toPass({ timeout: 20_000 });
+
+    await crushThumb.focus();
+    await crushThumb.press('Home');
+    await expect(crushThumb).toHaveAttribute('aria-valuenow', '0');
+
+    await expect(async () => {
+      const luminance = await meanLuminance(page, await harmonicBandClip(page));
+      expect(luminance).toBeLessThan(dryLuminance + HARMONIC_ENERGY_MARGIN);
+    }).toPass({ timeout: 20_000 });
   });
 });
