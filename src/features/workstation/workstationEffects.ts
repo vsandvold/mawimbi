@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useAudioService } from '../audio/useAudioService';
 import { useClassificationService } from '../classification/useClassificationService';
 import { usePlaybackService } from '../playback/usePlaybackService';
 import { useRecordingService } from '../recording/useRecordingService';
@@ -8,7 +9,11 @@ import useKeypress from '../../shared/hooks/useKeypress';
 import { saveAudioData } from '../project/ProjectStorageService';
 import useMessage from '../../shared/message';
 import { type Track } from '../tracks/types';
-import { ADD_TRACK, SET_INSTRUMENT } from '../project/projectPageReducer';
+import {
+  ADD_TRACK,
+  SET_INSTRUMENT,
+  SET_TRACK_TEMPO,
+} from '../project/projectPageReducer';
 import useProjectDispatch from '../project/useProjectDispatch';
 
 const RECORDING_FILE_NAME = 'Recording';
@@ -213,6 +218,52 @@ export const useClassificationSync = (tracks: Track[]) => {
     }
     // dispatch is stable across renders
   });
+};
+
+// Copies each track's rhythm-analysis tempo scalars onto its track record
+// (spec 007 Goal 4, #559). The analysis itself already ran — spec 008
+// milestone 2's worker pass produces `{bpm, confidence}` alongside the beat
+// ticks and caches it — so this only forwards the two numbers into project
+// state, where they persist and are readable from any `Track` (the effects
+// drawer's BPM badge today, tempo-synced Echo next).
+//
+// Subscription rather than `useClassificationSync`'s render-time poll:
+// rhythm data lives in the spectrogram cache, which owns no signal, so
+// nothing would re-render this hook when a worker round-trip lands. The
+// initial `syncTempo()` covers data that arrived before the subscription
+// (a restored project, or a re-run of this effect).
+export const useTempoSync = (tracks: Track[]) => {
+  const audioService = useAudioService();
+  const dispatch = useProjectDispatch();
+
+  useEffect(() => {
+    const cache = audioService.spectrogramCache;
+
+    const unsubscribes = tracks.map((track) => {
+      const syncTempo = () => {
+        const rhythm = cache.getRhythm(track.trackId);
+        if (!rhythm) return;
+        if (
+          track.tempo?.bpm === rhythm.bpm &&
+          track.tempo?.confidence === rhythm.confidence
+        ) {
+          return;
+        }
+        dispatch([
+          SET_TRACK_TEMPO,
+          {
+            trackId: track.trackId,
+            tempo: { bpm: rhythm.bpm, confidence: rhythm.confidence },
+          },
+        ]);
+      };
+
+      syncTempo();
+      return cache.subscribeToEntry(track.trackId, syncTempo);
+    });
+
+    return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
+  }, [tracks, audioService, dispatch]);
 };
 
 export const useMicrophone = (isRecording: boolean) => {

@@ -8,6 +8,7 @@ import {
   useClassificationSync,
   useCountIn,
   useSpacebarPlaybackToggle,
+  useTempoSync,
   useTotalTime,
 } from '../workstationEffects';
 
@@ -102,6 +103,7 @@ it('uses workstation effect hooks', () => {
   expect(useFileDropzone).toHaveBeenCalled();
   expect(useSpacebarPlaybackToggle).toHaveBeenCalled();
   expect(useClassificationSync).toHaveBeenCalled();
+  expect(useTempoSync).toHaveBeenCalled();
   expect(useTotalTime).toHaveBeenCalled();
   expect(useCountIn).toHaveBeenCalled();
 });
@@ -111,6 +113,7 @@ function mockWorkstationEffects() {
     useClassificationSync: vi.fn(),
     useCountIn: vi.fn(() => null),
     useSpacebarPlaybackToggle: vi.fn(),
+    useTempoSync: vi.fn(),
     useTotalTime: vi.fn(),
     useMicrophone: vi.fn(),
     useToggleMonitoring: vi.fn(() => vi.fn()),

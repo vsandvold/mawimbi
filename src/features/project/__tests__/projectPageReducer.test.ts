@@ -6,6 +6,7 @@ import {
   MOVE_TRACK,
   RENAME_PROJECT,
   SET_INSTRUMENT,
+  SET_TRACK_TEMPO,
   SET_TRACK_EFFECT,
   SET_TRACK_VOLUME,
   SET_TRACK_MUTE_SOLO,
@@ -389,6 +390,59 @@ describe('SET_INSTRUMENT', () => {
     expect(result.tracks[1].instrument).toBe('drums');
     expect(result.tracks[0]).toEqual(track1);
     expect(result.tracks[2]).toEqual(track3);
+  });
+});
+
+describe('SET_TRACK_TEMPO', () => {
+  const tempo = { bpm: 119.84, confidence: 3.77 };
+
+  it('sets tempo on the matching track', () => {
+    const state = createState([track1, track2]);
+
+    const result = projectReducer(state, [
+      SET_TRACK_TEMPO,
+      { trackId: 'track-1', tempo },
+    ]);
+
+    expect(result.tracks[0].tempo).toEqual(tempo);
+    expect(result.tracks[1].tempo).toBeUndefined();
+  });
+
+  it('does not mutate other tracks', () => {
+    const state = createState([track1, track2, track3]);
+
+    const result = projectReducer(state, [
+      SET_TRACK_TEMPO,
+      { trackId: 'track-2', tempo },
+    ]);
+
+    expect(result.tracks[1].tempo).toEqual(tempo);
+    expect(result.tracks[0]).toEqual(track1);
+    expect(result.tracks[2]).toEqual(track3);
+  });
+
+  it('replaces an earlier estimate rather than merging with it', () => {
+    // A re-analysis (an effects refresh, a re-record) supersedes what came
+    // before — there is one current estimate per track, never a history.
+    const state = createState([{ ...track1, tempo }]);
+
+    const result = projectReducer(state, [
+      SET_TRACK_TEMPO,
+      { trackId: 'track-1', tempo: { bpm: 90, confidence: 0.5 } },
+    ]);
+
+    expect(result.tracks[0].tempo).toEqual({ bpm: 90, confidence: 0.5 });
+  });
+
+  it('is not undoable — an estimate is not a gesture the user made', () => {
+    const state = createState([track1]);
+
+    const reverse = reverseProjectAction(state, [
+      SET_TRACK_TEMPO,
+      { trackId: 'track-1', tempo },
+    ]);
+
+    expect(reverse).toBeNull();
   });
 });
 

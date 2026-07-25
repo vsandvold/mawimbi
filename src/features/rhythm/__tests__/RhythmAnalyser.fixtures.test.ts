@@ -31,6 +31,7 @@ import {
   CLICK_120BPM_TIMES,
 } from '../../../../e2e/fixtures/rhythmGroundTruth.mjs';
 import { analyseRhythm, type RhythmData } from '../RhythmAnalyser';
+import { MIN_TEMPO_CONFIDENCE, isConfidentTempo } from '../tempo';
 
 const FIXTURE_DIR = path.resolve(process.cwd(), 'e2e/fixtures');
 const ESSENTIA_DIST_DIR = path.resolve(
@@ -232,6 +233,54 @@ describe('analyseRhythm on real fixtures', () => {
       // why the spec gates rendering on confidence rather than tick count.
       expect(rhythm.ticks.every((tick) => Number.isFinite(tick))).toBe(true);
       expect(rhythm.onsets.length).toBeLessThanOrEqual(ARRHYTHMIC_MAX_ONSETS);
+    },
+    ANALYSIS_TIMEOUT_MS,
+  );
+});
+
+/**
+ * `MIN_TEMPO_CONFIDENCE` (spec 007 #559) is a tuning judgement, so what
+ * makes it falsifiable is the *pair* of real fixtures it has to separate —
+ * not either one alone. `test-click-then-continue.wav` is the load-bearing
+ * case: a genuinely well-played but partial-duration performance scores far
+ * closer to noise (1.26) than to a fixture that clicks throughout (3.4–3.8),
+ * so a threshold read off the clean numbers would silently exclude real
+ * material (kb/decisions.md, 2026-07-24). Raising the constant past ~1.26 or
+ * dropping it below ~0.90 fails here rather than in a QA session.
+ */
+describe('MIN_TEMPO_CONFIDENCE separates real rhythm from noise', () => {
+  it(
+    'accepts a real performance that stops partway through the file',
+    async () => {
+      const rhythm = await analyseFixture('test-click-then-continue.wav');
+
+      expect(
+        isConfidentTempo(rhythm),
+        `partial-duration performance scored ${rhythm.confidence.toFixed(2)}, below the ${MIN_TEMPO_CONFIDENCE} threshold`,
+      ).toBe(true);
+    },
+    ANALYSIS_TIMEOUT_MS,
+  );
+
+  it(
+    'rejects arrhythmic noise',
+    async () => {
+      const rhythm = await analyseFixture('test-arrhythmic-noise.wav');
+
+      expect(
+        isConfidentTempo(rhythm),
+        `arrhythmic noise scored ${rhythm.confidence.toFixed(2)}, at or above the ${MIN_TEMPO_CONFIDENCE} threshold`,
+      ).toBe(false);
+    },
+    ANALYSIS_TIMEOUT_MS,
+  );
+
+  it(
+    'rejects a pure tone, which has no rhythm to estimate at all',
+    async () => {
+      const rhythm = await analyseFixture('test-tone-long.wav');
+
+      expect(isConfidentTempo(rhythm)).toBe(false);
     },
     ANALYSIS_TIMEOUT_MS,
   );

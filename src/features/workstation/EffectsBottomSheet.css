@@ -67,6 +67,19 @@
   white-space: nowrap;
 }
 
+/* Sits in the header row rather than getting a row of its own, so the
+   small-snap fit invariant above is unaffected. */
+.effects-bottom-sheet__tempo {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--muted);
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .effects-bottom-sheet__nav {
   display: flex;
   align-items: center;

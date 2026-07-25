@@ -181,6 +181,10 @@ class SpectrogramCache {
         analysisComplete,
       );
     }
+    this.notify(trackId, entry);
+  }
+
+  private notify(trackId: string, entry: TrackSpectrogramEntry): void {
     this.listeners.get(trackId)?.forEach((callback) => callback(entry));
   }
 
@@ -225,10 +229,18 @@ class SpectrogramCache {
     return this.entries.get(trackId)?.melody;
   }
 
+  // Notifies like `setEntry` does — `subscribeToEntry`'s contract is every
+  // future update to the entry, and a subscriber that only hears about tile
+  // deliveries would silently miss the analysis results written onto the
+  // same object (`useTempoSync` is the first such subscriber). The entry is
+  // mutated in place, so the callback receives the reference it already
+  // holds: a React consumer that needs to re-render must copy it, the way
+  // `useSpectrogramCache`'s `refreshEntry` does.
   setMelody(trackId: string, melody: MelodyData): void {
     const entry = this.entries.get(trackId);
     if (entry) {
       entry.melody = melody;
+      this.notify(trackId, entry);
     }
   }
 
@@ -240,6 +252,7 @@ class SpectrogramCache {
     const entry = this.entries.get(trackId);
     if (entry) {
       entry.rhythm = rhythm;
+      this.notify(trackId, entry);
     }
   }
 
