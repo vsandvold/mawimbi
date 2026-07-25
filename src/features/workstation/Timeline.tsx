@@ -2,6 +2,7 @@ import classNames from 'classnames';
 import { useRecordingService } from '../recording/useRecordingService';
 import { useTrackService } from '../tracks/useTrackService';
 import { type Track, type TrackColor, type TrackId } from '../tracks/types';
+import RhythmOverlay from '../rhythm/RhythmOverlay';
 import Spectrogram from '../spectrogram/Spectrogram';
 import { useEditMode } from './useEditMode';
 import './Timeline.css';
@@ -50,6 +51,7 @@ const Timeline = ({
           </div>
         );
       })}
+      <RhythmOverlay pixelsPerSecond={pixelsPerSecond} tracks={tracks} />
       {isRecording && (
         <div className="timeline__track">
           <Spectrogram
