@@ -829,4 +829,58 @@ describe('InstrumentClassificationService', () => {
       expect(service.classifications.size).toBe(0);
     });
   });
+
+  describe('hydrate', () => {
+    it('restores a persisted label as a completed classification', () => {
+      service.hydrate('track-1', 'drums');
+
+      expect(service.getClassificationState('track-1')).toBe('done');
+      expect(service.getClassification('track-1')?.label).toBe('drums');
+    });
+
+    it('skips inference for a hydrated track', async () => {
+      service.hydrate('track-1', 'drums');
+
+      // No worker result is simulated: this resolving at all is what proves
+      // nothing was dispatched for inference.
+      const label = await service.classify('track-1', createAudioBuffer());
+
+      expect(label).toBe('drums');
+      expect(globalThis.Worker).not.toHaveBeenCalled();
+    });
+
+    it('ignores a label that is not a known instrument', () => {
+      service.hydrate('track-1', 'kazoo');
+
+      expect(service.getClassificationState('track-1')).toBe('idle');
+    });
+
+    it('does not overwrite a completed classification', async () => {
+      const promise = service.classify('track-1', createAudioBuffer());
+      simulateWorkerResult('electricguitar', 0.85);
+      await promise;
+
+      service.hydrate('track-1', 'drums');
+
+      expect(service.getClassification('track-1')?.label).toBe('guitar');
+    });
+
+    // The cache is a session-long singleton, so leaving a track's failed
+    // attempt in place means re-entering the project re-runs the whole model
+    // download and inference for a label the project already has.
+    it('replaces a failed classification', async () => {
+      // Worker and main-thread fallback both fail — the shape a blocked or
+      // offline model download takes.
+      mockFetchModel.mockRejectedValue(new Error('model error'));
+      const promise = service.classify('track-1', createAudioBuffer());
+      simulateWorkerError('Worker failed');
+      await expect(promise).rejects.toThrow();
+      expect(service.getClassificationState('track-1')).toBe('error');
+
+      service.hydrate('track-1', 'drums');
+
+      expect(service.getClassificationState('track-1')).toBe('done');
+      expect(service.getClassification('track-1')?.label).toBe('drums');
+    });
+  });
 });

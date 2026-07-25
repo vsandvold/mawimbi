@@ -731,3 +731,62 @@ it('does not load cached transcriptions for tracks already transcribed', () => {
 
   expect(mockLoadCachedTranscription).not.toHaveBeenCalled();
 });
+
+// Classification is a session-only signal, so a reloaded project has an empty
+// service until re-classification finishes — and it may never finish (a
+// hosted-model outage, kb/product.md). The persisted label is what makes a
+// restored vocal track reachable at all.
+it('lists a restored vocal track from the persisted instrument field', () => {
+  mockGetClassification.mockReturnValue(undefined);
+
+  const tracks = [
+    mockTrack({
+      trackId: 'track-1',
+      fileName: 'vocals.wav',
+      instrument: 'vocals',
+    }),
+  ];
+
+  const { queryByText, getByText } = render(
+    <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
+  );
+
+  expect(queryByText('No vocal tracks detected')).not.toBeInTheDocument();
+  expect(getByText('vocals.wav')).toBeInTheDocument();
+});
+
+it('prefers the persisted instrument over a stale service classification', () => {
+  mockGetClassification.mockReturnValue({ label: 'guitar', score: 0.6 });
+
+  const tracks = [
+    mockTrack({
+      trackId: 'track-1',
+      fileName: 'vocals.wav',
+      instrument: 'vocals',
+    }),
+  ];
+
+  const { getByText } = render(
+    <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
+  );
+
+  expect(getByText('vocals.wav')).toBeInTheDocument();
+});
+
+// The sheet is routinely opened while classification is still running, so
+// "load once on open" never fires for a track that becomes vocal afterwards —
+// its persisted transcription then shows as an un-transcribed track.
+it('loads the cached transcription for a track that becomes vocal after open', () => {
+  const tracks = [mockTrack({ trackId: 'track-1', fileName: 'vocals.wav' })];
+
+  const { rerender } = render(
+    <LyricsBottomSheet {...defaultProps} tracks={tracks} />,
+  );
+
+  expect(mockLoadCachedTranscription).not.toHaveBeenCalled();
+
+  mockGetClassification.mockReturnValue({ label: 'vocals', score: 0.93 });
+  rerender(<LyricsBottomSheet {...defaultProps} tracks={tracks} />);
+
+  expect(mockLoadCachedTranscription).toHaveBeenCalledWith('track-1');
+});

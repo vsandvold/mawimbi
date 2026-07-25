@@ -238,6 +238,36 @@ describe('useClassificationSync', () => {
     );
     expect(instrumentCalls).toHaveLength(1);
   });
+
+  // A track that already carries a label got it from the user's dropdown or
+  // from a previous session's persisted state. Classification fills an empty
+  // field; it never overrules one that is already set.
+  it('does not overwrite an instrument the track already has', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const service = classificationService as any;
+    vi.spyOn(service, 'classifyInWorker').mockResolvedValue({
+      label: 'guitar',
+      score: 0.7,
+    });
+
+    const track = mockTrack({ trackId: 'track-1', instrument: 'drums' });
+
+    const { rerender } = renderHook(
+      ({ tracks }) => useClassificationSync(tracks),
+      { initialProps: { tracks: [track] } },
+    );
+
+    await act(async () => {
+      await classificationService.classify('track-1', mockAudioBuffer);
+    });
+
+    rerender({ tracks: [track] });
+
+    const instrumentCalls = mockProjectDispatch.mock.calls.filter(
+      (call) => call[0]?.[0] === 'SET_INSTRUMENT',
+    );
+    expect(instrumentCalls).toEqual([]);
+  });
 });
 
 describe('useTempoSync', () => {

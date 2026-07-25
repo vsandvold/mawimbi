@@ -201,6 +201,17 @@ export const useClassificationSync = (tracks: Track[]) => {
     for (const track of tracks) {
       if (syncedRef.current.has(track.trackId)) continue;
 
+      // A track that already carries a label got it from the user's dropdown
+      // or from a previous session — classification fills an empty field, it
+      // never overrules one that is set. Without this, a restored project
+      // silently reverted every manual correction the next time inference ran
+      // (and a manual pick made mid-classification was overwritten seconds
+      // later).
+      if (track.instrument) {
+        syncedRef.current.add(track.trackId);
+        continue;
+      }
+
       const state = classification.getClassificationState(track.trackId);
       if (state !== 'done') continue;
 
@@ -209,12 +220,7 @@ export const useClassificationSync = (tracks: Track[]) => {
 
       syncedRef.current.add(track.trackId);
 
-      if (track.instrument !== label) {
-        dispatch([
-          SET_INSTRUMENT,
-          { trackId: track.trackId, instrument: label },
-        ]);
-      }
+      dispatch([SET_INSTRUMENT, { trackId: track.trackId, instrument: label }]);
     }
     // dispatch is stable across renders
   });
