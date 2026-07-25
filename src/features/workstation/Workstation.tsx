@@ -22,6 +22,7 @@ import {
   useCountIn,
   useMicrophone,
   useSpacebarPlaybackToggle,
+  useTempoSync,
   useToggleMonitoring,
   useTotalTime,
 } from './workstationEffects';
@@ -84,6 +85,7 @@ const Workstation = (props: WorkstationProps) => {
 
   useSpacebarPlaybackToggle();
   useClassificationSync(tracks);
+  useTempoSync(tracks);
   useTotalTime(tracks);
 
   const handleCountInComplete = useCallback(() => {

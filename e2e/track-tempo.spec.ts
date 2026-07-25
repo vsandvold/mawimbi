@@ -1,0 +1,68 @@
+import { expect, test, uploadAudioFile, CLICK_120BPM_AUDIO } from './fixtures';
+import { CLICK_120BPM } from './fixtures/rhythmGroundTruth.mjs';
+
+/**
+ * BPM badge (spec 007 milestone 3, #559) — the drawer's read of the track's
+ * tempo estimate. The number itself comes from the rhythm worker pass spec
+ * 008 milestone 2 already ships; what this proves is the path from that
+ * worker result to a rendered badge: cache → `useTempoSync` →
+ * `SET_TRACK_TEMPO` → project state → drawer.
+ *
+ * Its own file rather than an extra case in `track-effects.spec.ts` purely
+ * as organisation — a tempo read isn't an effects-processing assertion.
+ * Note for anyone tempted to move it back for scheduling reasons: it makes
+ * no difference either way. `fullyParallel: true` distributes individual
+ * tests across workers regardless of which file they live in, and this test
+ * (~17 s of audio to analyse) starved that file's CPU-bound pixel
+ * assertions at the local default of 2 workers from both locations,
+ * measured. CI runs `workers: 1`, where everything passes.
+ *
+ * The "no confident tempo ⇒ no badge" half deliberately lives at cheaper
+ * levels: real essentia scores `test-tone-long.wav` at exactly 0 confidence
+ * in Vitest (`RhythmAnalyser.fixtures.test.ts`), and the drawer's
+ * absent-badge rendering is covered in `EffectsBottomSheet.test.tsx`. A
+ * second full upload would re-prove both at the slowest available level.
+ */
+
+const BADGE_TIMEOUT_MS = 60_000;
+// Measured: essentia reports 119.84 BPM for this fixture. Wide enough not to
+// chase the estimator's own precision, tight enough that a half/double-time
+// octave error (60/240 BPM) fails loudly.
+const BPM_TOLERANCE = 2;
+
+test('a click track shows its estimated BPM in the effects drawer', async ({
+  page,
+}) => {
+  test.setTimeout(BADGE_TIMEOUT_MS + 30_000);
+
+  // Melody extraction contributes nothing here and is the expensive job on
+  // the shared spectrogram worker (kb/verification.md, #577) — on a 17 s
+  // fixture it delays the rhythm result this test waits for by tens of
+  // seconds. Basic Pitch's model is self-hosted, so `fixtures.ts`'s
+  // `blockModelRequests` (only `/models/*.onnx`) doesn't reach it; blocking
+  // it makes `extractMelodyInWorker` reject, which its caller already
+  // handles as a logged warning.
+  await page.route('**/basic-pitch-model/**', (route) =>
+    route.fulfill({ status: 404, body: '' }),
+  );
+
+  await page.goto('/project/test-id');
+  await uploadAudioFile(page, CLICK_120BPM_AUDIO);
+  await expect(page.locator('.timeline__track')).toHaveCount(1);
+
+  await page.getByTitle('Show effects').click();
+
+  // No wait for the drawer's open animation: the badge assertion below
+  // polls, so it covers the animation and the analysis alike (CLAUDE.md's
+  // no-blind-waits rule — the settle other specs in this area use is
+  // protecting a one-shot pixel read, which this isn't).
+  const badge = page.getByTitle('Estimated tempo');
+  await expect(badge).toBeVisible({ timeout: BADGE_TIMEOUT_MS });
+
+  const label = (await badge.textContent()) ?? '';
+  const bpm = Number(label.replace(' BPM', ''));
+  expect(
+    Math.abs(bpm - CLICK_120BPM.bpm),
+    `badge read "${label}", expected ~${CLICK_120BPM.bpm} BPM`,
+  ).toBeLessThanOrEqual(BPM_TOLERANCE);
+});

@@ -8,7 +8,10 @@ import {
   useClassificationSync,
   useSpacebarPlaybackToggle,
   useMicrophone,
+  useTempoSync,
 } from '../workstationEffects';
+import { type SpectrogramData } from '../../spectrogram/OfflineAnalyser';
+import { type RhythmData } from '../../rhythm/RhythmAnalyser';
 
 const audioService = AudioService.getInstance();
 const playbackService = audioService.playbackService;
@@ -234,5 +237,124 @@ describe('useClassificationSync', () => {
       (call) => call[0]?.[0] === 'SET_INSTRUMENT',
     );
     expect(instrumentCalls).toHaveLength(1);
+  });
+});
+
+describe('useTempoSync', () => {
+  const spectrogramCache = audioService.spectrogramCache;
+  const rhythm: RhythmData = {
+    bpm: 119.84,
+    confidence: 3.77,
+    ticks: [0.5, 1.0],
+    onsets: [0.02, 0.51],
+  };
+
+  const spectrogramData: SpectrogramData = {
+    frequencyFrames: [],
+    timeResolution: 0.01,
+    frequencyBinCount: 128,
+    sampleRate: 44100,
+    duration: 2,
+    totalFrames: 0,
+  };
+
+  // The cache is a singleton on the AudioService — a track left behind by
+  // one test would make the next one's initial sync fire for the wrong data.
+  afterEach(() => spectrogramCache.invalidateAll());
+
+  const cacheTrack = (trackId: string) =>
+    spectrogramCache.setEntry(trackId, spectrogramData, []);
+
+  const tempoCalls = () =>
+    mockProjectDispatch.mock.calls.filter(
+      (call) => call[0]?.[0] === 'SET_TRACK_TEMPO',
+    );
+
+  it('dispatches SET_TRACK_TEMPO for rhythm already cached at mount', () => {
+    cacheTrack('track-1');
+    spectrogramCache.setRhythm('track-1', rhythm);
+
+    renderHook(({ tracks }) => useTempoSync(tracks), {
+      initialProps: { tracks: [mockTrack({ trackId: 'track-1' })] },
+    });
+
+    expect(mockProjectDispatch).toHaveBeenCalledWith([
+      'SET_TRACK_TEMPO',
+      { trackId: 'track-1', tempo: { bpm: 119.84, confidence: 3.77 } },
+    ]);
+  });
+
+  it('dispatches when rhythm analysis lands after mount', () => {
+    cacheTrack('track-1');
+
+    renderHook(({ tracks }) => useTempoSync(tracks), {
+      initialProps: { tracks: [mockTrack({ trackId: 'track-1' })] },
+    });
+    expect(tempoCalls()).toHaveLength(0);
+
+    // Nothing re-renders the workstation when a worker round-trip resolves,
+    // so this only works through the cache's own subscription.
+    act(() => spectrogramCache.setRhythm('track-1', rhythm));
+
+    expect(tempoCalls()).toHaveLength(1);
+  });
+
+  it('does not re-dispatch a tempo the track already carries', () => {
+    cacheTrack('track-1');
+    spectrogramCache.setRhythm('track-1', rhythm);
+    const track = mockTrack({
+      trackId: 'track-1',
+      tempo: { bpm: rhythm.bpm, confidence: rhythm.confidence },
+    });
+
+    const { rerender } = renderHook(({ tracks }) => useTempoSync(tracks), {
+      initialProps: { tracks: [track] },
+    });
+    rerender({ tracks: [track] });
+
+    expect(tempoCalls()).toHaveLength(0);
+  });
+
+  it('never dispatches a non-finite estimate', () => {
+    // The already-synced guard compares with `===`, which is always false
+    // for NaN — dispatching one would re-enter the effect through the new
+    // `tracks` array and dispatch again without end, freezing the tab
+    // rather than showing a wrong number (`/code-review` on #559).
+    cacheTrack('track-1');
+    const track = mockTrack({ trackId: 'track-1' });
+
+    const { rerender } = renderHook(({ tracks }) => useTempoSync(tracks), {
+      initialProps: { tracks: [track] },
+    });
+    act(() =>
+      spectrogramCache.setRhythm('track-1', { ...rhythm, bpm: Number.NaN }),
+    );
+    // Stands in for the re-render a dispatch would have caused: if one had
+    // slipped through, this is the iteration that would dispatch again.
+    rerender({ tracks: [track] });
+
+    expect(tempoCalls()).toHaveLength(0);
+  });
+
+  it('does not write back a tempo for a track deleted mid-analysis', () => {
+    cacheTrack('track-1');
+    cacheTrack('track-2');
+    const surviving = mockTrack({ trackId: 'track-2' });
+
+    const { rerender } = renderHook(({ tracks }) => useTempoSync(tracks), {
+      initialProps: { tracks: [mockTrack({ trackId: 'track-1' }), surviving] },
+    });
+
+    // The user deletes track-1 while the worker is still running; both
+    // analyses then resolve, one against a track the project no longer has.
+    rerender({ tracks: [surviving] });
+    act(() => {
+      spectrogramCache.setRhythm('track-1', rhythm);
+      spectrogramCache.setRhythm('track-2', rhythm);
+    });
+
+    // track-2's dispatch is the positive control: without it, "no dispatch
+    // for track-1" would also pass if nothing were listening at all.
+    expect(tempoCalls().map((call) => call[0][1].trackId)).toEqual(['track-2']);
   });
 });

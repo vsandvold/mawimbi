@@ -2,6 +2,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useMemo } from 'react';
 import { Button } from '../../shared/ui/button';
 import { Slider } from '../../shared/ui/slider';
+import { formatBpm, selectConfidentTempo } from '../rhythm/tempo';
 import {
   EFFECT_ORDER,
   MAX_EFFECT_AMOUNT,
@@ -65,6 +66,11 @@ const EffectsBottomSheetContent = ({
   if (!activeTrack) return null;
 
   const { r, g, b } = activeTrack.color;
+  // Absent, not disabled, when the estimate isn't trustworthy: a track with
+  // no confident tempo shows nothing rather than a greyed-out mystery (spec
+  // 007 Decision 4). Showing the number when there *is* one also keeps an
+  // octave error (2×/½×, endemic to tempo estimators) visible.
+  const tempo = selectConfidentTempo(activeTrack.tempo);
 
   return (
     <div className="effects-bottom-sheet">
@@ -87,6 +93,14 @@ const EffectsBottomSheetContent = ({
           <span className="effects-bottom-sheet__filename">
             {activeTrack.fileName}
           </span>
+          {tempo && (
+            <span
+              className="effects-bottom-sheet__tempo"
+              title="Estimated tempo"
+            >
+              {formatBpm(tempo.bpm)}
+            </span>
+          )}
         </div>
         <div className="effects-bottom-sheet__nav">
           <Button

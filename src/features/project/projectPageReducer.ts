@@ -2,6 +2,7 @@ import {
   withDefaultEffectAmounts,
   type EffectId,
 } from '../tracks/EffectsChain';
+import { type TrackTempo } from '../rhythm/tempo';
 import {
   DEFAULT_VOLUME,
   type Track,
@@ -40,6 +41,15 @@ type SetInstrumentPayload = {
   instrument: string;
 };
 
+// Background-computed like SET_INSTRUMENT, not user-authored: the rhythm
+// worker produces it and `useTempoSync` forwards it. Deliberately absent
+// from `reverseProjectAction` — undoing a user's own gesture must never step
+// back through an estimate they never made.
+type SetTrackTempoPayload = {
+  trackId: TrackId;
+  tempo: TrackTempo;
+};
+
 type SetTrackEffectPayload = {
   trackId: TrackId;
   effectId: EffectId;
@@ -69,6 +79,7 @@ export type ProjectAction =
   | [typeof DELETE_TRACK, DeleteTrackPayload]
   | [typeof MOVE_TRACK, MoveTrackPayload]
   | [typeof SET_INSTRUMENT, SetInstrumentPayload]
+  | [typeof SET_TRACK_TEMPO, SetTrackTempoPayload]
   | [typeof SET_TRACK_EFFECT, SetTrackEffectPayload]
   | [typeof SET_TRACK_VOLUME, SetTrackVolumePayload]
   | [typeof SET_TRACK_MUTE_SOLO, SetTrackMuteSoloPayload]
@@ -86,6 +97,7 @@ export const ADD_TRACK = 'ADD_TRACK';
 export const DELETE_TRACK = 'DELETE_TRACK';
 export const MOVE_TRACK = 'MOVE_TRACK';
 export const SET_INSTRUMENT = 'SET_INSTRUMENT';
+export const SET_TRACK_TEMPO = 'SET_TRACK_TEMPO';
 export const SET_TRACK_EFFECT = 'SET_TRACK_EFFECT';
 export const SET_TRACK_VOLUME = 'SET_TRACK_VOLUME';
 export const SET_TRACK_MUTE_SOLO = 'SET_TRACK_MUTE_SOLO';
@@ -104,6 +116,8 @@ export function projectReducer(
       return { ...state, tracks: moveTrack(state.tracks, action[1]) };
     case SET_INSTRUMENT:
       return setInstrument(state, action[1]);
+    case SET_TRACK_TEMPO:
+      return setTrackTempo(state, action[1]);
     case SET_TRACK_EFFECT:
       return setTrackEffect(state, action[1]);
     case SET_TRACK_VOLUME:
@@ -222,6 +236,18 @@ function setInstrument(
     ...state,
     tracks: state.tracks.map((track) =>
       track.trackId === trackId ? { ...track, instrument } : track,
+    ),
+  };
+}
+
+function setTrackTempo(
+  state: ProjectState,
+  { trackId, tempo }: SetTrackTempoPayload,
+): ProjectState {
+  return {
+    ...state,
+    tracks: state.tracks.map((track) =>
+      track.trackId === trackId ? { ...track, tempo } : track,
     ),
   };
 }

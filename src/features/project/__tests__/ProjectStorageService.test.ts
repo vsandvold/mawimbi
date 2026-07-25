@@ -172,6 +172,32 @@ describe('ProjectStorageService', () => {
       expect(loaded?.tracks).toHaveLength(1);
       expect(loaded?.tracks[0].fileName).toBe('drums.wav');
     });
+
+    it("round-trips a track's tempo estimate", async () => {
+      // The rhythm analysis scalars ride on the track record (spec 007 #559)
+      // rather than in the `rhythms` store row, so a reloaded project shows
+      // the BPM badge without waiting for a per-track store read.
+      const project = createProject({
+        tracks: [
+          {
+            trackId: 'track-1',
+            color: { r: 77, g: 238, b: 234 },
+            fileName: 'drums.wav',
+            index: 0,
+            tempo: { bpm: 119.84, confidence: 3.77 },
+          },
+        ],
+        nextColorId: 1,
+        nextIndex: 1,
+      });
+      await saveProject(project);
+
+      const loaded = await loadProject('project-1');
+      expect(loaded?.tracks[0].tempo).toEqual({
+        bpm: 119.84,
+        confidence: 3.77,
+      });
+    });
   });
 
   describe('deleteProject cleans up related data', () => {
