@@ -585,6 +585,31 @@ describe('useSpectrogramCache', () => {
     expect(stored!.trackId).toBe('track-1');
   });
 
+  // Same finding as the rhythm case below (code review on PR #577), applied
+  // to melody: the two rows are written separately, and the megabyte-scale
+  // spectrogram write is far likelier to fail (quota) than the kilobyte
+  // melody one. Reading the stored melody only on the restore branch
+  // discarded a good row and re-ran Basic Pitch on every load, forever.
+  it('restores melody from IndexedDB even when the spectrogram row is missing', async () => {
+    mockGetEntry
+      .mockReturnValueOnce(undefined)
+      .mockReturnValue(MOCK_ENTRY_WITH_MELODY);
+    mockAnalyse.mockResolvedValue(undefined);
+
+    // Melody persisted; spectrogram did not.
+    await saveMelodyData(toMelodyStoreData('track-1', MOCK_MELODY));
+
+    renderHook(() => useSpectrogramCache('track-1', mockAudioBuffer(), COLOR));
+
+    await waitFor(() => {
+      expect(mockSetMelody).toHaveBeenCalledWith('track-1', MOCK_MELODY);
+    });
+    expect(mockExtractMelodyInWorker).not.toHaveBeenCalled();
+    // The spectrogram itself is still re-analysed — only the melody is
+    // spared.
+    expect(mockAnalyse).toHaveBeenCalled();
+  });
+
   // --- Rhythm (spec 008 milestone 2, #568) -------------------------------
   //
   // Rhythm mirrors melody's lifecycle exactly: extract on fresh analysis,
@@ -647,6 +672,59 @@ describe('useSpectrogramCache', () => {
     // The spectrogram itself is still re-analysed — only the rhythm is
     // spared.
     expect(mockAnalyse).toHaveBeenCalled();
+  });
+
+  // `/code-review` on PR #579: `setRhythm` mutates the cached entry in
+  // place, so the no-spectrogram branch — which has already handed React
+  // that object, and whose melody restore then snapshots a clone of it —
+  // needs its own `refreshEntry()` after restoring rhythm. The spectrogram
+  // write must not be what papers this over: it is fire-and-forget, and on
+  // this very path it is the write that just failed (quota) and left no
+  // spectrogram row behind. Pinned with a never-settling save so the
+  // re-sync in its `.then` can't mask a missing refresh.
+  it('surfaces a restored rhythm in the returned entry without waiting on the spectrogram write', async () => {
+    const liveEntry: TrackSpectrogramEntry = {
+      data: MOCK_DATA,
+      tiles: [],
+      analysisComplete: true,
+    };
+    mockGetEntry.mockReturnValueOnce(undefined).mockReturnValue(liveEntry);
+    mockAnalyse.mockResolvedValue(undefined);
+    mockSetRhythm.mockImplementationOnce((_trackId, rhythm: RhythmData) => {
+      liveEntry.rhythm = rhythm;
+    });
+
+    const saveSpy = vi
+      .spyOn(
+        await import('../../project/ProjectStorageService'),
+        'saveSpectrogramData',
+      )
+      .mockReturnValueOnce(new Promise<void>(() => {}));
+
+    // Both small rows survived; the spectrogram row did not.
+    await saveMelodyData(toMelodyStoreData('track-1', MOCK_MELODY));
+    await saveRhythmData(toRhythmStoreData('track-1', MOCK_RHYTHM));
+
+    // Hoisted, unlike most tests in this file: an inline `mockAudioBuffer()`
+    // is a new object identity on every render, so each state update
+    // re-runs the effect, and its in-memory-cache branch hands React the
+    // live (already-mutated) entry — masking exactly the missing refresh
+    // this test pins.
+    const buffer = mockAudioBuffer();
+    const { result } = renderHook(() =>
+      useSpectrogramCache('track-1', buffer, COLOR),
+    );
+
+    // Positive precondition: without it the assertion below stays green
+    // when the restore path never ran at all.
+    await waitFor(() => {
+      expect(mockSetRhythm).toHaveBeenCalledWith('track-1', MOCK_RHYTHM);
+    });
+    await waitFor(() => {
+      expect(result.current?.rhythm).toEqual(MOCK_RHYTHM);
+    });
+
+    saveSpy.mockRestore();
   });
 
   it('runs rhythm extraction when the spectrogram is in IndexedDB but the rhythm is not', async () => {
