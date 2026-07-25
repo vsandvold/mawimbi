@@ -9,6 +9,27 @@ import {
   resetDB,
 } from '../../project/ProjectStorageService';
 
+// Lets one test make the storage read fail (private browsing denies IndexedDB,
+// another tab blocks a version upgrade) while every other test keeps the real
+// fake-indexeddb-backed implementation.
+const { storageFailure } = vi.hoisted(() => ({
+  storageFailure: { readError: null as Error | null },
+}));
+
+vi.mock('../../project/ProjectStorageService', async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import('../../project/ProjectStorageService')
+    >();
+  return {
+    ...actual,
+    loadTranscription: (trackId: string) =>
+      storageFailure.readError
+        ? Promise.reject(storageFailure.readError)
+        : actual.loadTranscription(trackId),
+  };
+});
+
 // Mock @huggingface/transformers for main-thread fallback tests
 const mockTranscriberFn = vi.fn();
 
@@ -131,6 +152,7 @@ beforeEach(() => {
     configurable: true,
   });
   resetDB();
+  storageFailure.readError = null;
   service = new TranscriptionService();
   mockTranscriberFn.mockReset();
   setupMainThreadMocks();
@@ -217,6 +239,28 @@ describe('TranscriptionService', () => {
       expect(result.segments).toEqual(sampleSegments);
       expect(service.getTranscriptionState('track-1')).toBe('done');
       expect(mockWorker?.postMessage).not.toHaveBeenCalled();
+    });
+
+    // The storage read is an optimisation, not a precondition: if it fails,
+    // transcription must still run. Leaving the entry on the `transcribing`
+    // it was claimed as would strand the row on a spinner with no Retry for
+    // the rest of the session.
+    it('transcribes anyway when the storage read fails', async () => {
+      storageFailure.readError = new Error('storage unavailable');
+
+      const promise = service.transcribe('track-1', createAudioBuffer());
+      await simulateWorkerResult('en', sampleSegments);
+
+      await expect(promise).resolves.toMatchObject({ language: 'en' });
+      expect(service.getTranscriptionState('track-1')).toBe('done');
+    });
+
+    it('resolves loadCachedTranscription to null when the storage read fails', async () => {
+      storageFailure.readError = new Error('storage unavailable');
+
+      await expect(
+        service.loadCachedTranscription('track-1'),
+      ).resolves.toBeNull();
     });
 
     it('transcribes multiple tracks independently', async () => {

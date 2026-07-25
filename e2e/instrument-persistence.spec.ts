@@ -1,4 +1,4 @@
-import { expect, test, uploadAudioFile, SHORT_AUDIO } from './fixtures';
+import { expect, test, uploadAudioFile, LONG_AUDIO_10S } from './fixtures';
 import type { Page } from '@playwright/test';
 
 /**
@@ -56,19 +56,37 @@ test.describe('Instrument persistence across page reload', () => {
     await expect(page.locator('.channel')).toBeVisible();
   }
 
-  test('a chosen instrument survives a reload', async ({ page }) => {
+  test('a chosen instrument survives a reload and is not re-classified', async ({
+    page,
+  }) => {
+    // Every run the service starts announces itself, which observes the
+    // inference rather than the spinner — the spinner is gone again long
+    // before a test could look for it.
+    let classificationRuns = 0;
+    page.on('console', (message) => {
+      if (message.text().includes('[classification] Classifying track')) {
+        classificationRuns += 1;
+      }
+    });
+
     await page.goto('/project/test-instrument-persistence');
-    await uploadAudioFile(page, SHORT_AUDIO);
+    // Must exceed the service's 2.1s minimum: a shorter clip is skipped before
+    // inference is ever attempted, which would make the "not re-classified"
+    // assertion below pass whether or not the restore path hydrates.
+    await uploadAudioFile(page, LONG_AUDIO_10S);
     await expect(page.locator('.timeline__track')).toBeVisible();
 
     await openMixer(page);
     const instrumentButton = page.locator('.channel__instrument');
-    // Models are blocked by the shared fixture, so classification settles into
-    // its error state rather than producing a label — the dropdown below is
-    // then the only source of one, which is exactly the case that regressed.
+    // Models are served empty by the shared fixture, so this run reaches
+    // inference and fails there — leaving the track with no label, which is
+    // what makes the dropdown below its only source of one.
     await expect(instrumentButton.locator('.animate-spin')).toBeHidden({
       timeout: CLASSIFICATION_SETTLE_TIMEOUT_MS,
     });
+    // Positive control for the assertion after the reload: the upload really
+    // does reach inference with this fixture.
+    expect(classificationRuns).toBe(1);
 
     await instrumentButton.click();
     await page.getByRole('menuitem', { name: CHOSEN_INSTRUMENT }).click();
@@ -78,19 +96,11 @@ test.describe('Instrument persistence across page reload', () => {
       .poll(() => readPersistedInstrument(page))
       .toBe(CHOSEN_INSTRUMENT.toLowerCase());
 
-    // A restored track must not be re-classified: the label is already known,
-    // and the re-run is what used to overwrite it. The service logs every run
-    // it starts, so counting those messages observes the inference itself
-    // rather than the spinner, which is gone again by the time a test could
-    // look for it.
-    const classificationRuns: string[] = [];
-    page.on('console', (message) => {
-      if (message.text().includes('[classification] Classifying track')) {
-        classificationRuns.push(message.text());
-      }
-    });
-
+    classificationRuns = 0;
     await page.reload();
+    // ProjectPage renders nothing until the restore finishes, so a visible
+    // track means every restored track has already been through the
+    // onTrackCreated hook that used to start a fresh classification.
     await expect(page.locator('.timeline__track')).toBeVisible({
       timeout: 10_000,
     });
@@ -100,6 +110,6 @@ test.describe('Instrument persistence across page reload', () => {
       'title',
       CHOSEN_INSTRUMENT,
     );
-    expect(classificationRuns).toEqual([]);
+    expect(classificationRuns).toBe(0);
   });
 });

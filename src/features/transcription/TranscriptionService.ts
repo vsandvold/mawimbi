@@ -110,7 +110,19 @@ class TranscriptionService {
       return cached.result;
     }
 
-    const stored = await loadTranscription(trackId);
+    // A stored transcription is an optimisation, never a precondition, and
+    // both callers treat "none" as a normal answer — the lyrics sheet ignores
+    // the result entirely, and `transcribe` goes on to run inference. Storage
+    // can be denied outright (private browsing) or blocked by another tab's
+    // version upgrade, so a rejection here must not escape: it would strand
+    // the caller's entry on the state it claimed and surface as an unhandled
+    // idb error rather than anything a user could act on.
+    const stored = await loadTranscription(trackId).catch((error) => {
+      console.warn(
+        `[transcription] Could not read stored transcription for track ${trackId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return null;
+    });
     if (!stored) return null;
 
     const transcription: Transcription = {

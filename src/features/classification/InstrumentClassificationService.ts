@@ -157,7 +157,12 @@ class InstrumentClassificationService {
   // Marking the entry `done` is what makes `classify()` short-circuit, so
   // hydration has to happen before the track is restored.
   hydrate(trackId: TrackId, instrument: string): void {
-    if (this.cache.has(trackId)) return;
+    // Only a completed classification outranks the persisted label. The cache
+    // is a session-long singleton that nothing clears in production, so a
+    // track left in `error` by a blocked model download would otherwise stay
+    // that way — and re-entering the project would re-run the whole download
+    // and inference for a label already on the track record.
+    if (this.getClassificationState(trackId) === 'done') return;
     if (!isInstrumentLabel(instrument)) return;
 
     // The persisted record carries no score — it is only ever logged, and a
