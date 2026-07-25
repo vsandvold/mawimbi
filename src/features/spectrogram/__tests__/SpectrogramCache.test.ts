@@ -1,6 +1,7 @@
 import { vi } from 'vitest';
 import { type TrackColor } from '../../tracks/types';
 import { type MelodyData } from '../../transcription/MelodyExtractor';
+import { type RhythmData } from '../../rhythm/RhythmAnalyser';
 import type { SpectrogramData } from '../OfflineAnalyser';
 import SpectrogramCache from '../SpectrogramCache';
 
@@ -124,6 +125,13 @@ const MOCK_MELODY_DATA: MelodyData = {
     { startTime: 0.6, endTime: 1.0, midiNote: 64, confidence: 0.85 },
   ],
   timeResolution: 0.0029,
+};
+
+const MOCK_RHYTHM_DATA: RhythmData = {
+  bpm: 119.84,
+  confidence: 3.77,
+  ticks: [0.5, 1.0, 1.5],
+  onsets: [0.02, 0.51, 1.01],
 };
 
 let cache: SpectrogramCache;
@@ -390,6 +398,55 @@ describe('subscribeToEntry', () => {
     cache.setEntry('track-2', MOCK_SPECTROGRAM_DATA, []);
 
     expect(callback).not.toHaveBeenCalled();
+  });
+
+  // `setMelody`/`setRhythm` mutate the entry in place, so notifying with
+  // that same object would be invisible to the one React subscriber (it
+  // pushes what it receives into state, and React bails out on Object.is) —
+  // the melody would stay uncached-looking on screen forever. Asserting the
+  // reference differs is what makes the notification meaningful, not just
+  // present (`/code-review` on #559).
+  it('notifies with a fresh object reference when melody is written in place', () => {
+    const callback = vi.fn();
+    cache.setEntry('track-1', MOCK_SPECTROGRAM_DATA, []);
+    const stored = cache.getEntry('track-1');
+    cache.subscribeToEntry('track-1', callback);
+
+    cache.setMelody('track-1', MOCK_MELODY_DATA);
+
+    expect(callback).toHaveBeenCalledTimes(1);
+    const notified = callback.mock.calls[0][0];
+    expect(notified).not.toBe(stored);
+    expect(notified.melody).toBe(MOCK_MELODY_DATA);
+  });
+
+  it('notifies with a fresh object reference when rhythm is written in place', () => {
+    const callback = vi.fn();
+    cache.setEntry('track-1', MOCK_SPECTROGRAM_DATA, []);
+    const stored = cache.getEntry('track-1');
+    cache.subscribeToEntry('track-1', callback);
+
+    cache.setRhythm('track-1', MOCK_RHYTHM_DATA);
+
+    expect(callback).toHaveBeenCalledTimes(1);
+    const notified = callback.mock.calls[0][0];
+    expect(notified).not.toBe(stored);
+    expect(notified.rhythm).toBe(MOCK_RHYTHM_DATA);
+  });
+
+  it('keeps the tiles array identity across a notification', () => {
+    // `Spectrogram.tsx`'s redraw dirty check compares the tiles array by
+    // reference (CLAUDE.md) — copying the entry must not make every
+    // notification look like new tiles.
+    const callback = vi.fn();
+    cache.setEntry('track-1', MOCK_SPECTROGRAM_DATA, [mockTileBitmap]);
+    cache.subscribeToEntry('track-1', callback);
+
+    cache.setRhythm('track-1', MOCK_RHYTHM_DATA);
+
+    expect(callback.mock.calls[0][0].tiles).toBe(
+      cache.getEntry('track-1')!.tiles,
+    );
   });
 
   it('stops notifying once unsubscribed', () => {

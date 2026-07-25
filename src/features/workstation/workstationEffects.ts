@@ -243,6 +243,20 @@ export const useTempoSync = (tracks: Track[]) => {
       const syncTempo = () => {
         const rhythm = cache.getRhythm(track.trackId);
         if (!rhythm) return;
+        // Never dispatch a non-finite estimate: the equality guard below is
+        // always false for NaN, so the write would re-enter this effect
+        // through the new `tracks` array and dispatch again, without end —
+        // a frozen tab rather than a wrong number. Real essentia has not
+        // been observed producing one (its degenerate inputs return finite
+        // values or throw), but `isConfidentTempo` already treats NaN as
+        // possible, and this makes the loop unreachable rather than
+        // unobserved (`/code-review` on #559).
+        if (
+          !Number.isFinite(rhythm.bpm) ||
+          !Number.isFinite(rhythm.confidence)
+        ) {
+          return;
+        }
         if (
           track.tempo?.bpm === rhythm.bpm &&
           track.tempo?.confidence === rhythm.confidence

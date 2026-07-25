@@ -21,7 +21,6 @@ import { CLICK_120BPM } from './fixtures/rhythmGroundTruth.mjs';
  * second full upload would re-prove both at the slowest available level.
  */
 
-const DRAWER_ANIMATION_MS = 350;
 const BADGE_TIMEOUT_MS = 60_000;
 // Measured: essentia reports 119.84 BPM for this fixture. Wide enough not to
 // chase the estimator's own precision, tight enough that a half/double-time
@@ -49,9 +48,11 @@ test('a click track shows its estimated BPM in the effects drawer', async ({
   await expect(page.locator('.timeline__track')).toHaveCount(1);
 
   await page.getByTitle('Show effects').click();
-  await page.waitForTimeout(DRAWER_ANIMATION_MS);
 
-  // The badge's own appearance is the poll — no fixed settle to calibrate.
+  // No wait for the drawer's open animation: the badge assertion below
+  // polls, so it covers the animation and the analysis alike (CLAUDE.md's
+  // no-blind-waits rule — the settle other specs in this area use is
+  // protecting a one-shot pixel read, which this isn't).
   const badge = page.getByTitle('Estimated tempo');
   await expect(badge).toBeVisible({ timeout: BADGE_TIMEOUT_MS });
 

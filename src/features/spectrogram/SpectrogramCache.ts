@@ -184,8 +184,22 @@ class SpectrogramCache {
     this.notify(trackId, entry);
   }
 
+  // Subscribers receive a fresh object every time. `setMelody`/`setRhythm`
+  // mutate the entry in place, and the one React subscriber
+  // (`useSpectrogramCache`'s mid-analysis branch) pushes what it receives
+  // straight into state — React bails out on `Object.is`, so notifying with
+  // the mutated original would be indistinguishable from not notifying at
+  // all. That branch returned early and has no `refreshEntry` of its own,
+  // so this copy is its only route to a re-render: without it, a track that
+  // remounts mid-analysis never draws its piano-roll overlay even though
+  // the melody is cached and persisted (`/code-review` on #559; the gap
+  // predates the notify calls that exposed it). `tiles` keeps its identity,
+  // so `Spectrogram.tsx`'s reference dirty check is unaffected.
   private notify(trackId: string, entry: TrackSpectrogramEntry): void {
-    this.listeners.get(trackId)?.forEach((callback) => callback(entry));
+    const listeners = this.listeners.get(trackId);
+    if (!listeners) return;
+    const snapshot = { ...entry };
+    listeners.forEach((callback) => callback(snapshot));
   }
 
   // Subscribes to every future entry update for `trackId` — a fresh chunk

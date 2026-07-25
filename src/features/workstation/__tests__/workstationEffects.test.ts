@@ -315,6 +315,27 @@ describe('useTempoSync', () => {
     expect(tempoCalls()).toHaveLength(0);
   });
 
+  it('never dispatches a non-finite estimate', () => {
+    // The already-synced guard compares with `===`, which is always false
+    // for NaN — dispatching one would re-enter the effect through the new
+    // `tracks` array and dispatch again without end, freezing the tab
+    // rather than showing a wrong number (`/code-review` on #559).
+    cacheTrack('track-1');
+    const track = mockTrack({ trackId: 'track-1' });
+
+    const { rerender } = renderHook(({ tracks }) => useTempoSync(tracks), {
+      initialProps: { tracks: [track] },
+    });
+    act(() =>
+      spectrogramCache.setRhythm('track-1', { ...rhythm, bpm: Number.NaN }),
+    );
+    // Stands in for the re-render a dispatch would have caused: if one had
+    // slipped through, this is the iteration that would dispatch again.
+    rerender({ tracks: [track] });
+
+    expect(tempoCalls()).toHaveLength(0);
+  });
+
   it('does not write back a tempo for a track deleted mid-analysis', () => {
     cacheTrack('track-1');
     cacheTrack('track-2');
