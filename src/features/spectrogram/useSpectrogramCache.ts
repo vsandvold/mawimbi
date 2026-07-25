@@ -261,6 +261,7 @@ export function useSpectrogramCache(
           console.log(
             `[rhythm] Restored cached rhythm for track ${trackId} from IndexedDB: bpm=${rhythm.bpm.toFixed(1)}, ${rhythm.ticks.length} ticks, ${rhythm.onsets.length} onsets`,
           );
+          refreshEntry();
           return;
         }
         // No stored row — the track is new, the page closed before
