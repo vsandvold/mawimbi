@@ -8,11 +8,14 @@ import { CLICK_120BPM } from './fixtures/rhythmGroundTruth.mjs';
  * worker result to a rendered badge: cache → `useTempoSync` →
  * `SET_TRACK_TEMPO` → project state → drawer.
  *
- * Its own file rather than an extra case in `track-effects.spec.ts`: the
- * click fixture is ~17 s of audio, and analysing it alongside that file's
- * CPU-bound pixel assertions starved them badly enough to fail at the local
- * default of 2 workers (CI runs `workers: 1`, so it never saw this). Tests
- * in one file are guaranteed co-scheduled; separate files are not.
+ * Its own file rather than an extra case in `track-effects.spec.ts` purely
+ * as organisation — a tempo read isn't an effects-processing assertion.
+ * Note for anyone tempted to move it back for scheduling reasons: it makes
+ * no difference either way. `fullyParallel: true` distributes individual
+ * tests across workers regardless of which file they live in, and this test
+ * (~17 s of audio to analyse) starved that file's CPU-bound pixel
+ * assertions at the local default of 2 workers from both locations,
+ * measured. CI runs `workers: 1`, where everything passes.
  *
  * The "no confident tempo ⇒ no badge" half deliberately lives at cheaper
  * levels: real essentia scores `test-tone-long.wav` at exactly 0 confidence
