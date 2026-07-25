@@ -18,6 +18,7 @@ import {
   type SharedCanvasWindow,
 } from '../../spectrogram/TimelineRenderLoop';
 import RhythmOverlay from '../RhythmOverlay';
+import { buildBeatGrid } from '../rhythmOverlayRenderer';
 
 const { mockRegister, mockUseRhythmAnchor } = vi.hoisted(() => ({
   mockRegister: vi.fn().mockReturnValue(() => {}),
@@ -63,6 +64,19 @@ function stubCanvasContext() {
   return context;
 }
 
+/**
+ * A stable anchor object, built once per call — the real hook memoizes its
+ * grid, and the overlay's dirty check is by reference, so a fresh grid per
+ * render would report dirty forever and mask exactly what these assert.
+ */
+function anchorWithGrid() {
+  return {
+    trackId: 'track-1',
+    grid: buildBeatGrid([0, 0.5, 1]),
+    startTime: 0,
+  };
+}
+
 const WINDOW: SharedCanvasWindow = {
   width: 800,
   height: 600,
@@ -101,11 +115,7 @@ describe('RhythmOverlay render-loop registration', () => {
   });
 
   it('settles to not-dirty after drawing a grid once', () => {
-    mockUseRhythmAnchor.mockReturnValue({
-      trackId: 'track-1',
-      gridTimes: [0, 0.5, 1],
-      startTime: 0,
-    });
+    mockUseRhythmAnchor.mockReturnValue(anchorWithGrid());
 
     const callback = renderOverlay();
 
@@ -115,11 +125,7 @@ describe('RhythmOverlay render-loop registration', () => {
   });
 
   it('reports dirty once more when the anchor disappears, then settles', () => {
-    mockUseRhythmAnchor.mockReturnValue({
-      trackId: 'track-1',
-      gridTimes: [0, 0.5, 1],
-      startTime: 0,
-    });
+    mockUseRhythmAnchor.mockReturnValue(anchorWithGrid());
     const { rerender } = render(
       <RhythmOverlay pixelsPerSecond={200} tracks={[]} />,
     );

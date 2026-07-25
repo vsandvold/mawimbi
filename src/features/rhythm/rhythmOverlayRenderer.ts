@@ -37,6 +37,33 @@ export const RUNG_THICKNESS_PX = 1.5;
  */
 export const MIN_RUNG_SPACING_PX = 40;
 
+/**
+ * An induced grid, paired with the one derived quantity the renderer needs
+ * every frame.
+ *
+ * `medianInterval` travels *with* the grid rather than being recomputed
+ * inside the draw because it is a property of the grid, not of the frame:
+ * deriving it per redraw meant a full copy and sort of every beat in the
+ * take on each dirty frame — for a 700-beat anchor during playback, a
+ * 699-element sort sixty times a second, on the one loop mawimbi#541 exists
+ * to keep allocation-free (`/code-review` on PR #585). Build it once with
+ * `buildBeatGrid` wherever the grid itself is memoized.
+ */
+export type BeatGrid = {
+  /** Induced grid points, track-buffer relative (`startTime` not applied). */
+  times: number[];
+  /** Typical spacing between grid points — the level-of-detail input. */
+  medianInterval: number;
+};
+
+/** An anchorless grid: stable identity, so dirty checks settle on it. */
+export const EMPTY_BEAT_GRID: BeatGrid = { times: [], medianInterval: 0 };
+
+/** Pairs induced grid times with their spacing. */
+export function buildBeatGrid(times: number[]): BeatGrid {
+  return { times, medianInterval: medianGridInterval(times) };
+}
+
 /** A rung's placement, in the overlay canvas's own top-down pixel space. */
 export type RungPlacement = {
   /** Project time (seconds) — the anchor's start time already applied. */
@@ -68,21 +95,19 @@ export type RhythmOverlayViewport = {
  * overdubs.
  */
 export function computeVisibleRungs(
-  gridTimes: number[],
+  grid: BeatGrid,
   startTime: number,
   viewport: RhythmOverlayViewport,
 ): RungPlacement[] {
   const { timeZeroY, pixelsPerSecond, canvasHeight } = viewport;
-  if (gridTimes.length === 0) return [];
+  const { times, medianInterval } = grid;
+  if (times.length === 0) return [];
 
-  const stride = visibleRungStride(
-    pixelsPerSecond,
-    medianGridInterval(gridTimes),
-  );
+  const stride = visibleRungStride(pixelsPerSecond, medianInterval);
 
   const rungs: RungPlacement[] = [];
-  for (let i = 0; i < gridTimes.length; i += stride) {
-    const time = gridTimes[i] + startTime;
+  for (let i = 0; i < times.length; i += stride) {
+    const time = times[i] + startTime;
     const y = timeZeroY - time * pixelsPerSecond;
     // Windowed to the canvas like the spectrogram's own tiles are: drawing
     // outside it costs strokes that can never be seen, and a caller
@@ -124,11 +149,11 @@ export function visibleRungStride(
  */
 export function drawBeatRungs(
   ctx: CanvasRenderingContext2D,
-  gridTimes: number[],
+  grid: BeatGrid,
   startTime: number,
   viewport: RhythmOverlayViewport,
 ): void {
-  const rungs = computeVisibleRungs(gridTimes, startTime, viewport);
+  const rungs = computeVisibleRungs(grid, startTime, viewport);
   if (rungs.length === 0) return;
 
   ctx.save();

@@ -20,7 +20,11 @@ import {
   timelineRenderLoop,
 } from '../spectrogram/TimelineRenderLoop';
 import { type Track } from '../tracks/types';
-import { drawBeatRungs } from './rhythmOverlayRenderer';
+import {
+  EMPTY_BEAT_GRID,
+  drawBeatRungs,
+  type BeatGrid,
+} from './rhythmOverlayRenderer';
 import { useRhythmAnchor } from './useRhythmAnchor';
 import './RhythmOverlay.css';
 
@@ -32,29 +36,28 @@ type RhythmOverlayProps = {
 type LastDrawn = {
   timeZeroY: number;
   pps: number;
-  gridTimes: number[] | null;
+  grid: BeatGrid | null;
   startTime: number;
 };
-
-// Stable identity for "no anchor", so `peekDirty` settles instead of
-// reporting a change every frame while nothing is rendered.
-const EMPTY_GRID: number[] = [];
 
 const RhythmOverlay = ({ pixelsPerSecond, tracks }: RhythmOverlayProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const anchor = useRhythmAnchor(tracks);
-  const gridTimes = anchor?.gridTimes ?? EMPTY_GRID;
+  // `EMPTY_BEAT_GRID` is a shared constant, so "no anchor" holds one stable
+  // identity and `peekDirty` settles on it instead of reporting a change
+  // every frame while nothing is rendered.
+  const grid = anchor?.grid ?? EMPTY_BEAT_GRID;
   const startTime = anchor?.startTime ?? 0;
 
-  const latestRef = useRef({ pixelsPerSecond, gridTimes, startTime });
-  latestRef.current = { pixelsPerSecond, gridTimes, startTime };
+  const latestRef = useRef({ pixelsPerSecond, grid, startTime });
+  latestRef.current = { pixelsPerSecond, grid, startTime };
 
   const lastDrawnRef = useRef<LastDrawn>({
     timeZeroY: Number.NaN,
     pps: Number.NaN,
-    gridTimes: null,
+    grid: null,
     startTime: Number.NaN,
   });
   // Whether the last write actually put rungs on the canvas — the one bit
@@ -71,7 +74,7 @@ const RhythmOverlay = ({ pixelsPerSecond, tracks }: RhythmOverlayProps) => {
     return timelineRenderLoop.register({
       peekDirty: () => {
         const last = lastDrawnRef.current;
-        const { gridTimes, pixelsPerSecond, startTime } = latestRef.current;
+        const { grid, pixelsPerSecond, startTime } = latestRef.current;
         // Nothing on the canvas and nothing to put there: never dirty. This
         // has to match `write`'s own early return exactly, because the
         // comparisons below are against sentinels that only `write` clears
@@ -81,9 +84,9 @@ const RhythmOverlay = ({ pixelsPerSecond, tracks }: RhythmOverlayProps) => {
         // A project with no confident anchor did exactly that
         // (`e2e/spectrogram-render-loop.spec.ts`); same trap the
         // zero-melody-note comment in `Spectrogram.tsx` documents.
-        if (gridTimes.length === 0 && !hasPaintedRef.current) return false;
+        if (grid.times.length === 0 && !hasPaintedRef.current) return false;
         return (
-          gridTimes !== last.gridTimes ||
+          grid !== last.grid ||
           pixelsPerSecond !== last.pps ||
           startTime !== last.startTime
         );
@@ -97,14 +100,14 @@ const RhythmOverlay = ({ pixelsPerSecond, tracks }: RhythmOverlayProps) => {
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        const { gridTimes, pixelsPerSecond, startTime } = latestRef.current;
+        const { grid, pixelsPerSecond, startTime } = latestRef.current;
         // A project with no rhythm data (or no confident anchor) costs
         // this overlay nothing per frame: no transform write, no resize,
         // no clear. Scroll marks every frame dirty for the loop as a
         // whole, so without this the empty overlay would run a full-window
         // `clearRect` on every scrolled frame for a canvas that has never
         // had anything on it.
-        if (gridTimes.length === 0 && !hasPaintedRef.current) return;
+        if (grid.times.length === 0 && !hasPaintedRef.current) return;
 
         // The canvas is laid out at its container's top edge; translating
         // it by the window's offset keeps it covering the runway's canvas
@@ -124,20 +127,21 @@ const RhythmOverlay = ({ pixelsPerSecond, tracks }: RhythmOverlayProps) => {
           !needsResize &&
           timeZeroY === last.timeZeroY &&
           pixelsPerSecond === last.pps &&
-          gridTimes === last.gridTimes &&
+          grid === last.grid &&
           startTime === last.startTime
         ) {
           return;
         }
         // Compared by reference, like the tiles check `Spectrogram.tsx`
-        // uses (kb/verification.md, #494): `induceBeatGrid` returns a fresh
-        // array for every distinct input, so identity alone distinguishes a
-        // genuinely new grid from an unrelated re-render — and a grid that
-        // regenerates to the *same* times (a re-analysis landing on the
-        // same beats) would be a no-op redraw either way.
+        // uses (kb/verification.md, #494): `useRhythmAnchor` memoizes a
+        // fresh grid object for every distinct set of ticks, so identity
+        // alone distinguishes a genuinely new grid from an unrelated
+        // re-render — and a grid that regenerates to the *same* times (a
+        // re-analysis landing on the same beats) would be a no-op redraw
+        // either way.
         last.timeZeroY = timeZeroY;
         last.pps = pixelsPerSecond;
-        last.gridTimes = gridTimes;
+        last.grid = grid;
         last.startTime = startTime;
 
         if (needsResize) {
@@ -149,13 +153,13 @@ const RhythmOverlay = ({ pixelsPerSecond, tracks }: RhythmOverlayProps) => {
         if (!ctx) return;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        drawBeatRungs(ctx, gridTimes, startTime, {
+        drawBeatRungs(ctx, grid, startTime, {
           timeZeroY,
           pixelsPerSecond,
           canvasWidth: win.width,
           canvasHeight: win.height,
         });
-        hasPaintedRef.current = gridTimes.length > 0;
+        hasPaintedRef.current = grid.times.length > 0;
       },
     });
     // Latest values are read from latestRef; the registration itself must

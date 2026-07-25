@@ -4,9 +4,11 @@ import {
   MIN_PIXELS_PER_SECOND,
 } from '../../workstation/workstationSignals';
 import {
+  EMPTY_BEAT_GRID,
   MIN_RUNG_SPACING_PX,
   RUNG_THICKNESS_PX,
   type RhythmOverlayViewport,
+  buildBeatGrid,
   computeVisibleRungs,
   drawBeatRungs,
   visibleRungStride,
@@ -27,8 +29,8 @@ const VIEWPORT: RhythmOverlayViewport = {
 };
 
 /** A 120 BPM grid: 0.5 s apart, i.e. 100 px apart at 200 px/s. */
-function steadyGrid(count: number, interval = 0.5): number[] {
-  return Array.from({ length: count }, (_, i) => i * interval);
+function steadyGrid(count: number, interval = 0.5) {
+  return buildBeatGrid(Array.from({ length: count }, (_, i) => i * interval));
 }
 
 function makeContext() {
@@ -97,12 +99,12 @@ describe('computeVisibleRungs', () => {
     });
 
     for (const rung of [...rungs, ...scrolled]) {
-      expect(grid.indexOf(rung.time) % 2).toBe(0);
+      expect(grid.times.indexOf(rung.time) % 2).toBe(0);
     }
   });
 
   it('produces nothing without a grid', () => {
-    expect(computeVisibleRungs([], 0, VIEWPORT)).toEqual([]);
+    expect(computeVisibleRungs(EMPTY_BEAT_GRID, 0, VIEWPORT)).toEqual([]);
   });
 });
 
@@ -187,7 +189,7 @@ describe('drawBeatRungs', () => {
     // not just drawing zero rungs onto it.
     const ctx = makeContext();
 
-    drawBeatRungs(ctx, [], 0, VIEWPORT);
+    drawBeatRungs(ctx, EMPTY_BEAT_GRID, 0, VIEWPORT);
 
     expect(ctx.fillRect).not.toHaveBeenCalled();
     expect(ctx.save).not.toHaveBeenCalled();

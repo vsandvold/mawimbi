@@ -308,7 +308,8 @@ test.describe('Beat rungs', () => {
 
     const geometry = await readGeometry(page);
     const gridTimes = await expectedGridTimes(page, trackId);
-    const lastClickSeconds = (CLICK_120BPM.numBeats - 1) * (60 / CLICK_120BPM.bpm);
+    const lastClickSeconds =
+      (CLICK_120BPM.numBeats - 1) * (60 / CLICK_120BPM.bpm);
 
     const tailYs = gridTimes
       .filter((time) => time > lastClickSeconds)
@@ -333,7 +334,8 @@ test.describe('Beat rungs', () => {
       // Local background, sampled either side of the rung: the playhead
       // meter's translucent panel covers part of this band, so a single
       // whole-clip background value would be wrong on one side of it.
-      const background = (rowLuminance(decoded, row - 10) + rowLuminance(decoded, row + 10)) / 2;
+      const background =
+        (rowLuminance(decoded, row - 10) + rowLuminance(decoded, row + 10)) / 2;
       expect(
         hasHorizontalLineAtRow(decoded, row, background),
         `no painted line on screen at rung Y ${y} (local background ${background.toFixed(1)})`,
