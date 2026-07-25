@@ -63,6 +63,7 @@ describe('TrackService', () => {
 
     it('seeds effect amounts from persisted params (spec 004 M5)', () => {
       const signals = service.createSignals('track-1', 80, {
+        crush: 0,
         space: 25,
         echo: 50,
         tone: 75,
@@ -585,7 +586,7 @@ describe('TrackService', () => {
 
     it('restores persisted effect amounts into the new signals (spec 004 M5)', async () => {
       await service.restoreTrack('restored-id', new ArrayBuffer(16), 0, {
-        effects: { space: 40, echo: 0, tone: 60 },
+        effects: { crush: 0, space: 40, echo: 0, tone: 60 },
       });
 
       const signals = service.getSignals('restored-id')!;
@@ -743,7 +744,12 @@ describe('TrackService', () => {
 
       // Undo flow: projectPageEffects passes the restored Track.effects
       // through to createSignals before recreating the channel.
-      service.createSignals(trackId, 80, { space: 55, echo: 0, tone: 0 });
+      service.createSignals(trackId, 80, {
+        crush: 0,
+        space: 55,
+        echo: 0,
+        tone: 0,
+      });
       service.recreateChannel(trackId);
 
       expect(service.retrieveChannel(trackId)!.getEffectAmount('space')).toBe(

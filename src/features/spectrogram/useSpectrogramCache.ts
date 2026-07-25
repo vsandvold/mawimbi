@@ -19,6 +19,7 @@ import { type TrackColor } from '../tracks/types';
 import {
   DEFAULT_EFFECT_AMOUNTS,
   hashEffectAmounts,
+  normalizeEffectsHash,
   type EffectAmounts,
 } from '../tracks/EffectsChain';
 import renderTrackOffline from '../tracks/renderTrackOffline';
@@ -246,8 +247,15 @@ export function useSpectrogramCache(
       };
 
       if (storedSpectrogram) {
-        const storedHash =
-          storedSpectrogram.effectsParamsHash ?? DRY_EFFECTS_HASH;
+        // Normalized at the boundary where persisted data enters, so the
+        // comparison below — and the `restore` that follows it, whose hash
+        // every later in-memory comparison reads — all speak the current
+        // format. A hash written before a macro existed still names the same
+        // sound (spec 007 M2, #558); without this every track in every
+        // existing project re-renders and re-analyses on first load.
+        const storedHash = normalizeEffectsHash(
+          storedSpectrogram.effectsParamsHash ?? DRY_EFFECTS_HASH,
+        );
 
         if (storedHash === effectsHash) {
           const data = fromSpectrogramStoreData(storedSpectrogram);

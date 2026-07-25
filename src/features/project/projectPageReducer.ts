@@ -1,4 +1,7 @@
-import { DEFAULT_EFFECT_AMOUNTS, type EffectId } from '../tracks/EffectsChain';
+import {
+  withDefaultEffectAmounts,
+  type EffectId,
+} from '../tracks/EffectsChain';
 import {
   DEFAULT_VOLUME,
   type Track,
@@ -135,9 +138,7 @@ export function reverseProjectAction(
       const { trackId, effectId } = action[1];
       const track = state.tracks.find((t) => t.trackId === trackId);
       if (!track) return null;
-      const previousAmount = (track.effects ?? DEFAULT_EFFECT_AMOUNTS)[
-        effectId
-      ];
+      const previousAmount = withDefaultEffectAmounts(track.effects)[effectId];
       return [SET_TRACK_EFFECT, { trackId, effectId, amount: previousAmount }];
     }
     case SET_TRACK_VOLUME: {
@@ -260,7 +261,7 @@ function setTrackEffect(
         ? {
             ...track,
             effects: {
-              ...(track.effects ?? DEFAULT_EFFECT_AMOUNTS),
+              ...withDefaultEffectAmounts(track.effects),
               [effectId]: amount,
             },
           }

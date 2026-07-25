@@ -1,10 +1,17 @@
-/* Compact enough for the small-viewport 160px sheet snap: header plus
-   three slider rows must fit without scrolling. */
+/* Compact enough for the small-viewport 160px sheet snap (BottomSheet.tsx's
+   SNAP_POINT_SMALL_PX): header plus four slider rows must fit without
+   scrolling. `.bottom-sheet` is `overflow: hidden` and its content area is
+   sized to the snap height, so anything past it is silently *clipped*, not
+   scrollable — a macro added without shrinking this spacing disappears off
+   the bottom of the sheet on short viewports (Crush made it 182px of 160px
+   before this was retuned; /code-review on PR #578). The invariant is
+   pinned by an e2e assertion in `e2e/track-effects.spec.ts` — measure there
+   before adding a fifth row rather than trusting this comment. */
 .effects-bottom-sheet {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 8px 16px 12px;
+  gap: 8px;
+  padding: 4px 16px 8px;
 }
 
 .effects-bottom-sheet__header {
@@ -17,7 +24,7 @@
 .effects-bottom-sheet__sliders {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 
 .effects-bottom-sheet__effect {

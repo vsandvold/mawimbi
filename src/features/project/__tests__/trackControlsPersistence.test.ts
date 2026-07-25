@@ -48,7 +48,7 @@ beforeEach(() => {
 
 describe('effect settings persistence (spec 004 M5)', () => {
   it("round-trips a track's effect params through project save/load", async () => {
-    const effects = { space: 25, echo: 50, tone: 75 };
+    const effects = { crush: 10, space: 25, echo: 50, tone: 75 };
     const stored = createStoredProject({
       tracks: [createTrack({ effects })],
     });
@@ -69,7 +69,7 @@ describe('effect settings persistence (spec 004 M5)', () => {
   });
 
   it("round-trips a spectrogram entry's effects params hash", async () => {
-    const effects = { space: 100, echo: 0, tone: 0 };
+    const effects = { crush: 0, space: 100, echo: 0, tone: 0 };
     const hash = hashEffectAmounts(effects);
     const data: SpectrogramStoreData = {
       trackId: 'track-1',
@@ -91,7 +91,12 @@ describe('effect settings persistence (spec 004 M5)', () => {
   });
 
   it('detects staleness when the current amounts hash differs from storage', async () => {
-    const storedHash = hashEffectAmounts({ space: 100, echo: 0, tone: 0 });
+    const storedHash = hashEffectAmounts({
+      crush: 0,
+      space: 100,
+      echo: 0,
+      tone: 0,
+    });
     await saveSpectrogramData({
       trackId: 'track-1',
       frequencyFrames: [new ArrayBuffer(4)],
@@ -103,7 +108,12 @@ describe('effect settings persistence (spec 004 M5)', () => {
     });
 
     const loaded = await loadSpectrogramData('track-1');
-    const currentHash = hashEffectAmounts({ space: 50, echo: 0, tone: 0 });
+    const currentHash = hashEffectAmounts({
+      crush: 0,
+      space: 50,
+      echo: 0,
+      tone: 0,
+    });
 
     expect(loaded!.effectsParamsHash).not.toBe(currentHash);
   });

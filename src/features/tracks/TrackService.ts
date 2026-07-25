@@ -14,8 +14,8 @@ import {
   type Signal,
 } from '@preact/signals-react';
 import {
-  DEFAULT_EFFECT_AMOUNTS,
   EFFECT_ORDER,
+  withDefaultEffectAmounts,
   type EffectAmounts,
   type EffectId,
 } from './EffectsChain';
@@ -257,12 +257,15 @@ class TrackService {
     mute?: boolean,
     solo?: boolean,
   ): TrackSignals {
-    const initialEffects = effects ?? DEFAULT_EFFECT_AMOUNTS;
+    // A project persisted before a macro existed carries an effects object
+    // without it — fill the gaps rather than seeding a signal with undefined.
+    const initialEffects = withDefaultEffectAmounts(effects);
     const signals: TrackSignals = {
       volume: signal(initialVolume ?? DEFAULT_VOLUME),
       mute: signal(mute ?? false),
       solo: signal(solo ?? false),
       effects: {
+        crush: signal(initialEffects.crush),
         space: signal(initialEffects.space),
         echo: signal(initialEffects.echo),
         tone: signal(initialEffects.tone),

@@ -3,11 +3,14 @@ import * as Tone from 'tone';
 import EffectsChain, {
   DEFAULT_EFFECT_AMOUNTS,
   hashEffectAmounts,
+  mapCrushAmount,
   mapEchoAmount,
   mapSpaceAmount,
   mapToneAmount,
+  normalizeEffectsHash,
   MAX_EFFECT_AMOUNT,
   MIN_EFFECT_AMOUNT,
+  type EffectAmounts,
 } from '../EffectsChain';
 import MixerService from '../MixerService';
 
@@ -34,6 +37,10 @@ function makeMockNode(): MockNode {
 
 function asToneNode(node: MockNode): Tone.ToneAudioNode {
   return node as unknown as Tone.ToneAudioNode;
+}
+
+function crusherInstance(index = 0) {
+  return vi.mocked(Tone.BitCrusher).mock.results[index].value;
 }
 
 function reverbInstance(index = 0) {
@@ -64,6 +71,7 @@ describe('EffectsChain wiring', () => {
   });
 
   it('creates no effect nodes while all amounts are 0', () => {
+    expect(Tone.BitCrusher).not.toHaveBeenCalled();
     expect(Tone.Reverb).not.toHaveBeenCalled();
     expect(Tone.FeedbackDelay).not.toHaveBeenCalled();
     expect(Tone.Filter).not.toHaveBeenCalled();
@@ -75,17 +83,34 @@ describe('EffectsChain wiring', () => {
     expect(source.chain).toHaveBeenLastCalledWith(delayInstance(), destination);
   });
 
-  it('inserts effects in fixed Space → Echo → Tone order regardless of activation order', () => {
+  // Crush sits first (spec 007 Decision 5): distortion before space is the
+  // conventional and better-sounding order.
+  it('inserts effects in fixed Crush → Space → Echo → Tone order regardless of activation order', () => {
     chain.setAmount('tone', 30);
     chain.setAmount('space', 40);
+    chain.setAmount('crush', 60);
     chain.setAmount('echo', 20);
 
     expect(source.chain).toHaveBeenLastCalledWith(
+      crusherInstance(),
       reverbInstance(),
       delayInstance(),
       filterInstance(),
       destination,
     );
+  });
+
+  it('bypasses the crusher entirely at amount 0 and reconnects it above 0', () => {
+    chain.setAmount('crush', 70);
+    expect(source.chain).toHaveBeenLastCalledWith(
+      crusherInstance(),
+      destination,
+    );
+
+    chain.setAmount('crush', 0);
+
+    expect(crusherInstance().disconnect).toHaveBeenCalled();
+    expect(source.chain).toHaveBeenLastCalledWith(destination);
   });
 
   it('disconnects the node and restores the direct connection when amount returns to 0', () => {
@@ -159,10 +184,14 @@ describe('EffectsChain wiring', () => {
   // own context explicitly makes this immune to whatever the ambient global
   // context is doing.
   it("binds new effect nodes to the source node's own context, not the ambient global one", () => {
+    chain.setAmount('crush', 40);
     chain.setAmount('space', 40);
     chain.setAmount('echo', 40);
     chain.setAmount('tone', 40);
 
+    expect(Tone.BitCrusher).toHaveBeenCalledWith(
+      expect.objectContaining({ context: source.context }),
+    );
     expect(Tone.Reverb).toHaveBeenCalledWith(
       expect.objectContaining({ context: source.context }),
     );
@@ -208,6 +237,30 @@ describe('macro parameter application', () => {
 
     expect(reverbInstance().wet.value).toBe(mapSpaceAmount(50).wet);
     expect(reverbInstance().wet.rampTo).not.toHaveBeenCalled();
+  });
+
+  it('sets crusher bits and wet instantly when crush is first activated', () => {
+    chain.setAmount('crush', 50);
+
+    const { bits, wet } = mapCrushAmount(50);
+    expect(crusherInstance().bits.value).toBe(bits);
+    expect(crusherInstance().wet.value).toBe(wet);
+    expect(crusherInstance().bits.rampTo).not.toHaveBeenCalled();
+  });
+
+  it('ramps crusher bits and wet on live changes while crush is active', () => {
+    chain.setAmount('crush', 30);
+    chain.setAmount('crush', 80);
+
+    const { bits, wet } = mapCrushAmount(80);
+    expect(crusherInstance().bits.rampTo).toHaveBeenCalledWith(
+      bits,
+      expect.any(Number),
+    );
+    expect(crusherInstance().wet.rampTo).toHaveBeenCalledWith(
+      wet,
+      expect.any(Number),
+    );
   });
 
   it('ramps reverb wet on live changes while space is active', () => {
@@ -269,6 +322,34 @@ describe('macro mapping', () => {
     }
     return amounts;
   }
+
+  it('crush bit depth decreases monotonically (more amount = coarser)', () => {
+    const values = sweepAmounts().map((amount) => mapCrushAmount(amount).bits);
+
+    for (let i = 1; i < values.length; i++) {
+      expect(values[i]).toBeLessThan(values[i - 1]);
+    }
+  });
+
+  it('crush bit depth stays within Tone.BitCrusher"s 1–16 range', () => {
+    for (const amount of sweepAmounts()) {
+      const { bits } = mapCrushAmount(amount);
+      expect(bits).toBeGreaterThanOrEqual(1);
+      expect(bits).toBeLessThanOrEqual(16);
+    }
+  });
+
+  it('crush wet increases monotonically and stays within the normal range', () => {
+    const values = sweepAmounts().map((amount) => mapCrushAmount(amount).wet);
+
+    for (const wet of values) {
+      expect(wet).toBeGreaterThanOrEqual(0);
+      expect(wet).toBeLessThanOrEqual(1);
+    }
+    for (let i = 1; i < values.length; i++) {
+      expect(values[i]).toBeGreaterThan(values[i - 1]);
+    }
+  });
 
   it('space wet increases monotonically over the full range', () => {
     const values = sweepAmounts().map((amount) => mapSpaceAmount(amount).wet);
@@ -341,6 +422,17 @@ describe('per-track isolation', () => {
     expect(otherPlayer.chain).toHaveBeenLastCalledWith(otherChannel);
   });
 
+  it('setting crush on one channel leaves the other channel unwired', () => {
+    mixer.retrieveChannel('track-1')!.setEffectAmount('crush', 60);
+
+    expect(Tone.BitCrusher).toHaveBeenCalledTimes(1);
+    expect(mixer.retrieveChannel('track-2')!.getEffectAmount('crush')).toBe(0);
+
+    const otherPlayer = vi.mocked(Tone.Player).mock.results[1].value;
+    const otherChannel = vi.mocked(Tone.Channel).mock.results[1].value;
+    expect(otherPlayer.chain).toHaveBeenLastCalledWith(otherChannel);
+  });
+
   it('reports effect amounts per channel', () => {
     mixer.retrieveChannel('track-1')!.setEffectAmount('space', 60);
 
@@ -362,24 +454,79 @@ describe('per-track isolation', () => {
 // other TrackService behavior tests.
 
 describe('hashEffectAmounts', () => {
-  it('is deterministic for the same amounts', () => {
-    const a = hashEffectAmounts({ space: 10, echo: 20, tone: 30 });
-    const b = hashEffectAmounts({ space: 10, echo: 20, tone: 30 });
+  const BASE: EffectAmounts = { crush: 40, space: 10, echo: 20, tone: 30 };
 
-    expect(a).toBe(b);
+  it('is deterministic for the same amounts', () => {
+    expect(hashEffectAmounts(BASE)).toBe(hashEffectAmounts({ ...BASE }));
   });
 
   it('differs when any amount differs', () => {
-    const base = hashEffectAmounts({ space: 10, echo: 20, tone: 30 });
+    const base = hashEffectAmounts(BASE);
 
-    expect(hashEffectAmounts({ space: 11, echo: 20, tone: 30 })).not.toBe(base);
-    expect(hashEffectAmounts({ space: 10, echo: 21, tone: 30 })).not.toBe(base);
-    expect(hashEffectAmounts({ space: 10, echo: 20, tone: 31 })).not.toBe(base);
+    for (const effectId of ['crush', 'space', 'echo', 'tone'] as const) {
+      expect(
+        hashEffectAmounts({ ...BASE, [effectId]: BASE[effectId] + 1 }),
+      ).not.toBe(base);
+    }
   });
 
   it('matches DEFAULT_EFFECT_AMOUNTS for an all-bypass chain', () => {
     expect(hashEffectAmounts(DEFAULT_EFFECT_AMOUNTS)).toBe(
-      hashEffectAmounts({ space: 0, echo: 0, tone: 0 }),
+      hashEffectAmounts({ crush: 0, space: 0, echo: 0, tone: 0 }),
     );
+  });
+
+  // A project persisted before spec 007 stores an `effects` object with no
+  // `crush` field at all — the type says otherwise, but the row on disk is
+  // whatever the older build wrote. Reading it as `undefined` would hash to
+  // a value nothing can ever match, re-analysing every track on every load.
+  it('treats an amounts object missing the newer macros as those macros at their defaults', () => {
+    const legacyAmounts = { space: 10, echo: 20, tone: 30 } as EffectAmounts;
+
+    expect(hashEffectAmounts(legacyAmounts)).toBe(
+      hashEffectAmounts({ ...DEFAULT_EFFECT_AMOUNTS, ...legacyAmounts }),
+    );
+  });
+});
+
+// Spec 007 milestone 2 (#558). Adding Crush widens `hashEffectAmounts`'
+// output from three fields to four; every spectrogram persisted by an
+// earlier build carries the three-field form. Without normalizing before
+// comparison, the first load under this build finds *every* stored hash
+// stale and re-renders + re-analyses every track in every project — minutes
+// of work, silently, for no visual change.
+describe('normalizeEffectsHash', () => {
+  it('maps a legacy three-field hash onto the current format with defaults for the new macros', () => {
+    expect(normalizeEffectsHash('0:0:0')).toBe(
+      hashEffectAmounts(DEFAULT_EFFECT_AMOUNTS),
+    );
+    expect(normalizeEffectsHash('50:0:0')).toBe(
+      hashEffectAmounts({ ...DEFAULT_EFFECT_AMOUNTS, space: 50 }),
+    );
+    expect(normalizeEffectsHash('0:25:75')).toBe(
+      hashEffectAmounts({ ...DEFAULT_EFFECT_AMOUNTS, echo: 25, tone: 75 }),
+    );
+  });
+
+  it('leaves a current-format hash untouched', () => {
+    const current = hashEffectAmounts({
+      crush: 60,
+      space: 10,
+      echo: 20,
+      tone: 30,
+    });
+
+    expect(normalizeEffectsHash(current)).toBe(current);
+  });
+
+  it('does not make a legacy hash match a non-default value of a newer macro', () => {
+    expect(normalizeEffectsHash('50:0:0')).not.toBe(
+      hashEffectAmounts({ ...DEFAULT_EFFECT_AMOUNTS, crush: 50, space: 50 }),
+    );
+  });
+
+  it('leaves an unrecognized hash shape alone rather than guessing at it', () => {
+    expect(normalizeEffectsHash('1:2')).toBe('1:2');
+    expect(normalizeEffectsHash('a:b:c')).toBe('a:b:c');
   });
 });

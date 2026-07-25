@@ -17,9 +17,9 @@ import {
 const COLOR: TrackColor = { r: 1, g: 2, b: 3 };
 const TRACK_ID = 'track-1';
 
-const AMOUNTS_A: EffectAmounts = { space: 10, echo: 0, tone: 0 };
-const AMOUNTS_B: EffectAmounts = { space: 50, echo: 0, tone: 0 };
-const AMOUNTS_C: EffectAmounts = { space: 90, echo: 0, tone: 0 };
+const AMOUNTS_A: EffectAmounts = { crush: 0, space: 10, echo: 0, tone: 0 };
+const AMOUNTS_B: EffectAmounts = { crush: 0, space: 50, echo: 0, tone: 0 };
+const AMOUNTS_C: EffectAmounts = { crush: 0, space: 90, echo: 0, tone: 0 };
 
 function mockAudioBuffer(marker: string): AudioBuffer {
   return { marker } as unknown as AudioBuffer;
@@ -179,7 +179,7 @@ describe('EffectsRefreshScheduler persistence', () => {
 
     const stored = await loadSpectrogramData(TRACK_ID);
     expect(stored).not.toBeNull();
-    expect(stored!.effectsParamsHash).toBe('10:0:0');
+    expect(stored!.effectsParamsHash).toBe('0:10:0:0');
   });
 
   // mawimbi#540 (spec 006 M3) — the committed refresh's raw frames must
