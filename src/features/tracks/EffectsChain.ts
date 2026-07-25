@@ -97,7 +97,18 @@ export function normalizeEffectsHash(hash: string): string {
 // version of the source.
 const CRUSH_MAX_BITS = 16;
 const CRUSH_MIN_BITS = 3;
-const CRUSH_MAX_WET = 1;
+// Deliberately below 1, unlike a "fully wet at maximum" macro would be:
+// Tone.BitCrusher's worklet is connected inside `ToneAudioWorklet`'s async
+// `addAudioWorkletModule(...).then(...)` (its `onReady`), so between
+// constructing the node and that promise resolving the *wet* path passes no
+// signal at all. At wet 1.0 the crossfade has also attenuated the dry path
+// to nothing, so the track goes briefly, audibly silent the first time
+// Crush is activated in a session — the same "silent until ready" hazard as
+// Tone.Reverb's asynchronous impulse response (#489), reached by a
+// different mechanism. Keeping a dry floor means the worst case is a short
+// dip, not a dropout (Space's 0.8 has the same effect for the same class of
+// reason). /code-review on PR #578.
+const CRUSH_MAX_WET = 0.8;
 export const SPACE_DECAY_SECONDS = 4;
 const SPACE_MAX_WET = 0.8;
 export const ECHO_DELAY_SECONDS = 0.25;

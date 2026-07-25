@@ -129,6 +129,52 @@ test.describe('Spectrogram refresh from the post-effect render', () => {
 });
 
 /**
+ * Every macro's slider has to be reachable at the *smallest* sheet snap
+ * (`BottomSheet.tsx`'s `SNAP_POINT_SMALL_PX`, used when the viewport is
+ * shorter than 425px — a landscape phone). `.bottom-sheet` is
+ * `overflow: hidden` with its content area sized to the snap height, so a
+ * row that doesn't fit is silently clipped rather than scrolled into reach:
+ * adding Crush pushed the content to 182px of 160px, hiding the Tone row
+ * entirely, with every other check green (`/code-review` on PR #578).
+ *
+ * jsdom can't see this — it has no real layout (kb/verification.md) — so
+ * the invariant lives here, as a measurement rather than a CSS comment.
+ */
+const SMALL_SNAP_VIEWPORT = { width: 800, height: 400 };
+
+test.describe('Effects drawer fits the smallest sheet snap', () => {
+  test.use({ viewport: SMALL_SNAP_VIEWPORT });
+
+  test('every macro row is inside the sheet at the small-viewport snap', async ({
+    page,
+  }) => {
+    await page.goto('/project/test-id');
+    await uploadAudioFile(page, LONG_AUDIO);
+    await expect(page.locator('.timeline__track')).toHaveCount(1);
+    await openEffectsDrawer(page);
+
+    const fit = await page.evaluate(() => {
+      const content = document.querySelector('.bottom-sheet__content')!;
+      const inner = document.querySelector('.effects-bottom-sheet')!;
+      return {
+        available: content.clientHeight,
+        needed: inner.scrollHeight,
+        slidersBottom: document
+          .querySelector('.effects-bottom-sheet__sliders')!
+          .getBoundingClientRect().bottom,
+        contentBottom: content.getBoundingClientRect().bottom,
+      };
+    });
+
+    expect(fit.needed).toBeLessThanOrEqual(fit.available);
+    // The scrollHeight comparison alone would pass if the sliders block were
+    // positioned out of the visible area some other way, so assert the last
+    // row's painted bottom edge is inside the sheet too.
+    expect(fit.slidersBottom).toBeLessThanOrEqual(fit.contentBottom);
+  });
+});
+
+/**
  * Crush macro (spec 007 milestone 2, #558) — bit-depth reduction is
  * broadband distortion, so its falsifiable visual signature is energy
  * appearing *above* a pure tone's fundamental, where the dry render is
