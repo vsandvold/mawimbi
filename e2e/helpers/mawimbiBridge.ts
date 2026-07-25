@@ -27,6 +27,11 @@ const MELODY_POLL_INTERVAL_MS = 500;
 const RHYTHM_POLL_TIMEOUT_MS = 20_000;
 const RHYTHM_POLL_INTERVAL_MS = 500;
 
+// Melody (Basic Pitch) is the slow one — ~10 s on a 2 s fixture in this
+// sandbox, and it shares its worker with everything else.
+const BACKGROUND_ANALYSIS_POLL_TIMEOUT_MS = 60_000;
+const BACKGROUND_ANALYSIS_POLL_INTERVAL_MS = 250;
+
 // Analysis is chunked (spec 006 M2): tileCount grows well before this flag
 // flips, but the flag itself still only flips once the whole track has been
 // analysed. Generous bound for a 3+ minute fixture in a sandboxed CI
@@ -129,6 +134,43 @@ export async function waitForRhythm(
     .toBeGreaterThan(0);
 
   return rhythm!;
+}
+
+/**
+ * Waits until both background analyses a fresh upload kicks off — melody
+ * (Basic Pitch) and rhythm (essentia) — have finished for `trackId`.
+ *
+ * Both run in the *same* worker that serves `analyseToResult`, which is
+ * what a live effects-preview tick needs (`effectsPreview.ts`), so a test
+ * that starts interacting while they're still running is racing them for
+ * one thread: on `test-burst-tail.wav`, melody occupies the worker for
+ * ~10 s and rhythm for ~4 s, against a preview tick's own ~3.3 s. That
+ * contention is why `track-effects-preview.spec.ts`'s 15 s preview polls
+ * flake (reproduced on master, 2 failures in 4 runs, before spec 008 M2
+ * touched anything).
+ *
+ * Presence, not content: `getMelody`/`getRhythm` return their (possibly
+ * empty) result object once extraction commits, so this works for fixtures
+ * that legitimately yield no notes — unlike `waitForMelody`, which polls
+ * for `notes.length > 0` and would hang forever on `test-burst-tail.wav`.
+ */
+export async function waitForBackgroundAnalysis(
+  page: Page,
+  trackId: string,
+): Promise<void> {
+  await expect
+    .poll(
+      async () =>
+        page.evaluate((id) => {
+          const cache = window.__mawimbi?.spectrogramCache;
+          return Boolean(cache?.getMelody(id)) && Boolean(cache?.getRhythm(id));
+        }, trackId),
+      {
+        timeout: BACKGROUND_ANALYSIS_POLL_TIMEOUT_MS,
+        intervals: [BACKGROUND_ANALYSIS_POLL_INTERVAL_MS],
+      },
+    )
+    .toBe(true);
 }
 
 /**
