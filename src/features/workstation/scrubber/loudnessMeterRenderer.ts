@@ -1,3 +1,4 @@
+import { type BeatPulse, MIN_VISIBLE_PULSE } from '../../rhythm/BeatPulse';
 import { midiNoteToBin } from '../../spectrogram/PianoRollRenderer';
 import { type BarSmoother, computeTargetBarValues } from './barTransfer';
 import { poolSemitoneBars } from './semitoneBars';
@@ -10,6 +11,28 @@ const BORDER_COLOR = 'rgba(255, 255, 255, 0.8)';
 const BORDER_WIDTH = 1;
 const BAR_COLOR = 'rgba(255, 255, 255, 0.9)';
 const BAR_GAP = 1;
+
+// --- Arrival pulse (spec 008 Decision 4) ---
+//
+// The frame itself is what flares, not a new element on top of it: the beat
+// arrives *at the playhead line*, and the meter's border is already the
+// line's own shape. Width and glow together, because either alone is
+// ambiguous at a glance — a thicker border reads as a static style change,
+// a glow alone washes out over bright content behind the translucent panel.
+//
+// White like the border it thickens (`BORDER_COLOR`), deliberately not the
+// sparkles' warm accent: sparkles are per-note events inside the meter and
+// the pulse is the stream's own beat around it, so they must not read as
+// the same thing. Nothing else in this canvas paints outside the meter
+// rectangle, which is also what makes the glow's spill the one unambiguous
+// signature `e2e/rhythm-pulse.spec.ts` can attribute to the pulse.
+
+/** Border width at full envelope, tapering back to `BORDER_WIDTH`. */
+const PULSE_MAX_BORDER_WIDTH = 3;
+/** Glow radius at full envelope, in canvas pixels. */
+const PULSE_MAX_GLOW_BLUR_PX = 16;
+/** Opacity of the flared border at full envelope. */
+const PULSE_MAX_BORDER_ALPHA = 0.95;
 
 // Warm "welding" red-orange, chosen with a wide RGB spread (R dominant,
 // G and B both low) so it stays distinguishable by hue from any
@@ -65,6 +88,35 @@ function drawMeterBackground(
   ctx.strokeStyle = BORDER_COLOR;
   ctx.lineWidth = BORDER_WIDTH;
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.width - 1, rect.height - 1);
+}
+
+/**
+ * Flare the meter frame at envelope `pulse` (0–1). Draws nothing at all
+ * below the envelope's visibility floor, so a project with no confident
+ * anchor — or any moment between beats — leaves the frame byte-identical to
+ * a build without this feature (spec Goal 7).
+ *
+ * Deliberately outside the `frequencyData` branch in
+ * `renderLoudnessMeterFrame`: the bars need live analysis frames, which this
+ * sandbox never delivers (kb/verification.md, #542), and gating the pulse on
+ * them would make it unverifiable here for no reason — the pulse's own
+ * inputs are persisted data and the engine clock.
+ */
+function drawBeatPulseFrame(
+  ctx: CanvasRenderingContext2D,
+  rect: MeterRect,
+  pulse: number,
+): void {
+  if (pulse < MIN_VISIBLE_PULSE) return;
+
+  ctx.save();
+  ctx.strokeStyle = `rgba(255, 255, 255, ${PULSE_MAX_BORDER_ALPHA * pulse})`;
+  ctx.lineWidth =
+    BORDER_WIDTH + (PULSE_MAX_BORDER_WIDTH - BORDER_WIDTH) * pulse;
+  ctx.shadowColor = `rgba(255, 255, 255, ${pulse})`;
+  ctx.shadowBlur = PULSE_MAX_GLOW_BLUR_PX * pulse;
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.width - 1, rect.height - 1);
+  ctx.restore();
 }
 
 type BarLayout = {
@@ -187,11 +239,14 @@ export function renderLoudnessMeterFrame(
   barSmoother: BarSmoother,
   activeNotes: ActiveNote[],
   engineTime: number,
+  beatPulse: BeatPulse,
+  beatTimes: number[],
 ): void {
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
   const rect = computeMeterRect(canvasWidth, canvasHeight, widthFraction);
   drawMeterBackground(ctx, rect);
+  drawBeatPulseFrame(ctx, rect, beatPulse.update(beatTimes, engineTime));
 
   if (frequencyData) {
     const bars = poolSemitoneBars(frequencyData);
@@ -213,22 +268,68 @@ export function renderLoudnessMeterFrame(
   }
 }
 
+/**
+ * The meter at rest: no bars, no flare. Both entry points below paint
+ * exactly this — they differ only in what they do to the per-frame
+ * ballistics on the way.
+ */
+function paintRestingMeter(
+  ctx: CanvasRenderingContext2D,
+  canvasWidth: number,
+  canvasHeight: number,
+  widthFraction: number,
+): void {
+  ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+  const rect = computeMeterRect(canvasWidth, canvasHeight, widthFraction);
+  drawMeterBackground(ctx, rect);
+}
+
+/**
+ * The resting frame drawn *because playback moved discontinuously* — pause,
+ * stop, seek (`useScrubberScroll.ts`'s not-playing effect and
+ * `syncScrollToTime`). Doubles as the reset signal for both per-frame
+ * ballistics: without it, resuming decays the stale pre-pause bars instead
+ * of reflecting the new position immediately.
+ */
 export function renderLoudnessMeterIdle(
   ctx: CanvasRenderingContext2D,
   canvasWidth: number,
   canvasHeight: number,
   widthFraction: number,
   barSmoother: BarSmoother,
+  beatPulse: BeatPulse,
 ): void {
-  // The idle frame is drawn on every playback discontinuity (pause, stop,
-  // seek — see Playhead.tsx/useScrubberScroll.ts's renderIdle() call
-  // sites), so it doubles as the smoother's reset signal: without it,
-  // resuming decays the stale pre-pause bars instead of reflecting the
-  // new position immediately.
   barSmoother.reset();
+  // Same discontinuity, same reason, for the arrival envelope — plus one
+  // the bars don't have: the pulse's phase is a *pair* of engine times, so
+  // without a reset the first frame after a seek would treat every grid
+  // point between the old and new positions as just crossed (spec Decision
+  // 4 wires this at design time rather than rediscovering #483 in review).
+  beatPulse.reset();
 
-  ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+  paintRestingMeter(ctx, canvasWidth, canvasHeight, widthFraction);
+}
 
-  const rect = computeMeterRect(canvasWidth, canvasHeight, widthFraction);
-  drawMeterBackground(ctx, rect);
+/**
+ * The same resting frame drawn *because the layout changed* — a viewport
+ * resize or a re-solved runway width (`Playhead.tsx`'s ResizeObserver and
+ * `meterWidthFraction` effect). Deliberately touches no ballistics: those
+ * call sites fire during playback too, and a layout change is not a
+ * playback discontinuity.
+ *
+ * That distinction did not exist before the arrival pulse and cost nothing
+ * while `BarSmoother` was the only client — restarting bar ballistics for a
+ * frame is invisible. Resetting `BeatPulse` also drops its *phase*, so the
+ * next frame has no interval to have crossed a beat in: drag-resizing the
+ * window during playback suppressed the flare for the whole drag, and a
+ * drawer toggle dropped a beat (`/code-review` on PR #588).
+ */
+export function repaintLoudnessMeterIdle(
+  ctx: CanvasRenderingContext2D,
+  canvasWidth: number,
+  canvasHeight: number,
+  widthFraction: number,
+): void {
+  paintRestingMeter(ctx, canvasWidth, canvasHeight, widthFraction);
 }

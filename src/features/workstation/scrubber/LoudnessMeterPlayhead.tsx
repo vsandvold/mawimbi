@@ -1,8 +1,10 @@
 import { forwardRef, useImperativeHandle, useRef } from 'react';
+import { BeatPulse } from '../../rhythm/BeatPulse';
 import { BarSmoother } from './barTransfer';
 import {
   renderLoudnessMeterFrame,
   renderLoudnessMeterIdle,
+  repaintLoudnessMeterIdle,
 } from './loudnessMeterRenderer';
 import { type ActiveNote } from './sparkleSimulation';
 
@@ -15,8 +17,13 @@ export type LoudnessMeterPlayheadHandle = {
     loudness: number,
     activeNotes: ActiveNote[],
     engineTime: number,
+    /** The anchor's induced grid in project time, empty without an anchor. */
+    beatTimes: number[],
   ) => void;
+  /** Playback moved discontinuously: rest the meter and reset ballistics. */
   renderIdle: () => void;
+  /** The layout changed: redraw the same frame, keep ballistics running. */
+  repaintIdle: () => void;
   resize: (width: number, height: number) => void;
 };
 
@@ -35,6 +42,13 @@ const LoudnessMeterPlayhead = forwardRef<
 >(({ width, height, meterWidthFraction }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const barSmootherRef = useRef(new BarSmoother());
+  // Lives here rather than in the rAF loop for the same reason the bar
+  // smoother does: both are per-frame ballistics owned by the canvas that
+  // renders them, and both are reset by the discontinuity frame, which the
+  // loop is not the only caller of. The *layout* redraws (`repaintIdle`)
+  // are a separate entry point precisely because they are not
+  // discontinuities and must leave the envelope's phase alone.
+  const beatPulseRef = useRef(new BeatPulse());
 
   useImperativeHandle(ref, () => ({
     render(
@@ -42,6 +56,7 @@ const LoudnessMeterPlayhead = forwardRef<
       _loudness: number,
       activeNotes: ActiveNote[],
       engineTime: number,
+      beatTimes: number[],
     ) {
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -57,6 +72,8 @@ const LoudnessMeterPlayhead = forwardRef<
         barSmootherRef.current,
         activeNotes,
         engineTime,
+        beatPulseRef.current,
+        beatTimes,
       );
     },
 
@@ -72,6 +89,21 @@ const LoudnessMeterPlayhead = forwardRef<
         canvas.height,
         meterWidthFraction,
         barSmootherRef.current,
+        beatPulseRef.current,
+      );
+    },
+
+    repaintIdle() {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      repaintLoudnessMeterIdle(
+        ctx,
+        canvas.width,
+        canvas.height,
+        meterWidthFraction,
       );
     },
 

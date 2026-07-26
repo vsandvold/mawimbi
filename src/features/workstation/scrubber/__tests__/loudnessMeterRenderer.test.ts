@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeBarCenterX, computeMeterRect } from '../loudnessMeterRenderer';
+import { BeatPulse } from '../../../rhythm/BeatPulse';
+import { BarSmoother } from '../barTransfer';
+import {
+  computeBarCenterX,
+  computeMeterRect,
+  renderLoudnessMeterFrame,
+  renderLoudnessMeterIdle,
+} from '../loudnessMeterRenderer';
 
 describe('computeMeterRect', () => {
   it('uses the geometry-derived width fraction of the canvas width', () => {
@@ -77,5 +84,96 @@ describe('computeBarCenterX', () => {
     const rect = computeMeterRect(1000, 400, 0.65);
 
     expect(computeBarCenterX(rect, 0, 0)).toBe(rect.x + rect.width / 2);
+  });
+});
+
+/**
+ * A minimal 2D context. The drawing itself is deliberately untested (#365:
+ * thin renderers over tested pure state); what these tests pin is the
+ * *wiring* of the arrival envelope's lifecycle through the two entry
+ * points, which is state, not appearance.
+ */
+function stubContext(): CanvasRenderingContext2D {
+  return {
+    clearRect: () => {},
+    fillRect: () => {},
+    strokeRect: () => {},
+    beginPath: () => {},
+    arc: () => {},
+    fill: () => {},
+    save: () => {},
+    restore: () => {},
+  } as unknown as CanvasRenderingContext2D;
+}
+
+const CANVAS_WIDTH = 1000;
+const CANVAS_HEIGHT = 200;
+const WIDTH_FRACTION = 0.65;
+const GRID = [0, 0.5, 1, 1.5];
+
+function renderFrame(
+  beatPulse: BeatPulse,
+  engineTime: number,
+  beatTimes: number[] = GRID,
+): void {
+  renderLoudnessMeterFrame(
+    stubContext(),
+    null,
+    CANVAS_WIDTH,
+    CANVAS_HEIGHT,
+    WIDTH_FRACTION,
+    new BarSmoother(),
+    [],
+    engineTime,
+    beatPulse,
+    beatTimes,
+  );
+}
+
+describe('arrival pulse lifecycle', () => {
+  it('advances the envelope on every rendered frame', () => {
+    // Not gated on `frequencyData` — this sandbox never delivers live
+    // analysis frames (kb/verification.md, #542), and the pulse's inputs
+    // are persisted data and the engine clock, so it renders regardless.
+    const beatPulse = new BeatPulse();
+
+    renderFrame(beatPulse, 0.9);
+    renderFrame(beatPulse, 1.01);
+
+    expect(beatPulse.level).toBeGreaterThan(0);
+  });
+
+  it('leaves the envelope at rest when there is no grid to pulse on', () => {
+    const beatPulse = new BeatPulse();
+
+    renderFrame(beatPulse, 0.9, []);
+    renderFrame(beatPulse, 1.01, []);
+
+    expect(beatPulse.level).toBe(0);
+  });
+
+  it('resets the envelope on the idle frame', () => {
+    // The idle frame is drawn on every playback discontinuity, so this is
+    // where pause/stop/seek clear the pulse (#483's lesson, applied at
+    // design time). Nothing else calls `BeatPulse.reset()`.
+    const beatPulse = new BeatPulse();
+    renderFrame(beatPulse, 0.9);
+    renderFrame(beatPulse, 1);
+    expect(beatPulse.level).toBeGreaterThan(0);
+
+    renderLoudnessMeterIdle(
+      stubContext(),
+      CANVAS_WIDTH,
+      CANVAS_HEIGHT,
+      WIDTH_FRACTION,
+      new BarSmoother(),
+      beatPulse,
+    );
+
+    expect(beatPulse.level).toBe(0);
+    // …and the phase with it: resuming at the same moment must not treat
+    // the beat already crossed as crossed again.
+    renderFrame(beatPulse, 1);
+    expect(beatPulse.level).toBe(0);
   });
 });

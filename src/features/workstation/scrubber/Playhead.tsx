@@ -14,6 +14,8 @@ export type PlayheadHandle = {
     loudness: number,
     activeNotes: ActiveNote[],
     engineTime: number,
+    /** The rhythm anchor's induced grid, in project time (spec 008 M5). */
+    beatTimes: number[],
   ) => void;
   renderIdle: () => void;
 };
@@ -64,7 +66,13 @@ const Playhead = forwardRef<PlayheadHandle, PlayheadProps>(
           // first frame is drawn into a zero-size canvas. Re-rendering
           // here ensures the playhead is visible as soon as layout resolves.
           // During playback the animation loop immediately overwrites this.
-          meterRef.current?.renderIdle();
+          //
+          // `repaintIdle`, not `renderIdle`: a resize is not a playback
+          // discontinuity, and this fires *during* playback too (every
+          // frame of a window drag). Resetting the arrival envelope's
+          // phase here suppressed the flare for the whole drag
+          // (`/code-review` on PR #588).
+          meterRef.current?.repaintIdle();
         }
       });
       observer.observe(el);
@@ -78,12 +86,14 @@ const Playhead = forwardRef<PlayheadHandle, PlayheadProps>(
         loudness: number,
         activeNotes: ActiveNote[],
         engineTime: number,
+        beatTimes: number[],
       ) {
         meterRef.current?.render(
           frequencyData,
           loudness,
           activeNotes,
           engineTime,
+          beatTimes,
         );
       },
       renderIdle() {
@@ -93,9 +103,11 @@ const Playhead = forwardRef<PlayheadHandle, PlayheadProps>(
 
     // Re-draw the idle frame when the geometry-derived meter width changes
     // (opening the drawer re-solves the runway); during playback the
-    // animation loop overwrites this on the next frame anyway.
+    // animation loop overwrites this on the next frame anyway. Ballistics
+    // are left alone for the same reason as the ResizeObserver above —
+    // opening a bottom sheet mid-playback otherwise dropped a beat.
     useLayoutEffect(() => {
-      meterRef.current?.renderIdle();
+      meterRef.current?.repaintIdle();
     }, [meterWidthFraction]);
 
     const style: CSSProperties = {
