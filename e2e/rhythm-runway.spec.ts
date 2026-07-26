@@ -32,6 +32,7 @@ import {
   ACCELERANDO_CLICK_AUDIO,
   ARRHYTHMIC_NOISE_AUDIO,
   CLICK_120BPM_AUDIO,
+  CLICKS_THEN_CONTINUE_AUDIO,
   SHORT_AUDIO,
   SWUNG_CLICK_AUDIO,
   expect,
@@ -41,6 +42,7 @@ import {
 import { getFirstTrackId } from './helpers/mawimbiBridge';
 import { MIN_TEMPO_CONFIDENCE } from '../src/features/rhythm/tempo';
 import { decodeClip, hasHorizontalLineAtRow } from './helpers/pixelDecode';
+import { extrapolateTicks } from '../src/features/rhythm/extrapolateTicks';
 import { induceBeatGrid } from '../src/features/rhythm/induceBeatGrid';
 import { ONSET_TICK_LENGTH_PX } from '../src/features/rhythm/rhythmOverlayRenderer';
 import { COLOR_PALETTE } from '../src/features/project/projectPageReducer';
@@ -80,9 +82,13 @@ type RunwayGeometry = {
  *
  * Returns each contiguous run's alpha-weighted centre, so a 1.5 px rung
  * anti-aliased across two rows reports one sub-pixel position rather than
- * two neighbouring integers.
+ * two neighbouring integers — plus that run's peak row alpha, which is how
+ * a detection-backed rung is told apart from a phantom one (they differ
+ * only in strength, by design).
  */
-async function readRungRows(page: import('@playwright/test').Page) {
+async function readRungRows(
+  page: import('@playwright/test').Page,
+): Promise<RungRow[]> {
   return page.evaluate(() => {
     const canvas = document.querySelector(
       '.timeline__rhythm-canvas',
@@ -105,14 +111,18 @@ async function readRungRows(page: import('@playwright/test').Page) {
       }
     }
 
-    const centres: number[] = [];
+    const centres: { y: number; alpha: number }[] = [];
     let run: { y: number; alpha: number }[] = [];
     const flush = () => {
       if (run.length === 0) return;
       const weight = run.reduce((total, row) => total + row.alpha, 0);
-      centres.push(
-        run.reduce((total, row) => total + row.y * row.alpha, 0) / weight,
-      );
+      centres.push({
+        y: run.reduce((total, row) => total + row.y * row.alpha, 0) / weight,
+        // Peak rather than mean: a mark's strength is spread across
+        // however many rows its 1.5 px happens to straddle, so the mean
+        // depends on sub-pixel placement while the peak does not.
+        alpha: Math.max(...run.map((row) => row.alpha)),
+      });
       run = [];
     };
     for (const row of rows) {
@@ -123,6 +133,9 @@ async function readRungRows(page: import('@playwright/test').Page) {
     return centres;
   });
 }
+
+/** One drawn rung: its canvas-relative centre, and how strongly it is drawn. */
+type RungRow = { y: number; alpha: number };
 
 function readGeometry(
   page: import('@playwright/test').Page,
@@ -248,7 +261,7 @@ test.describe('Beat rungs', () => {
     const geometry = await readGeometry(page);
     const gridTimes = await expectedGridTimes(page, trackId);
     const rungScreenYs = (await readRungRows(page)).map(
-      (y) => y + geometry.canvasTop,
+      (rung) => rung.y + geometry.canvasTop,
     );
 
     expect(rungScreenYs.length).toBeGreaterThan(3);
@@ -355,7 +368,7 @@ test.describe('Beat rungs', () => {
 
     const geometry = await readGeometry(page);
     const rungYs = (await readRungRows(page))
-      .map((y) => y + geometry.canvasTop)
+      .map((rung) => rung.y + geometry.canvasTop)
       .sort((a, b) => a - b);
     expect(rungYs.length).toBeGreaterThan(3);
 
@@ -432,6 +445,125 @@ test.describe('Beat rungs', () => {
     expect(Number(layers.rung)).toBeGreaterThan(2);
     expect(Number(layers.rails)).toBeGreaterThan(Number(layers.rung));
     expect(layers.railsAfter).toBe(layers.rails);
+  });
+});
+
+/**
+ * Phantom rungs — the pulse continued past the last tracked beat (spec 008
+ * milestone 6, #572).
+ *
+ * Read from the overlay canvas's own backing store, for the reason the file
+ * header gives *and* one specific to this layer: a phantom rung is drawn at
+ * `PHANTOM_RUNG_OPACITY`, deliberately near the floor of what reads as a
+ * mark at all, so its contribution to a composited screenshot is a few
+ * luminance steps — below `hasHorizontalLineAtRow`'s own threshold, and far
+ * below anything that could be attributed to this renderer rather than to
+ * whatever the runway paints behind it. The canvas's alpha channel carries
+ * the intensity claim exactly.
+ *
+ * `test-click-then-continue.wav` is the fixture the milestone names (beats
+ * stop, audio continues), and it is worth knowing what it actually does
+ * here: essentia's tracker does *not* stop at the last click — it coasts
+ * through the whole 10 s non-percussive tail, returning ticks to the end of
+ * the file, slowing as it goes (0.50 s → 0.55 s between beats). So the
+ * region this test reads is past the last *tracked beat*, not past the last
+ * click, and the drift is what makes the continuation's "recent local
+ * interval, not global BPM" rule observable on real data at all.
+ */
+test.describe('Phantom rungs', () => {
+  /**
+   * How much fainter than a detection-backed rung a phantom must measure.
+   * Loose because it is checking the claim ("distinctly fainter"), not the
+   * constants' exact ratio — which the unit tests own.
+   */
+  const MAX_PHANTOM_INTENSITY_RATIO = 0.5;
+
+  test('continue the pulse past the last tracked beat, ghosted', async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    const trackId = await uploadAndAnalyse(page, CLICKS_THEN_CONTINUE_AUDIO);
+    await scrubToTime(page, 17.4);
+    await waitForRungs(page);
+
+    const geometry = await readGeometry(page);
+    const rhythm = await page.evaluate((id) => {
+      const data = window.__mawimbi?.spectrogramCache.getRhythm(id);
+      return data
+        ? { ticks: data.ticks, bpm: data.bpm, confidence: data.confidence }
+        : null;
+    }, trackId);
+
+    // Preconditions, not decoration: everything below is about *where* the
+    // continuation was drawn, and all of it passes vacuously on a track
+    // that never qualified for one (kb/verification.md).
+    expect(rhythm, 'the fixture produced no rhythm data').not.toBeNull();
+    expect(
+      rhythm!.confidence,
+      'the fixture no longer clears the anchor threshold, so no grid — let alone a continuation — is owed',
+    ).toBeGreaterThanOrEqual(MIN_TEMPO_CONFIDENCE);
+
+    const gridTimes = induceBeatGrid(rhythm!.ticks);
+    const phantomTimes = extrapolateTicks(gridTimes, {
+      bpm: rhythm!.bpm,
+      confidence: rhythm!.confidence,
+    });
+    expect(phantomTimes.length).toBeGreaterThan(0);
+
+    const inCanvas = (y: number) =>
+      y >= geometry.canvasTop &&
+      y <= geometry.canvasTop + geometry.canvasHeight;
+    const predictedPhantomYs = phantomTimes
+      .map((time) => screenYForTime(geometry, time))
+      .filter(inCanvas);
+    const predictedRungYs = gridTimes
+      .map((time) => screenYForTime(geometry, time))
+      .filter(inCanvas);
+    expect(
+      predictedPhantomYs.length,
+      'no phantom rung reaches the canvas window at this scroll position',
+    ).toBeGreaterThan(1);
+    expect(
+      predictedRungYs.length,
+      'no detection-backed rung to compare against',
+    ).toBeGreaterThan(0);
+
+    const drawn = (await readRungRows(page)).map((rung) => ({
+      ...rung,
+      y: rung.y + geometry.canvasTop,
+    }));
+    const near = (ys: number[], row: RungRow) =>
+      closestDistance(ys, row.y) <= RUNG_TOLERANCE_PX;
+    const phantomRows = drawn.filter((row) => near(predictedPhantomYs, row));
+    const rungRows = drawn.filter((row) => near(predictedRungYs, row));
+
+    // Every predicted mark of both kinds is on the canvas, and nothing else
+    // is — a stray row would mean the continuation is being drawn somewhere
+    // its own arithmetic doesn't predict.
+    expect(phantomRows).toHaveLength(predictedPhantomYs.length);
+    expect(rungRows).toHaveLength(predictedRungYs.length);
+    expect(drawn).toHaveLength(phantomRows.length + rungRows.length);
+
+    // In the anticipation strip, which is the only place a continuation can
+    // mean anything: it renders what the listener expects *next*. Stated as
+    // "at least one" rather than "all", because the scroll lands close to
+    // the last tracked beat and the earliest phantom can legitimately have
+    // just crossed the line by the time the canvas is read.
+    expect(
+      phantomRows.filter((row) => row.y < geometry.playheadLineY).length,
+      'no phantom rung reached the anticipation strip',
+    ).toBeGreaterThan(0);
+
+    // Measurably fainter — and separated, not merely lower on average: no
+    // phantom may be as strong as the weakest real rung, or the two layers
+    // would be telling the same story at different volumes.
+    const phantomPeak = Math.max(...phantomRows.map((row) => row.alpha));
+    const rungFloor = Math.min(...rungRows.map((row) => row.alpha));
+    expect(
+      phantomPeak,
+      `phantom rungs (peak alpha ${phantomPeak}) are not distinguishable from detection-backed ones (floor ${rungFloor})`,
+    ).toBeLessThan(rungFloor);
+    expect(phantomPeak / rungFloor).toBeLessThan(MAX_PHANTOM_INTENSITY_RATIO);
   });
 });
 
@@ -691,7 +823,7 @@ test.describe('Onset ticks', () => {
       .filter((y) => y > SAMPLE_MARGIN_PX)
       .filter((y) => y < SAMPLE_CLIP_HEIGHT_PX - SAMPLE_MARGIN_PX);
     const rungScreenYs = rungs
-      .map((y) => y + rungGeometry.canvasTop)
+      .map((rung) => rung.y + rungGeometry.canvasTop)
       .filter((y) => y > SAMPLE_MARGIN_PX)
       .filter((y) => y < SAMPLE_CLIP_HEIGHT_PX - SAMPLE_MARGIN_PX);
 

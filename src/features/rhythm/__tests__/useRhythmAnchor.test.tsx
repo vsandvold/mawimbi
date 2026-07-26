@@ -133,6 +133,22 @@ describe('useRhythmAnchor', () => {
     expect(anchor.current?.grid.times.length).toBe(TICKS.length);
   });
 
+  it("continues the anchor's own pulse past its last tracked beat", () => {
+    // The phantom rungs are gated on the anchor's tempo estimate
+    // (`extrapolateTicks`, #572), which reaches the grid only through this
+    // hook — a grid built without it would carry no continuation at all,
+    // silently, since every other assertion about the grid still passes.
+    mockGetRhythm.mockReturnValue({ ticks: TICKS });
+
+    const anchor = renderAnchor([makeTrack('a', { tempo: CONFIDENT })]);
+
+    const grid = anchor.current!.grid;
+    expect(grid.phantomTimes.length).toBeGreaterThan(0);
+    for (const phantom of grid.phantomTimes) {
+      expect(phantom).toBeGreaterThan(grid.times[grid.times.length - 1]);
+    }
+  });
+
   it('has no anchor when nothing qualifies', () => {
     const anchor = renderAnchor([makeTrack('a')]);
 

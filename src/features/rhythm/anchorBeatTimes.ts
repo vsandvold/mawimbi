@@ -16,6 +16,18 @@
 // neither — which is every frame — costs two reference comparisons and a
 // map lookup, no allocation, on the loop mawimbi#541 exists to keep
 // allocation-free.
+//
+// Deliberately *not* the same grid the runway draws: the phantom rungs
+// (`extrapolateTicks`, #572) are excluded, so the meter's flare stops at the
+// last tracked beat while ghosted rungs keep going past it. The asymmetry is
+// the point. A rung can say "faintly, this is where I'd expect one" —
+// `PHANTOM_RUNG_OPACITY` is that sentence — but the flare is an *arrival*,
+// binary and full-strength, with no vocabulary for a guess. Firing it on an
+// extrapolation would claim a beat landed when nothing was detected, which
+// is the fake pulse decoration kb/product.md rules out. Raised by both
+// `/code-review` passes on PR #589 as worth stating rather than leaving
+// implicit; if QA ever wants continuity here, it needs its own faint
+// envelope, not this array.
 
 import { type Track, type TrackId } from '../tracks/types';
 import { induceBeatGrid } from './induceBeatGrid';

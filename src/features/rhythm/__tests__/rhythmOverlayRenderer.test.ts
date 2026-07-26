@@ -18,13 +18,19 @@ import {
   ONSET_TICK_LENGTH_PX,
   ONSET_TICK_OPACITY,
   ONSET_TICK_THICKNESS_PX,
+  PHANTOM_RUNG_COLOR,
+  PHANTOM_RUNG_OPACITY,
+  RUNG_COLOR,
+  RUNG_OPACITY,
   RUNG_THICKNESS_PX,
   type RhythmOverlayViewport,
   buildBeatGrid,
   computeVisibleOnsetTicks,
+  computeVisiblePhantomRungs,
   computeVisibleRungs,
   drawBeatRungs,
   drawOnsetTicks,
+  drawPhantomRungs,
   onsetTickOpacity,
   visibleRungStride,
 } from '../rhythmOverlayRenderer';
@@ -219,6 +225,125 @@ describe('drawBeatRungs', () => {
     });
 
     expect(ctx.fillRect).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phantom rungs — the pulse continued past detection (spec 008 Goal 5, #572)
+// ---------------------------------------------------------------------------
+
+describe('phantom rungs', () => {
+  /**
+   * A confident 120 BPM grid that ends at 4.5 s — early enough that its
+   * whole continuation still falls inside the canvas window, which is what
+   * makes the placements below readable at all.
+   */
+  const CONTINUED_GRID = buildBeatGrid(
+    Array.from({ length: 10 }, (_, i) => i * 0.5),
+    { bpm: 120, confidence: 5 },
+  );
+
+  it('places the continuation past the last rung, at the grid interval', () => {
+    const rungs = computeVisibleRungs(CONTINUED_GRID, 0, VIEWPORT);
+    const phantoms = computeVisiblePhantomRungs(CONTINUED_GRID, 0, VIEWPORT);
+
+    const lastRungY = Math.min(...rungs.map((rung) => rung.y));
+    expect(phantoms.map((phantom) => phantom.y)).toEqual([
+      lastRungY - 100,
+      lastRungY - 200,
+      lastRungY - 300,
+      lastRungY - 400,
+    ]);
+  });
+
+  it('applies the anchor start time like every other mark', () => {
+    // The #484 class again: an overdub anchor's continuation has to move
+    // with its grid, or the ghost detaches from the pulse it continues.
+    const START_TIME = 1.25;
+
+    const phantoms = computeVisiblePhantomRungs(
+      CONTINUED_GRID,
+      START_TIME,
+      VIEWPORT,
+    );
+
+    expect(phantoms.length).toBeGreaterThan(0);
+    for (const phantom of phantoms) {
+      expect(phantom.y).toBe(TIME_ZERO_Y - phantom.time * PIXELS_PER_SECOND);
+      expect(phantom.time).toBeGreaterThan(START_TIME);
+    }
+  });
+
+  it('continues the drawn density, in phase, when the grid is thinned', () => {
+    // At 50 px/s a 0.5 s grid is 25 px apart, so only every other rung is
+    // drawn (`visibleRungStride`). The ghost has to continue *that*
+    // sequence: same spacing, and landing where the next drawn rung would
+    // have, not one beat off it.
+    const zoomedOut = {
+      ...VIEWPORT,
+      pixelsPerSecond: MIN_PIXELS_PER_SECOND,
+      // The whole grid plus its continuation spans 6 s, which is 300 px at
+      // this zoom — the window has to start there to hold both.
+      timeZeroY: 300,
+    };
+
+    const rungs = computeVisibleRungs(CONTINUED_GRID, 0, zoomedOut);
+    const phantoms = computeVisiblePhantomRungs(CONTINUED_GRID, 0, zoomedOut);
+
+    const lastRungTime = Math.max(...rungs.map((rung) => rung.time));
+    expect(phantoms.map((phantom) => phantom.time)).toEqual([
+      lastRungTime + 1,
+      lastRungTime + 2,
+    ]);
+  });
+
+  it('produces nothing for a grid with no continuation', () => {
+    // The unconfident case, and the reason `buildBeatGrid`'s tempo argument
+    // is optional: no confident estimate, no ghost (`extrapolateTicks`).
+    expect(
+      computeVisiblePhantomRungs(
+        buildBeatGrid(steadyGrid(10).times),
+        0,
+        VIEWPORT,
+      ),
+    ).toEqual([]);
+    expect(computeVisiblePhantomRungs(EMPTY_BEAT_GRID, 0, VIEWPORT)).toEqual(
+      [],
+    );
+  });
+
+  it('strokes the continuation fainter than the detected grid', () => {
+    const ctx = makeContext();
+    const fillStyles: string[] = [];
+    // `fillStyle` is a single mutable property, so the colour in force at
+    // each stroke is only observable as it is used.
+    ctx.fillRect.mockImplementation(() =>
+      fillStyles.push(String(ctx.fillStyle)),
+    );
+
+    drawBeatRungs(ctx, CONTINUED_GRID, 0, VIEWPORT);
+    const rungCalls = fillStyles.length;
+    drawPhantomRungs(ctx, CONTINUED_GRID, 0, VIEWPORT);
+
+    expect(rungCalls).toBeGreaterThan(0);
+    expect(fillStyles.slice(0, rungCalls)).toEqual(
+      new Array(rungCalls).fill(RUNG_COLOR),
+    );
+    expect(fillStyles.slice(rungCalls)).toEqual(
+      new Array(fillStyles.length - rungCalls).fill(PHANTOM_RUNG_COLOR),
+    );
+    expect(PHANTOM_RUNG_OPACITY).toBeLessThan(RUNG_OPACITY / 2);
+  });
+
+  it('draws nothing at all without a continuation', () => {
+    // Goal 7 again: the cuttable layer must cost a project without one
+    // exactly nothing, not an empty save/restore pair.
+    const ctx = makeContext();
+
+    drawPhantomRungs(ctx, EMPTY_BEAT_GRID, 0, VIEWPORT);
+
+    expect(ctx.fillRect).not.toHaveBeenCalled();
+    expect(ctx.save).not.toHaveBeenCalled();
   });
 });
 
