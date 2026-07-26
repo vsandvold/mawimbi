@@ -26,7 +26,22 @@
 // 1 and 4 — layer order, alpha, density) never touches tested logic.
 
 import { type TrackColor } from '../tracks/types';
+import { extrapolateTicks } from './extrapolateTicks';
 import { medianGridInterval } from './induceBeatGrid';
+import { type TrackTempo } from './tempo';
+
+/** How strongly a detection-backed rung is drawn. */
+export const RUNG_OPACITY = 0.32;
+
+/**
+ * How strongly a phantom rung is drawn — the continuation past the last
+ * detected beat (spec Goal 5). Distinctly fainter than a detection-backed
+ * rung rather than slightly: the two make different claims, and a ghost
+ * that could be mistaken for a tracked beat would be the fake pulse
+ * decoration the product rules out (kb/product.md). Just under a third of
+ * `RUNG_OPACITY`, which QA tunes (spec open question 4).
+ */
+export const PHANTOM_RUNG_OPACITY = 0.1;
 
 /**
  * Runway-accent white rather than `--foreground`, matching
@@ -34,7 +49,14 @@ import { medianGridInterval } from './induceBeatGrid';
  * near-black in the light theme, which would invert the rungs from a faint
  * glow into dark bars across the runway.
  */
-export const RUNG_COLOR = 'rgba(255, 255, 255, 0.32)';
+export const RUNG_COLOR = `rgba(255, 255, 255, ${RUNG_OPACITY})`;
+
+/**
+ * Same hue and thickness as a rung — only the strength differs, so the
+ * phantoms read as the same grid continuing rather than as a second kind of
+ * mark.
+ */
+export const PHANTOM_RUNG_COLOR = `rgba(255, 255, 255, ${PHANTOM_RUNG_OPACITY})`;
 
 /**
  * Rungs are the grid a listener aligns events *to*, not events themselves
@@ -106,14 +128,37 @@ export type BeatGrid = {
   times: number[];
   /** Typical spacing between grid points — the level-of-detail input. */
   medianInterval: number;
+  /**
+   * The pulse continued past the last detected beat (`extrapolateTicks`),
+   * drawn ghosted. Rides on the grid for the same reason `medianInterval`
+   * does: it is a property of this grid, not of the frame, and the render
+   * loop's dirty check then settles on one reference for the whole layer.
+   */
+  phantomTimes: number[];
 };
 
 /** An anchorless grid: stable identity, so dirty checks settle on it. */
-export const EMPTY_BEAT_GRID: BeatGrid = { times: [], medianInterval: 0 };
+export const EMPTY_BEAT_GRID: BeatGrid = {
+  times: [],
+  medianInterval: 0,
+  phantomTimes: [],
+};
 
-/** Pairs induced grid times with their spacing. */
-export function buildBeatGrid(times: number[]): BeatGrid {
-  return { times, medianInterval: medianGridInterval(times) };
+/**
+ * Pairs induced grid times with the two derived quantities the renderer
+ * needs every frame.
+ *
+ * Without a `tempo` there is nothing confident enough to continue, so the
+ * grid comes back with no phantom rungs — the same answer `extrapolateTicks`
+ * gives for an unconfident one, and the reason the argument is optional
+ * rather than required.
+ */
+export function buildBeatGrid(times: number[], tempo?: TrackTempo): BeatGrid {
+  return {
+    times,
+    medianInterval: medianGridInterval(times),
+    phantomTimes: extrapolateTicks(times, tempo),
+  };
 }
 
 /** A mark's placement, in the overlay canvas's own top-down pixel space. */
@@ -148,6 +193,28 @@ export function computeVisibleRungs(
   const { times, medianInterval } = grid;
   const stride = visibleRungStride(viewport.pixelsPerSecond, medianInterval);
   return placeMarks(times, startTime, viewport, stride);
+}
+
+/**
+ * Which phantom rungs fall inside the canvas, and where.
+ *
+ * Same projection as the detection-backed rungs, and thinned by the same
+ * level-of-detail rule so the ghost continues the pulse *as drawn*: at a
+ * zoom where every 4th rung is rendered, the continuation is every 4th beat
+ * too, rather than suddenly quadrupling in density past the last tracked
+ * beat. The offset is what keeps the phase — the grid draws indices 0,
+ * `stride`, `2·stride` …, so the next drawn position is however many
+ * phantoms it takes to reach the next multiple of the stride.
+ */
+export function computeVisiblePhantomRungs(
+  grid: BeatGrid,
+  startTime: number,
+  viewport: RhythmOverlayViewport,
+): RungPlacement[] {
+  const { times, medianInterval, phantomTimes } = grid;
+  const stride = visibleRungStride(viewport.pixelsPerSecond, medianInterval);
+  const offset = (stride - (times.length % stride)) % stride;
+  return placeMarks(phantomTimes.slice(offset), startTime, viewport, stride);
 }
 
 /**
@@ -267,11 +334,49 @@ export function drawBeatRungs(
   startTime: number,
   viewport: RhythmOverlayViewport,
 ): void {
-  const rungs = computeVisibleRungs(grid, startTime, viewport);
+  strokeRungs(
+    ctx,
+    computeVisibleRungs(grid, startTime, viewport),
+    RUNG_COLOR,
+    viewport,
+  );
+}
+
+/**
+ * Strokes the phantom rungs — the pulse continued past the last detected
+ * beat, ghosted (spec Goal 5, #572).
+ *
+ * A separate call rather than a second loop inside `drawBeatRungs` because
+ * the two layers make different claims and are therefore separately
+ * cuttable: this milestone is the spec's explicitly stretch one, and
+ * deleting this call is the whole of turning it off.
+ *
+ * Like `drawBeatRungs`, draws nothing at all when there is nothing to draw.
+ */
+export function drawPhantomRungs(
+  ctx: CanvasRenderingContext2D,
+  grid: BeatGrid,
+  startTime: number,
+  viewport: RhythmOverlayViewport,
+): void {
+  strokeRungs(
+    ctx,
+    computeVisiblePhantomRungs(grid, startTime, viewport),
+    PHANTOM_RUNG_COLOR,
+    viewport,
+  );
+}
+
+function strokeRungs(
+  ctx: CanvasRenderingContext2D,
+  rungs: RungPlacement[],
+  color: string,
+  viewport: RhythmOverlayViewport,
+): void {
   if (rungs.length === 0) return;
 
   ctx.save();
-  ctx.fillStyle = RUNG_COLOR;
+  ctx.fillStyle = color;
   for (const rung of rungs) {
     ctx.fillRect(
       0,

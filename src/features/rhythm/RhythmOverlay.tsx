@@ -23,6 +23,7 @@ import { type Track } from '../tracks/types';
 import {
   EMPTY_BEAT_GRID,
   drawBeatRungs,
+  drawPhantomRungs,
   type BeatGrid,
 } from './rhythmOverlayRenderer';
 import { useRhythmAnchor } from './useRhythmAnchor';
@@ -106,7 +107,9 @@ const RhythmOverlay = ({ pixelsPerSecond, tracks }: RhythmOverlayProps) => {
         // no clear. Scroll marks every frame dirty for the loop as a
         // whole, so without this the empty overlay would run a full-window
         // `clearRect` on every scrolled frame for a canvas that has never
-        // had anything on it.
+        // had anything on it. An empty grid can carry no phantom rungs
+        // either — `extrapolateTicks` needs points to continue from — so
+        // `times` alone still decides this, and `peekDirty` still matches.
         if (grid.times.length === 0 && !hasPaintedRef.current) return;
 
         // The canvas is laid out at its container's top edge; translating
@@ -153,12 +156,17 @@ const RhythmOverlay = ({ pixelsPerSecond, tracks }: RhythmOverlayProps) => {
         if (!ctx) return;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        drawBeatRungs(ctx, grid, startTime, {
+        const viewport = {
           timeZeroY,
           pixelsPerSecond,
           canvasWidth: win.width,
           canvasHeight: win.height,
-        });
+        };
+        drawBeatRungs(ctx, grid, startTime, viewport);
+        // The ghosted continuation past the last tracked beat (spec Goal 5,
+        // #572) — drawn after the detection-backed rungs, which is where
+        // deleting this one line turns the cuttable milestone off.
+        drawPhantomRungs(ctx, grid, startTime, viewport);
         hasPaintedRef.current = grid.times.length > 0;
       },
     });

@@ -50,8 +50,16 @@ export function useRhythmAnchor(tracks: Track[]): RhythmAnchor | null {
   const audioService = useAudioService();
 
   const anchorTrackId = useMemo(() => selectRhythmAnchor(tracks), [tracks]);
-  const anchorStartTime =
-    tracks.find((track) => track.trackId === anchorTrackId)?.startTime ?? 0;
+  const anchorTrack = tracks.find((track) => track.trackId === anchorTrackId);
+  const anchorStartTime = anchorTrack?.startTime ?? 0;
+  // The phantom continuation is gated on the *same* confidence the anchor
+  // was selected on (`extrapolateTicks`), so this is the estimate that
+  // chose this track, read back. Depended on by identity below rather than
+  // by object: `useTempoSync` re-dispatches only when the numbers actually
+  // change, so a re-analysis landing on the same estimate must not rebuild
+  // the grid and re-paint the overlay.
+  const anchorBpm = anchorTrack?.tempo?.bpm;
+  const anchorConfidence = anchorTrack?.tempo?.confidence;
 
   const [cached, setCached] = useState<AnchorTicks | null>(null);
 
@@ -97,8 +105,12 @@ export function useRhythmAnchor(tracks: Track[]): RhythmAnchor | null {
   // that can change the grid.
   const grid = useMemo(() => {
     if (ticks.length === 0) return EMPTY_BEAT_GRID;
-    return buildBeatGrid(induceBeatGrid(ticks));
-  }, [ticks]);
+    const tempo =
+      anchorBpm === undefined || anchorConfidence === undefined
+        ? undefined
+        : { bpm: anchorBpm, confidence: anchorConfidence };
+    return buildBeatGrid(induceBeatGrid(ticks), tempo);
+  }, [ticks, anchorBpm, anchorConfidence]);
 
   if (anchorTrackId === null) return null;
   return { trackId: anchorTrackId, grid, startTime: anchorStartTime };
