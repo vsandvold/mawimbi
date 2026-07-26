@@ -32,6 +32,8 @@ import {
   ACCELERANDO_CLICK_AUDIO,
   ARRHYTHMIC_NOISE_AUDIO,
   CLICK_120BPM_AUDIO,
+  SHORT_AUDIO,
+  SWUNG_CLICK_AUDIO,
   expect,
   test,
   uploadAudioFile,
@@ -40,6 +42,8 @@ import { getFirstTrackId } from './helpers/mawimbiBridge';
 import { MIN_TEMPO_CONFIDENCE } from '../src/features/rhythm/tempo';
 import { decodeClip, hasHorizontalLineAtRow } from './helpers/pixelDecode';
 import { induceBeatGrid } from '../src/features/rhythm/induceBeatGrid';
+import { ONSET_TICK_LENGTH_PX } from '../src/features/rhythm/rhythmOverlayRenderer';
+import { COLOR_PALETTE } from '../src/features/project/projectPageReducer';
 import { DEFAULT_PIXELS_PER_SECOND } from '../src/features/workstation/workstationSignals';
 import { CLICK_120BPM } from './fixtures/rhythmGroundTruth.mjs';
 
@@ -430,6 +434,306 @@ test.describe('Beat rungs', () => {
     expect(layers.railsAfter).toBe(layers.rails);
   });
 });
+
+/**
+ * Onset ticks — the nuance layer (spec 008 milestone 4, #570). Same two
+ * levels as the rungs above, for the same reason: a click fixture's
+ * transients are bright rows in its own spectrogram at exactly the Ys the
+ * ticks are drawn at, so per-mark geometry is read from the overlay
+ * canvas's own backing store and the screen-level reading is reserved for
+ * claims a composited image can actually settle.
+ */
+test.describe('Onset ticks', () => {
+  /** The track color a pinned `Math.random` makes the first track take. */
+  const FIRST_TRACK_COLOR = COLOR_PALETTE[0];
+  /** Canvas channels survive the premultiply round trip within a step or two. */
+  const COLOR_TOLERANCE = 3;
+  /** Onsets land within 50 ms of a real click (`RhythmAnalyser.fixtures.test.ts`). */
+  const ONSET_GROUND_TRUTH_TOLERANCE_PX = 0.05 * PPS;
+
+  /**
+   * Rows of one track's *own* overlay canvas that are painted right across
+   * both rail bands and essentially nowhere in between — i.e. onset ticks,
+   * read from the canvas the renderer drew on rather than from the
+   * composited page.
+   */
+  async function readTickRows(page: import('@playwright/test').Page): Promise<{
+    centres: number[];
+    canvasTop: number;
+    canvasHeight: number;
+    middleBandPaintedRows: number;
+    color: number[] | null;
+  }> {
+    return page.evaluate((tickLength) => {
+      const canvas = document.querySelector(
+        '.timeline__track .spectrogram__overlay',
+      ) as HTMLCanvasElement | null;
+      const empty = {
+        centres: [],
+        canvasTop: 0,
+        canvasHeight: 0,
+        middleBandPaintedRows: 0,
+        color: null,
+      };
+      if (!canvas || canvas.width === 0) return empty;
+      const ctx = canvas.getContext('2d')!;
+      const { data, width, height } = ctx.getImageData(
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+      );
+
+      const paintedFraction = (y: number, from: number, to: number) => {
+        let painted = 0;
+        for (let x = from; x < to; x++) {
+          if (data[(y * width + x) * 4 + 3] > 0) painted++;
+        }
+        return painted / (to - from);
+      };
+
+      const rows: number[] = [];
+      let middleBandPaintedRows = 0;
+      for (let y = 0; y < height; y++) {
+        const left = paintedFraction(y, 0, tickLength);
+        const right = paintedFraction(y, width - tickLength, width);
+        if (left > 0.9 && right > 0.9) {
+          rows.push(y);
+          // A mark that reached across the runway would be the rejected
+          // full-width placement (spec Decision 2), not a rail tick.
+          if (
+            paintedFraction(y, tickLength * 4, width - tickLength * 4) > 0.05
+          ) {
+            middleBandPaintedRows++;
+          }
+        }
+      }
+
+      const centres: number[] = [];
+      let run: number[] = [];
+      const flush = () => {
+        if (run.length > 0) {
+          centres.push(run.reduce((total, y) => total + y, 0) / run.length);
+        }
+        run = [];
+      };
+      for (const y of rows) {
+        if (run.length > 0 && y !== run[run.length - 1] + 1) flush();
+        run.push(y);
+      }
+      flush();
+
+      const sampleAt = rows.length > 0 ? (rows[0] * width + 2) * 4 : -1;
+      return {
+        centres,
+        canvasTop: canvas.getBoundingClientRect().top,
+        canvasHeight: height,
+        middleBandPaintedRows,
+        color:
+          sampleAt < 0 ? null : Array.from(data.slice(sampleAt, sampleAt + 4)),
+      };
+    }, ONSET_TICK_LENGTH_PX);
+  }
+
+  test('mark every onset at both rails, in the track color', async ({
+    page,
+  }) => {
+    test.setTimeout(90_000);
+    // Track colors *are* randomized here — `useProjectReducer` seeds
+    // `nextColorId` with `Math.random()` — so pinning is warranted rather
+    // than reflexive (kb/verification.md).
+    await page.addInitScript(() => {
+      Math.random = () => 0;
+    });
+    const trackId = await uploadAndAnalyse(page, CLICK_120BPM_AUDIO);
+    await scrubToTime(page, 6);
+
+    await expect
+      .poll(async () => (await readTickRows(page)).centres.length, {
+        timeout: SEEK_SETTLE_TIMEOUT_MS,
+      })
+      .toBeGreaterThan(3);
+
+    const geometry = await readGeometry(page);
+    const ticks = await readTickRows(page);
+    const tickScreenYs = ticks.centres.map((y) => y + ticks.canvasTop);
+
+    const onsets = await page.evaluate(
+      (id) => window.__mawimbi?.spectrogramCache.getRhythm(id)?.onsets ?? [],
+      trackId,
+    );
+    const predicted = onsets
+      .map((onset) => screenYForTime(geometry, onset))
+      .filter((y) => y >= ticks.canvasTop)
+      .filter((y) => y <= ticks.canvasTop + ticks.canvasHeight);
+
+    expect(tickScreenYs).toHaveLength(predicted.length);
+    for (const y of predicted) {
+      expect(
+        closestDistance(tickScreenYs, y),
+        `no tick within ${RUNG_TOLERANCE_PX}px of predicted Y ${y} (drawn: ${JSON.stringify(tickScreenYs)})`,
+      ).toBeLessThanOrEqual(RUNG_TOLERANCE_PX);
+    }
+
+    // …and on the fixture's real clicks, independent of this feature's own
+    // arithmetic: the click track is exactly 120 BPM.
+    const beatSeconds = 60 / CLICK_120BPM.bpm;
+    for (const y of tickScreenYs) {
+      const beatIndex = Math.round(
+        (geometry.contentBoundaryY - y) / PPS / beatSeconds,
+      );
+      expect(
+        Math.abs(y - screenYForTime(geometry, beatIndex * beatSeconds)),
+        `tick at Y ${y} is not on a ground-truth click`,
+      ).toBeLessThanOrEqual(ONSET_GROUND_TRUTH_TOLERANCE_PX);
+    }
+
+    expect(
+      ticks.middleBandPaintedRows,
+      'a tick reached across the runway instead of staying at the rails',
+    ).toBe(0);
+
+    const [r, g, b, alpha] = ticks.color!;
+    expect(Math.abs(r - FIRST_TRACK_COLOR.r)).toBeLessThanOrEqual(
+      COLOR_TOLERANCE,
+    );
+    expect(Math.abs(g - FIRST_TRACK_COLOR.g)).toBeLessThanOrEqual(
+      COLOR_TOLERANCE,
+    );
+    expect(Math.abs(b - FIRST_TRACK_COLOR.b)).toBeLessThanOrEqual(
+      COLOR_TOLERANCE,
+    );
+    expect(alpha).toBeGreaterThan(0);
+  });
+
+  test('paint on screen and dim with the track while the rungs do not', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    // The swung fixture is what makes this measurable: its off-beat eighths
+    // are onsets with *no* rung on them, so a rail-band row can be read as
+    // the tick's own contribution. On a straight click track every tick row
+    // also carries a rung, which is drawn on the project-level canvas and
+    // deliberately does not dim — it would mask exactly the change under
+    // test.
+    await uploadAndAnalyse(page, SWUNG_CLICK_AUDIO);
+    // A second track so edit mode has something to cycle between; short, so
+    // it costs almost nothing to analyse and cannot cover the sampled band.
+    await uploadAudioFile(page, SHORT_AUDIO);
+    await expect(page.locator('.timeline__track')).toHaveCount(2);
+
+    await page.getByTitle('Show effects').click();
+    await expect(page.getByTitle('Previous track')).toBeVisible();
+    await scrubToTime(page, 6);
+    await waitForRungs(page);
+
+    await page.getByTitle('Previous track').click();
+    await expect(page.locator('.timeline__track').first()).toHaveClass(
+      /timeline__track--edit-active/,
+    );
+    const active = await measureMarkContrast(page);
+
+    await page.getByTitle('Next track').click();
+    await expect(page.locator('.timeline__track').first()).toHaveClass(
+      /timeline__track--edit-background/,
+    );
+    const dimmed = await measureMarkContrast(page);
+
+    // Positive control first: the negatives below mean nothing unless the
+    // marks were on screen to begin with (kb/verification.md).
+    expect(
+      active.offBeatTickCount,
+      'the swung fixture produced no off-beat ticks in the sampled band',
+    ).toBeGreaterThanOrEqual(2);
+    expect(
+      active.tickContrast,
+      'onset ticks are not visible on screen at all',
+    ).toBeGreaterThan(10);
+
+    // Ticks live in the track's own canvas, so the track's edit-mode dim
+    // reaches them for free (spec Decision 2's inheritance claim)…
+    expect(
+      dimmed.tickContrast / active.tickContrast,
+      `tick contrast barely moved (${active.tickContrast.toFixed(1)} → ${dimmed.tickContrast.toFixed(1)})`,
+    ).toBeLessThan(0.8);
+
+    // …while the rungs, which describe the whole stream rather than one
+    // source, keep their intensity. Without this half the assertion above
+    // would also pass for ticks drawn on the rung canvas if the page merely
+    // got darker overall.
+    expect(
+      dimmed.rungContrast / active.rungContrast,
+      `rung contrast dimmed with the track (${active.rungContrast.toFixed(1)} → ${dimmed.rungContrast.toFixed(1)})`,
+    ).toBeGreaterThan(0.85);
+  });
+
+  /**
+   * How far the two mark layers stand out from their immediate
+   * surroundings, in one screenshot: onset ticks measured in a rail-edge
+   * column band at off-beat rows only, beat rungs measured in a mid-runway
+   * band (where no tick is ever drawn).
+   */
+  async function measureMarkContrast(page: import('@playwright/test').Page) {
+    const ticks = await readTickRows(page);
+    const rungs = await readRungRows(page);
+    const rungGeometry = await readGeometry(page);
+
+    const tickScreenYs = ticks.centres
+      .map((y) => y + ticks.canvasTop)
+      .filter((y) => y > SAMPLE_MARGIN_PX)
+      .filter((y) => y < SAMPLE_CLIP_HEIGHT_PX - SAMPLE_MARGIN_PX);
+    const rungScreenYs = rungs
+      .map((y) => y + rungGeometry.canvasTop)
+      .filter((y) => y > SAMPLE_MARGIN_PX)
+      .filter((y) => y < SAMPLE_CLIP_HEIGHT_PX - SAMPLE_MARGIN_PX);
+
+    const offBeatTickYs = tickScreenYs.filter(
+      (y) => closestDistance(rungScreenYs, y) > SAMPLE_NEIGHBOUR_PX,
+    );
+
+    const railBand = await decodeClip(page, {
+      x: 0,
+      y: 0,
+      width: ONSET_TICK_LENGTH_PX * 3,
+      height: SAMPLE_CLIP_HEIGHT_PX,
+    });
+    const midBand = await decodeClip(page, {
+      x: 400,
+      y: 0,
+      width: 300,
+      height: SAMPLE_CLIP_HEIGHT_PX,
+    });
+
+    const contrastAt = (
+      decoded: { data: number[]; width: number; height: number },
+      y: number,
+    ) =>
+      rowLuminance(decoded, y) -
+      (rowLuminance(decoded, y - SAMPLE_NEIGHBOUR_PX) +
+        rowLuminance(decoded, y + SAMPLE_NEIGHBOUR_PX)) /
+        2;
+
+    const mean = (values: number[]) =>
+      values.reduce((total, value) => total + value, 0) / (values.length || 1);
+
+    return {
+      offBeatTickCount: offBeatTickYs.length,
+      tickContrast: mean(offBeatTickYs.map((y) => contrastAt(railBand, y))),
+      rungContrast: mean(rungScreenYs.map((y) => contrastAt(midBand, y))),
+    };
+  }
+});
+
+/** Height of the screenshot band both contrast readings are taken from. */
+const SAMPLE_CLIP_HEIGHT_PX = 700;
+/** Keeps the sampled rows clear of the clip's own edges. */
+const SAMPLE_MARGIN_PX = 30;
+/**
+ * How far either side of a mark the local background is read — and, for the
+ * same reason, how far a tick must be from a rung to count as off-beat. The
+ * swung fixture's eighths sit 38 px from their nearest rung at this zoom.
+ */
+const SAMPLE_NEIGHBOUR_PX = 22;
 
 function rowLuminance(
   decoded: { data: number[]; width: number; height: number },

@@ -1,16 +1,31 @@
-// rhythmOverlayRenderer — draws the beat rungs: thin full-width lines
-// across the runway at the anchor track's induced beat grid (spec 008
-// Goal 2, Decision 2).
+// rhythmOverlayRenderer — draws both rhythm layers (spec 008 Decision 2).
 //
-// Pure draw functions of (grid times, the anchor's start time, viewport).
-// The placement math is separated from the stroking so it can be asserted
-// directly — a rung's Y *is* the feature, and a canvas call-count
+// The *categorical* layer: beat rungs, thin full-width lines across the
+// runway at the anchor track's induced beat grid (Goal 2), on the
+// project-level `RhythmOverlay` canvas.
+//
+// The *nuance* layer: onset ticks, short marks at the runway's rail edges
+// in the track's own color at each of its onsets (Goal 3), drawn into each
+// track's own overlay canvas by `Spectrogram.tsx` so focus lift, edit-mode
+// dimming and mute styling apply to them for free. A track's swing or push
+// is readable as the spatial offset between its ticks and the rungs — the
+// geometry is the annotation, so there is no micro-timing decoration here
+// (spec non-goal).
+//
+// Both live in one module because they share a coordinate convention (see
+// `RhythmOverlayViewport`) and because reading them side by side is how one
+// checks that a tick and a rung at the same time land on the same row.
+//
+// Pure draw functions of (times, the track's start time, viewport). The
+// placement math is separated from the stroking so it can be asserted
+// directly — a mark's Y *is* the feature, and a canvas call-count
 // assertion would be the implementation-detail testing kb/verification.md
 // warns against.
 //
 // Every appearance constant lives here so tuning them (spec open questions
 // 1 and 4 — layer order, alpha, density) never touches tested logic.
 
+import { type TrackColor } from '../tracks/types';
 import { medianGridInterval } from './induceBeatGrid';
 
 /**
@@ -36,6 +51,27 @@ export const RUNG_THICKNESS_PX = 1.5;
  * a case the default view reaches, not a hypothetical.
  */
 export const MIN_RUNG_SPACING_PX = 40;
+
+/**
+ * How far an onset tick reaches in from each rail. Short enough that a
+ * dense mix reads as texture at the edges rather than as content across the
+ * runway (full-width per-track lines were the rejected placement, spec
+ * Decision 2), long enough to be legible on a phone.
+ */
+export const ONSET_TICK_LENGTH_PX = 14;
+
+/**
+ * Thicker than a rung: a tick is an *event*, and it has a fraction of the
+ * rung's width to say so with.
+ */
+export const ONSET_TICK_THICKNESS_PX = 2.5;
+
+/**
+ * Ticks sit above their own track's spectrogram in the track's own color,
+ * so they need to read against it while still being marks rather than
+ * content. QA tunes this (spec open question 4).
+ */
+export const ONSET_TICK_OPACITY = 0.9;
 
 /**
  * An induced grid, paired with the one derived quantity the renderer needs
@@ -64,13 +100,16 @@ export function buildBeatGrid(times: number[]): BeatGrid {
   return { times, medianInterval: medianGridInterval(times) };
 }
 
-/** A rung's placement, in the overlay canvas's own top-down pixel space. */
-export type RungPlacement = {
-  /** Project time (seconds) — the anchor's start time already applied. */
+/** A mark's placement, in the overlay canvas's own top-down pixel space. */
+export type MarkPlacement = {
+  /** Project time (seconds) — the track's start time already applied. */
   time: number;
   /** Canvas Y, measured down from the canvas's top edge. */
   y: number;
 };
+
+export type RungPlacement = MarkPlacement;
+export type OnsetTickPlacement = MarkPlacement;
 
 export type RhythmOverlayViewport = {
   /**
@@ -84,28 +123,55 @@ export type RhythmOverlayViewport = {
   canvasHeight: number;
 };
 
-/**
- * Which rungs fall inside the canvas, and where.
- *
- * The `startTime` offset is the #484 class (kb/domain.md): beat ticks are
- * *track-buffer* relative, like melody note times, so an anchor recorded as
- * an overdub partway through the timeline has every one of its grid points
- * shifted by its own start. Every uploaded track has `startTime: 0`, which
- * is exactly why this is easy to get wrong and invisible until someone
- * overdubs.
- */
+/** Which rungs fall inside the canvas, and where — thinned by the LOD rule. */
 export function computeVisibleRungs(
   grid: BeatGrid,
   startTime: number,
   viewport: RhythmOverlayViewport,
 ): RungPlacement[] {
-  const { timeZeroY, pixelsPerSecond, canvasHeight } = viewport;
   const { times, medianInterval } = grid;
+  const stride = visibleRungStride(viewport.pixelsPerSecond, medianInterval);
+  return placeMarks(times, startTime, viewport, stride);
+}
+
+/**
+ * Where each of a track's onsets falls on its overlay canvas — the same
+ * projection the rungs use, so a tick and a rung at the same moment land on
+ * the same row and the offset between them is the micro-timing itself.
+ *
+ * Every onset is placed: unlike the grid, onsets carry no metrical
+ * structure a stride could thin without lying about which events happened
+ * (spec Decision 2's LOD rule is about the *grid*'s density).
+ */
+export function computeVisibleOnsetTicks(
+  onsets: number[],
+  startTime: number,
+  viewport: RhythmOverlayViewport,
+): OnsetTickPlacement[] {
+  return placeMarks(onsets, startTime, viewport, 1);
+}
+
+/**
+ * Projects every `stride`-th time onto the canvas, dropping the ones it
+ * can't reach.
+ *
+ * The `startTime` offset is the #484 class (kb/domain.md): beat ticks and
+ * onsets are *track-buffer* relative, like melody note times, so a track
+ * recorded as an overdub partway through the timeline has every one of its
+ * marks shifted by its own start. Every uploaded track has `startTime: 0`,
+ * which is exactly why this is easy to get wrong and invisible until
+ * someone overdubs.
+ */
+function placeMarks(
+  times: number[],
+  startTime: number,
+  viewport: RhythmOverlayViewport,
+  stride: number,
+): MarkPlacement[] {
+  const { timeZeroY, pixelsPerSecond, canvasHeight } = viewport;
   if (times.length === 0) return [];
 
-  const stride = visibleRungStride(pixelsPerSecond, medianInterval);
-
-  const rungs: RungPlacement[] = [];
+  const marks: MarkPlacement[] = [];
   for (let i = 0; i < times.length; i += stride) {
     const time = times[i] + startTime;
     const y = timeZeroY - time * pixelsPerSecond;
@@ -115,9 +181,9 @@ export function computeVisibleRungs(
     // — the canvas covers the runway's window, not the viewport
     // (kb/verification.md, #494).
     if (y < 0 || y > canvasHeight) continue;
-    rungs.push({ time, y });
+    marks.push({ time, y });
   }
-  return rungs;
+  return marks;
 }
 
 /**
@@ -165,6 +231,39 @@ export function drawBeatRungs(
       viewport.canvasWidth,
       RUNG_THICKNESS_PX,
     );
+  }
+  ctx.restore();
+}
+
+/**
+ * Strokes each visible onset as a pair of short marks, one at each rail —
+ * both edges rather than one, so a tick's row reads as a row across the
+ * runway without a line being drawn through the music (spec Decision 2's
+ * rejected placements).
+ *
+ * Like `drawBeatRungs`, draws nothing at all when there is nothing to draw:
+ * a track with no onsets leaves the frame byte-identical to a build without
+ * this feature (Goal 7).
+ */
+export function drawOnsetTicks(
+  ctx: CanvasRenderingContext2D,
+  onsets: number[],
+  startTime: number,
+  color: TrackColor,
+  viewport: RhythmOverlayViewport,
+): void {
+  const ticks = computeVisibleOnsetTicks(onsets, startTime, viewport);
+  if (ticks.length === 0) return;
+
+  const { canvasWidth } = viewport;
+  const rightX = Math.max(0, canvasWidth - ONSET_TICK_LENGTH_PX);
+
+  ctx.save();
+  ctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${ONSET_TICK_OPACITY})`;
+  for (const tick of ticks) {
+    const y = tick.y - ONSET_TICK_THICKNESS_PX / 2;
+    ctx.fillRect(0, y, ONSET_TICK_LENGTH_PX, ONSET_TICK_THICKNESS_PX);
+    ctx.fillRect(rightX, y, ONSET_TICK_LENGTH_PX, ONSET_TICK_THICKNESS_PX);
   }
   ctx.restore();
 }
