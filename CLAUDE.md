@@ -66,7 +66,7 @@ Session defaults: **ground nontrivial work with `/kb read` before planning, and 
 - **ML**: `@huggingface/transformers` + `onnxruntime-web` + `essentia.js` (instrument classification), `@spotify/basic-pitch` (melody transcription) — inference in Web Workers
 - **idb** for IndexedDB persistence
 - **Vitest** + React Testing Library (unit), **Playwright** (e2e)
-- **Node 22 LTS** (see `.nvmrc`), **npm** as package manager
+- **Node 24 LTS** (see `.nvmrc`), **npm** as package manager
 
 ### Stubbed Node-only dependencies
 
