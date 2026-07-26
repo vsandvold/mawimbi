@@ -19,11 +19,20 @@ travels away from the viewer instead of toward them.
 | z-stack | that track's spectrum, low at the base, high at the crest |
 | hue | track identity; only intensity varies with spectral magnitude |
 
-Every parameter is a live slider. The two questions it exists to answer:
+The field is an **inverted cone**: waves leave a narrow mouth and widen as
+they age. Whether that reads as *expanding* or as *receding* is governed by
+`Camera` against `Mouth` — apparent width goes as
+`(mouth + age) / (camera + age)`, so the cone widens only while the camera
+sits further back than the mouth is wide. Nothing is clipped at the frame
+edge; `Haze` is what ends the cone.
 
-1. **Arc** — sweep 0 → 100 to compare straight rows (every existing overlay
-   keeps working) against arches.
-2. **Height** — raise it until near peaks swallow the history behind them.
+Every parameter is a live slider. The questions it exists to answer:
+
+1. **Camera vs. Mouth** — where the cone stops running away and starts
+   receding.
+2. **Arc** — sweep 0 → 100 to compare straight rows (every existing overlay
+   keeps working) against true radiation.
+3. **Height** — raise it until near peaks swallow the history behind them.
    That boundary is the real design constraint on the whole direction.
 
 Data is synthetic and deterministic (no `Math.random`), standing in for CQT

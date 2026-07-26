@@ -311,15 +311,35 @@
         <input type="range" min="0" max="100" step="1" />
         <div class="ctl__hint">0 = straight rows (today's overlays keep working). 100 = true radiation from a point.</div>
       </div>
+      <div class="ctl" data-ctl="spread">
+        <div class="ctl__row"><span class="ctl__name">Spread</span><span class="ctl__val"></span></div>
+        <input type="range" min="6" max="70" step="1" />
+        <div class="ctl__hint">Cone half-angle. How fast the waves widen as they recede. Applies at Arc 100.</div>
+      </div>
+      <div class="ctl" data-ctl="mouth">
+        <div class="ctl__row"><span class="ctl__name">Mouth</span><span class="ctl__val"></span></div>
+        <input type="range" min="4" max="45" step="1" />
+        <div class="ctl__hint">Width of the source itself. The narrow end of the cone.</div>
+      </div>
+      <div class="ctl" data-ctl="camera">
+        <div class="ctl__row"><span class="ctl__name">Camera</span><span class="ctl__val"></span></div>
+        <input type="range" min="5" max="100" step="1" />
+        <div class="ctl__hint">Distance back from the mouth. Pull it in and perspective reasserts itself over the cone; push it out and the cone widens away.</div>
+      </div>
       <div class="ctl" data-ctl="width">
         <div class="ctl__row"><span class="ctl__name">Lane width</span><span class="ctl__val"></span></div>
         <input type="range" min="14" max="80" step="1" />
-        <div class="ctl__hint">How wide the stereo field is. Constant with distance, so perspective narrows the far end.</div>
+        <div class="ctl__hint">Width of the straight-row lane. Applies at Arc 0.</div>
       </div>
       <div class="ctl" data-ctl="depth">
         <div class="ctl__row"><span class="ctl__name">Depth</span><span class="ctl__val"></span></div>
         <input type="range" min="3" max="18" step="0.5" />
         <div class="ctl__hint">Seconds of history visible between the source and the horizon.</div>
+      </div>
+      <div class="ctl" data-ctl="haze">
+        <div class="ctl__row"><span class="ctl__name">Haze</span><span class="ctl__val"></span></div>
+        <input type="range" min="0" max="100" step="1" />
+        <div class="ctl__hint">How fast distance dissolves a wave. This is what ends the cone, not the frame edge.</div>
       </div>
       <div class="ctl" data-ctl="bow">
         <div class="ctl__row"><span class="ctl__name">Bow</span><span class="ctl__val"></span></div>
@@ -382,6 +402,14 @@
       <p><b>The source meter</b> at the bottom is the same cross-section at
       <code>t = 0</code>: frequency stacked vertically, spread left and right by
       pan. It is the mouth the waves come out of.</p>
+      <p><b>The cone.</b> Waves leave a narrow mouth and widen as they age, so
+      the field is an inverted cone. Whether it reads as <em>expanding</em> or as
+      <em>receding</em> is set by <b>Camera</b> against <b>Mouth</b>: apparent
+      width goes as (mouth + age) / (camera + age), so the cone only widens
+      while the camera sits further back than the mouth is wide. Pull Camera in
+      and perspective takes over; push it out and the cone runs away.</p>
+      <p>Nothing is clipped at the frame edge — <b>Haze</b> is what ends the
+      cone, dissolving each wave as it recedes.</p>
       <p><b>What to judge.</b> Push <b>Height</b> up until near peaks start
       swallowing the history behind them — that boundary is the real design
       constraint. Then sweep <b>Arc</b> from 0 to 100 to see what the radiating
@@ -503,8 +531,9 @@
   // ---------------------------------------------------------------------------
 
   const DEFAULTS = {
-    tilt: 78, arc: 100, width: 24, depth: 9, bow: 7,
-    height: 15, lobe: 34, alpha: 70, ridges: 34, detail: 18, bands: 9,
+    tilt: 42, arc: 100, spread: 26, mouth: 14, camera: 38, width: 24,
+    depth: 7, bow: 7, haze: 55,
+    height: 18, lobe: 30, alpha: 90, ridges: 44, detail: 30, bands: 6,
   };
 
   const state = { ...DEFAULTS };
@@ -523,18 +552,24 @@
   // ---------------------------------------------------------------------------
 
   const CAM_H = 0.42;
-  const CAM_D = 0.55;
+
+  // Distance from the camera to the mouth. This is the knob that decides
+  // whether the cone or the perspective wins: apparent width goes as
+  // (mouth + age) / (camera + age), so the field widens with depth only while
+  // the camera sits further back than the mouth is wide, and the closer the
+  // two get the more the recession reasserts itself.
+  const camDist = () => 0.10 + (state.camera / 100) * 0.85;
 
   // Radius of the emitting mouth. A point source would squeeze every track to
   // the same place at t = 0, making pan unreadable exactly where the meter is;
   // giving the source real width is what keeps the near arc legible.
-  const sourceRadius = () => 0.08;
+  const sourceRadius = () => state.mouth / 100;
 
   let sinP = 0, cosP = 1, scale = 1, originY = 0, cx = 0;
 
   function rawProject(gx, h, gz, out) {
     const vy = h - CAM_H;
-    const vz = gz + CAM_D;
+    const vz = gz + camDist();
     const y = vy * cosP + vz * sinP;
     const z = -vy * sinP + vz * cosP;
     const inv = 1 / Math.max(z, 0.02);
@@ -559,13 +594,34 @@
   // for a runway that is meant to be short-term auditory memory. Constant lane
   // + circular bow keeps the arch and keeps the foreshortening.
   function ground(u, r, out) {
-    const bow = (state.arc / 100) * (state.bow / 100);
-    out[0] = (state.width / 100) * u;
-    // Congruent arches rather than true expanding circles: a physical
-    // wavefront's curvature radius equals its age, so near arches could not
-    // span the lane at all without collapsing back into a fan. Parallel
-    // contours also keep a beat rung one repeatable shape at every depth.
-    out[1] = r - bow * (1 - Math.sqrt(Math.max(0, 1 - u * u)));
+    const arc = state.arc / 100;
+    const r0 = sourceRadius();
+
+    // Arc = 100: true radial expansion. The wavefront is a real circle of
+    // radius r0 + r centred on the source, so it genuinely spreads as it ages.
+    const theta = u * (state.spread * Math.PI / 180);
+    const R = r0 + r;
+    const fanX = R * Math.sin(theta);
+    const fanZ = R * Math.cos(theta) - r0;
+
+    // Arc = 0: constant-width lane with a congruent bow. Contours stay
+    // parallel, so a beat rung is one repeatable shape at every depth.
+    const laneX = (state.width / 100) * u;
+    const laneZ = r - (state.bow / 100) * (1 - Math.sqrt(Math.max(0, 1 - u * u)));
+
+    out[0] = laneX + (fanX - laneX) * arc;
+    out[1] = laneZ + (fanZ - laneZ) * arc;
+  }
+
+  // Waves vanish by fading, not by being clipped at the frame edge. A real
+  // radiating wavefront keeps widening as it recedes, so the far end has to
+  // leave the frame — the haze is what ends it.
+  function hazeK() {
+    return (state.haze / 100) * 5.5;
+  }
+
+  function distanceFade(r) {
+    return Math.exp(-hazeK() * r);
   }
 
   // ---------------------------------------------------------------------------
@@ -595,13 +651,17 @@
     cosP = Math.cos(phi);
     cx = W / 2;
 
-    // Fit on the *ground plane* only. Peaks are allowed to overflow upward —
-    // including them would let one loud transient shrink the whole runway, and
-    // the runway's own recession is what has to stay legible.
+    // Fit on the ground plane only, and only out to where the haze has already
+    // taken the waves down to a quarter opacity. Fitting the *widest* arc would
+    // force an expanding cone to shrink its own mouth to nothing as depth grows
+    // — the far end is meant to leave the frame and fade, not be framed.
+    const k = hazeK();
+    const rFit = k > 0.05 ? Math.min(1, Math.log(12) / k) : 1;
+
     let maxX = 1e-6, farY = Infinity, nearY = -Infinity;
 
     for (let ri = 0; ri <= 6; ri++) {
-      const r = ri / 6;
+      const r = (ri / 6) * rFit;
       for (let ui = -3; ui <= 3; ui++) {
         ground(ui / 3, r, g);
         rawProject(g[0], 0, g[1], probe);
@@ -612,9 +672,9 @@
     }
 
     const scaleW = (0.47 * W) / maxX;
-    const scaleH = (0.70 * H) / Math.max(nearY - farY, 1e-6);
+    const scaleH = (0.74 * H) / Math.max(nearY - farY, 1e-6);
     scale = Math.min(scaleW, scaleH);
-    originY = 0.90 * H - scale * nearY;
+    originY = 0.92 * H - scale * nearY;
 
     const fieldW = 2 * scale * maxX;
     const fieldH = scale * (nearY - farY);
@@ -630,7 +690,7 @@
 
   function drawWavefield() {
     const ridges = state.ridges | 0;
-    const samples = state.detail | 0;
+    const maxSamples = state.detail | 0;
     const bands = state.bands | 0;
     const zMax = state.height / 100;
     const lobe = state.lobe / 100;
@@ -638,17 +698,18 @@
     const depthSec = state.depth;
 
     // Reused geometry buffers — one allocation per frame, not per ridge.
-    const baseX = new Float64Array(samples + 1);
-    const baseY = new Float64Array(samples + 1);
-    const crestX = new Float64Array(samples + 1);
-    const crestY = new Float64Array(samples + 1);
+    const baseX = new Float64Array(maxSamples + 1);
+    const baseY = new Float64Array(maxSamples + 1);
+    const crestX = new Float64Array(maxSamples + 1);
+    const crestY = new Float64Array(maxSamples + 1);
 
     // Far to near — painter's algorithm gives occlusion for free.
     for (let ri = ridges - 1; ri >= 0; ri--) {
       const r = (ri + 0.5) / ridges;
       const age = r * depthSec;
       const fi = frameIndex(clock - age);
-      const fade = 1 - 0.35 * r;
+      const fade = distanceFade(r);
+      if (fade < 0.012) continue;
 
       for (let ti = 0; ti < TRACKS.length; ti++) {
         if (muted[ti]) continue;
@@ -662,6 +723,8 @@
         let peak = 0;
         for (let b = 0; b < BINS; b++) peak = Math.max(peak, data.spec[specOff + b]);
         if (peak <= 0) continue;
+
+        const samples = Math.max(6, Math.round(maxSamples * (1 - 0.6 * r)));
 
         // Project each column's two endpoints once. Band boundaries are then
         // interpolated in screen space — a column is a short segment, so the
@@ -853,7 +916,11 @@
   const UNITS = {
     tilt: (v) => v + '°',
     arc: (v) => v + '%',
+    spread: (v) => '\u00b1' + v + '\u00b0',
+    mouth: (v) => v + '%',
+    camera: (v) => v + '%',
     width: (v) => v + '%',
+    haze: (v) => v + '%',
     depth: (v) => v.toFixed(1) + ' s',
     bow: (v) => v + '%',
     height: (v) => v + '%',
