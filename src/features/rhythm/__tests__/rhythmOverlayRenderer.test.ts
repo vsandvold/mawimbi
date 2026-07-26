@@ -1,16 +1,31 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  SWUNG_CLICK,
+  computeIsochronousClickTimes,
+  computeSwungClickTimes,
+} from '../../../../e2e/fixtures/rhythmGroundTruth.mjs';
+import {
   MAX_PIXELS_PER_SECOND,
   MIN_PIXELS_PER_SECOND,
 } from '../../workstation/workstationSignals';
+import { type TrackColor } from '../../tracks/types';
+import { induceBeatGrid } from '../induceBeatGrid';
 import {
   EMPTY_BEAT_GRID,
+  MIN_ONSET_TICK_OPACITY,
   MIN_RUNG_SPACING_PX,
+  MIN_TICK_SPACING_PX,
+  ONSET_TICK_LENGTH_PX,
+  ONSET_TICK_OPACITY,
+  ONSET_TICK_THICKNESS_PX,
   RUNG_THICKNESS_PX,
   type RhythmOverlayViewport,
   buildBeatGrid,
+  computeVisibleOnsetTicks,
   computeVisibleRungs,
   drawBeatRungs,
+  drawOnsetTicks,
+  onsetTickOpacity,
   visibleRungStride,
 } from '../rhythmOverlayRenderer';
 
@@ -199,6 +214,322 @@ describe('drawBeatRungs', () => {
     const ctx = makeContext();
 
     drawBeatRungs(ctx, steadyGrid(3), 0, {
+      ...VIEWPORT,
+      timeZeroY: CANVAS_HEIGHT * 10,
+    });
+
+    expect(ctx.fillRect).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Onset ticks — the nuance layer (spec 008 Goal 3, milestone 4)
+// ---------------------------------------------------------------------------
+
+const TRACK_COLOR: TrackColor = { r: 77, g: 238, b: 234 };
+
+/** Distance from `y` to the nearest rung of `grid`, in pixels. */
+function distanceToNearestRung(
+  grid: ReturnType<typeof buildBeatGrid>,
+  startTime: number,
+  y: number,
+): number {
+  const rungs = computeVisibleRungs(grid, startTime, VIEWPORT);
+  return Math.min(...rungs.map((rung) => Math.abs(rung.y - y)));
+}
+
+describe('computeVisibleOnsetTicks', () => {
+  it('places each onset at its project time, on the same rows the rungs use', () => {
+    const onsets = computeIsochronousClickTimes(120, 16);
+
+    const ticks = computeVisibleOnsetTicks(onsets, 0, VIEWPORT);
+
+    expect(ticks.map((tick) => tick.time)).toEqual([
+      2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5, 6, 6.5, 7,
+    ]);
+    expect(ticks.map((tick) => tick.y)).toEqual([
+      1000, 900, 800, 700, 600, 500, 400, 300, 200, 100, 0,
+    ]);
+    // The layer's whole claim is that ticks and rungs are read against each
+    // other, which only holds if both project time the same way: a track
+    // whose onsets *are* the beats must put every tick on a rung.
+    for (const tick of ticks) {
+      expect(distanceToNearestRung(buildBeatGrid(onsets), 0, tick.y)).toBe(0);
+    }
+  });
+
+  it('offsets every tick by the track start time', () => {
+    // The #484 class (kb/domain.md), again: onsets are track-buffer
+    // relative, so an overdub's ticks are shifted by its own start. Without
+    // this every tick below would land 250 px lower — on the wrong beats,
+    // and invisible in testing because every *uploaded* track starts at 0.
+    const START_TIME = 1.25;
+    const onsets = computeIsochronousClickTimes(120, 16);
+
+    const ticks = computeVisibleOnsetTicks(onsets, START_TIME, VIEWPORT);
+
+    expect(ticks.map((tick) => tick.time)).toEqual([
+      2.25, 2.75, 3.25, 3.75, 4.25, 4.75, 5.25, 5.75, 6.25, 6.75,
+    ]);
+    for (const tick of ticks) {
+      expect(tick.y).toBe(TIME_ZERO_Y - tick.time * PIXELS_PER_SECOND);
+    }
+  });
+
+  it('drops onsets outside the canvas window', () => {
+    const ticks = computeVisibleOnsetTicks(
+      computeIsochronousClickTimes(120, 400),
+      0,
+      VIEWPORT,
+    );
+
+    for (const tick of ticks) {
+      expect(tick.y).toBeGreaterThanOrEqual(0);
+      expect(tick.y).toBeLessThanOrEqual(CANVAS_HEIGHT);
+    }
+    // 400 onsets span 200 s; only the 5 s the canvas covers may be drawn.
+    expect(ticks.length).toBeLessThan(15);
+  });
+
+  it('keeps every onset when the grid above it is being thinned', () => {
+    // The LOD stride is a property of the *grid*'s density (spec Decision
+    // 2). Dropping onsets by the same rule would delete events that
+    // happened, so a zoom level that halves the rungs must still show every
+    // tick — otherwise zooming out would silently rewrite the performance.
+    const zoomedOut = { ...VIEWPORT, pixelsPerSecond: MIN_PIXELS_PER_SECOND };
+    const onsets = computeIsochronousClickTimes(120, 200);
+
+    const ticks = computeVisibleOnsetTicks(onsets, 0, zoomedOut);
+    const rungs = computeVisibleRungs(buildBeatGrid(onsets), 0, zoomedOut);
+
+    expect(visibleRungStride(MIN_PIXELS_PER_SECOND, 0.5)).toBe(2);
+    expect(ticks.length).toBeGreaterThan(rungs.length);
+    // …and the ones that survive the thinning are still tick times, so a
+    // drawn rung always has a tick to be read against.
+    const tickTimes = ticks.map((tick) => tick.time);
+    for (const rung of rungs) expect(tickTimes).toContain(rung.time);
+  });
+
+  it('produces nothing without onsets', () => {
+    expect(computeVisibleOnsetTicks([], 0, VIEWPORT)).toEqual([]);
+  });
+
+  it('drops a non-finite onset instead of placing it at NaN', () => {
+    // Only the grid's times are sanitized upstream (`induceBeatGrid`'s
+    // `sanitizeTicks`); onsets reach the renderer straight off a worker
+    // result or a persisted row. A `y < 0 || y > h` cull is *false* for
+    // `NaN`, so the naive form emits a `NaN` placement that `fillRect`
+    // silently ignores — the mark is missing while the caller's
+    // "nothing to draw" early return is defeated on every frame
+    // (`/code-review` on PR #587).
+    const ticks = computeVisibleOnsetTicks(
+      [2, Number.NaN, 2.5, Number.POSITIVE_INFINITY, 3],
+      0,
+      VIEWPORT,
+    );
+
+    expect(ticks.map((tick) => tick.time)).toEqual([2, 2.5, 3]);
+    expect(ticks.every((tick) => Number.isFinite(tick.y))).toBe(true);
+  });
+
+  it('draws nothing when every onset is non-finite', () => {
+    const ctx = makeContext();
+
+    drawOnsetTicks(ctx, [Number.NaN, Number.NaN], 0, TRACK_COLOR, VIEWPORT);
+
+    expect(ctx.save).not.toHaveBeenCalled();
+    expect(ctx.fillRect).not.toHaveBeenCalled();
+  });
+});
+
+describe('onsetTickOpacity', () => {
+  it('draws at full strength while ticks read as separate marks', () => {
+    expect(onsetTickOpacity(MIN_TICK_SPACING_PX)).toBe(ONSET_TICK_OPACITY);
+    expect(onsetTickOpacity(100)).toBe(ONSET_TICK_OPACITY);
+  });
+
+  it('fades as ticks crowd together, never past the floor', () => {
+    const crowded = onsetTickOpacity(MIN_TICK_SPACING_PX / 2);
+    expect(crowded).toBeLessThan(ONSET_TICK_OPACITY);
+    expect(crowded).toBeGreaterThanOrEqual(MIN_ONSET_TICK_OPACITY);
+
+    // The case the rule exists for: a dense track (~10 onsets/s, spec
+    // Decision 1) at the zoom floor puts marks 5 px apart while they are
+    // 2.5 px thick — a solid bar down the rail at full alpha.
+    const denseSpacingPx = MIN_PIXELS_PER_SECOND / 10;
+    expect(onsetTickOpacity(denseSpacingPx)).toBeLessThan(ONSET_TICK_OPACITY);
+    expect(onsetTickOpacity(denseSpacingPx)).toBeGreaterThanOrEqual(
+      MIN_ONSET_TICK_OPACITY,
+    );
+  });
+
+  it('never fades to invisible on a degenerate spacing', () => {
+    // A single visible tick has no spacing to measure; fading it out would
+    // hide the one mark the track has.
+    expect(onsetTickOpacity(0)).toBe(ONSET_TICK_OPACITY);
+    expect(onsetTickOpacity(Number.NaN)).toBe(ONSET_TICK_OPACITY);
+    expect(onsetTickOpacity(-1)).toBe(ONSET_TICK_OPACITY);
+  });
+
+  it('stays monotonic across the crowding range', () => {
+    for (let spacing = 1; spacing < MIN_TICK_SPACING_PX * 2; spacing++) {
+      expect(onsetTickOpacity(spacing)).toBeLessThanOrEqual(
+        onsetTickOpacity(spacing + 1),
+      );
+    }
+  });
+});
+
+describe('onset ticks against the induced grid', () => {
+  it('renders a swung eighth off the rung it swings against', () => {
+    // The geometry-is-the-annotation claim (spec Goal 3): the fixture's
+    // beats induce the grid, and its off-beat eighths must land visibly
+    // *between* rungs. Falsified by any implementation that snapped ticks
+    // to the grid — every tick would sit on a rung with distance 0.
+    const beatTimes = computeIsochronousClickTimes(
+      SWUNG_CLICK.bpm,
+      SWUNG_CLICK.numBeats,
+    );
+    const grid = buildBeatGrid(induceBeatGrid(beatTimes));
+    const onsets = computeSwungClickTimes(
+      SWUNG_CLICK.bpm,
+      SWUNG_CLICK.numBeats,
+      SWUNG_CLICK.swingRatio,
+    );
+    const beatSeconds = 60 / SWUNG_CLICK.bpm;
+    // The "and" sits 62% through the beat, so its nearest rung is the
+    // *next* one, 38% of a beat later — 38 px at this zoom.
+    const expectedOffsetPx =
+      (1 - SWUNG_CLICK.swingRatio) * beatSeconds * PIXELS_PER_SECOND;
+
+    const ticks = computeVisibleOnsetTicks(onsets, 0, VIEWPORT);
+    expect(ticks.length).toBeGreaterThan(4);
+
+    for (const tick of ticks) {
+      const isDownbeat =
+        Math.abs(
+          tick.time / beatSeconds - Math.round(tick.time / beatSeconds),
+        ) < 1e-9;
+      const offset = distanceToNearestRung(grid, 0, tick.y);
+      if (isDownbeat) {
+        expect(
+          offset,
+          `downbeat tick at ${tick.time}s left its rung`,
+        ).toBeLessThan(1);
+      } else {
+        expect(
+          offset,
+          `swung eighth at ${tick.time}s rendered ${offset.toFixed(1)}px from a rung`,
+        ).toBeCloseTo(expectedOffsetPx, 1);
+      }
+    }
+  });
+
+  it("renders the anchor's own push against its induced grid", () => {
+    // The amendment's point (spec Decision 2): the grid is *induced* from
+    // the beat tracker's ticks, not drawn from the onsets, so an anchor
+    // that consistently plays ahead of its own tracked beat shows that
+    // offset rather than sitting on its own rungs by construction.
+    const PUSH_SECONDS = 0.03;
+    const beatTimes = computeIsochronousClickTimes(120, 32);
+    const grid = buildBeatGrid(induceBeatGrid(beatTimes));
+    const onsets = beatTimes.map((time) => time - PUSH_SECONDS);
+
+    const ticks = computeVisibleOnsetTicks(onsets, 0, VIEWPORT);
+    expect(ticks.length).toBeGreaterThan(4);
+
+    // Earlier in time is *lower* on the canvas (`y = timeZeroY − t × pps`),
+    // so a push renders below its rung by exactly the push.
+    for (const tick of ticks) {
+      const rungY = tick.y - PUSH_SECONDS * PIXELS_PER_SECOND;
+      expect(
+        distanceToNearestRung(grid, 0, rungY),
+        `pushed tick at ${tick.time}s is not ${PUSH_SECONDS}s ahead of a rung`,
+      ).toBeLessThan(1);
+      expect(distanceToNearestRung(grid, 0, tick.y)).toBeCloseTo(
+        PUSH_SECONDS * PIXELS_PER_SECOND,
+        1,
+      );
+    }
+  });
+});
+
+describe('drawOnsetTicks', () => {
+  it('strokes a short mark at each rail for every visible onset', () => {
+    const ctx = makeContext();
+
+    // Two onsets inside the canvas window, so the expected call list below
+    // stays readable while still covering both rails on both marks.
+    drawOnsetTicks(ctx, [2, 2.5], 0, TRACK_COLOR, VIEWPORT);
+
+    const halfThickness = ONSET_TICK_THICKNESS_PX / 2;
+    const rightX = VIEWPORT.canvasWidth - ONSET_TICK_LENGTH_PX;
+    expect(ctx.fillRect.mock.calls).toEqual([
+      [0, 1000 - halfThickness, ONSET_TICK_LENGTH_PX, ONSET_TICK_THICKNESS_PX],
+      [
+        rightX,
+        1000 - halfThickness,
+        ONSET_TICK_LENGTH_PX,
+        ONSET_TICK_THICKNESS_PX,
+      ],
+      [0, 900 - halfThickness, ONSET_TICK_LENGTH_PX, ONSET_TICK_THICKNESS_PX],
+      [
+        rightX,
+        900 - halfThickness,
+        ONSET_TICK_LENGTH_PX,
+        ONSET_TICK_THICKNESS_PX,
+      ],
+    ]);
+    expect(ctx.fillStyle).toBe(
+      `rgba(${TRACK_COLOR.r}, ${TRACK_COLOR.g}, ${TRACK_COLOR.b}, ${ONSET_TICK_OPACITY})`,
+    );
+  });
+
+  it('draws in the track color, so focus and mute treatment read as the track', () => {
+    const ctx = makeContext();
+    const other: TrackColor = { r: 255, g: 231, b: 0 };
+
+    drawOnsetTicks(ctx, [2.5], 0, other, VIEWPORT);
+
+    expect(ctx.fillStyle).toBe(
+      `rgba(${other.r}, ${other.g}, ${other.b}, ${ONSET_TICK_OPACITY})`,
+    );
+  });
+
+  it('fades a crowded rail rather than dropping any of its onsets', () => {
+    // Wires `onsetTickOpacity` to the actual draw — without this the fade
+    // function could be correct and unused. ~50 onsets/s across the visible
+    // window puts marks ~4 px apart, well inside the crowded range.
+    const ctx = makeContext();
+    const dense = Array.from({ length: 251 }, (_, i) => 2 + i * 0.02);
+
+    drawOnsetTicks(ctx, dense, 0, TRACK_COLOR, VIEWPORT);
+
+    const drawn = ctx.fillRect.mock.calls.length / 2;
+    expect(drawn).toBe(dense.length);
+    const opacity = Number(
+      String(ctx.fillStyle).match(/([\d.]+)\)$/)?.[1] ?? Number.NaN,
+    );
+    expect(opacity).toBe(onsetTickOpacity(CANVAS_HEIGHT / dense.length));
+    expect(opacity).toBeLessThan(ONSET_TICK_OPACITY);
+  });
+
+  it('draws nothing at all without onsets', () => {
+    // Goal 7: a track with no rhythm data must render exactly as it did
+    // before this feature existed — not touching the context, not merely
+    // drawing zero ticks onto it.
+    const ctx = makeContext();
+
+    drawOnsetTicks(ctx, [], 0, TRACK_COLOR, VIEWPORT);
+
+    expect(ctx.fillRect).not.toHaveBeenCalled();
+    expect(ctx.save).not.toHaveBeenCalled();
+  });
+
+  it('draws nothing when every onset lies outside the canvas', () => {
+    const ctx = makeContext();
+
+    drawOnsetTicks(ctx, [0, 0.5, 1], 0, TRACK_COLOR, {
       ...VIEWPORT,
       timeZeroY: CANVAS_HEIGHT * 10,
     });

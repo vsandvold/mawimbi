@@ -5,6 +5,10 @@ import { resetAllSignals } from '../../tracks/__tests__/testUtils';
 import { mockTrack } from '../../../testUtils';
 import Spectrogram from '../Spectrogram';
 import { type TimelineRenderCallback } from '../TimelineRenderLoop';
+import {
+  ONSET_TICK_LENGTH_PX,
+  ONSET_TICK_THICKNESS_PX,
+} from '../../rhythm/rhythmOverlayRenderer';
 
 const audioService = AudioService.getInstance();
 const playbackService = audioService.playbackService;
@@ -354,6 +358,48 @@ describe('render-loop registration peekDirty (mawimbi#541)', () => {
     expect(getLatestRegistration().peekDirty()).toBe(true);
   });
 
+  it('settles to not-dirty after one draw for a track with onsets but no melody notes', () => {
+    // The `onsetCount` sentinel has the same trap as `noteCount` above and
+    // needs the same shape of proof (CLAUDE.md: a registration's peekDirty
+    // must short-circuit on exactly the states its write declines to
+    // handle). A track with onsets and no notes still draws — so the
+    // sentinel must be cleared by that draw, not only by a melody draw.
+    const audioBuffer = { duration: 5.0 } as AudioBuffer;
+    mockRetrieveAudioBuffer.mockReturnValue(audioBuffer);
+    mockGetEntry.mockReturnValue({
+      ...makeCachedEntry([{} as ImageBitmap]),
+      rhythm: { bpm: 120, confidence: 3, ticks: [], onsets: [1, 1.5, 2] },
+    });
+
+    render(<Spectrogram {...defaultProps} />);
+    expect(getLatestRegistration().peekDirty()).toBe(true);
+
+    runRegisteredFrame();
+
+    expect(getLatestRegistration().peekDirty()).toBe(false);
+  });
+
+  it('reports dirty once rhythm onsets land on an already-drawn track', () => {
+    const audioBuffer = { duration: 5.0 } as AudioBuffer;
+    mockRetrieveAudioBuffer.mockReturnValue(audioBuffer);
+    const tiles = [{} as ImageBitmap];
+    mockGetEntry.mockReturnValue(makeCachedEntry(tiles));
+
+    const { rerender } = render(<Spectrogram {...defaultProps} />);
+    runRegisteredFrame();
+    expect(getLatestRegistration().peekDirty()).toBe(false);
+
+    // The same tiles array, so only the onsets can account for the change —
+    // the rhythm round-trip lands well after the spectrogram's does.
+    mockGetEntry.mockReturnValue({
+      ...makeCachedEntry(tiles),
+      rhythm: { bpm: 120, confidence: 3, ticks: [], onsets: [1, 1.5] },
+    });
+    rerender(<Spectrogram {...defaultProps} />);
+
+    expect(getLatestRegistration().peekDirty()).toBe(true);
+  });
+
   it('reports dirty when pixelsPerSecond changes', () => {
     const audioBuffer = { duration: 5.0 } as AudioBuffer;
     mockRetrieveAudioBuffer.mockReturnValue(audioBuffer);
@@ -407,6 +453,135 @@ it('has no margin offset for tracks starting at position zero', () => {
 
   const spectrogram = container.querySelector('.spectrogram');
   expect(spectrogram).toHaveStyle({ marginBottom: '0px' });
+});
+
+describe('onset ticks in the overlay draw (spec 008 milestone 4)', () => {
+  const DURATION = 5.0;
+  const PPS = 200;
+  const ONSETS = [1, 2.5];
+
+  /**
+   * Gives every canvas its own recording 2D context, so the overlay's
+   * strokes can be read apart from the tile canvas's. jsdom's own
+   * `getContext` returns null (and logs "not implemented"), which makes the
+   * whole draw path unreachable without this.
+   */
+  function stubCanvasContexts() {
+    const contexts = new WeakMap<HTMLCanvasElement, ReturnType<typeof make>>();
+    const make = () => ({
+      save: vi.fn(),
+      restore: vi.fn(),
+      translate: vi.fn(),
+      scale: vi.fn(),
+      clearRect: vi.fn(),
+      fillRect: vi.fn(),
+      drawImage: vi.fn(),
+      beginPath: vi.fn(),
+      rect: vi.fn(),
+      fill: vi.fn(),
+      stroke: vi.fn(),
+      moveTo: vi.fn(),
+      lineTo: vi.fn(),
+      createLinearGradient: vi.fn().mockReturnValue({ addColorStop: vi.fn() }),
+      fillStyle: '',
+      strokeStyle: '',
+      lineWidth: 0,
+      globalCompositeOperation: '',
+    });
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (
+      this: HTMLCanvasElement,
+    ) {
+      let context = contexts.get(this);
+      if (!context) {
+        context = make();
+        contexts.set(this, context);
+      }
+      return context;
+    } as unknown as typeof original;
+    return {
+      contextFor: (canvas: HTMLCanvasElement) => contexts.get(canvas),
+      restore: () => {
+        HTMLCanvasElement.prototype.getContext = original;
+      },
+    };
+  }
+
+  /**
+   * The Ys of the marks the rhythm renderer put on the overlay canvas —
+   * distinguished from the melody path (which never `fillRect`s) and from
+   * the tile canvas by being read from the overlay's own context.
+   */
+  function tickYs(context: { fillRect: ReturnType<typeof vi.fn> }): number[] {
+    return context.fillRect.mock.calls
+      .filter((call) => call[2] === ONSET_TICK_LENGTH_PX)
+      .map((call) => call[1] + ONSET_TICK_THICKNESS_PX / 2);
+  }
+
+  function renderWithOnsets(startTime: number) {
+    mockRetrieveAudioBuffer.mockReturnValue({
+      duration: DURATION,
+    } as AudioBuffer);
+    mockRetrieveStartTime.mockReturnValue(startTime);
+    mockGetEntry.mockReturnValue({
+      data: {
+        frequencyFrames: [],
+        timeResolution: 0.025,
+        frequencyBinCount: 2048,
+        sampleRate: 44100,
+        duration: DURATION,
+      },
+      tiles: [{} as ImageBitmap],
+      rhythm: { bpm: 120, confidence: 3, ticks: [], onsets: ONSETS },
+      analysisComplete: true,
+    });
+    return render(<Spectrogram {...defaultProps} pixelsPerSecond={PPS} />);
+  }
+
+  it('draws a mark at each rail for every onset, at the track content’s own rows', () => {
+    // The #484 class at the component level. `startTime` reaches the draw
+    // twice — once through the container's `marginBottom` (which jsdom's
+    // zero `offsetTop` collapses, exactly as a `startTime: 0` upload does in
+    // the browser) and once as `drawOnsetTicks`' own offset — and the two
+    // must cancel. Dropping either half alone shifts every mark on an
+    // overdub by its whole start time, with nothing else to notice.
+    const canvasStub = stubCanvasContexts();
+    try {
+      const { container } = renderWithOnsets(0);
+      const overlay = container.querySelector(
+        '.spectrogram__overlay',
+      ) as HTMLCanvasElement;
+      runRegisteredFrame();
+
+      const context = canvasStub.contextFor(overlay)!;
+      // Content at buffer time `t` occupies canvas row
+      // `height − trackBase − t × pps`; here `trackBase` is 0 (the window is
+      // 1000 px and the content is `5 s × 200 px/s`), so onset 1 s sits at
+      // 800 and onset 2.5 s at 500. Two marks each: one rail, then the other.
+      expect(tickYs(context)).toEqual([800, 800, 500, 500]);
+    } finally {
+      canvasStub.restore();
+    }
+  });
+
+  it('places an overdub’s marks on the same rows as a track that starts at zero', () => {
+    const canvasStub = stubCanvasContexts();
+    try {
+      const { container } = renderWithOnsets(3);
+      const overlay = container.querySelector(
+        '.spectrogram__overlay',
+      ) as HTMLCanvasElement;
+      runRegisteredFrame();
+
+      // Same rows as the `startTime: 0` case above: the offset belongs to
+      // the container, and the renderer must not add it a second time.
+      expect(tickYs(canvasStub.contextFor(overlay)!)).toEqual([
+        800, 800, 500, 500,
+      ]);
+    } finally {
+      canvasStub.restore();
+    }
+  });
 });
 
 it('sets container height to zero when no audio buffer', () => {

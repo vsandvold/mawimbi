@@ -14,6 +14,7 @@ import {
   type PianoRollViewport,
 } from './PianoRollRenderer';
 import RecordingBuffer from './RecordingBuffer';
+import { drawOnsetTicks } from '../rhythm/rhythmOverlayRenderer';
 import './Spectrogram.css';
 import { spectrogramStats } from './SpectrogramStats';
 import { TILE_FRAMES } from './tileConstants';
@@ -28,6 +29,9 @@ import {
   PREVIEW_FEATHER_PX,
   type PreviewOverlay,
 } from '../workstation/effectsPreview';
+
+/** Shared "this track has no onsets" array — stable identity, no churn. */
+const EMPTY_ONSETS: number[] = [];
 
 type SpectrogramProps = {
   pixelsPerSecond: number;
@@ -51,12 +55,14 @@ const Spectrogram = ({
   const lastDrawnOverlayRef = useRef({
     offset: -1,
     pps: -1,
-    // 0, not -1: `writeMelodyOverlay` only ever runs when `notes.length > 0`
-    // (see the `write` registration below), so a track with no melody notes
-    // at all would never update this away from a sentinel that isn't a
-    // real note count — leaving `peekDirty`'s `0 !== sentinel` comparison
-    // permanently true and defeating the render loop's idle short-circuit.
+    // 0, not -1, for both counts: `writeTrackOverlay` only ever runs when
+    // the track has notes *or* onsets (see the `write` registration below),
+    // so a track with neither would never update these away from a sentinel
+    // that isn't a real count — leaving `peekDirty`'s `0 !== sentinel`
+    // comparison permanently true and defeating the render loop's idle
+    // short-circuit for every mounted track, not just this one.
     noteCount: 0,
+    onsetCount: 0,
     activeNotesKey: '',
   });
   // Reference-identity dirty check for the provisional preview overlay
@@ -110,6 +116,12 @@ const Spectrogram = ({
   const totalFrames = entry?.data.totalFrames ?? 0;
   const tiles = entry?.tiles ?? [];
   const melodyNotes = entry?.melody?.notes ?? [];
+  // The nuance layer (spec 008 Goal 3, milestone 4). Drawn in this track's
+  // own overlay canvas rather than the project-level `RhythmOverlay`, so
+  // focus lift, edit-mode dimming and mute styling — all `opacity` on the
+  // `.timeline__track` ancestor — apply to a track's timing marks exactly
+  // as they apply to its spectrogram, with no mechanism of their own.
+  const onsets = entry?.rhythm?.onsets ?? EMPTY_ONSETS;
 
   const visualizerRef = useRef<FrequencyVisualizer | null>(null);
 
@@ -146,6 +158,7 @@ const Spectrogram = ({
     tileDisplayHeight,
     duration,
     melodyNotes,
+    onsets,
     color,
     frequencyBinCount,
     startTime,
@@ -159,6 +172,7 @@ const Spectrogram = ({
     tileDisplayHeight,
     duration,
     melodyNotes,
+    onsets,
     color,
     frequencyBinCount,
     startTime,
@@ -181,13 +195,14 @@ const Spectrogram = ({
     const unregister = timelineRenderLoop.register({
       bypassIdle: isRecordingTrack,
       peekDirty: () => {
-        const { tiles, pixelsPerSecond, melodyNotes, previewOverlay } =
+        const { tiles, pixelsPerSecond, melodyNotes, onsets, previewOverlay } =
           latestRef.current;
         if (tiles.length === 0) return false;
         return (
           tiles !== lastDrawnRef.current.tiles ||
           pixelsPerSecond !== lastDrawnRef.current.pps ||
           melodyNotes.length !== lastDrawnOverlayRef.current.noteCount ||
+          onsets.length !== lastDrawnOverlayRef.current.onsetCount ||
           previewOverlay !== lastDrawnPreviewRef.current
         );
       },
@@ -234,6 +249,7 @@ const Spectrogram = ({
           tileDisplayHeight,
           duration,
           melodyNotes,
+          onsets,
           color,
           frequencyBinCount,
           startTime,
@@ -277,13 +293,14 @@ const Spectrogram = ({
         }
         lastDrawnPreviewRef.current = previewOverlay;
 
-        if (overlay && melodyNotes.length > 0) {
-          writeMelodyOverlay(
+        if (overlay && (melodyNotes.length > 0 || onsets.length > 0)) {
+          writeTrackOverlay(
             overlay,
             win,
             tileMeasurement,
             pixelsPerSecond,
             melodyNotes,
+            onsets,
             color,
             frequencyBinCount,
             duration,
@@ -761,12 +778,23 @@ function computeActiveNotesKey(
   return key;
 }
 
-function writeMelodyOverlay(
+/**
+ * The per-track overlay canvas: the melody piano roll and the rhythm
+ * layer's onset ticks (spec 008 milestone 4), which share one canvas, one
+ * clear and one dirty check.
+ *
+ * They share deliberately rather than getting a canvas each: both are
+ * annotations of *this* track, so both must inherit the `.timeline__track`
+ * ancestor's focus/edit/mute opacity identically, and a second canvas would
+ * be a second full-window surface per track for a handful of strokes.
+ */
+function writeTrackOverlay(
   canvas: HTMLCanvasElement,
   win: SharedCanvasWindow,
   held: TileFrameMeasurement,
   pixelsPerSecond: number,
   notes: MelodyNote[],
+  onsets: number[],
   color: TrackColor,
   frequencyBinCount: number,
   duration: number,
@@ -776,6 +804,7 @@ function writeMelodyOverlay(
     offset: number;
     pps: number;
     noteCount: number;
+    onsetCount: number;
     activeNotesKey: string;
   }>,
 ): void {
@@ -797,6 +826,7 @@ function writeMelodyOverlay(
     trackBase === last.offset &&
     pixelsPerSecond === last.pps &&
     notes.length === last.noteCount &&
+    onsets.length === last.onsetCount &&
     activeNotesKey === last.activeNotesKey
   ) {
     return;
@@ -804,6 +834,7 @@ function writeMelodyOverlay(
   last.offset = trackBase;
   last.pps = pixelsPerSecond;
   last.noteCount = notes.length;
+  last.onsetCount = onsets.length;
   last.activeNotesKey = activeNotesKey;
 
   if (needsResize) {
@@ -815,6 +846,37 @@ function writeMelodyOverlay(
   if (!ctx) return;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  writeMelodyOverlay(
+    ctx,
+    trackWin,
+    trackBase,
+    pixelsPerSecond,
+    notes,
+    color,
+    frequencyBinCount,
+    trackPlayheadTime,
+  );
+  writeRhythmTicks(
+    ctx,
+    trackWin,
+    trackBase,
+    pixelsPerSecond,
+    onsets,
+    color,
+    startTime,
+  );
+}
+
+function writeMelodyOverlay(
+  ctx: CanvasRenderingContext2D,
+  trackWin: CanvasWindow,
+  trackBase: number,
+  pixelsPerSecond: number,
+  notes: MelodyNote[],
+  color: TrackColor,
+  frequencyBinCount: number,
+  trackPlayheadTime: number,
+): void {
   ctx.save();
   flipCanvasY(ctx, trackWin.height);
 
@@ -832,6 +894,42 @@ function writeMelodyOverlay(
   drawPianoRoll(ctx, notes, color, viewport);
 
   ctx.restore();
+}
+
+/**
+ * The rhythm nuance layer (spec 008 Goal 3): this track's onsets as short
+ * marks at both rail edges, in the track's color.
+ *
+ * Drawn in the rhythm renderer's own top-down coordinate space rather than
+ * the piano roll's flipped one — the same space `RhythmOverlay` draws the
+ * beat rungs in — so a tick and a rung at the same moment are placed by the
+ * same arithmetic. That is the milestone's actual claim: the offset between
+ * them *is* the rendering of swing and push, so the two projections cannot
+ * be allowed to drift.
+ */
+function writeRhythmTicks(
+  ctx: CanvasRenderingContext2D,
+  trackWin: CanvasWindow,
+  trackBase: number,
+  pixelsPerSecond: number,
+  onsets: number[],
+  color: TrackColor,
+  startTime: number,
+): void {
+  // `trackBase` locates this track's *buffer* time 0 — the container's
+  // `marginBottom` has already pushed its content `startTime` seconds up
+  // the runway — so project time 0 is that much further down again. Adding
+  // it back here lets `drawOnsetTicks` apply the offset itself, exactly as
+  // `drawBeatRungs` does for the anchor's grid (the #484 class,
+  // kb/domain.md).
+  const timeZeroY = trackWin.height - trackBase + startTime * pixelsPerSecond;
+
+  drawOnsetTicks(ctx, onsets, startTime, color, {
+    timeZeroY,
+    pixelsPerSecond,
+    canvasWidth: trackWin.width,
+    canvasHeight: trackWin.height,
+  });
 }
 
 export default Spectrogram;

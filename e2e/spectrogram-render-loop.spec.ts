@@ -2,6 +2,7 @@ import type { Page } from '@playwright/test';
 import { expect, test, uploadAudioFile, SHORT_AUDIO } from './fixtures';
 import {
   getSpectrogramCounters,
+  waitForMelodyResult,
   waitForSpectrogramAnalysisComplete,
 } from './helpers/mawimbiBridge';
 
@@ -18,6 +19,11 @@ import {
 
 const TRACK_COUNT = 3;
 const IDLE_FRAME_COUNT = 60;
+// Melody extraction queues behind three spectrograms on the one shared
+// worker and measures ~8 s for the first track in this sandbox.
+const SETUP_TIMEOUT_MS = 120_000;
+// Frames to let the redraw a just-landed melody schedules actually run.
+const SETTLE_FRAME_COUNT = 10;
 const SCROLL_DURATION_MS = 500;
 const MS_PER_FRAME_60FPS = 1000 / 60;
 // Generous slack for scheduling jitter between the test's own rAF-driven
@@ -27,11 +33,13 @@ const MS_PER_FRAME_60FPS = 1000 / 60;
 const FRAME_TOLERANCE = 8;
 
 async function getAllTrackIds(page: Page): Promise<string[]> {
-  return page.locator('.timeline__track').evaluateAll((els) =>
-    els
-      .map((el) => el.getAttribute('data-track-id'))
-      .filter((id): id is string => Boolean(id)),
-  );
+  return page
+    .locator('.timeline__track')
+    .evaluateAll((els) =>
+      els
+        .map((el) => el.getAttribute('data-track-id'))
+        .filter((id): id is string => Boolean(id)),
+    );
 }
 
 async function uploadTracksAndWaitForAnalysis(
@@ -47,7 +55,25 @@ async function uploadTracksAndWaitForAnalysis(
   const trackIds = await getAllTrackIds(page);
   for (const trackId of trackIds) {
     await waitForSpectrogramAnalysisComplete(page, trackId);
+    // Melody lands on the *same* shared worker several seconds after the
+    // spectrogram does, and its arrival is a legitimate one-off overlay
+    // redraw — one window read, indistinguishable from the always-on loop
+    // this test exists to rule out. "Idle" has to mean nothing is still in
+    // flight, not just that the tiles are done (kb/verification.md, #577).
+    // Rhythm is deliberately *not* waited for: `SHORT_AUDIO` is 0.50 s and
+    // essentia rejects it with `Empty vector input`, so its result never
+    // arrives and gating on it would hang rather than settle.
+    //
+    // Presence, not note count: what this needs is "the round trip is
+    // over", and `waitForMelody`'s `notes.length > 0` would additionally
+    // depend on Basic Pitch finding something in a 0.50 s tone — a
+    // dependency that fails as a timeout blaming melody extraction rather
+    // than the render loop (`/code-review` on PR #587).
+    await waitForMelodyResult(page, trackId);
   }
+  // …and give that arrival's redraw a few frames to run, so it lands before
+  // the measured window rather than inside it.
+  await waitForAnimationFrames(page, SETTLE_FRAME_COUNT);
 }
 
 /** Waits for exactly `frameCount` of the page's own animation frames to
@@ -109,6 +135,8 @@ async function scrollContinuouslyFor(
 }
 
 test.describe('TimelineRenderLoop', () => {
+  test.setTimeout(SETUP_TIMEOUT_MS);
+
   test('an idle 60-frame window performs no window reads or draw calls', async ({
     page,
   }) => {
