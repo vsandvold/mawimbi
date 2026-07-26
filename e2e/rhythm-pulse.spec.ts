@@ -23,8 +23,9 @@
  * in uneven 20–90 ms steps, and the flare's whole life is ~230 ms. Sampling
  * *inside the page*, one reading per frame with the engine time read in the
  * same callback, keeps both readings on the page's own clock and proves
- * more than "it was lit once" — across twelve beats: the flares sit early
- * in the interval, never late in it, and there is one per beat.
+ * more than "it was lit once" — across twelve beats: the flares recur, they
+ * sit early in the interval, they are never late in it, and none of them
+ * happens at a moment no grid point had just crossed.
  *
  * **The one asymmetry to know about.** A reading's engine time is an *upper*
  * bound on the phase the canvas is showing, never a lower one: the canvas
@@ -93,6 +94,14 @@ const DARK_PHASE_MIN_S = 0.28;
  * catch — puts them at 0.25–0.40.
  */
 const LIT_MEDIAN_PHASE_MAX_S = 0.2;
+
+/**
+ * How many separate flares the trace must catch across its twelve beats —
+ * enough to establish that the pulse recurs on the grid rather than having
+ * fired once. Deliberately far below the beat count; see the assertion for
+ * why a match would be brittle and this is not.
+ */
+const MIN_TRACED_FLARES = 4;
 
 /** The band just outside the meter's left edge — glow, and nothing else. */
 const GLOW_BAND_INNER_INSET_PX = 3;
@@ -247,7 +256,7 @@ async function play(page: import('@playwright/test').Page): Promise<void> {
 }
 
 test.describe('Arrival pulse', () => {
-  test('flares on every beat and rests between them', async ({ page }) => {
+  test('flares on the beat and rests between them', async ({ page }) => {
     test.setTimeout(TEST_TIMEOUT_MS);
 
     const trackId = await uploadAndAnalyse(page, CLICK_120BPM_AUDIO);
@@ -268,36 +277,39 @@ test.describe('Arrival pulse', () => {
     const tracedFrom = samples[0].time;
 
     const litPhases: number[] = [];
-    const lateSamples: Sample[] = [];
-    const lateAndLit: { time: number; phase: number }[] = [];
+    // For each lit sample, the *oldest* phase the canvas could have been
+    // showing: the paint it holds is from somewhere in this frame's own
+    // gap. A flare is only demonstrably late if even that lower bound is.
+    const provenLatePhases: { time: number; phase: number }[] = [];
     for (const [index, sample] of samples.entries()) {
       const phase = phaseSinceBeat(gridTimes, sample.time, tracedFrom);
-      if (phase === null) continue;
-      if (sample.alpha > 0) litPhases.push(phase);
+      if (phase === null || sample.alpha === 0) continue;
+      litPhases.push(phase);
 
-      // The oldest phase the canvas could still be showing: one frame gap
-      // back, whatever this frame's gap actually was.
       const gap = index === 0 ? 0 : sample.time - samples[index - 1].time;
-      if (phase - gap < DARK_PHASE_MIN_S) continue;
-      lateSamples.push(sample);
-      if (sample.alpha > 0) lateAndLit.push({ time: sample.time, phase });
+      if (phase - gap >= DARK_PHASE_MIN_S) {
+        provenLatePhases.push({ time: sample.time, phase });
+      }
     }
 
-    // Positive preconditions: the flare has to have been caught at all, and
-    // the late part of an interval has to have been sampled, or the
-    // assertions below hold trivially (kb/verification.md — pair every
+    // Positive precondition: the flare has to have been caught at all, or
+    // everything below holds trivially (kb/verification.md — pair every
     // "didn't happen" with a "did happen").
     expect(
       litPhases.length,
       'the trace never caught the meter frame glowing at all',
     ).toBeGreaterThan(3);
-    expect(
-      lateSamples.length,
-      'the trace never sampled the late part of a beat interval',
-    ).toBeGreaterThan(3);
 
+    // Stated over the lit samples rather than over a bucket of "late"
+    // ones. Bucketing the other way needed `phase - gap >= 0.28` *and*
+    // `phase < 0.5` to both hold, a window that closes completely once the
+    // frame gap passes ~0.22 s — so under load the *precondition* became
+    // unsatisfiable and the test failed for its own sampling rate rather
+    // than for the feature (`/code-review` on PR #588, reproduced at the
+    // default worker count). This form has no such window: a slow trace
+    // makes each bound looser, never contradictory.
     expect(
-      lateAndLit,
+      provenLatePhases,
       'the meter frame was still glowing late in a beat interval',
     ).toEqual([]);
 
@@ -311,32 +323,69 @@ test.describe('Arrival pulse', () => {
       `flares sat ${medianLitPhase.toFixed(3)}s into their beat interval (${JSON.stringify(sortedPhases.map((p) => +p.toFixed(3)))})`,
     ).toBeLessThanOrEqual(LIT_MEDIAN_PHASE_MAX_S);
 
-    // …and it is one flare per beat, not one long glow that happens to
-    // gap: count the rising edges against the crossings actually traced.
+    // …and every flare begins on a beat: a coincidence check between the
+    // trace's rising edges and the sampler intervals that actually spanned
+    // a grid point, rather than a count of either.
     //
-    // The first sample is excluded, and so is any edge whose beat predates
-    // the trace: playback starts before the trace does, so the flare from
-    // the grid point crossed during the `play()` handshake can still be on
-    // screen for the first reading — an extra edge with no crossing to
-    // match it, and the reason this ran 13-against-12 before the guard.
-    const risingEdges = samples.filter(
+    // Counts don't work here, in both directions. Beats over-predict,
+    // because `BeatPulse` attacks once per *frame* however many grid points
+    // that frame spans — its own documented behaviour, and what keeps a
+    // stalled frame from producing two flares. Straddling frames still
+    // over-predict, because a flare that is still lit when the next beat
+    // arrives shows no rising edge at all: the two merge. Both effects
+    // scale with the frame gap, so any fixed tolerance fails at some load
+    // (measured: 8-against-12 and then 9-against-11, both for the frame
+    // rate rather than the feature — `/code-review` on PR #588).
+    //
+    // What is load-independent is *where* the edges are, plus how many
+    // distinct ones there were. One sampler interval of slack, because the
+    // sampler's frames and the app's are different callbacks: whichever
+    // runs second sees the other's beat one reading later.
+    const straddlesBeat = samples.map(
       (sample, i) =>
         i > 0 &&
-        sample.alpha > 0 &&
-        samples[i - 1].alpha === 0 &&
-        phaseSinceBeat(gridTimes, sample.time, tracedFrom) !== null,
-    ).length;
-    const crossings = gridTimes.filter(
-      (beat) => beat > tracedFrom && beat <= samples[samples.length - 1].time,
-    ).length;
-    const flareReport = `${risingEdges} flares against ${crossings} beats crossed`;
-    // Never more flares than beats — an envelope that re-attacked on
-    // something other than a grid point would show up here. Up to two
-    // fewer is sampling, not behaviour: the flare outlives the renderer's
-    // floor by ~230 ms and frames arrive ~90 ms apart, so a beat whose
-    // whole flare falls between two readings is rare but possible.
-    expect(risingEdges, flareReport).toBeLessThanOrEqual(crossings);
-    expect(risingEdges, flareReport).toBeGreaterThanOrEqual(crossings - 2);
+        gridTimes.some(
+          (beat) =>
+            beat > Math.max(samples[i - 1].time, tracedFrom) &&
+            beat <= sample.time,
+        ),
+    );
+    const isRisingEdge = samples.map(
+      (sample, i) => i > 0 && sample.alpha > 0 && samples[i - 1].alpha === 0,
+    );
+
+    // No flare without a beat behind it — an envelope attacking on anything
+    // other than a grid point shows up here, and so does a grid rendered at
+    // the wrong phase.
+    const unexplainedFlares = samples
+      .map((sample, i) => ({ time: sample.time, i }))
+      .filter(
+        ({ i }) =>
+          isRisingEdge[i] && !straddlesBeat[i] && !straddlesBeat[i - 1],
+      )
+      .map(({ time }) => +time.toFixed(3));
+    expect(
+      unexplainedFlares,
+      'the meter frame flared at a moment no grid point had just crossed',
+    ).toEqual([]);
+
+    // …and the flare recurs, rather than the trace having caught one long
+    // glow. A floor, not a match against the beats crossed: the converse
+    // ("every beat lit the frame") is the direction the paint-versus-clock
+    // asymmetry in this file's header rules out per sample — a sparse trace
+    // can read a beat's flare late enough in its decay that the glow has
+    // already left the sampled band, which is honest behaviour and not a
+    // miss. Written as a match, it failed under three concurrent copies of
+    // this spec while every flare it *did* catch was on a beat.
+    //
+    // Twelve beats pass under the trace and the loosest run measured here
+    // still resolved nine of them, so this has wide margin while still
+    // failing hard on a pulse that fires once or never.
+    const risingEdges = isRisingEdge.filter(Boolean).length;
+    expect(
+      risingEdges,
+      `only ${risingEdges} distinct flares across ${SAMPLE_DURATION_MS / 1000}s of playback`,
+    ).toBeGreaterThanOrEqual(MIN_TRACED_FLARES);
   });
 
   test('never flares without a confident anchor', async ({ page }) => {

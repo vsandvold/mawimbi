@@ -268,6 +268,30 @@ export function renderLoudnessMeterFrame(
   }
 }
 
+/**
+ * The meter at rest: no bars, no flare. Both entry points below paint
+ * exactly this — they differ only in what they do to the per-frame
+ * ballistics on the way.
+ */
+function paintRestingMeter(
+  ctx: CanvasRenderingContext2D,
+  canvasWidth: number,
+  canvasHeight: number,
+  widthFraction: number,
+): void {
+  ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+  const rect = computeMeterRect(canvasWidth, canvasHeight, widthFraction);
+  drawMeterBackground(ctx, rect);
+}
+
+/**
+ * The resting frame drawn *because playback moved discontinuously* — pause,
+ * stop, seek (`useScrubberScroll.ts`'s not-playing effect and
+ * `syncScrollToTime`). Doubles as the reset signal for both per-frame
+ * ballistics: without it, resuming decays the stale pre-pause bars instead
+ * of reflecting the new position immediately.
+ */
 export function renderLoudnessMeterIdle(
   ctx: CanvasRenderingContext2D,
   canvasWidth: number,
@@ -276,11 +300,6 @@ export function renderLoudnessMeterIdle(
   barSmoother: BarSmoother,
   beatPulse: BeatPulse,
 ): void {
-  // The idle frame is drawn on every playback discontinuity (pause, stop,
-  // seek — see Playhead.tsx/useScrubberScroll.ts's renderIdle() call
-  // sites), so it doubles as the smoother's reset signal: without it,
-  // resuming decays the stale pre-pause bars instead of reflecting the
-  // new position immediately.
   barSmoother.reset();
   // Same discontinuity, same reason, for the arrival envelope — plus one
   // the bars don't have: the pulse's phase is a *pair* of engine times, so
@@ -289,8 +308,28 @@ export function renderLoudnessMeterIdle(
   // 4 wires this at design time rather than rediscovering #483 in review).
   beatPulse.reset();
 
-  ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+  paintRestingMeter(ctx, canvasWidth, canvasHeight, widthFraction);
+}
 
-  const rect = computeMeterRect(canvasWidth, canvasHeight, widthFraction);
-  drawMeterBackground(ctx, rect);
+/**
+ * The same resting frame drawn *because the layout changed* — a viewport
+ * resize or a re-solved runway width (`Playhead.tsx`'s ResizeObserver and
+ * `meterWidthFraction` effect). Deliberately touches no ballistics: those
+ * call sites fire during playback too, and a layout change is not a
+ * playback discontinuity.
+ *
+ * That distinction did not exist before the arrival pulse and cost nothing
+ * while `BarSmoother` was the only client — restarting bar ballistics for a
+ * frame is invisible. Resetting `BeatPulse` also drops its *phase*, so the
+ * next frame has no interval to have crossed a beat in: drag-resizing the
+ * window during playback suppressed the flare for the whole drag, and a
+ * drawer toggle dropped a beat (`/code-review` on PR #588).
+ */
+export function repaintLoudnessMeterIdle(
+  ctx: CanvasRenderingContext2D,
+  canvasWidth: number,
+  canvasHeight: number,
+  widthFraction: number,
+): void {
+  paintRestingMeter(ctx, canvasWidth, canvasHeight, widthFraction);
 }

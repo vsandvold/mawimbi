@@ -4,6 +4,7 @@ import { BarSmoother } from './barTransfer';
 import {
   renderLoudnessMeterFrame,
   renderLoudnessMeterIdle,
+  repaintLoudnessMeterIdle,
 } from './loudnessMeterRenderer';
 import { type ActiveNote } from './sparkleSimulation';
 
@@ -19,7 +20,10 @@ export type LoudnessMeterPlayheadHandle = {
     /** The anchor's induced grid in project time, empty without an anchor. */
     beatTimes: number[],
   ) => void;
+  /** Playback moved discontinuously: rest the meter and reset ballistics. */
   renderIdle: () => void;
+  /** The layout changed: redraw the same frame, keep ballistics running. */
+  repaintIdle: () => void;
   resize: (width: number, height: number) => void;
 };
 
@@ -40,9 +44,10 @@ const LoudnessMeterPlayhead = forwardRef<
   const barSmootherRef = useRef(new BarSmoother());
   // Lives here rather than in the rAF loop for the same reason the bar
   // smoother does: both are per-frame ballistics owned by the canvas that
-  // renders them, and both have to be reset by the *idle* frame, which the
-  // loop is not the only caller of (a resize or a drawer-driven geometry
-  // change re-renders it too — Playhead.tsx).
+  // renders them, and both are reset by the discontinuity frame, which the
+  // loop is not the only caller of. The *layout* redraws (`repaintIdle`)
+  // are a separate entry point precisely because they are not
+  // discontinuities and must leave the envelope's phase alone.
   const beatPulseRef = useRef(new BeatPulse());
 
   useImperativeHandle(ref, () => ({
@@ -85,6 +90,20 @@ const LoudnessMeterPlayhead = forwardRef<
         meterWidthFraction,
         barSmootherRef.current,
         beatPulseRef.current,
+      );
+    },
+
+    repaintIdle() {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      repaintLoudnessMeterIdle(
+        ctx,
+        canvas.width,
+        canvas.height,
+        meterWidthFraction,
       );
     },
 
