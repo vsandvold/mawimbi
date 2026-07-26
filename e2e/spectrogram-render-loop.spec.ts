@@ -2,7 +2,7 @@ import type { Page } from '@playwright/test';
 import { expect, test, uploadAudioFile, SHORT_AUDIO } from './fixtures';
 import {
   getSpectrogramCounters,
-  waitForMelody,
+  waitForMelodyResult,
   waitForSpectrogramAnalysisComplete,
 } from './helpers/mawimbiBridge';
 
@@ -63,7 +63,13 @@ async function uploadTracksAndWaitForAnalysis(
     // Rhythm is deliberately *not* waited for: `SHORT_AUDIO` is 0.50 s and
     // essentia rejects it with `Empty vector input`, so its result never
     // arrives and gating on it would hang rather than settle.
-    await waitForMelody(page, trackId);
+    //
+    // Presence, not note count: what this needs is "the round trip is
+    // over", and `waitForMelody`'s `notes.length > 0` would additionally
+    // depend on Basic Pitch finding something in a 0.50 s tone — a
+    // dependency that fails as a timeout blaming melody extraction rather
+    // than the render loop (`/code-review` on PR #587).
+    await waitForMelodyResult(page, trackId);
   }
   // …and give that arrival's redraw a few frames to run, so it lands before
   // the measured window rather than inside it.

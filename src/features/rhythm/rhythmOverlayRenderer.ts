@@ -74,6 +74,22 @@ export const ONSET_TICK_THICKNESS_PX = 2.5;
 export const ONSET_TICK_OPACITY = 0.9;
 
 /**
+ * On-screen spacing below which ticks stop reading as separate events and
+ * start reading as one bar down the rail — roughly five times their own
+ * thickness. A dense track's onsets run ~5–15 per second (spec Decision
+ * 1), which at the zoom floor (`MIN_PIXELS_PER_SECOND` = 50) is 3–10 px
+ * apart: the default view reaches this, it is not a hypothetical.
+ */
+export const MIN_TICK_SPACING_PX = 12;
+
+/**
+ * Alpha floor for the density fade. Dense passages stay legible as a
+ * texture at the rail rather than vanishing — every onset is still
+ * rendered, which is the point of fading rather than thinning.
+ */
+export const MIN_ONSET_TICK_OPACITY = 0.25;
+
+/**
  * An induced grid, paired with the one derived quantity the renderer needs
  * every frame.
  *
@@ -140,8 +156,10 @@ export function computeVisibleRungs(
  * the same row and the offset between them is the micro-timing itself.
  *
  * Every onset is placed: unlike the grid, onsets carry no metrical
- * structure a stride could thin without lying about which events happened
- * (spec Decision 2's LOD rule is about the *grid*'s density).
+ * structure a stride could thin without lying about which events happened.
+ * Density is handled by fading instead (`onsetTickOpacity`) — the split the
+ * spec's own LOD rule draws between the two layers (Decision 2: "drop to
+ * every 2nd/4th rung … fade ticks below a threshold").
  */
 export function computeVisibleOnsetTicks(
   onsets: number[],
@@ -149,6 +167,27 @@ export function computeVisibleOnsetTicks(
   viewport: RhythmOverlayViewport,
 ): OnsetTickPlacement[] {
   return placeMarks(onsets, startTime, viewport, 1);
+}
+
+/**
+ * How strongly to draw ticks that are `spacingPx` apart on screen: full
+ * strength while they read as separate marks, fading toward
+ * `MIN_ONSET_TICK_OPACITY` as they crowd together.
+ *
+ * Fading rather than thinning is what keeps the layer honest — a dropped
+ * tick is an event the rendering claims did not happen, while a faint one
+ * is still there to be read against the rungs. What it buys is that a dense
+ * mix's rails read as texture under the pulse instead of a solid bar
+ * competing with it (spec open question 4's top QA risk).
+ */
+export function onsetTickOpacity(spacingPx: number): number {
+  // A single visible tick has no spacing to speak of, and a non-finite one
+  // means the caller has nothing usable — draw at full strength either way
+  // rather than fading to invisible on a degenerate input.
+  if (!(spacingPx > 0)) return ONSET_TICK_OPACITY;
+  if (spacingPx >= MIN_TICK_SPACING_PX) return ONSET_TICK_OPACITY;
+  const crowding = spacingPx / MIN_TICK_SPACING_PX;
+  return Math.max(MIN_ONSET_TICK_OPACITY, ONSET_TICK_OPACITY * crowding);
 }
 
 /**
@@ -180,7 +219,16 @@ function placeMarks(
     // reasoning from "everything above the playhead" would be wrong anyway
     // — the canvas covers the runway's window, not the viewport
     // (kb/verification.md, #494).
-    if (y < 0 || y > canvasHeight) continue;
+    //
+    // Written as "keep what is inside" rather than "skip what is outside"
+    // because every comparison against `NaN` is false: the negated form
+    // lets a non-finite time through as a `NaN` placement, which
+    // `fillRect` then silently ignores while still defeating the callers'
+    // "nothing to draw" early return on every frame. Only the grid's times
+    // are sanitized upstream (`induceBeatGrid`'s `sanitizeTicks`); onsets
+    // reach here straight off a worker result or a persisted row
+    // (`/code-review` on PR #587).
+    if (!(y >= 0 && y <= canvasHeight)) continue;
     marks.push({ time, y });
   }
   return marks;
@@ -255,11 +303,17 @@ export function drawOnsetTicks(
   const ticks = computeVisibleOnsetTicks(onsets, startTime, viewport);
   if (ticks.length === 0) return;
 
-  const { canvasWidth } = viewport;
+  const { canvasWidth, canvasHeight } = viewport;
   const rightX = Math.max(0, canvasWidth - ONSET_TICK_LENGTH_PX);
+  // Density measured from what is actually on this canvas, not from a
+  // median over the whole take: it is the *visible* crowding that decides
+  // legibility, and dividing the window by the mark count gets it in O(1)
+  // — no sort, on the one loop mawimbi#541 exists to keep allocation-free
+  // (the `BeatGrid.medianInterval` precedent, `/code-review` on PR #585).
+  const opacity = onsetTickOpacity(canvasHeight / ticks.length);
 
   ctx.save();
-  ctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${ONSET_TICK_OPACITY})`;
+  ctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${opacity})`;
   for (const tick of ticks) {
     const y = tick.y - ONSET_TICK_THICKNESS_PX / 2;
     ctx.fillRect(0, y, ONSET_TICK_LENGTH_PX, ONSET_TICK_THICKNESS_PX);

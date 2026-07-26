@@ -12,7 +12,9 @@ import { type TrackColor } from '../../tracks/types';
 import { induceBeatGrid } from '../induceBeatGrid';
 import {
   EMPTY_BEAT_GRID,
+  MIN_ONSET_TICK_OPACITY,
   MIN_RUNG_SPACING_PX,
+  MIN_TICK_SPACING_PX,
   ONSET_TICK_LENGTH_PX,
   ONSET_TICK_OPACITY,
   ONSET_TICK_THICKNESS_PX,
@@ -23,6 +25,7 @@ import {
   computeVisibleRungs,
   drawBeatRungs,
   drawOnsetTicks,
+  onsetTickOpacity,
   visibleRungStride,
 } from '../rhythmOverlayRenderer';
 
@@ -310,6 +313,71 @@ describe('computeVisibleOnsetTicks', () => {
   it('produces nothing without onsets', () => {
     expect(computeVisibleOnsetTicks([], 0, VIEWPORT)).toEqual([]);
   });
+
+  it('drops a non-finite onset instead of placing it at NaN', () => {
+    // Only the grid's times are sanitized upstream (`induceBeatGrid`'s
+    // `sanitizeTicks`); onsets reach the renderer straight off a worker
+    // result or a persisted row. A `y < 0 || y > h` cull is *false* for
+    // `NaN`, so the naive form emits a `NaN` placement that `fillRect`
+    // silently ignores — the mark is missing while the caller's
+    // "nothing to draw" early return is defeated on every frame
+    // (`/code-review` on PR #587).
+    const ticks = computeVisibleOnsetTicks(
+      [2, Number.NaN, 2.5, Number.POSITIVE_INFINITY, 3],
+      0,
+      VIEWPORT,
+    );
+
+    expect(ticks.map((tick) => tick.time)).toEqual([2, 2.5, 3]);
+    expect(ticks.every((tick) => Number.isFinite(tick.y))).toBe(true);
+  });
+
+  it('draws nothing when every onset is non-finite', () => {
+    const ctx = makeContext();
+
+    drawOnsetTicks(ctx, [Number.NaN, Number.NaN], 0, TRACK_COLOR, VIEWPORT);
+
+    expect(ctx.save).not.toHaveBeenCalled();
+    expect(ctx.fillRect).not.toHaveBeenCalled();
+  });
+});
+
+describe('onsetTickOpacity', () => {
+  it('draws at full strength while ticks read as separate marks', () => {
+    expect(onsetTickOpacity(MIN_TICK_SPACING_PX)).toBe(ONSET_TICK_OPACITY);
+    expect(onsetTickOpacity(100)).toBe(ONSET_TICK_OPACITY);
+  });
+
+  it('fades as ticks crowd together, never past the floor', () => {
+    const crowded = onsetTickOpacity(MIN_TICK_SPACING_PX / 2);
+    expect(crowded).toBeLessThan(ONSET_TICK_OPACITY);
+    expect(crowded).toBeGreaterThanOrEqual(MIN_ONSET_TICK_OPACITY);
+
+    // The case the rule exists for: a dense track (~10 onsets/s, spec
+    // Decision 1) at the zoom floor puts marks 5 px apart while they are
+    // 2.5 px thick — a solid bar down the rail at full alpha.
+    const denseSpacingPx = MIN_PIXELS_PER_SECOND / 10;
+    expect(onsetTickOpacity(denseSpacingPx)).toBeLessThan(ONSET_TICK_OPACITY);
+    expect(onsetTickOpacity(denseSpacingPx)).toBeGreaterThanOrEqual(
+      MIN_ONSET_TICK_OPACITY,
+    );
+  });
+
+  it('never fades to invisible on a degenerate spacing', () => {
+    // A single visible tick has no spacing to measure; fading it out would
+    // hide the one mark the track has.
+    expect(onsetTickOpacity(0)).toBe(ONSET_TICK_OPACITY);
+    expect(onsetTickOpacity(Number.NaN)).toBe(ONSET_TICK_OPACITY);
+    expect(onsetTickOpacity(-1)).toBe(ONSET_TICK_OPACITY);
+  });
+
+  it('stays monotonic across the crowding range', () => {
+    for (let spacing = 1; spacing < MIN_TICK_SPACING_PX * 2; spacing++) {
+      expect(onsetTickOpacity(spacing)).toBeLessThanOrEqual(
+        onsetTickOpacity(spacing + 1),
+      );
+    }
+  });
 });
 
 describe('onset ticks against the induced grid', () => {
@@ -426,6 +494,24 @@ describe('drawOnsetTicks', () => {
     expect(ctx.fillStyle).toBe(
       `rgba(${other.r}, ${other.g}, ${other.b}, ${ONSET_TICK_OPACITY})`,
     );
+  });
+
+  it('fades a crowded rail rather than dropping any of its onsets', () => {
+    // Wires `onsetTickOpacity` to the actual draw — without this the fade
+    // function could be correct and unused. ~50 onsets/s across the visible
+    // window puts marks ~4 px apart, well inside the crowded range.
+    const ctx = makeContext();
+    const dense = Array.from({ length: 251 }, (_, i) => 2 + i * 0.02);
+
+    drawOnsetTicks(ctx, dense, 0, TRACK_COLOR, VIEWPORT);
+
+    const drawn = ctx.fillRect.mock.calls.length / 2;
+    expect(drawn).toBe(dense.length);
+    const opacity = Number(
+      String(ctx.fillStyle).match(/([\d.]+)\)$/)?.[1] ?? Number.NaN,
+    );
+    expect(opacity).toBe(onsetTickOpacity(CANVAS_HEIGHT / dense.length));
+    expect(opacity).toBeLessThan(ONSET_TICK_OPACITY);
   });
 
   it('draws nothing at all without onsets', () => {

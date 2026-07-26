@@ -49,9 +49,12 @@ export async function scrubToMiddle(page: Page): Promise<void> {
   const maxScrollTop = await phantom.evaluate(
     (el) => el.scrollHeight - el.clientHeight,
   );
-  await phantom.evaluate((el, pos) => {
-    el.scrollTop = pos;
-  }, Math.floor(maxScrollTop / 2));
+  await phantom.evaluate(
+    (el, pos) => {
+      el.scrollTop = pos;
+    },
+    Math.floor(maxScrollTop / 2),
+  );
 }
 
 export async function getFirstTrackId(page: Page): Promise<string> {
@@ -134,6 +137,38 @@ export async function waitForRhythm(
     .toBeGreaterThan(0);
 
   return rhythm!;
+}
+
+/**
+ * Waits until melody extraction has *committed a result* for `trackId` —
+ * however many notes it found, including none.
+ *
+ * The presence-gated counterpart to `waitForMelody`, for callers that need
+ * "the round trip is over" rather than "there are notes to read": a caller
+ * wanting the former and reaching for the latter gets a poll timeout
+ * blaming melody extraction on any fixture that legitimately yields no
+ * notes (`/code-review` on PR #587). Prefer `waitForBackgroundAnalysis`
+ * when rhythm must have landed too — this one exists because a sub-second
+ * fixture never gets a rhythm result at all (essentia rejects it with
+ * `Empty vector input`), so waiting on both would hang.
+ */
+export async function waitForMelodyResult(
+  page: Page,
+  trackId: string,
+): Promise<void> {
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(
+          (id) => Boolean(window.__mawimbi?.spectrogramCache.getMelody(id)),
+          trackId,
+        ),
+      {
+        timeout: BACKGROUND_ANALYSIS_POLL_TIMEOUT_MS,
+        intervals: [BACKGROUND_ANALYSIS_POLL_INTERVAL_MS],
+      },
+    )
+    .toBe(true);
 }
 
 /**

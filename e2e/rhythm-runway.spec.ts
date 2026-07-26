@@ -461,7 +461,7 @@ test.describe('Onset ticks', () => {
     centres: number[];
     canvasTop: number;
     canvasHeight: number;
-    middleBandPaintedRows: number;
+    longestRailRun: number;
     color: number[] | null;
   }> {
     return page.evaluate((tickLength) => {
@@ -472,7 +472,7 @@ test.describe('Onset ticks', () => {
         centres: [],
         canvasTop: 0,
         canvasHeight: 0,
-        middleBandPaintedRows: 0,
+        longestRailRun: 0,
         color: null,
       };
       if (!canvas || canvas.width === 0) return empty;
@@ -492,20 +492,26 @@ test.describe('Onset ticks', () => {
         return painted / (to - from);
       };
 
+      // How far the painted run that *starts at the rail* reaches inward.
+      // This canvas is deliberately shared with the melody piano roll, so
+      // "is anything painted mid-runway" cannot attribute what it finds to
+      // this renderer — a coincident note would fail the test reporting a
+      // full-width tick that never existed. A run anchored at x=0 can only
+      // be the mark itself (`/code-review` on PR #587).
+      const railRunLength = (y: number) => {
+        let x = 0;
+        while (x < width && data[(y * width + x) * 4 + 3] > 0) x++;
+        return x;
+      };
+
       const rows: number[] = [];
-      let middleBandPaintedRows = 0;
+      let longestRailRun = 0;
       for (let y = 0; y < height; y++) {
         const left = paintedFraction(y, 0, tickLength);
         const right = paintedFraction(y, width - tickLength, width);
         if (left > 0.9 && right > 0.9) {
           rows.push(y);
-          // A mark that reached across the runway would be the rejected
-          // full-width placement (spec Decision 2), not a rail tick.
-          if (
-            paintedFraction(y, tickLength * 4, width - tickLength * 4) > 0.05
-          ) {
-            middleBandPaintedRows++;
-          }
+          longestRailRun = Math.max(longestRailRun, railRunLength(y));
         }
       }
 
@@ -528,7 +534,7 @@ test.describe('Onset ticks', () => {
         centres,
         canvasTop: canvas.getBoundingClientRect().top,
         canvasHeight: height,
-        middleBandPaintedRows,
+        longestRailRun,
         color:
           sampleAt < 0 ? null : Array.from(data.slice(sampleAt, sampleAt + 4)),
       };
@@ -588,10 +594,12 @@ test.describe('Onset ticks', () => {
       ).toBeLessThanOrEqual(ONSET_GROUND_TRUTH_TOLERANCE_PX);
     }
 
+    // Rail-adjacent, not full-width — the rejected placement in spec
+    // Decision 2. Two pixels of slack for the mark's own antialiased edge.
     expect(
-      ticks.middleBandPaintedRows,
-      'a tick reached across the runway instead of staying at the rails',
-    ).toBe(0);
+      ticks.longestRailRun,
+      'a mark reached further in from the rail than one tick length',
+    ).toBeLessThanOrEqual(ONSET_TICK_LENGTH_PX + 2);
 
     const [r, g, b, alpha] = ticks.color!;
     expect(Math.abs(r - FIRST_TRACK_COLOR.r)).toBeLessThanOrEqual(
