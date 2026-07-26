@@ -23,8 +23,18 @@
  * in uneven 20–90 ms steps, and the flare's whole life is ~230 ms. Sampling
  * *inside the page*, one reading per frame with the engine time read in the
  * same callback, keeps both readings on the page's own clock and proves
- * more: not "it was lit once", but that it is lit early in every beat
- * interval and dark late in every one of them, across four beats.
+ * more than "it was lit once" — across twelve beats: the flares sit early
+ * in the interval, never late in it, and there is one per beat.
+ *
+ * **The one asymmetry to know about.** A reading's engine time is an *upper*
+ * bound on the phase the canvas is showing, never a lower one: the canvas
+ * holds the last painted frame, which can be a whole frame gap older. So
+ * "dark late in the interval" can be asserted per sample (after subtracting
+ * that gap), while "lit just after the beat" cannot — a reading taken
+ * microseconds past a beat routinely shows the paint from just before it,
+ * and demanding a glow there fails on honest behaviour. That direction is
+ * asserted over the distribution instead (`LIT_MEDIAN_PHASE_MAX_S`); it
+ * failed exactly this way on CI once before being written this way.
  */
 import {
   ARRHYTHMIC_NOISE_AUDIO,
@@ -57,26 +67,32 @@ const TEST_TIMEOUT_MS = 120_000;
 const SAMPLE_DURATION_MS = 6_000;
 
 /**
- * How far into a beat interval the flare must still be readable.
- *
- * Safe to state against this sampler's own clock without a skew margin:
- * the canvas can only be holding a paint from an engine time at or *before*
- * the one read alongside it, so the flare it shows is at least as strong as
- * the phase computed here implies.
- */
-const LIT_PHASE_MAX_S = 0.1;
-
-/**
  * How far into a beat interval the frame must be back to its resting
  * state — `PULSE_DECAY_TIME_CONSTANT_SECONDS` puts the envelope below the
  * renderer's floor by ~230 ms, so this clears it with room to spare.
  *
- * This is the direction the paint-versus-clock skew above *can* break, so
- * it is not applied to the sampled phase directly: `classify` subtracts
- * each sample's own gap from the previous one first, which adapts to a real
- * stall instead of assuming a frame rate.
+ * Never applied to a sampled phase directly. The canvas holds the *last
+ * painted* frame, whose engine time can be a whole frame gap behind the one
+ * read alongside it, so a sample's phase is only an upper bound on the
+ * phase actually on screen; the classification below subtracts each
+ * sample's own gap first, which adapts to a real stall instead of assuming
+ * a frame rate.
  */
 const DARK_PHASE_MIN_S = 0.28;
+
+/**
+ * Where the flares must sit within the beat interval, as the *median* phase
+ * of every sample that caught one.
+ *
+ * A median rather than a per-sample bound, and stated on the lit samples
+ * rather than asserting that specific samples are lit, because of the same
+ * skew: a reading taken microseconds after a beat routinely shows the paint
+ * from just *before* it, which is a dark canvas at phase ≈ 0 and not a
+ * defect. Measured locally, honest lit phases run 0.02–0.15 (median 0.08);
+ * a grid half a beat out of phase — the falsification this bound exists to
+ * catch — puts them at 0.25–0.40.
+ */
+const LIT_MEDIAN_PHASE_MAX_S = 0.2;
 
 /** The band just outside the meter's left edge — glow, and nothing else. */
 const GLOW_BAND_INNER_INSET_PX = 3;
@@ -251,47 +267,64 @@ test.describe('Arrival pulse', () => {
     expect(samples.length).toBeGreaterThan(10);
     const tracedFrom = samples[0].time;
 
-    const lit: Sample[] = [];
-    const dark: Sample[] = [];
+    const litPhases: number[] = [];
+    const lateSamples: Sample[] = [];
+    const lateAndLit: { time: number; phase: number }[] = [];
     for (const [index, sample] of samples.entries()) {
       const phase = phaseSinceBeat(gridTimes, sample.time, tracedFrom);
       if (phase === null) continue;
-      if (phase <= LIT_PHASE_MAX_S) {
-        lit.push(sample);
-        continue;
-      }
+      if (sample.alpha > 0) litPhases.push(phase);
+
       // The oldest phase the canvas could still be showing: one frame gap
       // back, whatever this frame's gap actually was.
       const gap = index === 0 ? 0 : sample.time - samples[index - 1].time;
-      if (phase - gap >= DARK_PHASE_MIN_S) dark.push(sample);
+      if (phase - gap < DARK_PHASE_MIN_S) continue;
+      lateSamples.push(sample);
+      if (sample.alpha > 0) lateAndLit.push({ time: sample.time, phase });
     }
 
-    // Positive preconditions: both windows have to have been observed, or
-    // the assertions below hold trivially (kb/verification.md — pair every
+    // Positive preconditions: the flare has to have been caught at all, and
+    // the late part of an interval has to have been sampled, or the
+    // assertions below hold trivially (kb/verification.md — pair every
     // "didn't happen" with a "did happen").
     expect(
-      lit.length,
-      'the trace never sampled the first 60 ms of a beat interval',
+      litPhases.length,
+      'the trace never caught the meter frame glowing at all',
     ).toBeGreaterThan(3);
     expect(
-      dark.length,
+      lateSamples.length,
       'the trace never sampled the late part of a beat interval',
     ).toBeGreaterThan(3);
 
     expect(
-      lit.filter((sample) => sample.alpha === 0),
-      'the meter frame was not glowing just after a beat crossed the playhead line',
-    ).toEqual([]);
-    expect(
-      dark.filter((sample) => sample.alpha > 0),
+      lateAndLit,
       'the meter frame was still glowing late in a beat interval',
     ).toEqual([]);
 
+    // Where in the interval the flares sat. This is the half that would
+    // catch a grid at the wrong phase; the "late" assertion above catches
+    // the same defect from the other side.
+    const sortedPhases = [...litPhases].sort((a, b) => a - b);
+    const medianLitPhase = sortedPhases[Math.floor(sortedPhases.length / 2)];
+    expect(
+      medianLitPhase,
+      `flares sat ${medianLitPhase.toFixed(3)}s into their beat interval (${JSON.stringify(sortedPhases.map((p) => +p.toFixed(3)))})`,
+    ).toBeLessThanOrEqual(LIT_MEDIAN_PHASE_MAX_S);
+
     // …and it is one flare per beat, not one long glow that happens to
     // gap: count the rising edges against the crossings actually traced.
+    //
+    // The first sample is excluded, and so is any edge whose beat predates
+    // the trace: playback starts before the trace does, so the flare from
+    // the grid point crossed during the `play()` handshake can still be on
+    // screen for the first reading — an extra edge with no crossing to
+    // match it, and the reason this ran 13-against-12 before the guard.
     const risingEdges = samples.filter(
       (sample, i) =>
-        sample.alpha > 0 && (i === 0 || samples[i - 1].alpha === 0),
+        i > 0 &&
+        sample.alpha > 0 &&
+        samples[i - 1].alpha === 0 &&
+        phaseSinceBeat(gridTimes, sample.time, tracedFrom) !== null,
     ).length;
     const crossings = gridTimes.filter(
       (beat) => beat > tracedFrom && beat <= samples[samples.length - 1].time,
