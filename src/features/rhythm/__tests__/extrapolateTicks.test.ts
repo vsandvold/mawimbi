@@ -42,11 +42,27 @@ describe('extrapolateTicks', () => {
     const phantoms = extrapolateTicks(steadyGrid(64), CONFIDENT);
 
     expect(phantoms).toHaveLength(PHANTOM_HORIZON_BEATS);
-    // The bound is a *time* horizon, so it has to hold whatever the tempo:
-    // a slow pulse continues no further in beats than a fast one.
+    // The bound is a count of *beats*, not of seconds — what it renders is
+    // metrical — so a slower pulse continues just as far in beats and
+    // further in time.
     expect(extrapolateTicks(steadyGrid(64, 1.5), CONFIDENT)).toHaveLength(
       PHANTOM_HORIZON_BEATS,
     );
+  });
+
+  it('never continues further than the evidence it is continuing', () => {
+    // The shortest grid that exists at all is three points
+    // (`MIN_TICKS_FOR_GRID`). At the bare horizon that would draw four
+    // guesses against three tracked beats — mostly ghost, which is what a
+    // bounded horizon exists to prevent.
+    for (let points = 2; points <= PHANTOM_HORIZON_BEATS + 2; points++) {
+      const grid = steadyGrid(points);
+      expect(
+        extrapolateTicks(grid, CONFIDENT).length,
+        `a ${points}-point grid was continued past its own interval count`,
+      ).toBeLessThanOrEqual(points - 1);
+    }
+    expect(extrapolateTicks(steadyGrid(3), CONFIDENT)).toHaveLength(2);
   });
 
   it('takes the interval from the recent local tempo, not the whole take', () => {

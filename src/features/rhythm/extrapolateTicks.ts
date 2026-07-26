@@ -45,6 +45,11 @@ import { isConfidentTempo, type TrackTempo } from './tempo';
  * time: enough to read as "the pulse kept going", short enough that it is
  * visibly an ending rather than a new grid. QA tunes it (spec open question
  * 4).
+ *
+ * It is a count of *beats*, not of seconds — the percept it renders is
+ * metrical, so a slow take's ghost reaches further in time (6 s at
+ * `RhythmAnalyser`'s 40 BPM floor) and a fast one's less. The second bound
+ * below is what keeps that from being the whole rendering.
  */
 export const PHANTOM_HORIZON_BEATS = 4;
 
@@ -92,9 +97,18 @@ export function extrapolateTicks(
   // *into* the detected grid — the one thing this layer must never overlap.
   if (!(interval > 0)) return [];
 
+  // Never continue further than the evidence being continued: the second
+  // bound is the number of intervals actually observed. Without it the
+  // horizon is absolute, so the shortest grid that exists at all — three
+  // ticks, `MIN_TICKS_FOR_GRID` — would render four guesses against three
+  // tracked beats, i.e. mostly ghost, which is the opposite of what a
+  // bounded horizon is for (`/code-review` on PR #589). The clamp only ever
+  // binds on a grid of five points or fewer, so it costs the ordinary case
+  // nothing.
+  const horizon = Math.min(PHANTOM_HORIZON_BEATS, gridTimes.length - 1);
   const lastGridTime = gridTimes[gridTimes.length - 1];
   return Array.from(
-    { length: PHANTOM_HORIZON_BEATS },
+    { length: horizon },
     (_, beat) => lastGridTime + (beat + 1) * interval,
   );
 }
