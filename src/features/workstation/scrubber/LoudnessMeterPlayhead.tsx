@@ -1,4 +1,5 @@
 import { forwardRef, useImperativeHandle, useRef } from 'react';
+import { BeatPulse } from '../../rhythm/BeatPulse';
 import { BarSmoother } from './barTransfer';
 import {
   renderLoudnessMeterFrame,
@@ -15,6 +16,8 @@ export type LoudnessMeterPlayheadHandle = {
     loudness: number,
     activeNotes: ActiveNote[],
     engineTime: number,
+    /** The anchor's induced grid in project time, empty without an anchor. */
+    beatTimes: number[],
   ) => void;
   renderIdle: () => void;
   resize: (width: number, height: number) => void;
@@ -35,6 +38,12 @@ const LoudnessMeterPlayhead = forwardRef<
 >(({ width, height, meterWidthFraction }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const barSmootherRef = useRef(new BarSmoother());
+  // Lives here rather than in the rAF loop for the same reason the bar
+  // smoother does: both are per-frame ballistics owned by the canvas that
+  // renders them, and both have to be reset by the *idle* frame, which the
+  // loop is not the only caller of (a resize or a drawer-driven geometry
+  // change re-renders it too — Playhead.tsx).
+  const beatPulseRef = useRef(new BeatPulse());
 
   useImperativeHandle(ref, () => ({
     render(
@@ -42,6 +51,7 @@ const LoudnessMeterPlayhead = forwardRef<
       _loudness: number,
       activeNotes: ActiveNote[],
       engineTime: number,
+      beatTimes: number[],
     ) {
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -57,6 +67,8 @@ const LoudnessMeterPlayhead = forwardRef<
         barSmootherRef.current,
         activeNotes,
         engineTime,
+        beatPulseRef.current,
+        beatTimes,
       );
     },
 
@@ -72,6 +84,7 @@ const LoudnessMeterPlayhead = forwardRef<
         canvas.height,
         meterWidthFraction,
         barSmootherRef.current,
+        beatPulseRef.current,
       );
     },
 

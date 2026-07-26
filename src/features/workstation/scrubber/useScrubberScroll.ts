@@ -9,6 +9,7 @@ import {
 import { useAudioService } from '../../audio/useAudioService';
 import { usePlaybackService } from '../../playback/usePlaybackService';
 import { useRecordingService } from '../../recording/useRecordingService';
+import { AnchorBeatTimes } from '../../rhythm/anchorBeatTimes';
 import { useTrackService } from '../../tracks/useTrackService';
 import { type Track } from '../../tracks/types';
 import useDebounced from '../../../shared/hooks/useDebounced';
@@ -123,6 +124,18 @@ export function useScrubberScroll({
     [pixelsPerSecond, phantomRef, syncSpacerHeight, syncOffset],
   );
 
+  // The rhythm anchor's induced beat grid, resolved per frame for the
+  // arrival pulse (spec 008 Decision 4). Refs, not state: a React state
+  // update in this hook breaks the Scrubber's signal subscriptions — see
+  // `anchorBeatTimes.ts` for the measurement. Reading `tracks` through a
+  // ref (rather than capturing it, the way the sparkle path deliberately
+  // does) means an anchor that changes mid-playback — a mute toggle, or
+  // analysis landing on a track uploaded moments before pressing play —
+  // takes effect on the next frame instead of the next play/pause cycle.
+  const tracksRef = useRef(tracks);
+  tracksRef.current = tracks;
+  const anchorBeatTimesRef = useRef(new AnchorBeatTimes());
+
   const visualizerRef = useRef<FrequencyVisualizer | null>(null);
 
   // Create/dispose the FrequencyVisualizer when playback starts/stops.
@@ -168,6 +181,12 @@ export function useScrubberScroll({
 
     let rafId = 0;
 
+    // Hoisted out of the frame: the cache singleton doesn't change for the
+    // life of this effect, so the closure is built once rather than 60
+    // times a second.
+    const readTicks = (trackId: string) =>
+      audioService.spectrogramCache.getRhythm(trackId)?.ticks;
+
     const animate = () => {
       if (armedResumeEpochRef.current === null) {
         const time = playback.getEngineTime();
@@ -205,6 +224,7 @@ export function useScrubberScroll({
           currentLoudness,
           activeNotes,
           time,
+          anchorBeatTimesRef.current.resolve(tracksRef.current, readTicks),
         );
 
         // Skip end-of-scroll detection while recording — the recording

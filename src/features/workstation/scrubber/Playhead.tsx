@@ -14,6 +14,8 @@ export type PlayheadHandle = {
     loudness: number,
     activeNotes: ActiveNote[],
     engineTime: number,
+    /** The rhythm anchor's induced grid, in project time (spec 008 M5). */
+    beatTimes: number[],
   ) => void;
   renderIdle: () => void;
 };
@@ -78,12 +80,14 @@ const Playhead = forwardRef<PlayheadHandle, PlayheadProps>(
         loudness: number,
         activeNotes: ActiveNote[],
         engineTime: number,
+        beatTimes: number[],
       ) {
         meterRef.current?.render(
           frequencyData,
           loudness,
           activeNotes,
           engineTime,
+          beatTimes,
         );
       },
       renderIdle() {
