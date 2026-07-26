@@ -1,0 +1,930 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Mawimbi — radial wave field prototype</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<style>
+  :root {
+    --stage: #0a0c11;
+    --panel: #12151d;
+    --panel-2: #171b25;
+    --line: #222835;
+    --line-2: #2c3444;
+    --text: #c7cfdd;
+    --dim: #6e7a8e;
+    --accent: #f0a73c;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--stage);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  .app {
+    display: grid;
+    grid-template-columns: 1fr 312px;
+    height: 100dvh;
+    min-height: 100dvh;
+  }
+
+  /* ---------- stage ---------- */
+
+  .stage {
+    position: relative;
+    overflow: hidden;
+    background:
+      radial-gradient(120% 78% at 50% 104%, #141b2a 0%, #0a0c11 62%);
+  }
+
+  #field {
+    display: block;
+    width: 100%;
+    height: 100%;
+    touch-action: manipulation;
+  }
+
+  .stage__hud {
+    position: absolute;
+    top: 14px;
+    left: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    pointer-events: none;
+    font-size: 10.5px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--dim);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stage__hud b {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .stage__hud .warn { color: var(--accent); }
+
+  .stage__axes {
+    position: absolute;
+    right: 16px;
+    top: 14px;
+    text-align: right;
+    pointer-events: none;
+    font-size: 10.5px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--dim);
+    line-height: 1.75;
+  }
+
+  .stage__axes span { color: var(--text); }
+
+  /* ---------- rail ---------- */
+
+  .rail {
+    background: var(--panel);
+    border-left: 1px solid var(--line);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .rail__head {
+    padding: 18px 18px 14px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .rail__title {
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text);
+  }
+
+  .rail__sub {
+    font-family: var(--sans);
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--dim);
+    letter-spacing: 0;
+  }
+
+  .transport {
+    display: flex;
+    gap: 8px;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  button {
+    font: inherit;
+    font-size: 11px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--text);
+    background: var(--panel-2);
+    border: 1px solid var(--line-2);
+    border-radius: 3px;
+    padding: 7px 11px;
+    cursor: pointer;
+  }
+
+  button:hover { border-color: var(--dim); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  button[aria-pressed="true"] {
+    color: var(--stage);
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .transport button:first-child { flex: 1; }
+
+  .group {
+    border-bottom: 1px solid var(--line);
+    padding: 14px 18px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+  }
+
+  .group__label {
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--dim);
+  }
+
+  .ctl { display: flex; flex-direction: column; gap: 5px; }
+
+  .ctl__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .ctl__name { font-size: 11px; color: var(--text); }
+
+  .ctl__val {
+    font-size: 11px;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ctl__hint {
+    font-family: var(--sans);
+    font-size: 11px;
+    line-height: 1.45;
+    color: var(--dim);
+    letter-spacing: 0;
+  }
+
+  input[type="range"] {
+    width: 100%;
+    margin: 0;
+    accent-color: var(--accent);
+    background: transparent;
+    cursor: pointer;
+  }
+
+  input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+  .toggles { display: flex; flex-wrap: wrap; gap: 6px; }
+
+  .tracks { display: flex; flex-direction: column; gap: 7px; }
+
+  .track {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    background: var(--panel-2);
+    border: 1px solid var(--line-2);
+    border-radius: 3px;
+    padding: 7px 9px;
+    cursor: pointer;
+    text-align: left;
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 11px;
+    width: 100%;
+  }
+
+  .track[aria-pressed="false"] { opacity: 0.38; }
+
+  .track__swatch {
+    width: 11px;
+    height: 11px;
+    border-radius: 2px;
+    flex: none;
+  }
+
+  .track__name { flex: 1; color: var(--text); }
+
+  .track__pan {
+    color: var(--dim);
+    font-variant-numeric: tabular-nums;
+    font-size: 10.5px;
+  }
+
+  .legend {
+    padding: 16px 18px 28px;
+    font-family: var(--sans);
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--dim);
+    letter-spacing: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .legend b { color: var(--text); font-weight: 600; }
+  .legend code { font-family: var(--mono); font-size: 11px; color: var(--accent); }
+
+  @media (max-width: 900px) {
+    .app {
+      grid-template-columns: 1fr;
+      grid-template-rows: 56dvh auto;
+      height: auto;
+    }
+    .rail { border-left: 0; border-top: 1px solid var(--line); }
+    .stage { position: sticky; top: 0; z-index: 1; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="stage">
+    <canvas id="field"></canvas>
+    <div class="stage__hud">
+      <div>field <b id="hud-aspect">3 : 4.00</b> &nbsp;·&nbsp; target 3 : 4</div>
+      <div><b id="hud-fps">60</b> fps &nbsp;·&nbsp; <b id="hud-fills">0</b> fills/frame</div>
+      <div id="hud-warn" class="warn"></div>
+    </div>
+    <div class="stage__axes">
+      <div>x — <span>pan</span></div>
+      <div>y — <span>time</span></div>
+      <div>z — <span>loudness</span></div>
+      <div>z-stack — <span>spectrum</span></div>
+    </div>
+  </div>
+
+  <div class="rail">
+    <div class="rail__head">
+      <div class="rail__title">Radial wave field</div>
+      <div class="rail__sub">
+        The source sits at bottom centre, facing away. Every wavefront it emits
+        recedes toward the horizon as it ages.
+      </div>
+    </div>
+
+    <div class="transport">
+      <button id="play" aria-pressed="true">Pause</button>
+      <button id="reset">Reset view</button>
+    </div>
+
+    <div class="group">
+      <div class="group__label">Stage</div>
+      <div class="ctl" data-ctl="tilt">
+        <div class="ctl__row"><span class="ctl__name">Tilt</span><span class="ctl__val"></span></div>
+        <input type="range" min="35" max="84" step="1" />
+      </div>
+      <div class="ctl" data-ctl="arc">
+        <div class="ctl__row"><span class="ctl__name">Arc</span><span class="ctl__val"></span></div>
+        <input type="range" min="0" max="100" step="1" />
+        <div class="ctl__hint">0 = straight rows (today's overlays keep working). 100 = true radiation from a point.</div>
+      </div>
+      <div class="ctl" data-ctl="width">
+        <div class="ctl__row"><span class="ctl__name">Lane width</span><span class="ctl__val"></span></div>
+        <input type="range" min="14" max="80" step="1" />
+        <div class="ctl__hint">How wide the stereo field is. Constant with distance, so perspective narrows the far end.</div>
+      </div>
+      <div class="ctl" data-ctl="depth">
+        <div class="ctl__row"><span class="ctl__name">Depth</span><span class="ctl__val"></span></div>
+        <input type="range" min="3" max="18" step="0.5" />
+        <div class="ctl__hint">Seconds of history visible between the source and the horizon.</div>
+      </div>
+      <div class="ctl" data-ctl="bow">
+        <div class="ctl__row"><span class="ctl__name">Bow</span><span class="ctl__val"></span></div>
+        <input type="range" min="0" max="40" step="1" />
+        <div class="ctl__hint">How far the arch pulls its edges toward the viewer.</div>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group__label">Wave</div>
+      <div class="ctl" data-ctl="height">
+        <div class="ctl__row"><span class="ctl__name">Height</span><span class="ctl__val"></span></div>
+        <input type="range" min="0" max="60" step="1" />
+        <div class="ctl__hint">Loudness → z. This is the knob that trades occlusion against presence.</div>
+      </div>
+      <div class="ctl" data-ctl="lobe">
+        <div class="ctl__row"><span class="ctl__name">Lobe width</span><span class="ctl__val"></span></div>
+        <input type="range" min="8" max="70" step="1" />
+        <div class="ctl__hint">How far a track bleeds either side of its pan position.</div>
+      </div>
+      <div class="ctl" data-ctl="alpha">
+        <div class="ctl__row"><span class="ctl__name">Track alpha</span><span class="ctl__val"></span></div>
+        <input type="range" min="20" max="100" step="1" />
+      </div>
+      <div class="ctl" data-ctl="ridges">
+        <div class="ctl__row"><span class="ctl__name">Ridges</span><span class="ctl__val"></span></div>
+        <input type="range" min="14" max="80" step="1" />
+      </div>
+      <div class="ctl" data-ctl="detail">
+        <div class="ctl__row"><span class="ctl__name">Detail</span><span class="ctl__val"></span></div>
+        <input type="range" min="10" max="44" step="2" />
+        <div class="ctl__hint">Angular samples per wavefront.</div>
+      </div>
+      <div class="ctl" data-ctl="bands">
+        <div class="ctl__row"><span class="ctl__name">Spectral bands</span><span class="ctl__val"></span></div>
+        <input type="range" min="4" max="22" step="1" />
+      </div>
+      <div class="toggles">
+        <button id="t-crest" aria-pressed="true">Crest</button>
+        <button id="t-base" aria-pressed="false">Contours</button>
+        <button id="t-meter" aria-pressed="true">Source meter</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="group__label">Tracks &nbsp;·&nbsp; tap to mute</div>
+      <div class="tracks" id="tracks"></div>
+    </div>
+
+    <div class="legend">
+      <p><b>How to read it.</b> Each ridge is one moment of audio. It leaves the
+      source at the bottom and travels away, so the newest sound is nearest and
+      largest; the horizon is the oldest thing still in memory.</p>
+      <p>A ridge's <b>height</b> at any point is how loud that track is, and its
+      lateral position is where it sits in the stereo field. The
+      <b>vertical gradient inside</b> each ridge is that track's spectrum —
+      low content at the base, high content at the crest — so the spectrum
+      always fills whatever height the moment has. Loudness scales it; it never
+      truncates it.</p>
+      <p><b>The source meter</b> at the bottom is the same cross-section at
+      <code>t = 0</code>: frequency stacked vertically, spread left and right by
+      pan. It is the mouth the waves come out of.</p>
+      <p><b>What to judge.</b> Push <b>Height</b> up until near peaks start
+      swallowing the history behind them — that boundary is the real design
+      constraint. Then sweep <b>Arc</b> from 0 to 100 to see what the radiating
+      contours cost and buy.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------------------------------------------------------------------------
+  // Synthetic material. Stands in for CQT frames + RMS from the real analysis
+  // path: spec[] is absolute magnitude per bin, amp is the loudness envelope.
+  // ---------------------------------------------------------------------------
+
+  const BINS = 24;
+  const DATA_FPS = 30;
+  const DURATION = 19.2;          // 8 bars at 100 BPM
+  const BEAT = 0.6;
+  const FRAMES = Math.round(DURATION * DATA_FPS);
+
+  const TRACKS = [
+    { name: 'Bass',  hue: 272, pan: -0.18 },
+    { name: 'Drums', hue: 26,  pan: 0.06 },
+    { name: 'Keys',  hue: 192, pan: -0.62 },
+    { name: 'Lead',  hue: 142, pan: 0.58 },
+  ];
+
+  const bump = (bin, centre, width) => {
+    const d = (bin - centre) / width;
+    return Math.exp(-d * d);
+  };
+
+  const decay = (dt, tau) => (dt < 0 ? 0 : Math.exp(-dt / tau));
+
+  // Deterministic hash-noise — no Math.random, so every run renders identically.
+  const noise = (i) => {
+    let x = Math.sin(i * 12.9898) * 43758.5453;
+    return x - Math.floor(x);
+  };
+
+  function buildTrackData(index) {
+    const spec = new Float32Array(FRAMES * BINS);
+    const amp = new Float32Array(FRAMES);
+
+    const LEAD_PHRASE = [11, 13, 16, 13, 18, 16, 13, 11, 13, 16, 20, 18];
+
+    for (let f = 0; f < FRAMES; f++) {
+      const t = f / DATA_FPS;
+      const beat = t / BEAT;
+      const off = f * BINS;
+
+      if (index === 0) {                                  // Bass
+        const step = Math.floor(beat / 2) * 2;
+        const dt = t - step * BEAT;
+        const env = decay(dt, 0.30) * (0.72 + 0.28 * Math.sin(step * 1.1));
+        for (let b = 0; b < BINS; b++) {
+          spec[off + b] = env * (
+            bump(b, 2.0, 1.7) * 1.00 +
+            bump(b, 6.2, 1.3) * 0.42 +
+            bump(b, 10.4, 1.5) * 0.16
+          );
+        }
+      } else if (index === 1) {                           // Drums
+        const kickDt = t - Math.floor(beat / 2) * 2 * BEAT;
+        const snareDt = t - (Math.floor((beat - 1) / 2) * 2 + 1) * BEAT;
+        const hatDt = t - Math.floor(beat * 2) * 0.5 * BEAT;
+        const kick = decay(kickDt, 0.11);
+        const snare = decay(snareDt, 0.15);
+        const hat = decay(hatDt, 0.045) * (0.45 + 0.35 * noise(Math.floor(beat * 2)));
+        for (let b = 0; b < BINS; b++) {
+          spec[off + b] =
+            kick * bump(b, 1.2, 2.0) * 1.0 +
+            snare * (bump(b, 8.5, 3.4) * 0.55 + bump(b, 17.5, 5.0) * 0.62) +
+            hat * bump(b, 20.5, 3.0) * 0.7;
+        }
+      } else if (index === 2) {                           // Keys
+        const chord = Math.floor(t / (BEAT * 4)) % 4;
+        const root = [7, 5, 9, 4][chord];
+        const swell = 0.42 + 0.34 * Math.sin((t / (BEAT * 8)) * Math.PI * 2 - 1.2);
+        for (let b = 0; b < BINS; b++) {
+          spec[off + b] = Math.max(0, swell) * (
+            bump(b, root, 1.1) * 0.9 +
+            bump(b, root + 4, 1.1) * 0.75 +
+            bump(b, root + 7, 1.2) * 0.7 +
+            bump(b, root + 12, 1.6) * 0.34 +
+            bump(b, root + 16, 2.0) * 0.18
+          );
+        }
+      } else {                                            // Lead
+        const step = Math.floor(t / (BEAT * 0.75));
+        const note = LEAD_PHRASE[step % LEAD_PHRASE.length];
+        const dt = t - step * BEAT * 0.75;
+        const rest = step % 8 === 7;
+        const env = rest ? 0 : Math.min(1, dt / 0.035) * decay(dt - 0.035, 0.34);
+        for (let b = 0; b < BINS; b++) {
+          spec[off + b] = env * (
+            bump(b, note, 0.95) * 1.0 +
+            bump(b, note + 7, 1.2) * 0.3 +
+            bump(b, note + 12, 1.5) * 0.22
+          );
+        }
+      }
+
+      let peak = 0;
+      for (let b = 0; b < BINS; b++) peak = Math.max(peak, spec[off + b]);
+      amp[f] = Math.min(1, peak);
+    }
+
+    return { spec, amp };
+  }
+
+  const DATA = TRACKS.map((_, i) => buildTrackData(i));
+
+  // ---------------------------------------------------------------------------
+  // State
+  // ---------------------------------------------------------------------------
+
+  const DEFAULTS = {
+    tilt: 78, arc: 100, width: 24, depth: 9, bow: 7,
+    height: 15, lobe: 34, alpha: 70, ridges: 34, detail: 18, bands: 9,
+  };
+
+  const state = { ...DEFAULTS };
+  const muted = TRACKS.map(() => false);
+  const show = { crest: true, base: false, meter: true };
+
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let playing = !reduced;
+  let clock = 0;
+  let lastTs = 0;
+
+  // ---------------------------------------------------------------------------
+  // Projection. A plain pinhole camera behind and above the source, pitched
+  // down. Scale and vertical offset are re-fitted every frame from a coarse
+  // probe of the field's own bounds, so any tilt/spread/depth stays framed.
+  // ---------------------------------------------------------------------------
+
+  const CAM_H = 0.42;
+  const CAM_D = 0.55;
+
+  // Radius of the emitting mouth. A point source would squeeze every track to
+  // the same place at t = 0, making pan unreadable exactly where the meter is;
+  // giving the source real width is what keeps the near arc legible.
+  const sourceRadius = () => 0.08;
+
+  let sinP = 0, cosP = 1, scale = 1, originY = 0, cx = 0;
+
+  function rawProject(gx, h, gz, out) {
+    const vy = h - CAM_H;
+    const vz = gz + CAM_D;
+    const y = vy * cosP + vz * sinP;
+    const z = -vy * sinP + vz * cosP;
+    const inv = 1 / Math.max(z, 0.02);
+    out[0] = gx * inv;
+    out[1] = -y * inv;
+  }
+
+  const probe = [0, 0];
+
+  function project(gx, h, gz, out) {
+    rawProject(gx, h, gz, probe);
+    out[0] = cx + scale * probe[0];
+    out[1] = originY + scale * probe[1];
+  }
+
+  // Ground position for lateral parameter u ∈ [-1, 1] at normalised age r.
+  //
+  // The wavefront is a circle centred on the source, but sampled across a
+  // lane of *constant* width rather than a widening fan. A true fan would
+  // spread with distance while perspective narrows it, and the fan wins —
+  // which hands the most screen area to the oldest material, exactly backwards
+  // for a runway that is meant to be short-term auditory memory. Constant lane
+  // + circular bow keeps the arch and keeps the foreshortening.
+  function ground(u, r, out) {
+    const bow = (state.arc / 100) * (state.bow / 100);
+    out[0] = (state.width / 100) * u;
+    // Congruent arches rather than true expanding circles: a physical
+    // wavefront's curvature radius equals its age, so near arches could not
+    // span the lane at all without collapsing back into a fan. Parallel
+    // contours also keep a beat rung one repeatable shape at every depth.
+    out[1] = r - bow * (1 - Math.sqrt(Math.max(0, 1 - u * u)));
+  }
+
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
+
+  const canvas = document.getElementById('field');
+  const ctx = canvas.getContext('2d');
+  let W = 0, H = 0, dpr = 1;
+
+  function resize() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    W = Math.max(1, Math.round(rect.width));
+    H = Math.max(1, Math.round(rect.height));
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  const g = [0, 0];
+  const p = [0, 0];
+
+  function fitCamera() {
+    const phi = state.tilt * Math.PI / 180;
+    sinP = Math.sin(phi);
+    cosP = Math.cos(phi);
+    cx = W / 2;
+
+    // Fit on the *ground plane* only. Peaks are allowed to overflow upward —
+    // including them would let one loud transient shrink the whole runway, and
+    // the runway's own recession is what has to stay legible.
+    let maxX = 1e-6, farY = Infinity, nearY = -Infinity;
+
+    for (let ri = 0; ri <= 6; ri++) {
+      const r = ri / 6;
+      for (let ui = -3; ui <= 3; ui++) {
+        ground(ui / 3, r, g);
+        rawProject(g[0], 0, g[1], probe);
+        maxX = Math.max(maxX, Math.abs(probe[0]));
+        farY = Math.min(farY, probe[1]);
+        nearY = Math.max(nearY, probe[1]);
+      }
+    }
+
+    const scaleW = (0.47 * W) / maxX;
+    const scaleH = (0.70 * H) / Math.max(nearY - farY, 1e-6);
+    scale = Math.min(scaleW, scaleH);
+    originY = 0.90 * H - scale * nearY;
+
+    const fieldW = 2 * scale * maxX;
+    const fieldH = scale * (nearY - farY);
+    return fieldH / fieldW;
+  }
+
+  function frameIndex(t) {
+    const wrapped = ((t % DURATION) + DURATION) % DURATION;
+    return Math.min(FRAMES - 1, Math.floor(wrapped * DATA_FPS));
+  }
+
+  let fillCount = 0;
+
+  function drawWavefield() {
+    const ridges = state.ridges | 0;
+    const samples = state.detail | 0;
+    const bands = state.bands | 0;
+    const zMax = state.height / 100;
+    const lobe = state.lobe / 100;
+    const alpha = state.alpha / 100;
+    const depthSec = state.depth;
+
+    // Reused geometry buffers — one allocation per frame, not per ridge.
+    const baseX = new Float64Array(samples + 1);
+    const baseY = new Float64Array(samples + 1);
+    const crestX = new Float64Array(samples + 1);
+    const crestY = new Float64Array(samples + 1);
+
+    // Far to near — painter's algorithm gives occlusion for free.
+    for (let ri = ridges - 1; ri >= 0; ri--) {
+      const r = (ri + 0.5) / ridges;
+      const age = r * depthSec;
+      const fi = frameIndex(clock - age);
+      const fade = 1 - 0.35 * r;
+
+      for (let ti = 0; ti < TRACKS.length; ti++) {
+        if (muted[ti]) continue;
+
+        const track = TRACKS[ti];
+        const data = DATA[ti];
+        const amp = data.amp[fi];
+        if (amp < 0.012) continue;
+
+        const specOff = fi * BINS;
+        let peak = 0;
+        for (let b = 0; b < BINS; b++) peak = Math.max(peak, data.spec[specOff + b]);
+        if (peak <= 0) continue;
+
+        // Project each column's two endpoints once. Band boundaries are then
+        // interpolated in screen space — a column is a short segment, so the
+        // perspective error across it is well under a pixel.
+        let anyHeight = false;
+        for (let j = 0; j <= samples; j++) {
+          const u = -1 + (2 * j) / samples;
+          ground(u, r, g);
+          const d = (u - track.pan) / lobe;
+          const h = amp * Math.exp(-d * d) * zMax;
+          if (h > 0.0015) anyHeight = true;
+          project(g[0], 0, g[1], p);
+          baseX[j] = p[0];
+          baseY[j] = p[1];
+          project(g[0], h, g[1], p);
+          crestX[j] = p[0];
+          crestY[j] = p[1];
+        }
+        if (!anyHeight) continue;
+
+        // Spectrum stacked along each column's own height: band m spans
+        // [m/bands, (m+1)/bands] of whatever height that column has, so the
+        // shape always fills and loudness only scales it.
+        for (let m = 0; m < bands; m++) {
+          const q0 = m / bands;
+          const q1 = (m + 1) / bands;
+          const binPos = ((m + 0.5) / bands) * (BINS - 1);
+          const b0 = Math.floor(binPos);
+          const frac = binPos - b0;
+          const mag = (
+            data.spec[specOff + b0] * (1 - frac) +
+            data.spec[specOff + Math.min(BINS - 1, b0 + 1)] * frac
+          ) / peak;
+
+          if (mag < 0.03) continue;
+
+          ctx.beginPath();
+          ctx.moveTo(
+            baseX[0] + (crestX[0] - baseX[0]) * q0,
+            baseY[0] + (crestY[0] - baseY[0]) * q0
+          );
+          for (let j = 1; j <= samples; j++) {
+            ctx.lineTo(
+              baseX[j] + (crestX[j] - baseX[j]) * q0,
+              baseY[j] + (crestY[j] - baseY[j]) * q0
+            );
+          }
+          for (let j = samples; j >= 0; j--) {
+            ctx.lineTo(
+              baseX[j] + (crestX[j] - baseX[j]) * q1,
+              baseY[j] + (crestY[j] - baseY[j]) * q1
+            );
+          }
+          ctx.closePath();
+
+          ctx.fillStyle = 'hsla(' + track.hue + ',' + (58 + 30 * mag) + '%,' +
+            (17 + 45 * mag) + '%,' +
+            (alpha * fade * (0.18 + 0.82 * mag)).toFixed(3) + ')';
+          ctx.fill();
+          fillCount++;
+        }
+
+        if (show.crest) {
+          ctx.beginPath();
+          ctx.moveTo(crestX[0], crestY[0]);
+          for (let j = 1; j <= samples; j++) ctx.lineTo(crestX[j], crestY[j]);
+          ctx.strokeStyle = 'hsla(' + track.hue + ',88%,66%,' +
+            (alpha * fade * (0.10 + 0.30 * amp)).toFixed(3) + ')';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          fillCount++;
+        }
+
+        if (show.base) {
+          ctx.beginPath();
+          ctx.moveTo(baseX[0], baseY[0]);
+          for (let j = 1; j <= samples; j++) ctx.lineTo(baseX[j], baseY[j]);
+          ctx.strokeStyle = 'hsla(' + track.hue + ',40%,52%,' + (0.12 * fade).toFixed(3) + ')';
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          fillCount++;
+        }
+      }
+    }
+  }
+
+  // The source meter: the same cross-section at t = 0. Frequency stacked
+  // vertically, spread left and right by pan.
+  function drawSourceMeter() {
+    const fi = frameIndex(clock);
+    const lobe = state.lobe / 100;
+    const alpha = state.alpha / 100;
+
+    ground(-1, 0, g);
+    project(g[0], 0, g[1], p);
+    const leftX = p[0];
+    const baseY = p[1];
+    ground(1, 0, g);
+    project(g[0], 0, g[1], p);
+    const rightX = p[0];
+
+    const meterW = Math.max((rightX - leftX) * 0.92, 48);
+    const meterH = Math.min(H * 0.14, meterW * 0.6);
+    const midX = (leftX + rightX) / 2;
+    const cols = 36;
+    const colW = meterW / cols;
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+
+    for (let ti = 0; ti < TRACKS.length; ti++) {
+      if (muted[ti]) continue;
+      const track = TRACKS[ti];
+      const data = DATA[ti];
+      const off = fi * BINS;
+      let peak = 0;
+      for (let b = 0; b < BINS; b++) peak = Math.max(peak, data.spec[off + b]);
+      if (peak <= 0.012) continue;
+
+      for (let c = 0; c < cols; c++) {
+        const u = -1 + (2 * (c + 0.5)) / cols;
+        const d = (u - track.pan) / lobe;
+        const lateral = Math.exp(-d * d);
+        if (lateral < 0.02) continue;
+
+        const x = midX + u * meterW / 2 - colW / 2;
+        for (let b = 0; b < BINS; b++) {
+          const mag = data.spec[off + b] / peak;
+          if (mag < 0.03) continue;
+          const y0 = baseY - (b / BINS) * meterH;
+          const y1 = baseY - ((b + 1) / BINS) * meterH;
+          ctx.fillStyle = 'hsla(' + track.hue + ',' + (60 + 30 * mag) + '%,' +
+            (16 + 44 * mag) + '%,' + (alpha * lateral * mag * 0.85).toFixed(3) + ')';
+          ctx.fillRect(x, y1, colW + 0.6, y0 - y1 + 0.6);
+          fillCount++;
+        }
+      }
+    }
+
+    ctx.restore();
+
+    ctx.strokeStyle = 'rgba(199,207,221,0.22)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(midX - meterW / 2, baseY + 0.5);
+    ctx.lineTo(midX + meterW / 2, baseY + 0.5);
+    ctx.stroke();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Frame loop
+  // ---------------------------------------------------------------------------
+
+  const hudAspect = document.getElementById('hud-aspect');
+  const hudFps = document.getElementById('hud-fps');
+  const hudFills = document.getElementById('hud-fills');
+  const hudWarn = document.getElementById('hud-warn');
+
+  let fpsAvg = 60;
+  let hudTick = 0;
+
+  function frame(ts) {
+    const dt = lastTs ? Math.min((ts - lastTs) / 1000, 0.1) : 0;
+    lastTs = ts;
+    if (playing) clock += dt;
+    if (dt > 0) fpsAvg += (1 / dt - fpsAvg) * 0.08;
+
+    const aspect = fitCamera();
+    ctx.clearRect(0, 0, W, H);
+    fillCount = 0;
+
+    drawWavefield();
+    if (show.meter) drawSourceMeter();
+
+    if (++hudTick % 10 === 0) {
+      hudAspect.textContent = '3 : ' + (3 * aspect).toFixed(2);
+      hudFps.textContent = Math.round(fpsAvg);
+      hudFills.textContent = fillCount;
+      hudWarn.textContent = fpsAvg < 45 ? 'below 45 fps — drop ridges or detail' : '';
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Controls
+  // ---------------------------------------------------------------------------
+
+  const UNITS = {
+    tilt: (v) => v + '°',
+    arc: (v) => v + '%',
+    width: (v) => v + '%',
+    depth: (v) => v.toFixed(1) + ' s',
+    bow: (v) => v + '%',
+    height: (v) => v + '%',
+    lobe: (v) => v + '%',
+    alpha: (v) => v + '%',
+    ridges: (v) => String(v),
+    detail: (v) => String(v),
+    bands: (v) => String(v),
+  };
+
+  const inputs = {};
+
+  document.querySelectorAll('.ctl').forEach((el) => {
+    const key = el.dataset.ctl;
+    const input = el.querySelector('input');
+    const val = el.querySelector('.ctl__val');
+    inputs[key] = { input, val };
+    const sync = () => {
+      state[key] = parseFloat(input.value);
+      val.textContent = UNITS[key](state[key]);
+    };
+    input.addEventListener('input', sync);
+    input.value = String(DEFAULTS[key]);
+    sync();
+  });
+
+  const playBtn = document.getElementById('play');
+  playBtn.setAttribute('aria-pressed', String(playing));
+  playBtn.textContent = playing ? 'Pause' : 'Play';
+  playBtn.addEventListener('click', () => {
+    playing = !playing;
+    playBtn.setAttribute('aria-pressed', String(playing));
+    playBtn.textContent = playing ? 'Pause' : 'Play';
+  });
+
+  document.getElementById('reset').addEventListener('click', () => {
+    Object.keys(DEFAULTS).forEach((key) => {
+      inputs[key].input.value = String(DEFAULTS[key]);
+      inputs[key].input.dispatchEvent(new Event('input'));
+    });
+  });
+
+  [['t-crest', 'crest'], ['t-base', 'base'], ['t-meter', 'meter']].forEach(([id, key]) => {
+    const btn = document.getElementById(id);
+    btn.setAttribute('aria-pressed', String(show[key]));
+    btn.addEventListener('click', () => {
+      show[key] = !show[key];
+      btn.setAttribute('aria-pressed', String(show[key]));
+    });
+  });
+
+  const trackList = document.getElementById('tracks');
+  TRACKS.forEach((track, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'track';
+    btn.setAttribute('aria-pressed', 'true');
+    btn.innerHTML =
+      '<span class="track__swatch" style="background:hsl(' + track.hue + ',78%,58%)"></span>' +
+      '<span class="track__name">' + track.name + '</span>' +
+      '<span class="track__pan">pan ' + (track.pan > 0 ? '+' : '') + track.pan.toFixed(2) + '</span>';
+    btn.addEventListener('click', () => {
+      muted[i] = !muted[i];
+      btn.setAttribute('aria-pressed', String(!muted[i]));
+    });
+    trackList.appendChild(btn);
+  });
+
+  new ResizeObserver(resize).observe(canvas.parentElement);
+  resize();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
