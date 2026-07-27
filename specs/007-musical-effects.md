@@ -1,6 +1,6 @@
 # 007 — Musical effects: pitch, time, tempo-synced echo, crush
 
-**Status:** Issues filed
+**Status:** In progress
 **Date:** 2026-07-23
 **Issues:** #556 (tracking); milestones #557, #558, #559, #560, #561, #562, #563
 
