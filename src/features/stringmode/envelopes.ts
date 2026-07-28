@@ -125,7 +125,14 @@ export function extractEnvelopes(
       f0Bin[f] = findLowestStrongPeak(frame, peak);
     }
 
-    poolBands(frame, bands, f * BAND_COUNT, binCount);
+    // Silence gets a zero band vector rather than a per-frame-normalized
+    // noise floor. Without this guard `poolBands` normalizes *every* frame
+    // to its own peak, so a silent frame's dither renders a full-contrast
+    // cross-section — the same reason `centroid`/`flatness`/`f0Bin` are
+    // guarded above (`/code-review` on PR #594). The ribbon still draws:
+    // `ribbonRenderer` falls back to the plain core fill for an all-zero
+    // vector, so the silence floor's "a ribbon never disappears" holds.
+    if (!isSilent) poolBands(frame, bands, f * BAND_COUNT, binCount);
   }
 
   return {

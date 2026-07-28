@@ -93,6 +93,14 @@ const StringMode = ({ tracks, drawerHeight }: StringModeProps) => {
   });
   const hasPaintedRef = useRef(false);
   const frameClockRef = useRef({ last: 0, fps: 0, drawMs: 0 });
+  // A container resize is a dirty signal `peekDirty` cannot derive from its
+  // own inputs — none of the engine time, params, envelopes or track list
+  // changes when the drawer opens or the device rotates, so a resize while
+  // stopped left a stale backing store stretched over the new box with no
+  // frame scheduled to fix it (`/code-review` on PR #594). Observed rather
+  // than measured in `peekDirty`, which runs on every idle frame and must
+  // not force layout.
+  const resizedRef = useRef(true);
 
   useEffect(() => {
     // The shared `SharedCanvasWindow` is the *runway's* pre-transform local-Y
@@ -116,6 +124,7 @@ const StringMode = ({ tracks, drawerHeight }: StringModeProps) => {
         }
         const last = lastDrawnRef.current;
         return (
+          resizedRef.current ||
           playback.getEngineTime() !== last.time ||
           getStringParamsVersion() !== last.paramsVersion ||
           getEnvelopeVersion() !== last.envelopeVersion ||
@@ -148,6 +157,8 @@ const StringMode = ({ tracks, drawerHeight }: StringModeProps) => {
 
         const { width, height } = measurement;
         if (width === 0 || height === 0) return;
+        // Cleared only once the new box has actually been drawn at.
+        resizedRef.current = false;
         if (canvas.width !== width || canvas.height !== height) {
           canvas.width = width;
           canvas.height = height;
@@ -178,6 +189,16 @@ const StringMode = ({ tracks, drawerHeight }: StringModeProps) => {
     });
     // Latest values are read from refs; the registration stays stable.
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    const observer = new ResizeObserver(() => {
+      resizedRef.current = true;
+    });
+    observer.observe(container);
+    return () => observer.disconnect();
   }, []);
 
   return (

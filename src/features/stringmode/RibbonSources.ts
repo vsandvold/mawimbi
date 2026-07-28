@@ -22,9 +22,9 @@ import { rgbToOklch } from './oklch';
 import { frameIndexAt, sampleEnvelope, type TrackEnvelopes } from './envelopes';
 import {
   buildPitchContour,
-  contourPitchAt,
   EMPTY_PITCH_CONTOUR,
   pitchAt,
+  resolvedPitchAt,
   type PitchContour,
   type PitchResolution,
 } from './pitchContour';
@@ -197,10 +197,17 @@ class RibbonSources {
     // for want of a pitch; it renders brightness instead.
     const midiAt = (projectTime: number): number => {
       const t = trackTime(projectTime);
-      const resolved = resolvePitch(projectTime);
-      if (!Number.isNaN(resolved.pitch)) return resolved.pitch;
-      const fromContour = contourPitchAt(contour, t, entry.params.glide);
-      if (!Number.isNaN(fromContour)) return fromContour;
+      // `resolvedPitchAt`, not `pitchAt`: this runs ~195× per ribbon per
+      // frame and must not scan the note list or allocate (`/code-review`
+      // on PR #594). Same semantics, at the contour's sample rate.
+      const resolved = resolvedPitchAt(
+        contour,
+        t,
+        entry.params.lock,
+        entry.params.glide,
+        entry.params.bendScale,
+      );
+      if (!Number.isNaN(resolved)) return resolved;
       return centroidToMidi(sampleEnvelope(envelopes.centroid, envelopes, t));
     };
 

@@ -51,6 +51,14 @@ export type PitchContour = {
   raw: Float32Array;
   /** Box-smoothed pitch (MIDI). */
   smooth: Float32Array;
+  /**
+   * Per-sample dominant note pitch (MIDI), `NaN` where no note is active —
+   * the note-lock's target, pre-resolved so the per-frame path never scans
+   * the note list. Paired with `noteBend`, which holds that note's bend in
+   * semitones *unscaled*, so `bend_scale` stays a live parameter.
+   */
+  noteMidi: Float32Array;
+  noteBend: Float32Array;
   /** False when there were no notes at all — callers fall back to centroid. */
   hasPitch: boolean;
 };
@@ -59,6 +67,8 @@ export const EMPTY_PITCH_CONTOUR: PitchContour = {
   hop: CONTOUR_HOP_SECONDS,
   raw: new Float32Array(0),
   smooth: new Float32Array(0),
+  noteMidi: new Float32Array(0),
+  noteBend: new Float32Array(0),
   hasPitch: false,
 };
 
@@ -78,22 +88,67 @@ export function buildPitchContour(
   if (notes.length === 0) return EMPTY_PITCH_CONTOUR;
 
   const raw = new Float32Array(sampleCount).fill(Number.NaN);
+  const noteMidi = new Float32Array(sampleCount).fill(Number.NaN);
+  const noteBend = new Float32Array(sampleCount);
+  const bestConfidence = new Float32Array(sampleCount);
+
   for (const note of notes) {
     const start = Math.max(0, Math.floor(note.startTime / hop));
     const end = Math.min(sampleCount, Math.ceil(note.endTime / hop));
     for (let i = start; i < end; i++) {
-      const time = i * hop;
-      const pitch = note.midiNote + pitchBendAt(note, time);
-      // Overlapping notes: the later-written one wins only if it is not
-      // quieter. Polyphony's real answer is render-all-lock-to-one
-      // (`pitchAt` below); this is just the contour's fallback shape.
-      if (Number.isNaN(raw[i])) raw[i] = pitch;
+      // Polyphony: render all bars, lock to the highest-confidence note.
+      // Resolved here, once per melody, so the per-frame path is an array
+      // index rather than a scan of every note (`/code-review` on PR #594).
+      const unset = Number.isNaN(noteMidi[i]);
+      if (!unset && note.confidence <= bestConfidence[i]) continue;
+      noteMidi[i] = note.midiNote;
+      noteBend[i] = pitchBendAt(note, i * hop);
+      bestConfidence[i] = note.confidence;
+      raw[i] = noteMidi[i] + noteBend[i];
     }
   }
 
   fillGaps(raw);
   const smooth = boxSmooth(raw, Math.round(SMOOTH_RADIUS_SECONDS / hop));
-  return { hop, raw, smooth, hasPitch: true };
+  return { hop, raw, smooth, noteMidi, noteBend, hasPitch: true };
+}
+
+/**
+ * The per-frame pitch read: `pitchAt`'s semantics at the contour's own
+ * sample rate, as an O(1) array lookup with no allocation.
+ *
+ * The renderer calls this ~195× per ribbon per frame (every sample point,
+ * every gradient stop, every packet, and the forcing term). Going through
+ * `pitchAt` there scanned the whole note list and allocated an array on
+ * every one of those calls — ~230k comparisons and ~800 allocations per
+ * frame at 4 tracks × 300 notes, which the HUD's own `ms` readout would
+ * then have been measuring (`/code-review` on PR #594).
+ *
+ * `resolvedPitchAgreesWithPitchAt` in the tests pins the two to each other
+ * so the fast path cannot drift from the reference semantics.
+ */
+export function resolvedPitchAt(
+  contour: PitchContour,
+  trackTime: number,
+  lock: number,
+  glide: number,
+  bendScale: number,
+): number {
+  if (!contour.hasPitch) return Number.NaN;
+  const index = Math.round(trackTime / contour.hop);
+  if (index < 0 || index >= contour.raw.length) return Number.NaN;
+
+  const raw = contour.raw[index];
+  const contourPitch = Number.isNaN(raw)
+    ? Number.NaN
+    : raw * (1 - glide) + contour.smooth[index] * glide;
+
+  const midi = contour.noteMidi[index];
+  if (Number.isNaN(midi)) return contourPitch;
+
+  const locked = midi + contour.noteBend[index] * bendScale;
+  if (Number.isNaN(contourPitch)) return locked;
+  return contourPitch * (1 - lock) + locked * lock;
 }
 
 /**

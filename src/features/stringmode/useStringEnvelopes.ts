@@ -6,6 +6,30 @@
 // may not persist envelopes, so a restored track has none — see
 // `envelopeStore.ts`), and nobody should pay that for a view they are not
 // looking at.
+//
+// **Extraction waits for the track's spectrogram analysis to complete.**
+// Two separate defects come from not waiting (`/code-review` on PR #594),
+// and one guard fixes both:
+//
+//  1. *The completion guard would fire on fresh uploads, not just
+//     deletions.* `extractAndCacheMelody`/`Rhythm` use "the cache entry is
+//     gone" as their still-part-of-the-project signal (mawimbi#540), and
+//     this needs the same protection — but the entry does not exist *yet*
+//     on a fresh upload. `useSpectrogramCache` awaits three IndexedDB reads
+//     before posting its own request, while this hook posted synchronously,
+//     so on the one shared FIFO worker the envelope CQT ran *first* and its
+//     result came back before any entry existed. The guard then discarded a
+//     perfectly good extraction and `releaseExtraction`d it, with no retry
+//     (the effect only re-runs on `tracks`) — so the track silently never
+//     got a ribbon unless some later dispatch happened to re-run the hook,
+//     at the cost of a second full CQT.
+//  2. *Head-of-line blocking.* Posting N envelope requests up front queued
+//     N full CQTs ahead of every spectrogram, melody and rhythm request on
+//     the shared worker — delaying the tiles, notes and onsets the ribbon
+//     itself reads.
+//
+// Waiting on `analysisComplete` makes the entry's absence mean "deleted"
+// again, and puts the envelope pass behind the work it depends on.
 
 import { useEffect } from 'react';
 import { useAudioService } from '../audio/useAudioService';
@@ -23,22 +47,23 @@ export function useStringEnvelopes(tracks: Track[]): void {
   const trackService = useTrackService();
 
   useEffect(() => {
-    for (const track of tracks) {
-      const { trackId } = track;
-      if (getEnvelopes(trackId)) continue;
-      const audioBuffer = trackService.retrieveAudioBuffer(trackId);
-      if (!audioBuffer) continue;
-      if (!claimExtraction(trackId)) continue;
+    const { spectrogramCache } = audioService;
+    const unsubscribes: Array<() => void> = [];
 
-      audioService.spectrogramCache
+    const requestEnvelopes = (trackId: string) => {
+      const audioBuffer = trackService.retrieveAudioBuffer(trackId);
+      if (!audioBuffer) return;
+      if (!claimExtraction(trackId)) return;
+
+      spectrogramCache
         .extractEnvelopesInWorker(audioBuffer)
         .then((envelopes) => {
-          // The track may have been deleted while extraction was in flight;
-          // the cache entry's absence is the "still part of the project"
-          // signal the melody and rhythm paths already use (mawimbi#540).
-          // Without it a deleted track gets a fresh orphaned envelope row
-          // written back after cleanup already ran.
-          if (!audioService.spectrogramCache.getEntry(trackId)) {
+          // The track may have been deleted while extraction was in flight.
+          // Now that the request is only ever made *after* the entry exists,
+          // its absence unambiguously means `useDeleteTrackAudio`'s
+          // `invalidate(trackId)` ran (mawimbi#540) — the same
+          // still-part-of-the-project signal the melody and rhythm paths use.
+          if (!spectrogramCache.getEntry(trackId)) {
             releaseExtraction(trackId);
             return;
           }
@@ -51,7 +76,33 @@ export function useStringEnvelopes(tracks: Track[]): void {
           );
           releaseExtraction(trackId);
         });
+    };
+
+    for (const track of tracks) {
+      const { trackId } = track;
+      if (getEnvelopes(trackId)) continue;
+
+      if (spectrogramCache.getEntry(trackId)?.analysisComplete) {
+        requestEnvelopes(trackId);
+        continue;
+      }
+
+      // Still analysing (or not started). `subscribeToEntry` is the same
+      // channel `useSpectrogramCache`'s mid-analysis branch uses — the cache
+      // owns no signal, so a render-time poll would sit on stale data until
+      // some unrelated render happened to run it (#559).
+      const unsubscribe = spectrogramCache.subscribeToEntry(
+        trackId,
+        (entry) => {
+          if (!entry.analysisComplete) return;
+          unsubscribe();
+          requestEnvelopes(trackId);
+        },
+      );
+      unsubscribes.push(unsubscribe);
     }
+
+    return () => unsubscribes.forEach((unsubscribe) => unsubscribe());
     // Services are stable singletons behind their bridge hooks.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tracks]);

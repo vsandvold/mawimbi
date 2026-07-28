@@ -7,6 +7,7 @@ import {
   dominantNoteAt,
   pitchAt,
   pitchBendAt,
+  resolvedPitchAt,
 } from '../pitchContour';
 
 function note(overrides: Partial<MelodyNote> = {}): MelodyNote {
@@ -167,5 +168,49 @@ describe('pitchAt', () => {
   it('returns NaN where there is neither a note nor a contour', () => {
     const contour = buildPitchContour([], 1);
     expect(pitchAt([], contour, 0.5, 1, 0, 1).pitch).toBeNaN();
+  });
+});
+
+describe('resolvedPitchAt', () => {
+  // The per-frame fast path is a second implementation of `pitchAt`'s
+  // semantics (array lookup, no note scan, no allocation — `/code-review`
+  // on PR #594). This pins the two to each other so the one the renderer
+  // actually calls cannot silently drift from the documented one.
+  it('agrees with pitchAt across a polyphonic take', () => {
+    const notes = [
+      note({ startTime: 0, endTime: 0.4, midiNote: 60, confidence: 0.9 }),
+      note({
+        startTime: 0.2,
+        endTime: 0.6,
+        midiNote: 67,
+        confidence: 0.5,
+        pitchBends: [0, 0.3, -0.2],
+      }),
+      note({ startTime: 1.0, endTime: 1.4, midiNote: 72, confidence: 0.8 }),
+    ];
+    const contour = buildPitchContour(notes, 1.6);
+
+    for (const [lock, glide, bendScale] of [
+      [1, 0, 1],
+      [0, 0.4, 1],
+      [0.85, 0.4, 2],
+    ]) {
+      for (let i = 0; i < 160; i++) {
+        const t = i * contour.hop;
+        const reference = pitchAt(notes, contour, t, lock, glide, bendScale);
+        const fast = resolvedPitchAt(contour, t, lock, glide, bendScale);
+        if (Number.isNaN(reference.pitch)) {
+          expect(fast).toBeNaN();
+        } else {
+          expect(fast).toBeCloseTo(reference.pitch, 5);
+        }
+      }
+    }
+  });
+
+  it('is NaN outside the take, so callers fall back to the centroid', () => {
+    const contour = buildPitchContour([note({ endTime: 0.5 })], 0.5);
+    expect(resolvedPitchAt(contour, -1, 1, 0, 1)).toBeNaN();
+    expect(resolvedPitchAt(contour, 99, 1, 0, 1)).toBeNaN();
   });
 });
