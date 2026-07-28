@@ -1,7 +1,9 @@
 import {
   type CSSProperties,
   forwardRef,
+  lazy,
   PropsWithChildren,
+  Suspense,
   useImperativeHandle,
   useLayoutEffect,
   useRef,
@@ -11,9 +13,14 @@ import { useRecordingService } from '../../recording/useRecordingService';
 import { type Track } from '../../tracks/types';
 import { useTimelineZoom } from '../../../shared/hooks/useTimelineZoom';
 import Playhead, { type PlayheadHandle } from './Playhead';
-// SPIKE (mawimbi#593)
-import StringMode from '../../stringmode/StringMode';
+// SPIKE (mawimbi#593) — lazy, so a build without `?string` never fetches or
+// evaluates the String-mode module graph at all. The spike's claim is that
+// the default view pays nothing for it; a static import would make that
+// false by a dozen modules on every page load with a timeline, which is
+// exactly the kind of margin the e2e suite's tighter timeouts sit on.
 import { useStringModeAvailable } from '../../stringmode/useStringModeAvailable';
+
+const StringMode = lazy(() => import('../../stringmode/StringMode'));
 import PhantomScroller from './PhantomScroller';
 import ScrubberTilt from './ScrubberTilt';
 import ScrubberViewport from './ScrubberViewport';
@@ -190,7 +197,9 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
         </ScrubberTilt>
       </ScrubberViewport>
       {isStringMode && (
-        <StringMode tracks={tracks} drawerHeight={drawerHeight} />
+        <Suspense fallback={null}>
+          <StringMode tracks={tracks} drawerHeight={drawerHeight} />
+        </Suspense>
       )}
       <PhantomScroller
         ref={phantomRef}
