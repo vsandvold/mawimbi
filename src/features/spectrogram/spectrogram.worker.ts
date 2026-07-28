@@ -9,6 +9,7 @@ import {
   preWarmBasicPitch,
 } from '../transcription/MelodyExtractor';
 import { type RhythmData, analyseRhythm } from '../rhythm/RhythmAnalyser';
+import { extractEnvelopes, type TrackEnvelopes } from '../stringmode/envelopes';
 import { type SpectrogramData } from './OfflineAnalyser';
 import { renderTiles } from './SpectrogramTileRenderer';
 import { TILE_FRAMES } from './tileConstants';
@@ -42,7 +43,27 @@ export type RhythmRequest = {
   length: number;
 };
 
-export type WorkerRequest = AnalyseRequest | MelodyRequest | RhythmRequest;
+// SPIKE (mawimbi#593) — String mode's envelope pass. Spec 009 Decision 3
+// fuses this into `handleSpectrogram` (the frames are already in hand) and
+// persists the result; the spike cannot persist (hard constraint 1: no
+// `DB_VERSION` bump), so a restored track would have tiles and no
+// envelopes. A standalone request runs the CQT again for the tracks String
+// mode is actually showing, which costs the default view nothing and
+// behaves identically on a fresh upload and on a reload. Fusing it back
+// into the spectrogram pass is milestone 2's job, not the spike's.
+export type EnvelopeRequest = {
+  id: number;
+  kind: 'envelopes';
+  channelData: Float32Array[];
+  sampleRate: number;
+  length: number;
+};
+
+export type WorkerRequest =
+  | AnalyseRequest
+  | MelodyRequest
+  | RhythmRequest
+  | EnvelopeRequest;
 
 // Emitted once per completed chunk during progressive analysis (mawimbi#539,
 // spec 006 milestone 2) — the chunk's own frames and single rendered tile,
@@ -88,7 +109,15 @@ export type RhythmResponse =
   | { id: number; type: 'rhythm-result'; data: RhythmData }
   | { id: number; type: 'error'; message: string };
 
-export type WorkerResponse = AnalyseResponse | MelodyResponse | RhythmResponse;
+export type EnvelopeResponse =
+  | { id: number; type: 'envelopes-result'; data: TrackEnvelopes }
+  | { id: number; type: 'error'; message: string };
+
+export type WorkerResponse =
+  | AnalyseResponse
+  | MelodyResponse
+  | RhythmResponse
+  | EnvelopeResponse;
 
 // ---------------------------------------------------------------------------
 // Worker implementation
@@ -214,6 +243,45 @@ async function handleRhythm(request: RhythmRequest): Promise<void> {
   }
 }
 
+// SPIKE (mawimbi#593)
+async function handleEnvelopes(request: EnvelopeRequest): Promise<void> {
+  const { id, channelData, sampleRate, length } = request;
+
+  try {
+    const spectrogram = analyseCQTChunked(
+      channelData,
+      sampleRate,
+      length,
+      Infinity,
+    );
+    const data = extractEnvelopes(
+      spectrogram.frequencyFrames,
+      spectrogram.timeResolution,
+    );
+    console.log(
+      `[string] Worker envelope extraction complete: ${data.frameCount} frames, ${data.binCount} bins`,
+    );
+    const response: EnvelopeResponse = { id, type: 'envelopes-result', data };
+    // The five Float32Arrays and the band vector are this track's only copy
+    // in the worker after this call — transferring them costs the worker
+    // nothing and saves a structured clone of ~200 KB per track.
+    workerSelf.postMessage(response, [
+      data.rms.buffer,
+      data.level.buffer,
+      data.centroid.buffer,
+      data.flux.buffer,
+      data.flatness.buffer,
+      data.f0Bin.buffer,
+      data.bands.buffer,
+    ]);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[string] Worker envelope extraction failed: ${message}`);
+    const response: EnvelopeResponse = { id, type: 'error', message };
+    workerSelf.postMessage(response);
+  }
+}
+
 workerSelf.onmessage = async (event: MessageEvent<WorkerRequest>) => {
   const request = event.data;
 
@@ -224,6 +292,8 @@ workerSelf.onmessage = async (event: MessageEvent<WorkerRequest>) => {
     await handleMelody(request as MelodyRequest);
   } else if (kind === 'rhythm') {
     await handleRhythm(request as RhythmRequest);
+  } else if (kind === 'envelopes') {
+    await handleEnvelopes(request as EnvelopeRequest);
   } else {
     await handleSpectrogram(request as AnalyseRequest);
   }

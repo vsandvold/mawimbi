@@ -1,6 +1,7 @@
 import { type TrackColor } from '../tracks/types';
 import { type MelodyData } from '../transcription/MelodyExtractor';
 import { type RhythmData } from '../rhythm/RhythmAnalyser';
+import { type TrackEnvelopes } from '../stringmode/envelopes';
 import OfflineAnalyser, { type SpectrogramData } from './OfflineAnalyser';
 import { renderTiles } from './SpectrogramTileRenderer';
 import { spectrogramStats } from './SpectrogramStats';
@@ -68,10 +69,18 @@ type PendingRhythmRequest = {
   reject: (error: Error) => void;
 };
 
+// SPIKE (mawimbi#593)
+type PendingEnvelopeRequest = {
+  kind: 'envelopes';
+  resolve: (result: TrackEnvelopes) => void;
+  reject: (error: Error) => void;
+};
+
 type PendingRequest =
   | PendingSpectrogramRequest
   | PendingMelodyRequest
-  | PendingRhythmRequest;
+  | PendingRhythmRequest
+  | PendingEnvelopeRequest;
 
 class SpectrogramCache {
   private entries = new Map<string, TrackSpectrogramEntry>();
@@ -378,6 +387,38 @@ class SpectrogramCache {
     });
   }
 
+  // SPIKE (mawimbi#593) — String mode's envelope pass. Runs its own CQT in
+  // the worker rather than reusing the spectrogram pass's frames: the
+  // frames are released once persisted (`releaseFrames`, #540), so a
+  // restored track has none, and the spike may not persist the result
+  // (no `DB_VERSION` bump). Only called while String mode is active.
+  extractEnvelopesInWorker(audioBuffer: AudioBuffer): Promise<TrackEnvelopes> {
+    const worker = this.getWorker();
+    const id = this.nextMessageId++;
+
+    const channelData: Float32Array[] = [];
+    const transferables: Transferable[] = [];
+    for (let ch = 0; ch < audioBuffer.numberOfChannels; ch++) {
+      const copy = new Float32Array(audioBuffer.getChannelData(ch));
+      channelData.push(copy);
+      transferables.push(copy.buffer);
+    }
+
+    return new Promise((resolve, reject) => {
+      this.pendingRequests.set(id, { kind: 'envelopes', resolve, reject });
+      worker.postMessage(
+        {
+          id,
+          kind: 'envelopes',
+          channelData,
+          sampleRate: audioBuffer.sampleRate,
+          length: audioBuffer.length,
+        },
+        transferables,
+      );
+    });
+  }
+
   private getWorker(): Worker {
     if (!this.worker) {
       this.worker = new Worker(
@@ -424,6 +465,11 @@ class SpectrogramCache {
           console.log(
             `[rhythm] Worker returned bpm=${event.data.data.bpm.toFixed(1)}, ${event.data.data.ticks.length} ticks, ${event.data.data.onsets.length} onsets`,
           );
+          pending.resolve(event.data.data);
+        } else if (
+          type === 'envelopes-result' &&
+          pending.kind === 'envelopes'
+        ) {
           pending.resolve(event.data.data);
         } else if (type === 'result' && pending.kind === 'spectrogram') {
           // Frames and tiles arrived exclusively via 'chunk' messages above

@@ -11,6 +11,9 @@ import { useRecordingService } from '../../recording/useRecordingService';
 import { type Track } from '../../tracks/types';
 import { useTimelineZoom } from '../../../shared/hooks/useTimelineZoom';
 import Playhead, { type PlayheadHandle } from './Playhead';
+// SPIKE (mawimbi#593)
+import StringMode from '../../stringmode/StringMode';
+import { useStringModeAvailable } from '../../stringmode/useStringModeAvailable';
 import PhantomScroller from './PhantomScroller';
 import ScrubberTilt from './ScrubberTilt';
 import ScrubberViewport from './ScrubberViewport';
@@ -63,6 +66,10 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
   } = useScrubberGeometry(drawerHeight);
 
   const isTuningAvailable = useTuningAvailable();
+  // SPIKE (mawimbi#593) — `?string` reaches the ribbon view. Rendered
+  // before the PhantomScroller so the scroll/tap overlay, the playhead
+  // meter and the zoom controls all stay above it and keep working.
+  const isStringMode = useStringModeAvailable();
   const {
     config: tuningConfig,
     close: closeTuning,
@@ -182,6 +189,9 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
           {props.children}
         </ScrubberTilt>
       </ScrubberViewport>
+      {isStringMode && (
+        <StringMode tracks={tracks} drawerHeight={drawerHeight} />
+      )}
       <PhantomScroller
         ref={phantomRef}
         spacerHeight={spacerHeight}
