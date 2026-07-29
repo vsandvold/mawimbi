@@ -7,6 +7,12 @@
 // disagreed (it is the one someone actually swept).
 
 export type StringParamKey =
+  | 'noiseFloor'
+  | 'tonality'
+  | 'transientFast'
+  | 'transientSlow'
+  | 'anchorEdge'
+  | 'wobble'
   | 'c'
   | 'travel'
   | 'tauMem'
@@ -19,6 +25,7 @@ export type StringParamKey =
   | 'lock'
   | 'bendScale'
   | 'noteAlpha'
+  | 'noteConfidence'
   | 'silenceFloor'
   | 'thickness'
   | 'glow'
@@ -50,8 +57,36 @@ export type StringParamSpec = {
   maxLabel?: string;
 };
 
+// Ordered as they are read: the line's own shape first, then colour, then
+// the packet/wobble group last — that group is off by default (`wobble`)
+// and exists so spec 009 Decision 1 can be switched back on for evaluation
+// without a revert.
 export const STRING_PARAM_SPECS: readonly StringParamSpec[] = [
-  { key: 'c', label: 'Wave speed c', min: 0.5, max: 8, step: 0.1 },
+  { key: 'amplitude', label: 'Pitch excursion', min: 0, max: 1, step: 0.01 },
+  { key: 'noiseFloor', label: 'Noise floor', min: 0, max: 0.5, step: 0.005 },
+  { key: 'tonality', label: 'Tonality gate', min: 0, max: 1, step: 0.01 },
+  {
+    key: 'transientFast',
+    label: 'Transient — sharp',
+    min: 0.005,
+    max: 0.3,
+    step: 0.005,
+  },
+  {
+    key: 'transientSlow',
+    label: 'Transient — slow',
+    min: 0.02,
+    max: 1.5,
+    step: 0.01,
+  },
+  {
+    key: 'anchorEdge',
+    label: 'End anchor width',
+    min: 0.01,
+    max: 0.5,
+    step: 0.005,
+  },
+  { key: 'tauMem', label: 'Memory \u03c4', min: 0.1, max: 8, step: 0.05 },
   {
     key: 'travel',
     label: 'Wave travel',
@@ -60,10 +95,13 @@ export const STRING_PARAM_SPECS: readonly StringParamSpec[] = [
     step: 0.01,
     zeroLabel: 'standing',
   },
-  { key: 'tauMem', label: 'Memory τ', min: 0.1, max: 4, step: 0.05 },
-  { key: 'rippleDepth', label: 'Warble depth', min: 0, max: 1.4, step: 0.01 },
-  { key: 'anchor', label: 'End anchor', min: 0.25, max: 3, step: 0.05 },
-  { key: 'nearFloor', label: 'Near-end floor', min: 0, max: 0.8, step: 0.01 },
+  {
+    key: 'thickness',
+    label: 'Ribbon thickness',
+    min: 0.3,
+    max: 2.2,
+    step: 0.05,
+  },
   { key: 'layerAlpha', label: 'Layer opacity', min: 0.15, max: 1, step: 0.01 },
   {
     key: 'laneSep',
@@ -74,39 +112,29 @@ export const STRING_PARAM_SPECS: readonly StringParamSpec[] = [
     zeroLabel: 'layered',
     maxLabel: 'lanes',
   },
+  { key: 'silenceFloor', label: 'Silence floor', min: 0, max: 0.7, step: 0.01 },
+  { key: 'glow', label: 'Glow', min: 0, max: 2, step: 0.05 },
+  { key: 'points', label: 'Points N', min: 64, max: 256, step: 8 },
+
   { key: 'glide', label: 'Contour glide', min: 0, max: 1, step: 0.01 },
   { key: 'lock', label: 'Note lock', min: 0, max: 1, step: 0.01 },
   { key: 'bendScale', label: 'Bend scale', min: 0, max: 4, step: 0.05 },
   { key: 'noteAlpha', label: 'Note bar alpha', min: 0, max: 1, step: 0.01 },
-  { key: 'silenceFloor', label: 'Silence floor', min: 0, max: 0.7, step: 0.01 },
   {
-    key: 'thickness',
-    label: 'Ribbon thickness',
-    min: 0.3,
-    max: 2.2,
-    step: 0.05,
-  },
-  { key: 'glow', label: 'Glow', min: 0, max: 2, step: 0.05 },
-  { key: 'points', label: 'Points N', min: 64, max: 256, step: 8 },
-  { key: 'gamma', label: 'Packet decay γ', min: 0.2, max: 4, step: 0.05 },
-  { key: 'sigma', label: 'Packet width σ', min: 0.01, max: 0.2, step: 0.005 },
-  { key: 'amplitude', label: 'Excursion A_max', min: 0, max: 1, step: 0.01 },
-  {
-    key: 'rho',
-    label: 'Reflection ρ',
+    key: 'noteConfidence',
+    label: 'Note bar confidence',
     min: 0,
     max: 1,
     step: 0.01,
-    zeroLabel: 'no images',
+    zeroLabel: 'all',
   },
-  { key: 'imageCount', label: 'Images M_max', min: 0, max: 64, step: 1 },
-  { key: 'forcing', label: 'Sustain forcing', min: 0, max: 1.5, step: 0.01 },
+
   { key: 'lightMin', label: 'L min', min: 0, max: 1, step: 0.01 },
   { key: 'lightMax', label: 'L max', min: 0, max: 1, step: 0.01 },
   { key: 'chromaMax', label: 'C max', min: 0, max: 0.37, step: 0.005 },
   {
     key: 'lightFromTimbre',
-    label: 'Lightness ← timbre',
+    label: 'Lightness \u2190 timbre',
     min: 0,
     max: 1,
     step: 1,
@@ -122,50 +150,119 @@ export const STRING_PARAM_SPECS: readonly StringParamSpec[] = [
     zeroLabel: 'off',
     maxLabel: 'chroma',
   },
+
+  // --- Wobble group (spec 009 Decision 1's packet model), off by default ---
+  {
+    key: 'wobble',
+    label: 'Wobble (packets)',
+    min: 0,
+    max: 1,
+    step: 0.01,
+    zeroLabel: 'off',
+  },
+  { key: 'c', label: 'Wave speed c', min: 0.5, max: 8, step: 0.1 },
+  { key: 'rippleDepth', label: 'Warble depth', min: 0, max: 1.4, step: 0.01 },
+  { key: 'anchor', label: 'Packet end anchor', min: 0.25, max: 3, step: 0.05 },
+  {
+    key: 'nearFloor',
+    label: 'Packet near floor',
+    min: 0,
+    max: 0.8,
+    step: 0.01,
+  },
+  { key: 'gamma', label: 'Packet decay \u03b3', min: 0.2, max: 4, step: 0.05 },
+  {
+    key: 'sigma',
+    label: 'Packet width \u03c3',
+    min: 0.01,
+    max: 0.2,
+    step: 0.005,
+  },
+  {
+    key: 'rho',
+    label: 'Reflection \u03c1',
+    min: 0,
+    max: 1,
+    step: 0.01,
+    zeroLabel: 'no images',
+  },
+  { key: 'imageCount', label: 'Images M_max', min: 0, max: 64, step: 1 },
+  { key: 'forcing', label: 'Sustain forcing', min: 0, max: 1.5, step: 0.01 },
 ];
 
 export const DEFAULT_STRING_PARAMS: StringParams = {
-  c: 2.8,
-  travel: 0.3,
-  tauMem: 1.2,
-  rippleDepth: 0.5,
-  anchor: 1.0,
-  // The asymmetric half of the envelope. `u = 0` is *now* and `u = 1` is
-  // τ ago, so pinning both ends identically is a category error on a time
-  // axis — a symmetric `sin(πu)^p` multiplies the freshest audio by zero,
-  // in the view whose whole justification is making the just-heard legible
-  // (spec 009 Decision 1, [PROTO]). 0.25 matches the prototype's own
-  // thickness floor at the anchors.
-  nearFloor: 0.25,
+  // --- The line ---
+  // Full pitch range spans 80% of the half-height either side of the
+  // centre, so the resting line has room to rise and fall without the
+  // extremes clipping into the neighbouring ribbons' territory.
+  amplitude: 0.8,
+  noiseFloor: 0.06,
+  // Pitch only moves for material tonal enough to have a fundamental —
+  // `flatness` below this. A click is broadband, so the line holds through
+  // it instead of spiking once per beat.
+  tonality: 0.35,
+  // Interpolation time at a maximally sharp transient and at none: a
+  // plucked string reaches its pitch in ~25 ms, a swelling pad in ~300 ms.
+  transientFast: 0.025,
+  transientSlow: 0.3,
+  // Narrow: the ends are pinned to the centre line, and the middle stays
+  // flat so the contour is the pitch rather than an arch.
+  anchorEdge: 0.06,
+  // 3 s of history on screen at `travel = 1` — the ribbon reads as a
+  // rolling contour rather than a 0.36 s twitch. Spec 009's Now-scale
+  // placement is the open question this reopens (its question 13).
+  tauMem: 3,
+  travel: 1,
+  thickness: 1.0,
   layerAlpha: 0.61,
-  laneSep: 0.5,
+  // Layered on one centre line, not in lanes — the resting arrangement the
+  // owner asked for. `1` still gives the per-track lanes for question 12.
+  laneSep: 0,
+  silenceFloor: 0.3,
+  glow: 0.7,
+  points: 160,
+
   glide: 0.4,
   lock: 0.85,
   bendScale: 1.0,
   noteAlpha: 0.45,
-  silenceFloor: 0.3,
-  thickness: 1.0,
-  glow: 0.7,
-  points: 160,
-  gamma: 0.83,
-  sigma: 0.06,
-  amplitude: 0.42,
-  rho: 0.55,
-  imageCount: 32,
-  forcing: 0.35,
+  // Basic Pitch reports a spray of low-confidence notes on percussive
+  // material — a click is broadband, so it reads as several simultaneous
+  // pitches. Without a floor every drum track gets a haze of spurious bars
+  // over a ribbon that is correctly holding still. Alpha alone is not
+  // enough: a dozen faint bars still read as texture.
+  noteConfidence: 0.5,
+
   lightMin: 0.26,
   lightMax: 0.86,
   chromaMax: 0.2,
-  // Open question 11: the spec resolved pitch/brightness by substitution;
-  // the prototype ships a global toggle and defaults to timbre. Exposed,
-  // not hardcoded — answering it is one of the spike's deliverables.
-  lightFromTimbre: 0,
-  // Open question 10: 0 off, 1 lightness gradient, 2 chroma gradient.
-  bandGradient: 1,
+  // Colour intensity carries spectral content (owner direction). Spec 009
+  // open question 11 asked pitch-or-timbre; this answers it timbre, which
+  // is also what the prototype defaulted to — and it frees the height
+  // channel to be pitch alone.
+  lightFromTimbre: 1,
+  bandGradient: 0,
+
+  // --- Wobble group, off ---
+  // Spec 009 Decision 1's packet model, scaled to nothing. Everything
+  // below only matters once this is non-zero.
+  wobble: 0,
+  c: 2.8,
+  rippleDepth: 0.5,
+  anchor: 1.0,
+  nearFloor: 0.25,
+  gamma: 0.83,
+  sigma: 0.06,
+  rho: 0.55,
+  imageCount: 32,
+  forcing: 0.35,
 };
 
 export function formatParamValue(spec: StringParamSpec, value: number): string {
   if (spec.zeroLabel && value === spec.min) return spec.zeroLabel;
   if (spec.maxLabel && value === spec.max) return spec.maxLabel;
-  return spec.step >= 1 ? `${value}` : value.toFixed(2);
+  if (spec.step >= 1) return `${value}`;
+  // Enough places to show one step — a 0.005-step knob reading "0.03"
+  // cannot be swept, since two adjacent positions print the same number.
+  return value.toFixed(spec.step < 0.01 ? 3 : 2);
 }

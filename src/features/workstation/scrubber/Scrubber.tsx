@@ -198,7 +198,11 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
       </ScrubberViewport>
       {isStringMode && (
         <Suspense fallback={null}>
-          <StringMode tracks={tracks} drawerHeight={drawerHeight} />
+          <StringMode
+            tracks={tracks}
+            drawerHeight={drawerHeight}
+            pixelsPerSecond={pixelsPerSecond}
+          />
         </Suspense>
       )}
       <PhantomScroller

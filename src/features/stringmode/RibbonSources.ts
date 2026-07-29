@@ -29,6 +29,7 @@ import {
   type PitchResolution,
 } from './pitchContour';
 import { type RibbonInput } from './ribbonPropagation';
+import { buildRibbonLine, type RibbonLine } from './ribbonLine';
 import { type StringParams } from './stringParams';
 
 /** The shape React hands down each render — no signals, no services. */
@@ -38,8 +39,14 @@ export type RibbonTrackDescriptor = {
   /** Project-timeline offset of this track's buffer time 0. */
   startTime: number;
   duration: number;
-  /** Edit mode's focus/dim semantics, reused rather than reinvented. */
-  isDimmed: boolean;
+  /**
+   * The timeline's own opacity for this track — muted, focused, drag-target,
+   * edit-dimmed or base. Passed in rather than re-derived so String mode
+   * cannot drift from `Timeline.tsx`'s `getTimelineTrackClass`.
+   */
+  opacity: number;
+  /** The timeline's z-index tier; ribbons are drawn in this order. */
+  paintOrder: number;
 };
 
 export type RibbonTrack = {
@@ -54,7 +61,12 @@ export type RibbonTrack = {
   notes: MelodyNote[];
   contour: PitchContour;
   input: RibbonInput;
-  isDimmed: boolean;
+  /** The precomputed resting line — the ribbon's primary geometry. */
+  line: RibbonLine;
+  opacity: number;
+  paintOrder: number;
+  /** Track-buffer-relative fundamental, `NaN` where there is none. */
+  pitchAtTrackTime: (trackTime: number) => number;
   /** Resolves pitch, the locked note, and every active bar at a project time. */
   resolvePitch: (projectTime: number) => PitchResolution;
   /** Normalized band vector at a project time, or null outside the take. */
@@ -76,7 +88,27 @@ type CacheEntry = {
   track: RibbonTrack;
   /** Mutable so the closures stay stable across parameter changes. */
   params: StringParams;
+  /**
+   * The parameters the precomputed line was built from. The follower is
+   * sequential, so unlike everything else here it cannot read parameters
+   * live — a change to any of them rebuilds the whole series (a few ms for
+   * a 3-minute track, and only on a slider tick).
+   */
+  lineKey: string;
 };
+
+/** Identity of the parameters `buildRibbonLine` actually consumes. */
+function lineKeyFor(params: StringParams): string {
+  return [
+    params.noiseFloor,
+    params.tonality,
+    params.transientFast,
+    params.transientSlow,
+    params.lock,
+    params.glide,
+    params.bendScale,
+  ].join(':');
+}
 
 const EMPTY_ONSETS: number[] = [];
 
@@ -133,7 +165,17 @@ class RibbonSources {
       // Parameters change on every slider tick; the closures read them
       // through this one mutable field so they never need rebuilding.
       cached.params = params;
-      cached.track.isDimmed = descriptor.isDimmed;
+      cached.track.opacity = descriptor.opacity;
+      cached.track.paintOrder = descriptor.paintOrder;
+      const lineKey = lineKeyFor(params);
+      if (lineKey !== cached.lineKey) {
+        cached.lineKey = lineKey;
+        cached.track.line = buildRibbonLine(
+          envelopes,
+          cached.track.pitchAtTrackTime,
+          params,
+        );
+      }
       return cached.track;
     }
 
@@ -208,6 +250,13 @@ class RibbonSources {
         entry.params.bendScale,
       );
       if (!Number.isNaN(resolved)) return resolved;
+      // `f0Bin` before `centroid`: it is the lowest strong *peak*, so it
+      // tracks a fundamental where one exists and reports `NaN` where none
+      // does — which lets the line hold rather than follow a centroid that
+      // has no fundamental behind it. Centroid remains the last resort so
+      // the ribbon never freezes for want of a pitch (spec 009 Decision 1).
+      const f0 = centroidToMidi(sampleEnvelope(envelopes.f0Bin, envelopes, t));
+      if (!Number.isNaN(f0)) return f0;
       return centroidToMidi(sampleEnvelope(envelopes.centroid, envelopes, t));
     };
 
@@ -231,7 +280,9 @@ class RibbonSources {
     };
 
     const [pitchLo, pitchHi] = derivePitchRange(notes);
+    const pitchAtTrackTime = (t: number) => midiAt(t + startTime);
 
+    entry.lineKey = lineKeyFor(params);
     entry.track = {
       trackId,
       hue: rgbToOklch(color).h,
@@ -243,7 +294,10 @@ class RibbonSources {
       notes,
       contour,
       input,
-      isDimmed: descriptor.isDimmed,
+      line: buildRibbonLine(envelopes, pitchAtTrackTime, params),
+      opacity: descriptor.opacity,
+      paintOrder: descriptor.paintOrder,
+      pitchAtTrackTime,
       resolvePitch,
       bandsAt,
     };

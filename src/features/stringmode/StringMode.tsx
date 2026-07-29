@@ -24,7 +24,7 @@ import { usePlaybackService } from '../playback/usePlaybackService';
 import { useTrackService } from '../tracks/useTrackService';
 import { useEditMode } from '../workstation/useEditMode';
 import { timelineRenderLoop } from '../spectrogram/TimelineRenderLoop';
-import { type Track } from '../tracks/types';
+import { type Track, type TrackId } from '../tracks/types';
 import { getEnvelopes, getEnvelopeVersion } from './envelopeStore';
 import RibbonSources, { type RibbonTrackDescriptor } from './RibbonSources';
 import { drawRibbons } from './ribbonRenderer';
@@ -33,18 +33,42 @@ import StringHud from './StringHud';
 import { useStringEnvelopes } from './useStringEnvelopes';
 import './StringMode.css';
 
-type StringModeProps = { tracks: Track[]; drawerHeight: number };
+type StringModeProps = {
+  tracks: Track[];
+  drawerHeight: number;
+  /** The runway's zoom — pinch-to-zoom governs this view's time axis too. */
+  pixelsPerSecond: number;
+};
+
+/**
+ * The timeline's own opacity tiers and z-index order (`Timeline.css`),
+ * read here rather than re-derived so String mode cannot drift from the
+ * runway's treatment of the same states.
+ */
+const TRACK_OPACITY = {
+  base: 0.9,
+  dragTarget: 0.75,
+  background: 0.5,
+  muted: 0,
+} as const;
+
+const PAINT_ORDER = { base: 0, dragTarget: 1, foreground: 2 } as const;
 
 type LastDrawn = {
   time: number;
   paramsVersion: number;
   envelopeVersion: number;
+  pixelsPerSecond: number;
   descriptorKey: string;
   width: number;
   height: number;
 };
 
-const StringMode = ({ tracks, drawerHeight }: StringModeProps) => {
+const StringMode = ({
+  tracks,
+  drawerHeight,
+  pixelsPerSecond,
+}: StringModeProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const hudRef = useRef<HTMLPreElement>(null);
@@ -52,6 +76,7 @@ const StringMode = ({ tracks, drawerHeight }: StringModeProps) => {
   const audioService = useAudioService();
   const playback = usePlaybackService();
   const trackService = useTrackService();
+  const { mutedTracks, focusedTracks, dragTargetTrackId } = trackService;
   const { activeEditTrackId } = useEditMode();
 
   useStringEnvelopes(tracks);
@@ -63,16 +88,31 @@ const StringMode = ({ tracks, drawerHeight }: StringModeProps) => {
       color: track.color,
       startTime: trackService.retrieveStartTime(track.trackId) ?? 0,
       duration: audioBuffer?.duration ?? 0,
-      // Edit mode's focus/dim semantics, reused rather than reinvented — a
-      // user who learned it on the runway does not learn it twice
-      // (spec 009 Decision 5).
-      isDimmed:
-        activeEditTrackId !== null && activeEditTrackId !== track.trackId,
+      // Edit mode's and the mixer's focus/dim semantics, reused rather than
+      // reinvented — a user who learned them on the runway does not learn
+      // them twice (spec 009 Decision 5).
+      opacity: trackOpacity(track.trackId, {
+        mutedTracks,
+        focusedTracks,
+        dragTargetTrackId,
+        activeEditTrackId,
+      }),
+      paintOrder: trackPaintOrder(track.trackId, {
+        focusedTracks,
+        dragTargetTrackId,
+        activeEditTrackId,
+      }),
     };
   });
 
   const latestRef = useRef(descriptors);
   latestRef.current = descriptors;
+
+  // Pinch-to-zoom writes `pixelsPerSecond` (workstationSignals) and the
+  // Scrubber passes it down; the render loop reads it through a ref so a
+  // zoom gesture never has to re-register the callback.
+  const latestZoomRef = useRef(pixelsPerSecond);
+  latestZoomRef.current = pixelsPerSecond;
 
   const sourcesRef = useRef<RibbonSources | null>(null);
   if (!sourcesRef.current) {
@@ -87,6 +127,7 @@ const StringMode = ({ tracks, drawerHeight }: StringModeProps) => {
     time: Number.NaN,
     paramsVersion: -1,
     envelopeVersion: -1,
+    pixelsPerSecond: -1,
     descriptorKey: '',
     width: -1,
     height: -1,
@@ -128,6 +169,7 @@ const StringMode = ({ tracks, drawerHeight }: StringModeProps) => {
           playback.getEngineTime() !== last.time ||
           getStringParamsVersion() !== last.paramsVersion ||
           getEnvelopeVersion() !== last.envelopeVersion ||
+          latestZoomRef.current !== last.pixelsPerSecond ||
           describeTracks(latestRef.current) !== last.descriptorKey
         );
       },
@@ -150,6 +192,7 @@ const StringMode = ({ tracks, drawerHeight }: StringModeProps) => {
         last.time = playback.getEngineTime();
         last.paramsVersion = getStringParamsVersion();
         last.envelopeVersion = getEnvelopeVersion();
+        last.pixelsPerSecond = latestZoomRef.current;
         last.descriptorKey = describeTracks(descriptorList);
 
         const ribbons = sourcesRef.current!.build(descriptorList, params);
@@ -174,6 +217,7 @@ const StringMode = ({ tracks, drawerHeight }: StringModeProps) => {
         const stats = drawRibbons(ctx, ribbons, last.time, params, {
           width,
           height,
+          pixelsPerSecond: latestZoomRef.current,
         });
         const drawMs = performance.now() - startedAt;
         hasPaintedRef.current = ribbons.length > 0;
@@ -216,6 +260,51 @@ const StringMode = ({ tracks, drawerHeight }: StringModeProps) => {
   );
 };
 
+type TrackStates = {
+  mutedTracks: TrackId[];
+  focusedTracks: TrackId[];
+  dragTargetTrackId: TrackId | null;
+  activeEditTrackId: TrackId | null;
+};
+
+/**
+ * The same tiering `Timeline.tsx`'s `getTimelineTrackClass` applies, as a
+ * number instead of a class name. Edit-mode classes replace focus and mute
+ * entirely (spec 004, Goal 1) — every track stays visible while cycling the
+ * active layer, and a muted track renders dimmed like any other background
+ * one rather than hidden, because muting is bypassed sonically too.
+ */
+function trackOpacity(trackId: TrackId, states: TrackStates): number {
+  const { mutedTracks, focusedTracks, dragTargetTrackId, activeEditTrackId } =
+    states;
+
+  if (activeEditTrackId !== null) {
+    return trackId === activeEditTrackId
+      ? TRACK_OPACITY.base
+      : TRACK_OPACITY.background;
+  }
+
+  const isForeground = focusedTracks.includes(trackId);
+  if (isForeground) return TRACK_OPACITY.base;
+
+  const isMuted = mutedTracks.includes(trackId);
+  if (isMuted) return TRACK_OPACITY.muted;
+  if (trackId === dragTargetTrackId) return TRACK_OPACITY.dragTarget;
+  if (focusedTracks.length > 0) return TRACK_OPACITY.background;
+  return TRACK_OPACITY.base;
+}
+
+function trackPaintOrder(
+  trackId: TrackId,
+  states: Omit<TrackStates, 'mutedTracks'>,
+): number {
+  const { focusedTracks, dragTargetTrackId, activeEditTrackId } = states;
+  if (trackId === activeEditTrackId) return PAINT_ORDER.foreground;
+  if (focusedTracks.includes(trackId)) return PAINT_ORDER.foreground;
+  if (trackId === dragTargetTrackId) return PAINT_ORDER.dragTarget;
+  return PAINT_ORDER.base;
+}
+
 /**
  * A stable string identity for the track list — cheap enough to build in
  * `peekDirty`, which runs on every idle frame.
@@ -223,7 +312,7 @@ const StringMode = ({ tracks, drawerHeight }: StringModeProps) => {
 function describeTracks(descriptors: readonly RibbonTrackDescriptor[]): string {
   let key = '';
   for (const descriptor of descriptors) {
-    key += `${descriptor.trackId}:${descriptor.startTime}:${descriptor.isDimmed ? 1 : 0}|`;
+    key += `${descriptor.trackId}:${descriptor.startTime}:${descriptor.opacity}:${descriptor.paintOrder}|`;
   }
   return key;
 }
