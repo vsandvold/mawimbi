@@ -6,6 +6,7 @@ import {
   useRef,
 } from 'react';
 import LoudnessMeterPlayhead from './LoudnessMeterPlayhead';
+import { type MeterLayout } from './loudnessMeterRenderer';
 import { type ActiveNote } from './sparkleSimulation';
 
 export type PlayheadHandle = {
@@ -26,6 +27,9 @@ type PlayheadProps = {
       from the solved geometry — keeps the meter's edges on the runway
       rails (mawimbi#461). */
   meterWidthFraction: number;
+  /** `string` centres the meter in the visible box (mawimbi#593), so the
+      container fills that box rather than hugging the playhead line. */
+  layout?: MeterLayout;
 };
 
 /**
@@ -44,7 +48,7 @@ type PlayheadProps = {
  * animation loop can drive the loudness meter visualization each frame.
  */
 const Playhead = forwardRef<PlayheadHandle, PlayheadProps>(
-  ({ visibleHeight, meterWidthFraction }, ref) => {
+  ({ visibleHeight, meterWidthFraction, layout = 'runway' }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const meterRef =
       useRef<React.ComponentRef<typeof LoudnessMeterPlayhead>>(null);
@@ -108,19 +112,28 @@ const Playhead = forwardRef<PlayheadHandle, PlayheadProps>(
     // opening a bottom sheet mid-playback otherwise dropped a beat.
     useLayoutEffect(() => {
       meterRef.current?.repaintIdle();
-    }, [meterWidthFraction]);
+    }, [meterWidthFraction, layout]);
 
     const style: CSSProperties = {
       '--available-height': `${visibleHeight}px`,
     } as CSSProperties;
 
     return (
-      <div ref={containerRef} className="scrubber__playhead" style={style}>
+      <div
+        ref={containerRef}
+        className={
+          layout === 'string'
+            ? 'scrubber__playhead scrubber__playhead--centred'
+            : 'scrubber__playhead'
+        }
+        style={style}
+      >
         <LoudnessMeterPlayhead
           ref={meterRef}
           width={0}
           height={0}
           meterWidthFraction={meterWidthFraction}
+          layout={layout}
         />
       </div>
     );

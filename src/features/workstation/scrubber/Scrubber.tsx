@@ -220,6 +220,7 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
         ref={playheadRef}
         visibleHeight={visibleHeight}
         meterWidthFraction={playheadWidthFraction}
+        layout={isStringMode ? 'string' : 'runway'}
       />
       <ZoomControls style={zoomControlsStyle} />
       {isTuningAvailable && tuningConfig && (

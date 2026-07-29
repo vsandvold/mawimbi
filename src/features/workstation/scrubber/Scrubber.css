@@ -85,6 +85,15 @@
   pointer-events: none;
 }
 
+/* SPIKE (mawimbi#593) — String mode's meter is centred in the visible box
+   rather than sitting on the playhead line, so the container fills that box
+   and `computeCentredMeterRect` does the centring in canvas space. Its
+   vertical middle is where the ribbons rest, so the two coincide. */
+.scrubber__playhead--centred {
+  top: 0;
+  height: var(--available-height);
+}
+
 .loudness-meter-playhead {
   display: block;
   width: 100%;

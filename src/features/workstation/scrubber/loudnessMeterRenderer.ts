@@ -53,6 +53,30 @@ export type MeterRect = {
 const METER_ASPECT_RATIO = 3; // width:height = 3:1
 
 /**
+ * String mode's meter (mawimbi#593): portrait, width:height = 3:4, centred
+ * on screen rather than sitting on the playhead line — there is no runway
+ * line to sit on, and the ribbons' own resting position is the vertical
+ * middle, so the meter's vertical centre and the ribbons' rest coincide.
+ */
+const STRING_METER_ASPECT_RATIO = 3 / 4;
+
+/** String meter height as a fraction of the visible box. */
+const STRING_METER_HEIGHT_FRACTION = 0.34;
+
+/** …clamped so a narrow phone doesn't push it past the screen edges. */
+const STRING_METER_MAX_WIDTH_FRACTION = 0.6;
+
+/**
+ * Which geometry the meter is drawn in. `runway` is the original: a 3:1
+ * landscape rect bottom-aligned on the playhead line, bars along X growing
+ * upward. `string` is spec 009's view: a 3:4 portrait rect centred both
+ * ways, bars along **Y** with low pitch at the bottom — matching the
+ * ribbons' own pitch→height mapping — and each magnitude mirrored either
+ * side of the rect's vertical centre line.
+ */
+export type MeterLayout = 'runway' | 'string';
+
+/**
  * Compute the meter rectangle, bottom-aligned within the canvas so its
  * bottom edge sits on the playhead line (mawimbi#481). Width is the
  * runway's rendered width at the playhead line (`widthFraction`, derived
@@ -73,6 +97,44 @@ export function computeMeterRect(
   const x = Math.round((canvasWidth - width) / 2);
   const y = Math.round(canvasHeight - height);
   return { x, y, width, height };
+}
+
+/**
+ * The 3:4 portrait rect, centred horizontally and vertically in the canvas.
+ * Sized from the height so the aspect holds on any viewport, then clamped
+ * by width so a narrow screen shrinks it rather than clipping it.
+ */
+export function computeCentredMeterRect(
+  canvasWidth: number,
+  canvasHeight: number,
+): MeterRect {
+  const maxWidth = canvasWidth * STRING_METER_MAX_WIDTH_FRACTION;
+  let height = canvasHeight * STRING_METER_HEIGHT_FRACTION;
+  let width = height * STRING_METER_ASPECT_RATIO;
+  if (width > maxWidth) {
+    width = maxWidth;
+    height = width / STRING_METER_ASPECT_RATIO;
+  }
+  height = Math.min(height, canvasHeight);
+  width = Math.min(width, canvasWidth);
+  return {
+    x: Math.round((canvasWidth - width) / 2),
+    y: Math.round((canvasHeight - height) / 2),
+    width: Math.round(width),
+    height: Math.round(height),
+  };
+}
+
+/** The rect for a layout — the one place the two geometries diverge. */
+function computeRectFor(
+  layout: MeterLayout,
+  canvasWidth: number,
+  canvasHeight: number,
+  widthFraction: number,
+): MeterRect {
+  return layout === 'string'
+    ? computeCentredMeterRect(canvasWidth, canvasHeight)
+    : computeMeterRect(canvasWidth, canvasHeight, widthFraction);
 }
 
 /**
@@ -211,6 +273,48 @@ function drawFrequencyBars(
 }
 
 /**
+ * String mode's bars (mawimbi#593): one per semitone along the **vertical**
+ * axis, low pitch at the bottom so the meter's frequency axis runs the same
+ * way the ribbons' pitch does — a note high on a ribbon is high in the
+ * meter. Each magnitude is drawn **mirrored** about the rect's vertical
+ * centre line, so the spectrum reads as a symmetric, dual-sided shape
+ * growing outward from the line the ribbons rest on.
+ */
+function drawMirroredFrequencyBars(
+  ctx: CanvasRenderingContext2D,
+  rect: MeterRect,
+  barValues: Float32Array,
+): void {
+  const barCount = barValues.length;
+  if (barCount === 0) return;
+
+  const innerPadding = BORDER_WIDTH + 1;
+  const innerHeight = rect.height - innerPadding * 2;
+  const innerBottom = rect.y + rect.height - innerPadding;
+  const halfSpan = (rect.width - innerPadding * 2) / 2;
+  const centreX = rect.x + rect.width / 2;
+
+  const totalGap = (barCount - 1) * BAR_GAP;
+  const rawThickness = (innerHeight - totalGap) / barCount;
+  const thickness = rawThickness < 1 ? innerHeight / barCount : rawThickness;
+  const gap = rawThickness < 1 ? 0 : BAR_GAP;
+
+  ctx.fillStyle = BAR_COLOR;
+
+  for (let i = 0; i < barCount; i++) {
+    const intensity = barValues[i] / 255;
+    const halfLength = intensity * halfSpan;
+    if (halfLength <= 0) continue;
+
+    // Index 0 is the lowest semitone and sits at the *bottom*: the flip
+    // that makes this axis agree with the ribbons rather than with a
+    // top-down array order.
+    const barY = innerBottom - (i + 1) * thickness - i * gap;
+    ctx.fillRect(centreX - halfLength, barY, halfLength * 2, thickness);
+  }
+}
+
+/**
  * Draw the sparkle burst particles (mawimbi#484). Deliberately not
  * unit-tested — only `simulateSparkles`' particle math is (#365 pattern:
  * thin renderers over tested pure simulation). Tuning the look (color,
@@ -241,17 +345,26 @@ export function renderLoudnessMeterFrame(
   engineTime: number,
   beatPulse: BeatPulse,
   beatTimes: number[],
+  layout: MeterLayout = 'runway',
 ): void {
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
-  const rect = computeMeterRect(canvasWidth, canvasHeight, widthFraction);
+  const rect = computeRectFor(layout, canvasWidth, canvasHeight, widthFraction);
   drawMeterBackground(ctx, rect);
   drawBeatPulseFrame(ctx, rect, beatPulse.update(beatTimes, engineTime));
 
   if (frequencyData) {
     const bars = poolSemitoneBars(frequencyData);
     const targets = computeTargetBarValues(bars);
-    drawFrequencyBars(ctx, rect, barSmoother.update(targets));
+    const smoothed = barSmoother.update(targets);
+    if (layout === 'string') {
+      drawMirroredFrequencyBars(ctx, rect, smoothed);
+      // Sparkles are anchored to the runway's playhead *line* and to the
+      // horizontal bar positions — neither exists in this layout, so they
+      // are left out rather than given a second, drifting mapping.
+      return;
+    }
+    drawFrequencyBars(ctx, rect, smoothed);
 
     if (activeNotes.length > 0) {
       const lineY = rect.y + rect.height;
@@ -278,10 +391,11 @@ function paintRestingMeter(
   canvasWidth: number,
   canvasHeight: number,
   widthFraction: number,
+  layout: MeterLayout,
 ): void {
   ctx.clearRect(0, 0, canvasWidth, canvasHeight);
 
-  const rect = computeMeterRect(canvasWidth, canvasHeight, widthFraction);
+  const rect = computeRectFor(layout, canvasWidth, canvasHeight, widthFraction);
   drawMeterBackground(ctx, rect);
 }
 
@@ -299,6 +413,7 @@ export function renderLoudnessMeterIdle(
   widthFraction: number,
   barSmoother: BarSmoother,
   beatPulse: BeatPulse,
+  layout: MeterLayout = 'runway',
 ): void {
   barSmoother.reset();
   // Same discontinuity, same reason, for the arrival envelope — plus one
@@ -308,7 +423,7 @@ export function renderLoudnessMeterIdle(
   // 4 wires this at design time rather than rediscovering #483 in review).
   beatPulse.reset();
 
-  paintRestingMeter(ctx, canvasWidth, canvasHeight, widthFraction);
+  paintRestingMeter(ctx, canvasWidth, canvasHeight, widthFraction, layout);
 }
 
 /**
@@ -330,6 +445,7 @@ export function repaintLoudnessMeterIdle(
   canvasWidth: number,
   canvasHeight: number,
   widthFraction: number,
+  layout: MeterLayout = 'runway',
 ): void {
-  paintRestingMeter(ctx, canvasWidth, canvasHeight, widthFraction);
+  paintRestingMeter(ctx, canvasWidth, canvasHeight, widthFraction, layout);
 }
