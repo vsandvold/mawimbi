@@ -4,6 +4,16 @@ Architectural decisions with rationale and provenance, newest first. Entry forma
 
 **Hygiene note:** this file is past the KB's ~150-line guideline (`kb/INDEX.md`) — due a split (e.g. by year, or into `decisions.md` + `decisions-archive.md`) in a future `/harness-audit` or dedicated session, not blocking here.
 
+## 2026-07-28 — Spec 009's `envelopes` store is load-bearing, not an optimisation; and `travel` cannot mean one thing
+
+Two structural findings the String mode spike (#593, PR #594) settled for spec 009 *before* any perceptual evaluation — they hold regardless of how the ribbon reads on a phone, so they are spec edits rather than tuning notes.
+
+**The `envelopes` IndexedDB store (spec 009 milestone 2) is not a caching optimisation — the feature does not work without it.** `SpectrogramCache.releaseFrames` empties `frequencyFrames` once a spectrogram is persisted (#540), so a restored track has tiles and no frames; and the spike was forbidden from bumping `DB_VERSION`. Those two constraints together left exactly one option: run a **second full CQT** per track, and re-run it on every load. There is no in-memory-only formulation that avoids a second pass. This confirms Decision 3's "the frames are gone" analysis empirically rather than by argument.
+
+**`travel` describes two different mechanisms and the spec conflates them.** Spec 009 keeps `c` (packet travel speed, Decision 1) *and* `travel` (effective history = `τ_mem × travel`), labelling `travel = 0` *standing* — "every point samples the same instant". That is true of the age-sampled pitch/loudness series the ribbon's height reads from, and false of the wave packets, which still travel at `c`. The spike implements `travel` as governing only the age sampling and leaves the packets alone. Either the packets must freeze too (making `c` redundant with `travel`) or the parameter needs splitting/renaming; picking one is a spec edit, not an implementation detail.
+
+**Method note.** All three of the spike's *code* defects (see `kb/domain.md` on bin-RMS, and CLAUDE.md on `SharedCanvasWindow` sizing and `NaN`-in-canvas-colour) were invisible to the spec, to its dissent sections, and to two prototype reviews — they only appeared once something rendered. That is the argument for spiking a perceptual feature before its milestone 1, independent of the perceptual answers the spike exists to buy.
+
 ## 2026-07-26 — The pulse is continued past the last *tracked beat*, not past the last onset; gaps are not filled, because neither essentia nor the grid produces one
 
 **Decision:** spec 008 milestone 6 (#572) ships only the tail half of Goal 5. `extrapolateTicks` continues the induced grid past its final point at the median of its last `LOCAL_INTERVAL_WINDOW_BEATS` intervals — the same span `induceBeatGrid` smooths over, so the ghost continues at the tempo the last drawn rungs already show — bounded twice: by `PHANTOM_HORIZON_BEATS` (4) and by the number of intervals actually observed. The "or across a detected gap" clause of the issue is **not built**.

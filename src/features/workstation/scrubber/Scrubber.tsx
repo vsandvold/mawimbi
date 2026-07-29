@@ -1,7 +1,9 @@
 import {
   type CSSProperties,
   forwardRef,
+  lazy,
   PropsWithChildren,
+  Suspense,
   useImperativeHandle,
   useLayoutEffect,
   useRef,
@@ -11,6 +13,14 @@ import { useRecordingService } from '../../recording/useRecordingService';
 import { type Track } from '../../tracks/types';
 import { useTimelineZoom } from '../../../shared/hooks/useTimelineZoom';
 import Playhead, { type PlayheadHandle } from './Playhead';
+// SPIKE (mawimbi#593) — lazy, so a build without `?string` never fetches or
+// evaluates the String-mode module graph at all. The spike's claim is that
+// the default view pays nothing for it; a static import would make that
+// false by a dozen modules on every page load with a timeline, which is
+// exactly the kind of margin the e2e suite's tighter timeouts sit on.
+import { useStringModeAvailable } from '../../stringmode/useStringModeAvailable';
+
+const StringMode = lazy(() => import('../../stringmode/StringMode'));
 import PhantomScroller from './PhantomScroller';
 import ScrubberTilt from './ScrubberTilt';
 import ScrubberViewport from './ScrubberViewport';
@@ -63,6 +73,10 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
   } = useScrubberGeometry(drawerHeight);
 
   const isTuningAvailable = useTuningAvailable();
+  // SPIKE (mawimbi#593) — `?string` reaches the ribbon view. Rendered
+  // before the PhantomScroller so the scroll/tap overlay, the playhead
+  // meter and the zoom controls all stay above it and keep working.
+  const isStringMode = useStringModeAvailable();
   const {
     config: tuningConfig,
     close: closeTuning,
@@ -182,6 +196,15 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
           {props.children}
         </ScrubberTilt>
       </ScrubberViewport>
+      {isStringMode && (
+        <Suspense fallback={null}>
+          <StringMode
+            tracks={tracks}
+            drawerHeight={drawerHeight}
+            pixelsPerSecond={pixelsPerSecond}
+          />
+        </Suspense>
+      )}
       <PhantomScroller
         ref={phantomRef}
         spacerHeight={spacerHeight}
@@ -197,6 +220,7 @@ const Scrubber = forwardRef<ScrubberHandle, ScrubberProps>((props, ref) => {
         ref={playheadRef}
         visibleHeight={visibleHeight}
         meterWidthFraction={playheadWidthFraction}
+        layout={isStringMode ? 'string' : 'runway'}
       />
       <ZoomControls style={zoomControlsStyle} />
       {isTuningAvailable && tuningConfig && (

@@ -5,6 +5,7 @@ import {
   renderLoudnessMeterFrame,
   renderLoudnessMeterIdle,
   repaintLoudnessMeterIdle,
+  type MeterLayout,
 } from './loudnessMeterRenderer';
 import { type ActiveNote } from './sparkleSimulation';
 
@@ -34,12 +35,14 @@ type LoudnessMeterPlayheadProps = {
       derived from the solved geometry so the meter's edges align with the
       runway rails (mawimbi#461). */
   meterWidthFraction: number;
+  /** `string` switches to the centred, mirrored 3:4 meter (mawimbi#593). */
+  layout?: MeterLayout;
 };
 
 const LoudnessMeterPlayhead = forwardRef<
   LoudnessMeterPlayheadHandle,
   LoudnessMeterPlayheadProps
->(({ width, height, meterWidthFraction }, ref) => {
+>(({ width, height, meterWidthFraction, layout = 'runway' }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const barSmootherRef = useRef(new BarSmoother());
   // Lives here rather than in the rAF loop for the same reason the bar
@@ -74,6 +77,7 @@ const LoudnessMeterPlayhead = forwardRef<
         engineTime,
         beatPulseRef.current,
         beatTimes,
+        layout,
       );
     },
 
@@ -90,6 +94,7 @@ const LoudnessMeterPlayhead = forwardRef<
         meterWidthFraction,
         barSmootherRef.current,
         beatPulseRef.current,
+        layout,
       );
     },
 
@@ -104,6 +109,7 @@ const LoudnessMeterPlayhead = forwardRef<
         canvas.width,
         canvas.height,
         meterWidthFraction,
+        layout,
       );
     },
 
