@@ -90,6 +90,7 @@ export function buildRibbonLine(
   const binScale = Math.max(1, envelopes.binCount);
 
   let heldMidi = REST_MIDI;
+  let previousSampled = Number.NaN;
   let smoothedMidi = REST_MIDI;
   let smoothedPresence = 0;
   let smoothedLevel = 0;
@@ -99,17 +100,31 @@ export function buildRibbonLine(
     const rawLevel = envelopes.level[i];
     const isPresent = rawLevel > params.noiseFloor;
 
-    // A click has no fundamental, so the line must not move for one. The
-    // pitch estimate is only *accepted* when the frame is tonal enough —
-    // `flatness` (geometric/arithmetic mean, ~0 for a peaky spectrum, ~1
-    // for noise) is the harmonicity proxy the envelope pass already
-    // computes for exactly this question. Without the gate the centroid
-    // fallback supplies a fresh, wildly different "pitch" on every
-    // percussive transient and the line spikes once per beat — noise, and
-    // the specific noise this geometry exists to remove.
+    // A click has no fundamental, so the line must not move for one — and
+    // **flatness alone does not tell you that**. Measured on
+    // `test-click-120bpm.wav` through this very pass: the loud frames of a
+    // click read flatness ~0.03 (median), i.e. *more* peaky than a steady
+    // tone's 0.0065 is far from, and well inside any threshold that still
+    // admits real tonal material. Most CQT bins sit near zero at any
+    // instant, so a broadband transient still looks peaky by the
+    // geometric/arithmetic-mean measure. Only the noisiest tail (p90 ~0.95)
+    // separates, which is why `tonality` is kept but relaxed to reject
+    // genuine noise rather than asked to identify pitch.
+    //
+    // What actually separates them is **stability**: a tone holds its
+    // estimate frame to frame, a click's jumps. Accepting an estimate only
+    // when it agrees with the previous one to within `pitchStability`
+    // semitones costs one comparison and removes the once-per-beat dive
+    // that flatness could not.
     const isTonal = envelopes.flatness[i] < params.tonality;
     const sampled = pitchAtTime(i * hop);
-    if (isPresent && isTonal && Number.isFinite(sampled)) heldMidi = sampled;
+    const isStable =
+      Number.isFinite(previousSampled) &&
+      Math.abs(sampled - previousSampled) <= params.pitchStability;
+    if (isPresent && isTonal && isStable && Number.isFinite(sampled)) {
+      heldMidi = sampled;
+    }
+    previousSampled = sampled;
 
     // The transient's own speed sets the interpolation time: a sharp
     // attack gets a short one, a slow swell a long one. Flux is already
@@ -124,7 +139,14 @@ export function buildRibbonLine(
     const transient = Math.max(attack, release);
     const alpha = alphaFor(hop, tauSlow + (tauFast - tauSlow) * transient);
 
-    smoothedMidi += (heldMidi - smoothedMidi) * alpha;
+    // Below the noise floor the *pitch* glides home, rather than the
+    // deviation being scaled down by presence. Scaling by presence made
+    // every amplitude envelope a vertical gesture too — which is the wobble
+    // character this geometry exists to remove, arriving by another route.
+    // Height is pitch and only pitch; amplitude belongs to width and
+    // opacity.
+    const pitchTarget = isPresent ? heldMidi : REST_MIDI;
+    smoothedMidi += (pitchTarget - smoothedMidi) * alpha;
     smoothedPresence += ((isPresent ? 1 : 0) - smoothedPresence) * alpha;
     smoothedLevel += ((isPresent ? rawLevel : 0) - smoothedLevel) * alpha;
     smoothedBrightness +=
@@ -174,8 +196,8 @@ export function sampleRibbonLine(
   trackTime: number,
   out: RibbonLineSample,
 ): RibbonLineSample {
-  const index = Math.round(trackTime / line.hop);
-  if (index < 0 || index >= line.frameCount) {
+  const position = trackTime / line.hop;
+  if (position < -1 || position >= line.frameCount) {
     out.pitch01 = RESTING_SAMPLE.pitch01;
     out.midi = RESTING_SAMPLE.midi;
     out.presence = 0;
@@ -183,34 +205,31 @@ export function sampleRibbonLine(
     out.brightness = 0;
     return out;
   }
-  out.midi = line.midi[index];
+
+  // **Linear**, not nearest-frame. The series is sampled at the CQT's 25 ms
+  // hop, which at the runway's default zoom is only ~5 px — so a
+  // nearest-frame read draws the contour as a visible 5-px staircase, and
+  // the smoother the underlying follower gets the more obviously the
+  // remaining jaggedness is the *sampling*. Interpolating costs one lerp
+  // per point and removes the stair entirely.
+  const lower = Math.max(0, Math.floor(position));
+  const upper = Math.min(line.frameCount - 1, lower + 1);
+  const t = clamp01(position - lower);
+
+  out.midi = mix(line.midi[lower], line.midi[upper], t);
   out.pitch01 = normalizePitch(out.midi);
-  out.presence = line.presence[index];
-  out.level = line.level[index];
-  out.brightness = line.brightness[index];
+  out.presence = mix(line.presence[lower], line.presence[upper], t);
+  out.level = mix(line.level[lower], line.level[upper], t);
+  out.brightness = mix(line.brightness[lower], line.brightness[upper], t);
   return out;
+}
+
+function mix(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
 }
 
 export function makeLineSample(): RibbonLineSample {
   return { ...RESTING_SAMPLE };
-}
-
-/**
- * The anchor window: 0 at both ends of the ribbon, 1 across the middle.
- *
- * A `smoothstep` shoulder rather than `sin(πu)^p`: the sine is a broad hump
- * that bends the whole contour into an arch, which is a shape the audio did
- * not make. A narrow shoulder pins the ends and leaves the middle flat, so
- * what the ribbon draws between the anchors is the pitch and nothing else.
- */
-export function lineAnchor(u: number, edge: number): number {
-  const width = Math.max(1e-4, edge);
-  return shoulder(u / width) * shoulder((1 - u) / width);
-}
-
-function shoulder(t: number): number {
-  const x = clamp01(t);
-  return x * x * (3 - 2 * x);
 }
 
 function clamp01(value: number): number {

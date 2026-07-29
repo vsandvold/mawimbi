@@ -12,11 +12,14 @@
 // **Geometry (owner direction, 2026-07-28).** Each ribbon rests as a thin
 // straight line down the middle of the screen, all of them layered on one
 // centre line. New audio enters at the **right** edge and ages leftward, so
-// `x = (1 − u)·W`. Both ends are anchored to the centre line; between them
-// the ribbon rises and falls with the signal's fundamental, its width
-// tracks loudness, and its colour intensity tracks spectral content. The
-// packet wobble of spec 009 Decision 1 is scaled by `wobble`, which
-// defaults to 0.
+// `x = (1 − u)·W`. The ribbon follows its pitch contour all the way to both
+// edges — no end anchoring — while the centre line stays the *resting*
+// position, which the signal returns to via `presence` when it drops below
+// the noise floor. Width tracks loudness, and **opacity tracks volume the
+// way the spectrogram's own colour map does** (`SpectrogramTileRenderer`:
+// the track colour at full saturation, alpha proportional to magnitude),
+// carried per column through the gradient's own stops. The packet wobble of
+// spec 009 Decision 1 is scaled by `wobble`, which defaults to 0.
 //
 // **Horizontal scale is `pixelsPerSecond`** — the same pinch-to-zoom signal
 // the runway uses (`workstationSignals`), so one gesture governs the rate of
@@ -24,18 +27,16 @@
 // the ribbon at every zoom level.
 //
 // Two additive passes (`lighter` glow, then `screen` core) on a near-black
-// ground, then note bars in a third `source-over` pass. Additive is what a
-// mixture of sources actually does — overlapping translucent ribbons under
-// `source-over` muddy toward grey, under `lighter` they brighten where they
-// coincide. The bars must *not* be additive: they would blow out wherever
-// they cross the ribbon, which is everywhere they matter.
+// ground, then the transcribed notes as neuron-style pulses. Additive is
+// what a mixture of sources actually does — overlapping translucent ribbons
+// under `source-over` muddy toward grey, under `lighter` they brighten
+// where they coincide.
 
 import { midiNoteToBin } from '../spectrogram/PianoRollRenderer';
 import { maxChromaCached, oklchToRgb } from './oklch';
 import { BAND_COUNT, sampleEnvelope } from './envelopes';
 import { type RibbonTrack } from './RibbonSources';
 import {
-  lineAnchor,
   makeLineSample,
   sampleRibbonLine,
   type RibbonLineSample,
@@ -59,14 +60,15 @@ const LOUDNESS_HALF_WIDTH_PX = 9;
 const GLOW_WIDTH_MULTIPLE = 2.4;
 const GLOW_ALPHA_COEFFICIENT = 0.085;
 
-/** Alpha floor/span applied on top of the silence floor. */
-const ALPHA_FLOOR = 0.35;
-const ALPHA_SPAN = 0.65;
+/** Neuron pulse: the glowing head's radius, and its halo multiple. */
+const PULSE_CORE_RADIUS_PX = 2.2;
+const PULSE_HALO_MULTIPLE = 4;
 
-const NOTE_BAR_HEIGHT_PX = 3;
+/** Segments per pulse trace — enough to hug the ribbon's own curve. */
+const PULSE_TRACE_SAMPLES = 10;
 
-/** Segments per note bar — enough to follow the anchor shoulder smoothly. */
-const NOTE_BAR_SAMPLES = 8;
+/** Trace line width, in px. Thin: it runs *inside* the ribbon. */
+const PULSE_TRACE_WIDTH_PX = 1.2;
 
 /** Guard against a zero or absurd zoom producing an infinite history. */
 const MIN_PIXELS_PER_SECOND = 1;
@@ -92,6 +94,8 @@ type EdgeBuffers = {
   /** Reused by the cross-section pass, which re-derives edges per band. */
   bandCentre: Float32Array;
   bandHalfWidth: Float32Array;
+  /** Smoothed loudness per column — the gradient's own alpha. */
+  columnLevel: Float32Array;
 };
 
 // Module-level and resized only when `N` changes: `TimelineRenderLoop`
@@ -110,6 +114,7 @@ function ensureBuffers(count: number): EdgeBuffers {
     halfWidth: new Float32Array(count),
     bandCentre: new Float32Array(count),
     bandHalfWidth: new Float32Array(count),
+    columnLevel: new Float32Array(count),
   };
   return buffers;
 }
@@ -193,7 +198,7 @@ function drawRibbon(
   draw: DrawContext,
 ): void {
   const { T, params, viewport, buffer, history } = draw;
-  const { us, displacement, centre, halfWidth } = buffer;
+  const { us, displacement, centre, halfWidth, columnLevel } = buffer;
 
   // The wobble is off by default. Skipping the whole packet sum when it is
   // zero is not just an optimisation: it is what makes "off" mean the line
@@ -218,12 +223,13 @@ function drawRibbon(
     sampleRibbonLine(ribbon.line, sampledTime - ribbon.startTime, lineSample);
     if (j === 0) presenceNow = lineSample.presence;
 
-    // Both ends are pinned to the centre line; between them the anchor is
-    // flat, so what the ribbon draws is the pitch and not an arch.
-    const anchor = lineAnchor(u, params.anchorEdge);
+    // No end anchoring: the ribbon follows its pitch contour all the way to
+    // both edges (owner direction). The centre line is still the *resting*
+    // position — `presence` is what returns it there when the signal drops
+    // below the noise floor, and that is a property of the signal rather
+    // than of where a sample happens to sit on screen.
     const deviation = pitchDeviation(
       lineSample.midi,
-      lineSample.presence,
       ribbon,
       params,
       laneCount,
@@ -231,28 +237,28 @@ function drawRibbon(
 
     centre[j] =
       centreY -
-      deviation * excursion * anchor -
+      deviation * excursion -
       (hasWobble ? displacement[j] * wobbleExcursion : 0);
 
     halfWidth[j] =
       BASE_HALF_WIDTH_PX +
       lineSample.level * LOUDNESS_HALF_WIDTH_PX * params.thickness;
+    columnLevel[j] = lineSample.level;
   }
 
-  // `f_floor` is a *silence* floor, not a retirement threshold: a silent
-  // ribbon still renders and never disappears, because a ribbon is a
-  // persistent object rather than a trace that comes and goes ("one stream,
-  // focusable sources", `kb/product.md`).
+  // Volume's own contribution to opacity now lives in the gradient's stops,
+  // per column, the way the spectrogram's colour map does it. What is left
+  // here is the *track's* opacity: the timeline's own tier — muted,
+  // focused, drag-target, edit-dimmed or base — times the layer blend,
+  // rather than a second dimming vocabulary invented for this view
+  // (spec 009 Decision 5).
+  const alpha = params.layerAlpha * ribbon.opacity;
+  if (alpha <= 0) return;
+  // Still per-ribbon: the glow is a bloom around the whole shape, and
+  // reading it from the newest column is what makes it pulse with the take
+  // rather than smear at a constant brightness.
   const visibility =
     params.silenceFloor + (1 - params.silenceFloor) * clamp01(presenceNow);
-  // The timeline's own opacity for this track — muted, focused,
-  // drag-target, edit-dimmed or base — rather than a second dimming
-  // vocabulary invented here (spec 009 Decision 5).
-  const alpha =
-    params.layerAlpha *
-    (ALPHA_FLOOR + ALPHA_SPAN * visibility) *
-    ribbon.opacity;
-  if (alpha <= 0) return;
 
   const gradient = buildGradient(ctx, ribbon, draw);
 
@@ -288,9 +294,10 @@ function drawRibbon(
     draw.stats.fills++;
   }
 
-  // Pass 3 — note bars, never additive.
-  ctx.globalCompositeOperation = 'source-over';
-  drawNoteBars(ctx, ribbon, draw, laneCount);
+  // Pass 3 — the transcribed notes as neuron pulses, additive so the head
+  // reads as *light* rather than as a sticker laid over the ribbon.
+  ctx.globalCompositeOperation = 'lighter';
+  drawNeuronPulses(ctx, ribbon, draw);
 
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
@@ -322,7 +329,6 @@ function centreYFor(laneCount: number, draw: DrawContext): number {
  */
 export function pitchDeviation(
   midi: number,
-  presence: number,
   ribbon: RibbonTrack,
   params: StringParams,
   laneCount: number,
@@ -334,9 +340,9 @@ export function pitchDeviation(
   // shrink with it or neighbouring ribbons overlap at full deflection.
   const laneScale =
     1 + (1 / Math.max(1, laneCount) - 1) * clamp01(params.laneSep);
-  // Presence is what returns the line to the middle when the signal drops
-  // below the noise floor — smoothly, on the release transient.
-  return blended * laneScale * clamp01(presence);
+  // No presence term: returning to the centre is the *pitch* gliding home
+  // (`buildRibbonLine`), so height stays a function of pitch alone.
+  return blended * laneScale;
 }
 
 function binFraction(midi: number, lo: number, hi: number): number {
@@ -423,6 +429,15 @@ function bandChromaColour(
 /**
  * One `createLinearGradient` along the ribbon's long axis, running
  * right-to-left so stop 0 is *now*.
+ *
+ * **Alpha lives in the stops, not in `globalAlpha`.** The spectrogram's own
+ * colour map (`SpectrogramTileRenderer.createColorMap`) is the track colour
+ * at constant RGB with alpha proportional to magnitude — silence
+ * transparent, loudest opaque — and that is per *pixel*, not per track. A
+ * single `globalAlpha` for the whole ribbon cannot express it: the ribbon
+ * has to fade where the take is quiet and firm up where it is loud, along
+ * its own length. `globalAlpha` is left carrying only the track's timeline
+ * opacity and the layer blend.
  */
 function buildGradient(
   ctx: CanvasRenderingContext2D,
@@ -449,7 +464,14 @@ function buildGradient(
       maxChromaCached(lightness, ribbon.hue),
     );
     const { r, g, b } = oklchToRgb({ l: lightness, c: chroma, h: ribbon.hue });
-    gradient.addColorStop(u, `rgb(${r}, ${g}, ${b})`);
+    // The silence floor keeps a quiet ribbon visible rather than letting it
+    // vanish — a ribbon is a persistent object, not a trace ("one stream,
+    // focusable sources", `kb/product.md`). Above that floor the ramp is
+    // the spectrogram's: linear in level.
+    const alpha =
+      params.silenceFloor +
+      (1 - params.silenceFloor) * clamp01(gradientSample.level);
+    gradient.addColorStop(u, `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`);
   }
   return gradient;
 }
@@ -472,9 +494,18 @@ function lightnessOf(sample: RibbonLineSample, params: StringParams): number {
 }
 
 /**
- * Builds the closed path: top edge, then the bottom edge back. One path per
- * pass rather than per-segment quads, which keeps the fill count at ~2 per
- * ribbon instead of ~480.
+ * Builds the closed path: top edge, then the bottom edge back.
+ *
+ * **Quadratic through segment midpoints**, not `lineTo`. A polyline over
+ * `N` samples of a contour shows every sample as a corner, and at the
+ * runway's default zoom the samples are only a couple of pixels apart —
+ * which reads as a jagged edge however smooth the underlying series is.
+ * Curving through the midpoints (each sample becomes a control point, each
+ * midpoint an on-curve point) gives C¹ continuity for one `quadraticCurveTo`
+ * per sample, with no extra points and no spline solve.
+ *
+ * One path per pass rather than per-segment quads, which keeps the fill
+ * count at ~2 per ribbon instead of ~480.
  */
 function tracePath(
   ctx: CanvasRenderingContext2D,
@@ -485,56 +516,90 @@ function tracePath(
   widthMultiple: number,
 ): void {
   ctx.beginPath();
-  for (let j = 0; j < us.length; j++) {
-    const x = xForAge(us[j], width);
-    const y = centre[j] - halfWidth[j] * widthMultiple;
-    if (j === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  }
-  for (let j = us.length - 1; j >= 0; j--) {
-    ctx.lineTo(xForAge(us[j], width), centre[j] + halfWidth[j] * widthMultiple);
-  }
+  const count = us.length;
+
+  const topY = (j: number) => centre[j] - halfWidth[j] * widthMultiple;
+  const bottomY = (j: number) => centre[j] + halfWidth[j] * widthMultiple;
+
+  ctx.moveTo(xForAge(us[0], width), topY(0));
+  smoothEdge(ctx, us, width, topY, 0, count - 1);
+  ctx.lineTo(xForAge(us[count - 1], width), bottomY(count - 1));
+  smoothEdge(ctx, us, width, bottomY, count - 1, 0);
   ctx.closePath();
 }
 
 /**
- * The transcribed notes, as bars on the same axis as the ribbon: same
- * `age → x` mapping and same `midiNoteToBin` pitch mapping, so a bar and
- * the pitch line it belongs to move together under pinch-zoom and sit at
- * the same height when the ribbon is locked to it.
- *
- * The bar is the categorisation layer, drawn at the note's own quantised
- * pitch; the ribbon is the nuance layer, and the gap between them is the
- * performance. Alpha carries `note.confidence`, so a shaky detection looks
- * shaky — locking is a claim that the transcription is right, and this is
- * how that claim stays honest.
+ * Curves along one edge between two sample indices, in either direction.
+ * Each interior sample is the control point of a quadratic whose endpoint
+ * is the midpoint to the next sample.
  */
-function drawNoteBars(
+function smoothEdge(
+  ctx: CanvasRenderingContext2D,
+  us: Float32Array,
+  width: number,
+  yAt: (index: number) => number,
+  from: number,
+  to: number,
+): void {
+  const step = to > from ? 1 : -1;
+  for (let j = from; j !== to; j += step) {
+    const next = j + step;
+    const x = xForAge(us[j], width);
+    const nextX = xForAge(us[next], width);
+    const y = yAt(j);
+    const nextYValue = yAt(next);
+    if (next === to) {
+      ctx.quadraticCurveTo(x, y, nextX, nextYValue);
+    } else {
+      ctx.quadraticCurveTo(x, y, (x + nextX) / 2, (y + nextYValue) / 2);
+    }
+  }
+}
+
+/**
+ * The transcribed notes as **neuron signal pulses**: a glowing head at each
+ * onset, with a trace running behind it *inside* the ribbon for the note's
+ * own extent (owner direction).
+ *
+ * Both the head and the trace ride the ribbon's own centreline rather than
+ * the note's quantised pitch, which is what makes them read as something
+ * travelling *along* the ribbon instead of a label pinned over it. Timing
+ * is still the transcription's: the head sits exactly at the onset's age,
+ * so it enters at the right edge the instant the note is struck and ages
+ * leftward with everything else.
+ *
+ * Alpha carries `note.confidence`, so a shaky detection looks shaky, and
+ * the whole pass is additive — a pulse is light in the ribbon, not paint
+ * on top of it.
+ */
+function drawNeuronPulses(
   ctx: CanvasRenderingContext2D,
   ribbon: RibbonTrack,
   draw: DrawContext,
-  laneCount: number,
 ): void {
-  const { T, params, viewport, history } = draw;
+  const { T, params, viewport, history, buffer } = draw;
   if (params.noteAlpha <= 0 || ribbon.notes.length === 0) return;
 
-  const { r, g, b } = oklchToRgb({
-    l: Math.min(0.95, params.lightMax + 0.06),
-    c: 0,
+  // Near-white at the head so it reads as a spark regardless of track hue,
+  // tinted back toward the track's own colour along the trace.
+  const head = oklchToRgb({ l: 0.97, c: 0.02, h: ribbon.hue });
+  const tint = oklchToRgb({
+    l: Math.min(0.92, params.lightMax + 0.06),
+    c: Math.min(params.chromaMax, maxChromaCached(0.8, ribbon.hue)),
     h: ribbon.hue,
   });
-  const excursion = (params.amplitude * viewport.height) / 2;
-  const centreY = centreYFor(laneCount, draw);
-  ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+
+  ctx.lineWidth = PULSE_TRACE_WIDTH_PX * params.pulseSize;
+  ctx.lineCap = 'round';
 
   for (const note of ribbon.notes) {
     if (note.confidence < params.noteConfidence) continue;
     // Gated on the same tonality criterion the line is: if the ribbon will
     // not accept a fundamental here, the overlay must not assert one
     // either. Without this, a click track — broadband, so Basic Pitch
-    // reports several simultaneous low pitches per hit — draws a haze of
-    // bars nowhere near a ribbon that is correctly holding still, which
-    // reads as exactly the noise this geometry exists to remove.
+    // reports several simultaneous low pitches per hit — sprays pulses
+    // nowhere near a ribbon that is correctly holding still, which reads as
+    // exactly the noise this geometry exists to remove.
     if (
       sampleEnvelope(
         ribbon.envelopes.flatness,
@@ -544,60 +609,76 @@ function drawNoteBars(
     ) {
       continue;
     }
-    const noteStart = note.startTime + ribbon.startTime;
-    const noteEnd = note.endTime + ribbon.startTime;
-    // `u` is age, so a note occupies a sliding span that enters at the
-    // right edge and exits at the left.
-    const uNewest = clamp01((T - noteStart) / history);
-    const uOldest = clamp01((T - noteEnd) / history);
-    if ((T - noteStart) / history < 0 || (T - noteEnd) / history > 1) continue;
-    if (uNewest - uOldest <= 0) continue;
 
-    const deviation = pitchDeviation(
-      note.midiNote,
-      1,
-      ribbon,
-      params,
-      laneCount,
+    // `u` is age, so the onset's head is at the *smaller* u (newer, further
+    // right) and the trace runs back toward the note's end.
+    const uHead = (T - (note.startTime + ribbon.startTime)) / history;
+    const uTail = (T - (note.endTime + ribbon.startTime)) / history;
+    if (uHead < 0 || uTail > 1) continue;
+
+    const alpha = params.noteAlpha * clamp01(note.confidence);
+    if (alpha <= 0) continue;
+
+    // Trace first, so the head's halo lands on top of it.
+    const traceStart = clamp01(Math.min(uHead, uTail));
+    const traceEnd = clamp01(Math.max(uHead, uTail));
+    if (traceEnd - traceStart > 1e-4) {
+      ctx.globalAlpha = alpha * 0.55;
+      ctx.strokeStyle = `rgb(${tint.r}, ${tint.g}, ${tint.b})`;
+      ctx.beginPath();
+      for (let s = 0; s <= PULSE_TRACE_SAMPLES; s++) {
+        const u =
+          traceStart + ((traceEnd - traceStart) * s) / PULSE_TRACE_SAMPLES;
+        const x = xForAge(u, viewport.width);
+        const y = centreAtAge(buffer, u);
+        if (s === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      draw.stats.fills++;
+    }
+
+    if (uHead > 1) continue;
+    const headX = xForAge(uHead, viewport.width);
+    const headY = centreAtAge(buffer, uHead);
+    const radius = PULSE_CORE_RADIUS_PX * params.pulseSize;
+
+    // A radial gradient rather than two stacked circles: the halo has to
+    // fall off continuously or the pulse reads as a ring.
+    const halo = ctx.createRadialGradient(
+      headX,
+      headY,
+      0,
+      headX,
+      headY,
+      radius * PULSE_HALO_MULTIPLE,
     );
-    if (
-      xForAge(uOldest, viewport.width) - xForAge(uNewest, viewport.width) <
-      0.5
-    ) {
-      continue;
-    }
+    halo.addColorStop(0, `rgba(${head.r}, ${head.g}, ${head.b}, 1)`);
+    halo.addColorStop(0.25, `rgba(${tint.r}, ${tint.g}, ${tint.b}, 0.45)`);
+    halo.addColorStop(1, `rgba(${tint.r}, ${tint.g}, ${tint.b}, 0)`);
 
-    // Sampled along the bar's own span rather than drawn as one rect: the
-    // ribbon is anchored to the centre line at both ends, and a bar
-    // crossing that shoulder has to bend with it or the two visibly
-    // disagree exactly where the eye is checking them against each other.
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = halo;
     ctx.beginPath();
-    for (let s = 0; s <= NOTE_BAR_SAMPLES; s++) {
-      const u = uNewest + ((uOldest - uNewest) * s) / NOTE_BAR_SAMPLES;
-      const x = xForAge(u, viewport.width);
-      const y =
-        centreY -
-        deviation * excursion * lineAnchor(u, params.anchorEdge) -
-        NOTE_BAR_HEIGHT_PX / 2;
-      if (s === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    for (let s = NOTE_BAR_SAMPLES; s >= 0; s--) {
-      const u = uNewest + ((uOldest - uNewest) * s) / NOTE_BAR_SAMPLES;
-      ctx.lineTo(
-        xForAge(u, viewport.width),
-        centreY -
-          deviation * excursion * lineAnchor(u, params.anchorEdge) +
-          NOTE_BAR_HEIGHT_PX / 2,
-      );
-    }
-    ctx.closePath();
-
-    ctx.globalAlpha =
-      params.noteAlpha * clamp01(note.confidence) * ribbon.opacity;
+    ctx.arc(headX, headY, radius * PULSE_HALO_MULTIPLE, 0, Math.PI * 2);
     ctx.fill();
     draw.stats.fills++;
   }
+}
+
+/**
+ * The ribbon's own centreline at an arbitrary age, interpolated from the
+ * `centre` buffer the geometry pass just filled. Pulses ride this rather
+ * than re-deriving a position, so they cannot drift off the ribbon.
+ */
+function centreAtAge(buffer: EdgeBuffers, u: number): number {
+  const { us, centre } = buffer;
+  const last = us.length - 1;
+  const position = clamp01(u) * last;
+  const lower = Math.min(last, Math.floor(position));
+  const upper = Math.min(last, lower + 1);
+  const t = position - lower;
+  return centre[lower] + (centre[upper] - centre[lower]) * t;
 }
 
 /**

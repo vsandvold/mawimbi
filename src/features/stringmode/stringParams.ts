@@ -9,9 +9,9 @@
 export type StringParamKey =
   | 'noiseFloor'
   | 'tonality'
+  | 'pitchStability'
   | 'transientFast'
   | 'transientSlow'
-  | 'anchorEdge'
   | 'wobble'
   | 'c'
   | 'travel'
@@ -26,6 +26,7 @@ export type StringParamKey =
   | 'bendScale'
   | 'noteAlpha'
   | 'noteConfidence'
+  | 'pulseSize'
   | 'silenceFloor'
   | 'thickness'
   | 'glow'
@@ -66,6 +67,13 @@ export const STRING_PARAM_SPECS: readonly StringParamSpec[] = [
   { key: 'noiseFloor', label: 'Noise floor', min: 0, max: 0.5, step: 0.005 },
   { key: 'tonality', label: 'Tonality gate', min: 0, max: 1, step: 0.01 },
   {
+    key: 'pitchStability',
+    label: 'Pitch stability',
+    min: 0.1,
+    max: 12,
+    step: 0.1,
+  },
+  {
     key: 'transientFast',
     label: 'Transient — sharp',
     min: 0.005,
@@ -78,13 +86,6 @@ export const STRING_PARAM_SPECS: readonly StringParamSpec[] = [
     min: 0.02,
     max: 1.5,
     step: 0.01,
-  },
-  {
-    key: 'anchorEdge',
-    label: 'End anchor width',
-    min: 0.01,
-    max: 0.5,
-    step: 0.005,
   },
   { key: 'tauMem', label: 'Memory \u03c4', min: 0.1, max: 8, step: 0.05 },
   {
@@ -119,10 +120,11 @@ export const STRING_PARAM_SPECS: readonly StringParamSpec[] = [
   { key: 'glide', label: 'Contour glide', min: 0, max: 1, step: 0.01 },
   { key: 'lock', label: 'Note lock', min: 0, max: 1, step: 0.01 },
   { key: 'bendScale', label: 'Bend scale', min: 0, max: 4, step: 0.05 },
-  { key: 'noteAlpha', label: 'Note bar alpha', min: 0, max: 1, step: 0.01 },
+  { key: 'noteAlpha', label: 'Pulse brightness', min: 0, max: 1, step: 0.01 },
+  { key: 'pulseSize', label: 'Pulse size', min: 0.2, max: 4, step: 0.05 },
   {
     key: 'noteConfidence',
-    label: 'Note bar confidence',
+    label: 'Pulse confidence',
     min: 0,
     max: 1,
     step: 0.01,
@@ -197,17 +199,18 @@ export const DEFAULT_STRING_PARAMS: StringParams = {
   // extremes clipping into the neighbouring ribbons' territory.
   amplitude: 0.8,
   noiseFloor: 0.06,
-  // Pitch only moves for material tonal enough to have a fundamental —
-  // `flatness` below this. A click is broadband, so the line holds through
-  // it instead of spiking once per beat.
-  tonality: 0.35,
+  // Relaxed to reject genuine noise only: measured through this pass, a
+  // click's loud frames read flatness ~0.03 against a steady tone's 0.0065,
+  // so flatness cannot separate them (see `ribbonLine.ts`).
+  tonality: 0.6,
+  // The gate that does separate them: accept a pitch estimate only when it
+  // agrees with the previous frame's to within this many semitones. A tone
+  // holds; a click's estimate jumps.
+  pitchStability: 2,
   // Interpolation time at a maximally sharp transient and at none: a
   // plucked string reaches its pitch in ~25 ms, a swelling pad in ~300 ms.
   transientFast: 0.025,
   transientSlow: 0.3,
-  // Narrow: the ends are pinned to the centre line, and the middle stays
-  // flat so the contour is the pitch rather than an arch.
-  anchorEdge: 0.06,
   // 3 s of history on screen at `travel = 1` — the ribbon reads as a
   // rolling contour rather than a 0.36 s twitch. Spec 009's Now-scale
   // placement is the open question this reopens (its question 13).
@@ -225,7 +228,8 @@ export const DEFAULT_STRING_PARAMS: StringParams = {
   glide: 0.4,
   lock: 0.85,
   bendScale: 1.0,
-  noteAlpha: 0.45,
+  noteAlpha: 0.7,
+  pulseSize: 1.0,
   // Basic Pitch reports a spray of low-confidence notes on percussive
   // material — a click is broadband, so it reads as several simultaneous
   // pitches. Without a floor every drum track gets a haze of spurious bars

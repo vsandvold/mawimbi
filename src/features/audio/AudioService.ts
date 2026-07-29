@@ -14,6 +14,7 @@ import TranscriptionService from '../transcription/TranscriptionService';
 import SpectrogramCache from '../spectrogram/SpectrogramCache';
 import { spectrogramStats } from '../spectrogram/SpectrogramStats';
 import { hasActivePreviewOverlay } from '../spectrogram/previewOverlayRegistry';
+import { getEnvelopes } from '../stringmode/envelopeStore';
 import WorkletAnalyser from '../spectrogram/WorkletAnalyser';
 
 // Reduce scheduling lookahead from the default 0.1s to 0.05s for lower
@@ -87,6 +88,11 @@ class AudioService {
         // comment); the live app context is always a plain 'Context'. e2e's
         // only way to observe this without reaching into Tone internals.
         debugGetGlobalContextName: () => Tone.getContext().name,
+        // SPIKE (mawimbi#593) — String mode's envelopes, so the spike's own
+        // gates (noise floor, tonality) can be measured against real
+        // analysis instead of guessed at. Spec 009's verification design
+        // calls for exactly this bridge in its milestone 1.
+        stringMode: { getEnvelopes },
       };
     }
   }

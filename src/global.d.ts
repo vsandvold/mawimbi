@@ -2,6 +2,7 @@ import type SpectrogramCache from './features/spectrogram/SpectrogramCache';
 import type SpectrogramStats from './features/spectrogram/SpectrogramStats';
 import type PlaybackService from './features/playback/PlaybackService';
 import type { hasActivePreviewOverlay } from './features/spectrogram/previewOverlayRegistry';
+import type { getEnvelopes } from './features/stringmode/envelopeStore';
 
 declare global {
   interface Window {
@@ -54,6 +55,10 @@ declare global {
       previewOverlay: { hasOverlay: typeof hasActivePreviewOverlay };
       sampleRate: number;
       debugGetGlobalContextName: () => string;
+      /** SPIKE (mawimbi#593) — String mode's per-track envelopes. */
+      stringMode: {
+        getEnvelopes: typeof getEnvelopes;
+      };
     };
   }
 }

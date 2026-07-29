@@ -102,6 +102,7 @@ function lineKeyFor(params: StringParams): string {
   return [
     params.noiseFloor,
     params.tonality,
+    params.pitchStability,
     params.transientFast,
     params.transientSlow,
     params.lock,

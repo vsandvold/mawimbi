@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { extractEnvelopes, type TrackEnvelopes } from '../envelopes';
 import {
   buildRibbonLine,
-  lineAnchor,
   makeLineSample,
   sampleRibbonLine,
 } from '../ribbonLine';
@@ -41,34 +40,6 @@ function sampleAt(line: ReturnType<typeof buildRibbonLine>, time: number) {
 
 /** Constant pitch for every frame — isolates the follower from the source. */
 const constantPitch = (midi: number) => () => midi;
-
-describe('lineAnchor', () => {
-  // The owner's requirement, stated twice: the ribbon's ends stay pinned to
-  // the middle of the screen.
-  it('is zero at both ends', () => {
-    expect(lineAnchor(0, 0.06)).toBe(0);
-    expect(lineAnchor(1, 0.06)).toBe(0);
-  });
-
-  it('is flat at 1 across the middle, so the contour is not bent into an arch', () => {
-    for (const u of [0.2, 0.35, 0.5, 0.65, 0.8]) {
-      expect(lineAnchor(u, 0.06)).toBeCloseTo(1, 6);
-    }
-  });
-
-  it('rises monotonically through the shoulder', () => {
-    let previous = -1;
-    for (let u = 0; u <= 0.06; u += 0.005) {
-      const value = lineAnchor(u, 0.06);
-      expect(value).toBeGreaterThanOrEqual(previous);
-      previous = value;
-    }
-  });
-
-  it('widens the shoulder with the edge parameter', () => {
-    expect(lineAnchor(0.1, 0.06)).toBeGreaterThan(lineAnchor(0.1, 0.4));
-  });
-});
 
 describe('buildRibbonLine', () => {
   it('rests at the centre with no presence, width or colour when silent', () => {
@@ -217,5 +188,59 @@ describe('buildRibbonLine', () => {
     const line = buildRibbonLine(empty, constantPitch(60), params());
     expect(line.frameCount).toBe(0);
     expect(sampleAt(line, 0).presence).toBe(0);
+  });
+});
+
+describe('the pitch-stability gate', () => {
+  // Measured through this very pass on `test-click-120bpm.wav`: a click's
+  // loud frames read flatness ~0.03 (median) against a steady tone's
+  // 0.0065, so flatness cannot separate percussive from tonal here. What
+  // separates them is whether the estimate *holds* frame to frame.
+  it('ignores an estimate that jumps, and follows one that holds', () => {
+    const envelopes = gatedEnvelopes(2, 60);
+    const settings = params({ pitchStability: 2 });
+
+    const steady = buildRibbonLine(envelopes, constantPitch(80), settings);
+    // A jumping estimate — a fresh, unrelated "pitch" every frame, which is
+    // what the centroid fallback produces on percussive material.
+    let n = 0;
+    const jumpy = buildRibbonLine(
+      envelopes,
+      () => 40 + ((n++ * 37) % 45),
+      settings,
+    );
+
+    expect(sampleAt(steady, HOP * 60).midi).toBeGreaterThan(75);
+    // The jumpy one never leaves the resting pitch.
+    expect(sampleAt(jumpy, HOP * 60).midi).toBeCloseTo(57, 0);
+  });
+
+  it('opens up when the tolerance is widened', () => {
+    const envelopes = gatedEnvelopes(2, 60);
+    let n = 0;
+    const loose = buildRibbonLine(
+      envelopes,
+      () => 40 + ((n++ * 37) % 45),
+      params({ pitchStability: 12 }),
+    );
+    expect(sampleAt(loose, HOP * 60).midi).not.toBeCloseTo(57, 0);
+  });
+
+  // Height is pitch and only pitch: the release returns the line to the
+  // centre by gliding the *pitch* home, not by scaling the deviation with
+  // amplitude — that coupling made every envelope a vertical gesture.
+  it('glides the pitch home below the noise floor', () => {
+    const frames = [
+      ...Array.from({ length: 40 }, () => frame(30, 255)),
+      ...Array.from({ length: 80 }, SILENT),
+    ];
+    const line = buildRibbonLine(
+      extractEnvelopes(frames, HOP),
+      constantPitch(84),
+      params(),
+    );
+
+    expect(sampleAt(line, HOP * 39).midi).toBeGreaterThan(75);
+    expect(sampleAt(line, HOP * 119).midi).toBeCloseTo(57, 0);
   });
 });
