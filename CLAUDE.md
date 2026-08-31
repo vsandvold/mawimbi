@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Mawimbi is a web-based music creation and audio editing application built with React and TypeScript. Users upload or record audio, visualize tracks as spectrograms (custom CQT analysis + canvas rendering), and manipulate them with playback, recording, mixing, and drag-and-drop reordering. Projects persist to IndexedDB. ML features classify the instrument on each track and transcribe melodies. Deployed on Netlify at https://mawimbi.netlify.app/.
+Mawimbi is a web-based music creation and audio editing application built with React and TypeScript. Users upload or record audio, visualize tracks as spectrograms (custom CQT analysis + canvas rendering), and manipulate them with playback, recording, mixing, and drag-and-drop reordering. Projects persist to IndexedDB. ML features classify the instrument on each track, transcribe melodies, and transcribe lyrics. Deployed on Netlify at https://mawimbi.netlify.app/.
 
 ## Commands
 
@@ -63,7 +63,7 @@ Session defaults: **ground nontrivial work with `/kb read` before planning, and 
 - **Tailwind CSS 4** + **shadcn/ui** components (Radix primitives) in `src/shared/ui/`; dark theme default via `ThemeProvider` (`shared/hooks/useTheme.tsx`); toasts via **sonner** (wrapped by `shared/message.ts`)
 - **React Router 7** (library mode)
 - **@dnd-kit** for drag-and-drop track reordering in the Mixer
-- **ML**: `@huggingface/transformers` + `onnxruntime-web` + `essentia.js` (instrument classification), `@spotify/basic-pitch` (melody transcription) — inference in Web Workers
+- **ML**: `@huggingface/transformers` + `onnxruntime-web` + `essentia.js` (instrument classification), `@spotify/basic-pitch` (melody transcription), `@huggingface/transformers` Whisper (`onnx-community/whisper-base_timestamped`, lyrics transcription) — inference in Web Workers
 - **idb** for IndexedDB persistence
 - **Vitest** + React Testing Library (unit), **Playwright** (e2e)
 - **Node 24 LTS** (see `.nvmrc`), **npm** as package manager
@@ -101,13 +101,13 @@ UI Components & Effects    Read signals for rendering, call service functions fo
 | `audio/` | AudioService (singleton bootstrap), AudioStartup, useAudioService context |
 | `playback/` | PlaybackService (state machine), usePlaybackService |
 | `recording/` | RecordingService, useRecordingService, MicrophoneService, WorkletRecorder, RecordingProcessor, LatencyCompensation |
-| `tracks/` | TrackService, useTrackService, MixerService, focusSignals, LoudnessNormalizer, Track types |
+| `tracks/` | TrackService, useTrackService, MixerService, EffectsChain, echoSync, renderTrackOffline, focusSignals, LoudnessNormalizer, Track types |
 | `spectrogram/` | CQTAnalyser + OfflineAnalyser (offline analysis), LiveCQTAnalyser/WorkletAnalyser/RecordingBuffer (live analysis), SpectrogramCache, tile/canvas/piano-roll renderers, Spectrogram component, worker |
 | `classification/` | InstrumentClassificationService, ModelCache, essentiaLoader, melSpectrogram, resample, worker |
-| `transcription/` | TranscriptionService, MelodyExtractor (basic-pitch), worker |
+| `transcription/` | TranscriptionService (Whisper speech-to-text, powers the Lyrics bottom sheet), MelodyExtractor (basic-pitch melody transcription), worker |
 | `rhythm/` | RhythmAnalyser (essentia `RhythmExtractor2013` + `OnsetRate`), tempo (confidence threshold + predicates), induceBeatGrid, extrapolateTicks, selectRhythmAnchor, anchorBeatTimes, useRhythmAnchor, BeatPulse, RhythmOverlay + rhythmOverlayRenderer |
 | `project/` | ProjectPage, projectPageReducer, projectPageEffects (upload, load, autosave, audio restore), ProjectStorageService (IndexedDB) |
-| `workstation/` | Workstation layout, Toolbar/FloatingToolbar, Timeline, Mixer, Channel, bottom sheets (Mixer/Toolbar/Lyrics), CountIn, scrubber/ (Scrubber, Playhead, PhantomScroller, ScrubberViewport, ZoomControls, runwayProjection), workstationEffects (workflows), workstationSignals (zoom) |
+| `workstation/` | Workstation layout, Toolbar/FloatingToolbar, Timeline, Mixer, Channel, bottom sheets (Mixer/Toolbar/Lyrics/Effects/Recording), CountIn, scrubber/ (Scrubber, Playhead, PhantomScroller, ScrubberViewport, ZoomControls, runwayProjection), workstationEffects (workflows), workstationSignals (zoom) |
 | `home/` | HomePage, ProjectList, StorageUsage |
 | `settings/` | SettingsPage |
 
