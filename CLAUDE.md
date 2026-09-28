@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Mawimbi is a web-based music creation and audio editing application built with React and TypeScript. Users upload or record audio, visualize tracks as spectrograms (custom CQT analysis + canvas rendering), and manipulate them with playback, recording, mixing, and drag-and-drop reordering. Projects persist to IndexedDB. ML features classify the instrument on each track and transcribe melodies. Deployed on Netlify at https://mawimbi.netlify.app/.
+Mawimbi is a web-based music creation and audio editing application built with React and TypeScript. Users upload or record audio, visualize tracks as spectrograms (custom CQT analysis + canvas rendering), and manipulate them with playback, recording, mixing, and drag-and-drop reordering. Projects persist to IndexedDB. ML features classify the instrument on each track, transcribe melodies, and transcribe lyrics. Deployed on Netlify at https://mawimbi.netlify.app/.
 
 ## Commands
 
@@ -57,13 +57,13 @@ Session defaults: **ground nontrivial work with `/kb read` before planning, and 
 
 ## Tech Stack
 
-- **React 19** with TypeScript 5, built with **Vite 7** (path alias `@` → `src/`)
+- **React 19** with TypeScript 5, built with **Vite 8** (path alias `@` → `src/`)
 - **Tone.js 15** for audio engine (playback, transport, channels)
 - **@preact/signals-react** for service-layer state
 - **Tailwind CSS 4** + **shadcn/ui** components (Radix primitives) in `src/shared/ui/`; dark theme default via `ThemeProvider` (`shared/hooks/useTheme.tsx`); toasts via **sonner** (wrapped by `shared/message.ts`)
 - **React Router 7** (library mode)
 - **@dnd-kit** for drag-and-drop track reordering in the Mixer
-- **ML**: `@huggingface/transformers` + `onnxruntime-web` + `essentia.js` (instrument classification), `@spotify/basic-pitch` (melody transcription) — inference in Web Workers
+- **ML**: `@huggingface/transformers` + `onnxruntime-web` + `essentia.js` (instrument classification), `@spotify/basic-pitch` (melody transcription), `@huggingface/transformers` Whisper (`onnx-community/whisper-base_timestamped`, lyrics transcription) — inference in Web Workers
 - **idb** for IndexedDB persistence
 - **Vitest** + React Testing Library (unit), **Playwright** (e2e)
 - **Node 24 LTS** (see `.nvmrc`), **npm** as package manager
@@ -101,13 +101,13 @@ UI Components & Effects    Read signals for rendering, call service functions fo
 | `audio/` | AudioService (singleton bootstrap), AudioStartup, useAudioService context |
 | `playback/` | PlaybackService (state machine), usePlaybackService |
 | `recording/` | RecordingService, useRecordingService, MicrophoneService, WorkletRecorder, RecordingProcessor, LatencyCompensation |
-| `tracks/` | TrackService, useTrackService, MixerService, focusSignals, LoudnessNormalizer, Track types |
+| `tracks/` | TrackService, useTrackService, MixerService, EffectsChain, echoSync, renderTrackOffline, focusSignals, LoudnessNormalizer, Track types |
 | `spectrogram/` | CQTAnalyser + OfflineAnalyser (offline analysis), LiveCQTAnalyser/WorkletAnalyser/RecordingBuffer (live analysis), SpectrogramCache, tile/canvas/piano-roll renderers, Spectrogram component, worker |
 | `classification/` | InstrumentClassificationService, ModelCache, essentiaLoader, melSpectrogram, resample, worker |
-| `transcription/` | TranscriptionService, MelodyExtractor (basic-pitch), worker |
+| `transcription/` | TranscriptionService (Whisper speech-to-text, powers the Lyrics bottom sheet), MelodyExtractor (basic-pitch melody transcription), worker |
 | `rhythm/` | RhythmAnalyser (essentia `RhythmExtractor2013` + `OnsetRate`), tempo (confidence threshold + predicates), induceBeatGrid, extrapolateTicks, selectRhythmAnchor, anchorBeatTimes, useRhythmAnchor, BeatPulse, RhythmOverlay + rhythmOverlayRenderer |
 | `project/` | ProjectPage, projectPageReducer, projectPageEffects (upload, load, autosave, audio restore), ProjectStorageService (IndexedDB) |
-| `workstation/` | Workstation layout, Toolbar/FloatingToolbar, Timeline, Mixer, Channel, bottom sheets (Mixer/Toolbar/Lyrics), CountIn, scrubber/ (Scrubber, Playhead, PhantomScroller, ScrubberViewport, ZoomControls, runwayProjection), workstationEffects (workflows), workstationSignals (zoom) |
+| `workstation/` | Workstation layout, Toolbar/FloatingToolbar, Timeline, Mixer, Channel, bottom sheets (Mixer/Toolbar/Lyrics/Effects/Recording), CountIn, scrubber/ (Scrubber, Playhead, PhantomScroller, ScrubberViewport, ZoomControls, runwayProjection), workstationEffects (workflows), workstationSignals (zoom) |
 | `home/` | HomePage, ProjectList, StorageUsage |
 | `settings/` | SettingsPage |
 
@@ -239,7 +239,7 @@ A control behind an "hidden" overlay class that only sets `pointer-events: none`
 `peekDirty` compares the current inputs against sentinels that only `write` updates, so any state `write` returns early from is a state whose sentinels never advance — and the callback then reports dirty on *every* frame, forever. That doesn't just cost this callback a redraw: `runFrame` treats one dirty callback as a dirty frame, so the whole loop stops idling and every mounted track pays the shared window read (mawimbi#541's entire point). `Spectrogram.tsx` documents one instance (its `noteCount` sentinel starts at `0`, not `-1`, because `writeMelodyOverlay` only runs when there are notes); `RhythmOverlay.tsx` hit the other direction in #569 — its `write` skips everything when there's no confident anchor so an anchorless project costs nothing, which left `peekDirty`'s `NaN`/`null` sentinels permanently mismatched until it gained the same guard. The rule when adding or changing a registration: for every early return in `write`, ask what `peekDirty` reports in that state, and mirror the condition. `e2e/spectrogram-render-loop.spec.ts`'s idle-frame test is the guard (it caught this on CI, not locally) — re-run it after touching any registration's write-side early returns, not just after adding a new registration.
 
 ### A track's IndexedDB stores are one list (`TRACK_DATA_STORES`), not several hand-maintained ones
-`ProjectStorageService.ts`'s `deleteProject` (whole-project delete) and `deleteTrackData` (single-track delete, called from `useDeleteTrackAudio` — most commonly undoing an upload) both delete audioData/spectrograms/melodies/transcriptions from one shared `TRACK_DATA_STORES` array. Before mawimbi#540, `useDeleteTrackAudio` hand-rolled its own four delete calls independently of `deleteProject`'s list and had already drifted from it (missing a `melodies` delete — every single-track deletion orphaned a melody row forever, while whole-project deletion never did). **When adding a new persisted per-track store, add it to `TRACK_DATA_STORES` — don't add a standalone delete call at only one of the two call sites**, or the same drift recurs.
+`ProjectStorageService.ts`'s `deleteProject` (whole-project delete) and `deleteTrackData` (single-track delete, called from `useDeleteTrackAudio` — most commonly undoing an upload) both delete audioData/spectrograms/melodies/rhythms/transcriptions from one shared `TRACK_DATA_STORES` array. Before mawimbi#540, `useDeleteTrackAudio` hand-rolled its own four delete calls independently of `deleteProject`'s list and had already drifted from it (missing a `melodies` delete — every single-track deletion orphaned a melody row forever, while whole-project deletion never did). **When adding a new persisted per-track store, add it to `TRACK_DATA_STORES` — don't add a standalone delete call at only one of the two call sites**, or the same drift recurs.
 
 ### A restore path must read each persisted row independently — don't nest a small row's read inside a large one's presence
 `useSpectrogramCache`'s `loadOrAnalyse` loads a track's spectrogram, melody, and rhythm rows in one `Promise.all`, but originally only *used* `storedRhythm` inside the `if (storedSpectrogram)` branch — so whenever the spectrogram row was missing, a perfectly good rhythm row was discarded and the multi-second essentia pass re-ran on every load, forever, with nothing anywhere reporting a problem. The rows aren't written together: each is a separate fire-and-forget promise, and the megabyte-scale spectrogram write is the one that realistically fails (quota) while the kilobyte rhythm row persists fine. Fixed in mawimbi#568 by hoisting the decision into a `restoreOrExtractRhythm()` called from both branches (it must run *after* the track's cache entry exists — `setRhythm` writes onto it). `storedMelody` had the identical nested shape — re-running Basic Pitch (~10s of TF.js on a 2-second fixture, on the *shared* spectrogram worker, so it also delayed every analysis queued behind it) on every load — and was fixed the same way in mawimbi#579 with a `restoreOrExtractMelody()`; both now share a `refreshEntry()` closure, since `setMelody`/`setRhythm` mutate the cached entry in place and React needs a fresh object reference to re-render. Any new per-track store added to `TRACK_DATA_STORES` needs its own independent read for the same reason — the restore path is the second half of adding a store, not a follow-up.
