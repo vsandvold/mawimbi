@@ -2,7 +2,7 @@
 
 **Status:** Draft
 **Date:** 2026-07-27
-**Issues:** (filled by /spec-to-issues)
+**Issues:** (filled by /spec-to-issues). Pre-milestone spike: #593 (throwaway vertical slice; PR #594 open) — not a milestone, so Status stays Draft.
 
 > **Path note.** The originating prompt asked for `docs/ribbon-visualization.md`. This lives in `specs/` instead: `docs/` is the published GitHub Pages site (`docs/_config.yml`, `docs/index.md`), and `/spec` was invoked, which means the harness contract applies — a numbered spec with a status line, a verification design, and milestones that `/spec-to-issues` can break into tracked issues (`specs/README.md`). Nothing else about the request changed.
 

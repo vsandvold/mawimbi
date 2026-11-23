@@ -57,7 +57,7 @@ Session defaults: **ground nontrivial work with `/kb read` before planning, and 
 
 ## Tech Stack
 
-- **React 19** with TypeScript 5, built with **Vite 7** (path alias `@` → `src/`)
+- **React 19** with TypeScript 5, built with **Vite 8** (path alias `@` → `src/`)
 - **Tone.js 15** for audio engine (playback, transport, channels)
 - **@preact/signals-react** for service-layer state
 - **Tailwind CSS 4** + **shadcn/ui** components (Radix primitives) in `src/shared/ui/`; dark theme default via `ThemeProvider` (`shared/hooks/useTheme.tsx`); toasts via **sonner** (wrapped by `shared/message.ts`)
