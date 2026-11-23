@@ -5,6 +5,7 @@ Observed incidents behind the remote-environment guidance in CLAUDE.md (the "If 
 ## 2026-03 — @playwright/test must match the environment's cached Chromium
 
 - Bumping `@playwright/test` 1.56→1.58 (PR #398) broke every e2e run with "Executable doesn't exist": the remote environment caches Chromium revision 1194 (the 1.56 build), while 1.58 expects revision 1208 and cannot download it. PR #416 downgraded and pinned `^1.56.1`, still current. A dependabot-style bump of `@playwright/test` alone will break e2e until the environment's cached browser moves — check the cached revision before accepting one.
+- **2026-11-23: the pin now also constrains the CI runner OS.** GitHub's `ubuntu-latest` moved to Ubuntu 26.04, and `npx playwright install --with-deps chromium` on 1.56.1 fails there with "Playwright does not support chromium on ubuntu26.04-x64" — so every PR's e2e job went red before running a test (first seen on PR #612). The `e2e` job in `.github/workflows/ci.yml` is pinned to `ubuntu-24.04`. Unpinning it requires the same Playwright upgrade this entry blocks, so whoever moves the Playwright pin should move the runner pin with it — and check whether GitHub has retired the 24.04 image first.
 
 ## 2026-07-21 — `/code-review` is gated to explicit user invocation, not "unavailable"; `gh` binary exists but every call 403s
 
